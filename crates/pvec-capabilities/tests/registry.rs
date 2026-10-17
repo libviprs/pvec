@@ -17,6 +17,7 @@ fn cap(id: u32, name: &'static str) -> Capability {
         gis: GisBehaviour::NotApplicable,
         min_reader: Version::new(1, 0, 0),
         restriction: "test entry",
+        adr: None,
     }
 }
 
