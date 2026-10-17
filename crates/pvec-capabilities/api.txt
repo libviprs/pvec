@@ -1,3 +1,45 @@
+extension.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum EvidenceClass
+extension.rs: EvidenceClass::KnownTruthExact
+extension.rs: EvidenceClass::DualOracleEquivalent
+extension.rs: EvidenceClass::RealWorldDifferential
+extension.rs: EvidenceClass::Quarantined
+extension.rs: EvidenceClass::parse(text: &str) -> Option<EvidenceClass>
+extension.rs: EvidenceClass::name(self) -> &'static str
+extension.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum MissingArtifact
+extension.rs: MissingArtifact::Part42Argument
+extension.rs: MissingArtifact::MathematicalDefinition
+extension.rs: MissingArtifact::BoundsAndEvaluation
+extension.rs: MissingArtifact::TessellationRules
+extension.rs: MissingArtifact::StepBehaviour
+extension.rs: MissingArtifact::GisBehaviour
+extension.rs: MissingArtifact::Fixtures
+extension.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub enum ProposalProblem
+extension.rs: ProposalProblem::Missing(MissingArtifact)
+extension.rs: ProposalProblem::UnknownFixtureClass(String)
+extension.rs: ProposalProblem::OnlyQuarantinedFixtures
+extension.rs: ProposalProblem::ExactStepWithoutRoundTrip
+extension.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ExtensionFixture
+extension.rs: ExtensionFixture.name: String
+extension.rs: ExtensionFixture.class: EvidenceClass
+extension.rs: ExtensionFixture.round_trip_passing: bool
+extension.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ProposalSummary
+extension.rs: ProposalSummary.step_exact: bool
+extension.rs: ProposalSummary.gis_exact: bool
+extension.rs: ProposalSummary.fixtures: Vec<ExtensionFixture>
+extension.rs: pub fn check_proposal(text: &str) -> Result<ProposalSummary, Vec<ProposalProblem>>
+extension.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ExtensionError
+extension.rs: ExtensionError::NotAnExtension
+extension.rs: ExtensionError::IdNotNext { expected: CapabilityId }
+extension.rs: ExtensionError::DuplicateName(&'static str)
+extension.rs: ExtensionError::ExtensionNamesConstruct(&'static str)
+extension.rs: ExtensionError::RequiredWithoutAdr(&'static str)
+extension.rs: ExtensionError::Proposal(Vec<ProposalProblem>)
+extension.rs: ExtensionError::StepClaimMismatch(&'static str)
+extension.rs: impl fmt::Display for ExtensionError
+extension.rs: impl std::error::Error for ExtensionError {}
+extension.rs: Registry::next_id(&self) -> CapabilityId
+extension.rs: Registry::register_extension(&mut self, capability: Capability, proposal: &str) -> Result<ProposalSummary, ExtensionError>
+lib.rs: pub use extension::{ EvidenceClass, ExtensionError, ExtensionFixture, MissingArtifact, ProposalProblem, ProposalSummary, check_proposal, }
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct CapabilityId(u32)
 lib.rs: CapabilityId::new(id: u32) -> CapabilityId
 lib.rs: CapabilityId::get(self) -> u32
@@ -25,6 +67,7 @@ lib.rs: impl fmt::Display for Version
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Class
 lib.rs: Class::Geometry
 lib.rs: Class::Component
+lib.rs: Class::Extension
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Requirement
 lib.rs: Requirement::Required
 lib.rs: Requirement::Optional
@@ -48,6 +91,7 @@ lib.rs: Capability.step: StepBehaviour
 lib.rs: Capability.gis: GisBehaviour
 lib.rs: Capability.min_reader: Version
 lib.rs: Capability.restriction: &'static str
+lib.rs: Capability.adr: Option<&'static str>
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Retired
 lib.rs: Retired.id: CapabilityId
 lib.rs: Retired.name: &'static str
@@ -68,6 +112,8 @@ lib.rs: RegistryError::NoProfileSection { name: &'static str, section: u32 }
 lib.rs: RegistryError::ConstructNotInSection { name: &'static str, construct: &'static str, section: u32 }
 lib.rs: RegistryError::AmbiguousConstruct { construct: &'static str, first: &'static str, second: &'static str }
 lib.rs: RegistryError::ComponentNamesConstruct(&'static str)
+lib.rs: RegistryError::ExtensionNamesConstruct(&'static str)
+lib.rs: RegistryError::ExtensionRequiredWithoutAdr(&'static str)
 lib.rs: impl fmt::Display for RegistryError
 lib.rs: impl std::error::Error for RegistryError {}
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Reader
@@ -86,6 +132,7 @@ lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Negoti
 lib.rs: NegotiationError::ReaderTooOld { file_requires: Version, reader: Version }
 lib.rs: NegotiationError::MissingRequired { id: CapabilityId, name: Option<&'static str> }
 lib.rs: NegotiationError::ComponentDeclaredRequired(CapabilityId)
+lib.rs: NegotiationError::ExtensionDeclaredRequired(CapabilityId)
 lib.rs: impl fmt::Display for NegotiationError
 lib.rs: impl std::error::Error for NegotiationError {}
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Registry
