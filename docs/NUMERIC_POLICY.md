@@ -232,9 +232,10 @@ checks that each rule it names has a section in this file. Two meta-tests guard 
 both sides: widening any single tolerance by a factor of ten turns at least one case red, and so
 does narrowing it. The evaluator probes (near-degenerate arcs, collinear rational hulls,
 full-multiplicity interior knots, huge and mixed-magnitude coordinates, weights near zero,
-denormal parameters, inverted and zero-length trims) are written as data with known truth before
-any evaluator exists, so they are red until the geometry crate (P3.1) lands, and the geometry spike
-(P1.3) runs them against its prototype.
+denormal parameters, inverted and zero-length trims) were written as data with known truth before
+any evaluator existed, so they were red until the geometry crate landed (P3.1). They now run against
+`pvec-geometry` in the ordinary test run, and the geometry spike (P1.3) ran them against its
+prototype.
 
 A repository check fails if a tolerance-shaped numeric literal (an exponent-form float, or
 `EPSILON`) appears in any Rust file outside `crates/pvec-numeric/src/policy.rs`.

@@ -53,7 +53,8 @@ fn the_domain_of_each_kind_follows_the_profile() {
 #[test]
 fn a_parameter_outside_the_domain_is_refused_and_a_bad_parameter_is_np01() {
     let by_name: std::collections::HashMap<_, _> = samples().into_iter().collect();
-    for n in ["polyline", "composite", "bezier", "bspline", "rational-bspline", "trimmed-arc", "trimmed-line"] {
+    for n in ["polyline", "composite", "bezier", "bspline", "rational-bspline", "trimmed-arc", "trimmed-line"]
+    {
         let c = &by_name[n];
         let d = c.domain();
         assert_eq!(c.eval(d.hi() + d.width()).unwrap_err().rule(), "NP-13", "{n}");
@@ -75,16 +76,16 @@ fn derivatives_match_central_differences() {
         };
         for t in ts {
             let h = d.width().min(100.0) / 1_000_000.0; // finite-difference step, not a tolerance
-            let (Ok(a), Ok(b)) = (c.eval(t - h), c.eval(t + h)) else { continue };
+            let (a, b) = (c.eval(t - h).unwrap(), c.eval(t + h).unwrap());
             let d1 = c.derivative(t, 1, Side::Right).unwrap();
             let num = (b.x - a.x, b.y - a.y);
             let num = (num.0 / (2.0 * h), num.1 / (2.0 * h));
             let scale = d1.x.abs().max(d1.y.abs()).max(1.0);
-            let agrees = (d1.x - num.0).abs() <= FD_LOOSE * scale && (d1.y - num.1).abs() <= FD_LOOSE * scale;
-            if !agrees {
-                // A break inside the stencil is legitimate for polylines and composites only.
-                assert!(matches!(name, "polyline" | "composite"), "{name} t={t}: analytic {d1:?} vs {num:?}");
-            }
+            // None of the sampled parameters sits on a knot, vertex or joint, so no stencil straddles a break.
+            assert!(
+                (d1.x - num.0).abs() <= FD_LOOSE * scale && (d1.y - num.1).abs() <= FD_LOOSE * scale,
+                "{name} t={t}: analytic {d1:?} vs numeric {num:?}"
+            );
         }
     }
 }
@@ -213,7 +214,11 @@ fn transform_is_exact_on_every_kind_under_every_map() {
             for t in params(&curve, 40) {
                 let p = curve.eval(t).unwrap();
                 let want = m.apply_point(p);
-                let t2 = pm.apply(t).clamp(nd.lo(), nd.hi());
+                // A conic is periodic and a line is unbounded: the mapped parameter is used as it is.
+                let t2 = match curve.kind() {
+                    CurveKind::Circle | CurveKind::Ellipse | CurveKind::Line => pm.apply(t),
+                    _ => pm.apply(t).clamp(nd.lo(), nd.hi()),
+                };
                 let got = img.eval(t2).unwrap_or_else(|e| panic!("{cn} under {mn}: eval({t2}) {e:?}"));
                 let scale = want.x.abs().max(want.y.abs()).max(1.0);
                 assert!(near(got, want, scale), "{cn} under {mn} at t={t}: {got:?} vs {want:?}");
@@ -292,7 +297,15 @@ fn a_rational_circle_matches_the_circle() {
     let w = 0.5f64.sqrt();
     let r = 2.0;
     let cps = vec![
-        pt(r, 0.), pt(r, r), pt(0., r), pt(-r, r), pt(-r, 0.), pt(-r, -r), pt(0., -r), pt(r, -r), pt(r, 0.),
+        pt(r, 0.),
+        pt(r, r),
+        pt(0., r),
+        pt(-r, r),
+        pt(-r, 0.),
+        pt(-r, -r),
+        pt(0., -r),
+        pt(r, -r),
+        pt(r, 0.),
     ];
     let weights = vec![1., w, 1., w, 1., w, 1., w, 1.];
     let knots = vec![0., 0., 0., 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1., 1., 1.];
@@ -334,7 +347,9 @@ fn full_multiplicity_knots_give_distinct_one_sided_derivatives() {
 fn trimmed_ends_are_the_basis_points_at_the_trim_parameters() {
     let c = Circle::new(place(1.0, -2.0, 1.0, 1.0), 3.0).unwrap();
     let basis = Curve::Circle(c);
-    for (t1, t2, sense) in [(0.3, 2.9, true), (4.0, 1.0, false), (5.5, 1.0, true), (-1.0, 1.0, true), (1.0, -3.0, false)] {
+    for (t1, t2, sense) in
+        [(0.3, 2.9, true), (4.0, 1.0, false), (5.5, 1.0, true), (-1.0, 1.0, true), (1.0, -3.0, false)]
+    {
         let tc = Trimmed::new(basis.clone(), t1, t2, sense).unwrap();
         let d = tc.domain();
         assert!(near(tc.eval(d.lo()).unwrap(), basis.eval(t1).unwrap(), 3.0), "start {t1} {t2} {sense}");

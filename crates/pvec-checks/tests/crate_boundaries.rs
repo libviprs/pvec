@@ -96,6 +96,9 @@ fn the_public_api_matches_the_committed_snapshot_and_names_no_wire_type() {
         let snap = public_api_snapshot(&repo_root().join(format!("crates/{name}/src")));
         assert!(banned_wire_names(&snap).is_empty(), "{name}: wire type in the public API:\n{snap}");
         let path = repo_root().join(format!("crates/{name}/api.txt"));
+        if std::env::var_os("PVEC_BLESS_API").is_some() {
+            fs::write(&path, &snap).unwrap();
+        }
         let committed = fs::read_to_string(&path).unwrap_or_default();
         assert!(
             committed == snap,

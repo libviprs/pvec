@@ -26,10 +26,9 @@ fn build(c: &ProbeCurve) -> Result<Curve, GeometryError> {
         ProbeCurve::Line { origin, dir } => {
             Curve::Line(Line::new(p2(*origin), Vector2::new(dir[0], dir[1]))?)
         }
-        ProbeCurve::Circle { center, radius } => Curve::Circle(Circle::new(
-            Placement2::new(p2(*center), Vector2::new(1.0, 0.0))?,
-            *radius,
-        )?),
+        ProbeCurve::Circle { center, radius } => {
+            Curve::Circle(Circle::new(Placement2::new(p2(*center), Vector2::new(1.0, 0.0))?, *radius)?)
+        }
         ProbeCurve::Trimmed { basis, t1, t2, sense } => {
             Curve::Trimmed(Trimmed::new(build(basis)?, *t1, *t2, *sense)?)
         }

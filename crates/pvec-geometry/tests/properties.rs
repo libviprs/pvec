@@ -112,7 +112,10 @@ fn spline_points_stay_inside_the_control_hull_box_and_the_reported_bounds() {
         for i in 0..=40 {
             let q = curve.eval(i as f64 / 40.0).unwrap();
             assert!(
-                q.x >= b.min().x - slack && q.x <= b.max().x + slack && q.y >= b.min().y - slack && q.y <= b.max().y + slack,
+                q.x >= b.min().x - slack
+                    && q.x <= b.max().x + slack
+                    && q.y >= b.min().y - slack
+                    && q.y <= b.max().y + slack,
                 "seed {:#x} case {case}",
                 SEED + 2
             );
@@ -153,8 +156,16 @@ fn trimmed_arcs_start_and_end_at_the_basis_points_for_random_trims() {
         accepted += 1;
         let d = tc.domain();
         let scale = 10.0;
-        assert!(near(tc.eval(d.lo()).unwrap(), basis.eval(t1).unwrap(), scale), "seed {:#x} case {case}", SEED + 4);
-        assert!(near(tc.eval(d.hi()).unwrap(), basis.eval(t2).unwrap(), scale), "seed {:#x} case {case}", SEED + 4);
+        assert!(
+            near(tc.eval(d.lo()).unwrap(), basis.eval(t1).unwrap(), scale),
+            "seed {:#x} case {case}",
+            SEED + 4
+        );
+        assert!(
+            near(tc.eval(d.hi()).unwrap(), basis.eval(t2).unwrap(), scale),
+            "seed {:#x} case {case}",
+            SEED + 4
+        );
         // the normalised form survives a rebuild bit for bit
         let again = Trimmed::from_normalised(basis, tc.trim()).unwrap();
         assert_eq!(again.trim().start.to_bits(), tc.trim().start.to_bits());
@@ -210,7 +221,11 @@ fn arbitrary_bit_patterns_are_either_refused_or_produce_a_curve_that_evaluates_w
         if let Ok(z) = Bezier::new(vec![Point2::new(a, b), Point2::new(c, d), Point2::new(b, c)]) {
             made.push(Curve::Bezier(z));
         }
-        if let Ok(s) = BSpline::new(2, vec![Point2::new(a, b), Point2::new(c, d), Point2::new(b, c)], vec![a, b, c, d, a, b]) {
+        if let Ok(s) = BSpline::new(
+            2,
+            vec![Point2::new(a, b), Point2::new(c, d), Point2::new(b, c)],
+            vec![a, b, c, d, a, b],
+        ) {
             made.push(Curve::BSpline(s));
         }
         if let Ok(s) = RationalBSpline::new(
@@ -222,7 +237,7 @@ fn arbitrary_bit_patterns_are_either_refused_or_produce_a_curve_that_evaluates_w
             made.push(Curve::RationalBSpline(s));
         }
         if let Some(Curve::Circle(ci)) = made.iter().find(|m| m.kind() == CurveKind::Circle) {
-            if let Ok(t) = Trimmed::new(Curve::Circle(ci.clone()), a, b, c > 0.0) {
+            if let Ok(t) = Trimmed::new(Curve::Circle(*ci), a, b, c > 0.0) {
                 made.push(Curve::Trimmed(t));
             }
         }

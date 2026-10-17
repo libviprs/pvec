@@ -5,7 +5,9 @@
 mod common;
 use common::*;
 use pvec_geometry::*;
-use pvec_numeric::{MAX_ABS_COORD, MAX_COMPOSITE_SEGMENTS, MAX_CONTROL_POINTS, MAX_DEGREE, MAX_POLYLINE_VERTICES};
+use pvec_numeric::{
+    MAX_ABS_COORD, MAX_COMPOSITE_SEGMENTS, MAX_CONTROL_POINTS, MAX_DEGREE, MAX_POLYLINE_VERTICES,
+};
 
 fn rule_of<T>(r: Result<T, GeometryError>) -> &'static str {
     match r {
@@ -25,19 +27,26 @@ fn a_non_finite_coordinate_is_refused_by_every_constructor_with_np01() {
         assert_eq!(rule_of(Ellipse::new(place(0., 0., 1., 0.), 2.0, bad)), "NP-01");
         assert_eq!(rule_of(Polyline::new(vec![pt(0., 0.), pt(bad, 1.)])), "NP-01");
         assert_eq!(rule_of(Bezier::new(vec![pt(0., 0.), pt(1., bad)])), "NP-01");
+        assert_eq!(rule_of(BSpline::new(1, vec![pt(0., 0.), pt(bad, 1.)], vec![0., 0., 1., 1.])), "NP-01");
+        assert_eq!(rule_of(BSpline::new(1, vec![pt(0., 0.), pt(1., 1.)], vec![0., bad, 1., 1.])), "NP-01");
         assert_eq!(
-            rule_of(BSpline::new(1, vec![pt(0., 0.), pt(bad, 1.)], vec![0., 0., 1., 1.])),
+            rule_of(RationalBSpline::new(
+                1,
+                vec![pt(0., 0.), pt(1., 1.)],
+                vec![0., 0., 1., 1.],
+                vec![1., bad]
+            )),
             "NP-01"
         );
         assert_eq!(
-            rule_of(BSpline::new(1, vec![pt(0., 0.), pt(1., 1.)], vec![0., bad, 1., 1.])),
+            rule_of(Trimmed::new(
+                Curve::Circle(Circle::new(place(0., 0., 1., 0.), 1.0).unwrap()),
+                0.0,
+                bad,
+                true
+            )),
             "NP-01"
         );
-        assert_eq!(
-            rule_of(RationalBSpline::new(1, vec![pt(0., 0.), pt(1., 1.)], vec![0., 0., 1., 1.], vec![1., bad])),
-            "NP-01"
-        );
-        assert_eq!(rule_of(Trimmed::new(Curve::Circle(Circle::new(place(0., 0., 1., 0.), 1.0).unwrap()), 0.0, bad, true)), "NP-01");
         assert_eq!(rule_of(Transform2::new([1., 0., 0., 1., bad, 0.])), "NP-01");
     }
 }
@@ -119,7 +128,9 @@ fn degenerate_shapes_are_refused_with_the_rule_that_defines_them() {
     // NP-08: all control points coincide
     assert_eq!(rule_of(Bezier::new(vec![pt(2., 2.), pt(2., 2.), pt(2., 2.)])), "NP-08");
     // NP-15: weights
-    let w = |ws: Vec<f64>| RationalBSpline::new(2, vec![pt(0., 0.), pt(1., 5.), pt(2., 0.)], vec![0., 0., 0., 1., 1., 1.], ws);
+    let w = |ws: Vec<f64>| {
+        RationalBSpline::new(2, vec![pt(0., 0.), pt(1., 5.), pt(2., 0.)], vec![0., 0., 0., 1., 1., 1.], ws)
+    };
     assert_eq!(rule_of(w(vec![1., 0.0, 1.])), "NP-15");
     assert_eq!(rule_of(w(vec![1., -1.0, 1.])), "NP-15");
     assert_eq!(rule_of(w(vec![1., P.weight_floor * 0.5, 1.])), "NP-15");
@@ -147,7 +158,10 @@ fn only_the_profile_bases_can_be_trimmed_or_composed() {
     let comp = Curve::Composite(Composite::new(vec![poly.clone()]).unwrap());
     assert_eq!(rule_of(Trimmed::new(poly, 0.0, 1.0, true)), "PROFILE-8");
     assert_eq!(rule_of(Trimmed::new(comp, 0.0, 1.0, true)), "PROFILE-8");
-    let arc = Curve::Trimmed(Trimmed::new(Curve::Circle(Circle::new(place(0., 0., 1., 0.), 1.0).unwrap()), 0.0, 1.0, true).unwrap());
+    let arc = Curve::Trimmed(
+        Trimmed::new(Curve::Circle(Circle::new(place(0., 0., 1., 0.), 1.0).unwrap()), 0.0, 1.0, true)
+            .unwrap(),
+    );
     assert_eq!(rule_of(Trimmed::new(arc.clone(), 0.0, 0.5, true)), "PROFILE-8");
     // a bare circle, a line and a nested composite are not segments (profile section 9)
     let circle = Curve::Circle(Circle::new(place(0., 0., 1., 0.), 1.0).unwrap());
@@ -166,7 +180,12 @@ fn composite_segments_must_join_np17_and_a_closed_claim_must_hold_np20() {
     assert!(!open.is_declared_closed());
     assert_eq!(rule_of(open.declare_closed()), "NP-20");
     let loop_back = Curve::Polyline(Polyline::new(vec![pt(1., 1.), pt(0., 0.)]).unwrap());
-    let closed = Composite::new(vec![a, Curve::Polyline(Polyline::new(vec![pt(1., 0.), pt(1., 1.)]).unwrap()), loop_back]).unwrap();
+    let closed = Composite::new(vec![
+        a,
+        Curve::Polyline(Polyline::new(vec![pt(1., 0.), pt(1., 1.)]).unwrap()),
+        loop_back,
+    ])
+    .unwrap();
     assert!(closed.declare_closed().unwrap().is_declared_closed());
 }
 
@@ -194,13 +213,15 @@ fn trimmed_from_normalised_parts_validates_and_keeps_them_bit_exact() {
 fn error_messages_name_the_rule() {
     let e = Circle::new(place(0., 0., 1., 0.), 0.0).unwrap_err();
     assert!(e.to_string().contains("NP-07"), "{e}");
-    let e = Trimmed::new(Curve::Polyline(Polyline::new(vec![pt(0., 0.), pt(1., 0.)]).unwrap()), 0., 1., true).unwrap_err();
+    let e = Trimmed::new(Curve::Polyline(Polyline::new(vec![pt(0., 0.), pt(1., 0.)]).unwrap()), 0., 1., true)
+        .unwrap_err();
     assert!(e.to_string().contains("PROFILE-8"), "{e}");
 }
 
 #[test]
 fn closed_flag_on_splines_is_checked_not_trusted() {
-    let open = BSpline::new(2, vec![pt(0., 0.), pt(1., 1.), pt(2., 0.)], vec![0., 0., 0., 1., 1., 1.]).unwrap();
+    let open =
+        BSpline::new(2, vec![pt(0., 0.), pt(1., 1.), pt(2., 0.)], vec![0., 0., 0., 1., 1., 1.]).unwrap();
     assert_eq!(rule_of(open.declare_closed()), "NP-20");
     let ring = Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(2., 2.), pt(0., 0.)]).unwrap();
     assert!(ring.declare_closed().unwrap().is_declared_closed());

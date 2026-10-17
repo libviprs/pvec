@@ -55,9 +55,10 @@ impl Rng {
 pub fn samples() -> Vec<(&'static str, Curve)> {
     let circle = Circle::new(place(1.0, -2.0, 1.0, 1.0), 3.0).unwrap();
     let ellipse = Ellipse::new(place(0.5, 0.5, 2.0, 1.0), 4.0, 1.5).unwrap();
-    let arc = Trimmed::new(Curve::Circle(circle.clone()), 0.3, 2.9, true).unwrap();
-    let arc_rev = Trimmed::new(Curve::Ellipse(ellipse.clone()), 4.0, 1.0, false).unwrap();
-    let seg = Trimmed::new(Curve::Line(Line::new(pt(0.0, 0.0), v(3.0, 4.0)).unwrap()), 0.0, 5.0, true).unwrap();
+    let arc = Trimmed::new(Curve::Circle(circle), 0.3, 2.9, true).unwrap();
+    let arc_rev = Trimmed::new(Curve::Ellipse(ellipse), 4.0, 1.0, false).unwrap();
+    let seg =
+        Trimmed::new(Curve::Line(Line::new(pt(0.0, 0.0), v(3.0, 4.0)).unwrap()), 0.0, 5.0, true).unwrap();
     let bez = Bezier::new(vec![pt(0., 0.), pt(1., 3.), pt(4., 3.), pt(5., 0.)]).unwrap();
     let bsp = BSpline::new(
         3,
