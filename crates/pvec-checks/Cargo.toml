@@ -1,0 +1,12 @@
+[package]
+name = "pvec-checks"
+version = "0.0.0"
+description = "Repository-wide text checks that gate the PVec specification documents"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
