@@ -1,0 +1,18 @@
+# P1.6 spike: spatial index and payload ownership models, judged on total viewport I/O.
+# Pure simulation over the shared fixtures; no file format is written. Own workspace.
+[workspace]
+
+[package]
+name = "spatial-index-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+pvec-fixtures = { path = "../fixtures" }
+libc = "0.2"
+
+[[bin]]
+name = "measure"
+path = "src/main.rs"

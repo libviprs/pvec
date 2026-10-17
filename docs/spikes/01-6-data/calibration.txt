@@ -1,0 +1,17 @@
+x86_64
+| fixture | kind | model bytes/entity | layout B on million | difference |
+|---|---|---|---|---|
+| straddler | line | 37.0 | 36.7 | +0.8% |
+| straddler | circle | 29.0 | 28.7 | +1.0% |
+| straddler | arc | 45.0 | 44.7 | +0.7% |
+| straddler | ellipse | 61.0 | 60.7 | +0.5% |
+| straddler | polyline | 125.3 | 128.7 | -2.7% |
+| straddler | spline | 241.3 | 237.9 | +1.4% |
+| straddler | composite | 221.7 | 212.3 | +4.4% |
+| million | line | 37.0 | 36.7 | +0.8% |
+| million | circle | 29.0 | 28.7 | +1.0% |
+| million | arc | 45.0 | 44.7 | +0.7% |
+| million | ellipse | 61.0 | 60.7 | +0.5% |
+| million | polyline | 124.9 | 128.7 | -2.9% |
+| million | spline | 240.2 | 237.9 | +1.0% |
+| million | composite | 220.6 | 212.3 | +3.9% |
