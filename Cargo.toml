@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = ["crates/pvec-checks"]
+# Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),
+# so they are separate workspaces and never enter this lockfile.
+exclude = ["spikes"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
