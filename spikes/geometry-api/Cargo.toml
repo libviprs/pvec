@@ -1,0 +1,24 @@
+# Throwaway prototype for P1.3. Its own workspace so nothing here enters the repository lockfile.
+[workspace]
+
+[package]
+name = "geometry-api-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+pvec-numeric = { path = "../../crates/pvec-numeric" }
+
+[profile.release]
+debug = 1
+
+# Not under src/bin: the shared push wrapper excludes directories named bin.
+[[bin]]
+name = "accuracy"
+path = "src/measure/accuracy.rs"
+
+[[bin]]
+name = "bench"
+path = "src/measure/bench.rs"

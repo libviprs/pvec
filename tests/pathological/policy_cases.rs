@@ -237,6 +237,23 @@ pub fn cases() -> Vec<PolicyCase> {
             },
         },
         PolicyCase {
+            id: "short-line-trim",
+            rule: "NP-12",
+            what: "a trim of a line is judged by its own length, not by the width of an unbounded domain",
+            run: |p| {
+                p.normalise_unbounded_trim(0.0, 5.0, true, 0.0).is_ok_and(|t| t.span == 5.0)
+                    && p.normalise_unbounded_trim(0.0, V1.abs * 2.0, true, 0.0).is_ok()
+                    && rejects(
+                        p.normalise_unbounded_trim(0.0, V1.abs * 0.5, true, 0.0),
+                        NumericError::CollapsedTrim,
+                    )
+                    && rejects(
+                        p.normalise_unbounded_trim(2.0, 1.0, true, 0.0),
+                        NumericError::InconsistentSense,
+                    )
+            },
+        },
+        PolicyCase {
             id: "inverted-trim",
             rule: "NP-12",
             what: "trim1 after trim2 with sense true on an open basis is inconsistent",

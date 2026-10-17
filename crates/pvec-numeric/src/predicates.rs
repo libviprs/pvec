@@ -240,6 +240,21 @@ impl Policy {
         Ok(Trim { start: a, span: b - a, reversed: !sense })
     }
 
+    /// NP-12 for an unbounded basis (a line, whose parameter is arc length): there is no domain
+    /// width to be relative to, so a trim is collapsed when its length is degenerate under NP-06.
+    /// `mag` is the magnitude of the line's origin; the trim parameters add to it.
+    pub fn normalise_unbounded_trim(&self, t1: f64, t2: f64, sense: bool, mag: f64) -> Result<Trim, E> {
+        let (t1, t2) = (check_value(t1)?, check_value(t2)?);
+        let len = (t2 - t1).abs();
+        if self.degenerate_length(len, mag.max(t1.abs()).max(t2.abs())) {
+            return Err(E::CollapsedTrim);
+        }
+        if (t1 < t2) != sense {
+            return Err(E::InconsistentSense);
+        }
+        Ok(Trim { start: t1.min(t2), span: len, reversed: !sense })
+    }
+
     /// NP-13: maps `t` in `[lo, hi]` onto `[0, 1]`.
     pub fn unit_param(&self, t: f64, lo: f64, hi: f64) -> Result<f64, E> {
         let width = hi - lo;
