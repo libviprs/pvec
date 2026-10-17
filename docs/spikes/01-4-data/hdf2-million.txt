@@ -1,0 +1,48 @@
+x86_64
+load average at start: 212.72 224.53 251.14 9/1961 958
+
+## million h1 contiguous
+| /work/spikes/step-hdf/out/million-h1-contiguous.h5 | 1000000 entities | wall 0.124 s, cpu 0.124 s | 124 ns/entity cpu (124 wall) | peak RSS 402248 KiB (start 8756 KiB) | checksum 66769099fb7b0ea0 |
+| million | h1 | 599431 line segments | 48.0 ms | 80.1 ns/segment | worst deviation 1.137e-13 | count ok: true |
+
+## million h2 contiguous
+| /work/spikes/step-hdf/out/million-h2-contiguous.h5 | 1000000 entities | wall 0.085 s, cpu 0.085 s | 85 ns/entity cpu (85 wall) | peak RSS 380244 KiB (start 8724 KiB) | checksum 79a8dfecc088fc8a |
+| million | h2 | 599431 line segments | 16.1 ms | 26.9 ns/segment | worst deviation 0.000e0 | count ok: true |
+
+## million h1 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/million-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000000 entities | wall 0.379 s, cpu 0.379 s | 379 ns/entity cpu (379 wall) | peak RSS 402564 KiB (start 8740 KiB) | checksum 66769099fb7b0ea0 |
+| million | h1 | 599431 line segments | 291.5 ms | 486.4 ns/segment | worst deviation 1.137e-13 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 999990 | 664 | 89753461 | 1 | 89602621 | 1 | 89602621 | 1392.6 | 1391.4 |
+| zoom in (1/4 x 1/4) | 63045 | 222 | 45862808 | 39 | 45857616 | 31 | 46381904 | 1472.1 | 414.0 |
+| pan right | 63001 | 226 | 45993880 | 39 | 45988688 | 29 | 46644048 | 431.1 | 394.2 |
+| pan right | 63036 | 230 | 46124952 | 38 | 46119760 | 30 | 46644048 | 624.8 | 404.2 |
+| pan right | 62962 | 224 | 45928344 | 41 | 45923152 | 30 | 46644048 | 480.4 | 387.4 |
+| pan right | 31528 | 214 | 45600664 | 41 | 45595472 | 34 | 46054224 | 1350.3 | 309.8 |
+| zoom in (1/16 x 1/16) | 4031 | 137 | 34631121 | 33 | 34625929 | 29 | 34888073 | 185.0 | 185.0 |
+| zoom out (1/4 x 1/4) | 62962 | 224 | 45928344 | 41 | 45923152 | 30 | 46644048 | 380.8 | 380.7 |
+| zoom out (whole drawing) | 999990 | 664 | 89753461 | 1 | 89602621 | 1 | 89602621 | 1763.1 | 1281.2 |
+
+## million h2 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/million-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000000 entities | wall 0.252 s, cpu 0.252 s | 252 ns/entity cpu (252 wall) | peak RSS 376308 KiB (start 8780 KiB) | checksum 79a8dfecc088fc8a |
+| million | h2 | 599431 line segments | 80.1 ms | 133.7 ns/segment | worst deviation 0.000e0 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 999990 | 146 | 70017615 | 2 | 70011503 | 1 | 70011564 | 2148.0 | 552.2 |
+| zoom in (1/4 x 1/4) | 63045 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 222.8 | 222.8 |
+| pan right | 63001 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 218.8 | 218.8 |
+| pan right | 63036 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 219.6 | 219.6 |
+| pan right | 62962 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 312.2 | 216.3 |
+| pan right | 31528 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 313.0 | 202.6 |
+| zoom in (1/16 x 1/16) | 4031 | 103 | 40200038 | 13 | 40193926 | 10 | 40322157 | 363.3 | 166.5 |
+| zoom out (1/4 x 1/4) | 62962 | 112 | 46434701 | 13 | 46428589 | 10 | 46556820 | 479.2 | 219.2 |
+| zoom out (whole drawing) | 999990 | 146 | 70017615 | 2 | 70011503 | 1 | 70011564 | 826.6 | 487.1 |
+
+## million h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/million-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000000 entities | wall 0.416 s, cpu 0.416 s | 416 ns/entity cpu (416 wall) | peak RSS 402552 KiB (start 8672 KiB) | checksum 66769099fb7b0ea0 |
+| million | h1 | 599431 line segments | 328.0 ms | 547.1 ns/segment | worst deviation 1.137e-13 | count ok: true |
+
+## million h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/million-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000000 entities | wall 0.275 s, cpu 0.275 s | 275 ns/entity cpu (275 wall) | peak RSS 390544 KiB (start 8656 KiB) | checksum 79a8dfecc088fc8a |
+| million | h2 | 599431 line segments | 88.4 ms | 147.4 ns/segment | worst deviation 0.000e0 | count ok: true |

@@ -1,0 +1,54 @@
+### file written with the default (oldest) format
+CARTESIAN_POINT: shape [2574], dtype Compound { size: 16, fields: [CompoundField { name: "x", byte_offset: 0, datatype: FloatingPoint { size: 8, byte_order: LittleEndian } }, CompoundField { name: "y", byte_offset: 0, datatype: Fi
+  read_native_bytes error: CARTESIAN_POINT: invalid data: compound field 'y' range exceeds record size
+  read_raw_bytes ok, 41184 bytes
+DIRECTION: shape [808], dtype Compound { size: 16, fields: [CompoundField { name: "dx", byte_offset: 0, datatype: FloatingPoint { size: 8, byte_order: LittleEndian } }, CompoundField { name: "dy", byte_offset: 0, datatype: FixedPo
+  read_native_bytes error: DIRECTION: invalid data: compound field 'dy' range exceeds record size
+  read_raw_bytes ok, 12928 bytes
+VECTOR: shape [634], dtype Compound { size: 16, fields: [CompoundField { name: "dir", byte_offset: 0, datatype: FixedPoint { size: 4, signed: false, byte_order: LittleEndian } }, CompoundField { name: "mag", byte_offset: 0, dataty
+  read_native_bytes error: VECTOR: invalid data: compound field 'mag' range exceeds record size
+  read_raw_bytes ok, 10144 bytes
+LINE: shape [634], dtype Compound { size: 8, fields: [CompoundField { name: "pnt", byte_offset: 0, datatype: FixedPoint { size: 4, signed: false, byte_order: LittleEndian } }, CompoundField { name: "vec", byte_offset: 0, datatype:
+  read_native_bytes error: LINE: invalid data: compound field 'vec' range exceeds record size
+  read_raw_bytes ok, 5072 bytes
+TRIMMED_CURVE: shape [767], dtype Compound { size: 32, fields: [CompoundField { name: "basis_tag", byte_offset: 0, datatype: FixedPoint { size: 1, signed: false, byte_order: LittleEndian } }, CompoundField { name: "basis", byte_of
+  read_native_bytes error: TRIMMED_CURVE: invalid data: compound field '' range exceeds record size
+  read_raw_bytes ok, 24544 bytes
+POLYLINE: shape [215], dtype Compound { size: 16, fields: [CompoundField { name: "pts", byte_offset: 0, datatype: VarLen { base: FixedPoint { size: 4, signed: false, byte_order: LittleEndian }, kind: Sequence, encoding: Ascii, pad
+  read_native_bytes ok, 3440 bytes
+  read_raw_bytes ok, 3440 bytes
+B_SPLINE_CURVE_WITH_KNOTS: dataset error: data/B_SPLINE_CURVE_WITH_KNOTS: child 'B_SPLINE_CURVE_WITH_KNOTS' at 0x13598: unsupported datatype class 15
+COMPOSITE_CURVE: shape [18], dtype Compound { size: 16, fields: [CompoundField { name: "segs", byte_offset: 0, datatype: VarLen { base: FixedPoint { size: 4, signed: false, byte_order: LittleEndian }, kind: Sequence, encoding: Asc
+  read_native_bytes ok, 288 bytes
+  read_raw_bytes ok, 288 bytes
+GEOMETRIC_CURVE_SET: shape [1000], dtype Compound { size: 8, fields: [CompoundField { name: "tag", byte_offset: 0, datatype: FixedPoint { size: 1, signed: false, byte_order: LittleEndian } }, CompoundField { name: "row", byte_offs
+  read_native_bytes error: GEOMETRIC_CURVE_SET: invalid data: compound field 'row' range exceeds record size
+  read_raw_bytes ok, 8000 bytes
+### file written with libver latest
+CARTESIAN_POINT: shape [2574], dtype Compound { size: 16, fields: [CompoundField { name: "x", byte_offset: 0, datatype: FloatingPoint { size: 8, byte_order: LittleEndian } }, CompoundField { name: "y", byte_offset: 8, datatype: Fl
+  read_native_bytes ok, 41184 bytes
+  read_raw_bytes ok, 41184 bytes
+DIRECTION: shape [808], dtype Compound { size: 16, fields: [CompoundField { name: "dx", byte_offset: 0, datatype: FloatingPoint { size: 8, byte_order: LittleEndian } }, CompoundField { name: "dy", byte_offset: 8, datatype: Floatin
+  read_native_bytes ok, 12928 bytes
+  read_raw_bytes ok, 12928 bytes
+VECTOR: shape [634], dtype Compound { size: 16, fields: [CompoundField { name: "dir", byte_offset: 0, datatype: FixedPoint { size: 4, signed: false, byte_order: LittleEndian } }, CompoundField { name: "mag", byte_offset: 8, dataty
+  read_native_bytes ok, 10144 bytes
+  read_raw_bytes ok, 10144 bytes
+LINE: shape [634], dtype Compound { size: 8, fields: [CompoundField { name: "pnt", byte_offset: 0, datatype: FixedPoint { size: 4, signed: false, byte_order: LittleEndian } }, CompoundField { name: "vec", byte_offset: 4, datatype:
+  read_native_bytes ok, 5072 bytes
+  read_raw_bytes ok, 5072 bytes
+TRIMMED_CURVE: shape [767], dtype Compound { size: 32, fields: [CompoundField { name: "basis_tag", byte_offset: 0, datatype: FixedPoint { size: 1, signed: false, byte_order: LittleEndian } }, CompoundField { name: "basis", byte_of
+  read_native_bytes ok, 24544 bytes
+  read_raw_bytes ok, 24544 bytes
+POLYLINE: shape [215], dtype Compound { size: 16, fields: [CompoundField { name: "pts", byte_offset: 0, datatype: VarLen { base: FixedPoint { size: 4, signed: false, byte_order: LittleEndian }, kind: Sequence, encoding: Ascii, pad
+  read_native_bytes ok, 3440 bytes
+  read_raw_bytes ok, 3440 bytes
+B_SPLINE_CURVE_WITH_KNOTS: shape [32], dtype Compound { size: 72, fields: [CompoundField { name: "degree", byte_offset: 0, datatype: FixedPoint { size: 1, signed: false, byte_order: LittleEndian } }, CompoundField { name: "rationa
+  read_native_bytes ok, 2304 bytes
+  read_raw_bytes ok, 2304 bytes
+COMPOSITE_CURVE: shape [18], dtype Compound { size: 16, fields: [CompoundField { name: "segs", byte_offset: 0, datatype: VarLen { base: FixedPoint { size: 4, signed: false, byte_order: LittleEndian }, kind: Sequence, encoding: Asc
+  read_native_bytes ok, 288 bytes
+  read_raw_bytes ok, 288 bytes
+GEOMETRIC_CURVE_SET: shape [1000], dtype Compound { size: 8, fields: [CompoundField { name: "tag", byte_offset: 0, datatype: FixedPoint { size: 1, signed: false, byte_order: LittleEndian } }, CompoundField { name: "row", byte_offs
+  read_native_bytes ok, 8000 bytes
+  read_raw_bytes ok, 8000 bytes

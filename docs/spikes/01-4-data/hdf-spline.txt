@@ -1,0 +1,123 @@
+x86_64
+load average at start: 215.33 263.37 292.61 4/1954 957
+## sizes: spline-heavy
+| fixture | layout | config | file bytes | vs Part 21 | logical payload | file over payload | file minus dataset storage | (that) over payload | write s |
+|---|---|---|---|---|---|---|---|---|---|
+| spline-heavy | h1 | contiguous | 40329688 | 0.449 | 36416010 | 10.7% | 19991424 | 54.9% | 0.1 |
+| spline-heavy | h1 | contiguous+latest | 40314968 | 0.449 | 36416010 | 10.7% | 19976704 | 54.9% | 0.4 |
+| spline-heavy | h1 | chunk 4096 | 40992432 | 0.456 | 36416010 | 12.6% | 20127056 | 55.3% | 0.1 |
+| spline-heavy | h1 | chunk 65536 | 40833064 | 0.455 | 36416010 | 12.1% | 20020832 | 55.0% | 0.1 |
+| spline-heavy | h1 | chunk 4096 + deflate 1 | 30420686 | 0.339 | 36416010 | -16.5% | 19384411 | 53.2% | 0.3 |
+| spline-heavy | h1 | chunk 4096 + shuffle + deflate 1 | 33068981 | 0.368 | 36416010 | -9.2% | 19668673 | 54.0% | 0.2 |
+| spline-heavy | h1 | chunk 4096 + shuffle + deflate 6 | 32907748 | 0.366 | 36416010 | -9.6% | 19654501 | 54.0% | 0.4 |
+| spline-heavy | h1 | chunk 65536 + shuffle + deflate 6 | 32139662 | 0.358 | 36416010 | -11.7% | 19647471 | 54.0% | 0.5 |
+| spline-heavy | h1 | chunk 65536 + shuffle + deflate 9 | 32103944 | 0.358 | 36416010 | -11.8% | 19647105 | 54.0% | 1.6 |
+| spline-heavy | h1 | chunk 4096 + shuffle + deflate 6 + latest | 32831570 | 0.366 | 36416010 | -9.8% | 19616234 | 53.9% | 0.6 |
+part21 bytes: 89798481; logical payload bytes: 36416010
+| spline-heavy | h2 | contiguous | 29793256 | 0.332 | 29782632 | 0.0% | 10624 | 0.0% | 0.1 |
+| spline-heavy | h2 | contiguous+latest | 29790824 | 0.332 | 29782632 | 0.0% | 8192 | 0.0% | 0.0 |
+| spline-heavy | h2 | chunk 4096 | 30430504 | 0.339 | 29782632 | 2.2% | 76056 | 0.3% | 0.2 |
+| spline-heavy | h2 | chunk 65536 | 30483688 | 0.339 | 29782632 | 2.4% | 52496 | 0.2% | 0.1 |
+| spline-heavy | h2 | chunk 4096 + deflate 1 | 19594326 | 0.218 | 29782632 | -34.2% | 77813 | 0.3% | 0.5 |
+| spline-heavy | h2 | chunk 4096 + shuffle + deflate 1 | 21798801 | 0.243 | 29782632 | -26.8% | 76920 | 0.3% | 0.8 |
+| spline-heavy | h2 | chunk 4096 + shuffle + deflate 6 | 21379519 | 0.238 | 29782632 | -28.2% | 76855 | 0.3% | 2.5 |
+| spline-heavy | h2 | chunk 65536 + shuffle + deflate 6 | 20849561 | 0.232 | 29782632 | -30.0% | 53182 | 0.2% | 0.6 |
+| spline-heavy | h2 | chunk 65536 + shuffle + deflate 9 | 20802645 | 0.232 | 29782632 | -30.2% | 53194 | 0.2% | 2.8 |
+| spline-heavy | h2 | chunk 4096 + shuffle + deflate 6 + latest | 21364198 | 0.238 | 29782632 | -28.3% | 18072 | 0.1% | 0.5 |
+part21 bytes: 89798481; logical payload bytes: 29782632
+
+## spline-heavy h1 contiguous
+| spline-heavy | h1 | 50000 | 49895 exact | 105 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 633 | 40837184 | 4 | 40329608 | 1 | 40329688 | 487.5 | 207.2 |
+| zoom in (1/4 x 1/4) | 3450 | 241 | 10692676 | 62 | 10527492 | 29 | 11022096 | 361.3 | 107.8 |
+| pan right | 3448 | 243 | 10749348 | 71 | 10510476 | 31 | 11050864 | 103.8 | 103.7 |
+| pan right | 3443 | 246 | 10671104 | 64 | 10514216 | 32 | 11053264 | 101.8 | 101.8 |
+| pan right | 3379 | 205 | 9022148 | 54 | 8940684 | 31 | 9489080 | 56.1 | 56.1 |
+| pan right | 1744 | 166 | 7249620 | 49 | 7167612 | 34 | 7400344 | 217.4 | 35.6 |
+| zoom in (1/16 x 1/16) | 297 | 102 | 4732916 | 37 | 4727756 | 24 | 4933472 | 20.9 | 20.9 |
+| zoom out (1/4 x 1/4) | 3379 | 205 | 9022148 | 54 | 8940684 | 31 | 9489080 | 68.1 | 68.1 |
+| zoom out (whole drawing) | 49999 | 633 | 40837184 | 4 | 40329608 | 1 | 40329688 | 213.8 | 213.8 |
+| /work/spikes/step-hdf/out/spline-heavy-h1-contiguous.h5 | 50000 entities | wall 0.041 s, cpu 0.041 s | 827 ns/entity cpu (827 wall) | peak RSS 128428 KiB (start 8780 KiB) | checksum dc5b9528b5e00f06 |
+| spline-heavy | h1 | 12490 line segments | 6.5 ms | 516.7 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/spline-heavy-h1-contiguous.h5 | file 40329688 bytes | tier-0 datasets read: 39 reads, 18426104 bytes, 3 ranges (gap 64 KiB) | highest address touched 38729688 = 96.0% of the file |
+
+## spline-heavy h2 contiguous
+| spline-heavy | h2 | 50000 | 50000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 52 | 29797264 | 2 | 29791720 | 1 | 29793256 | 49.6 | 49.6 |
+| zoom in (1/4 x 1/4) | 3450 | 115 | 7598553 | 65 | 7343265 | 16 | 7812832 | 272.4 | 32.1 |
+| pan right | 3448 | 114 | 7516505 | 66 | 7307929 | 17 | 7737924 | 188.2 | 46.4 |
+| pan right | 3443 | 118 | 7274306 | 62 | 7082714 | 19 | 7533052 | 48.6 | 48.6 |
+| pan right | 3379 | 93 | 6109595 | 46 | 5920619 | 19 | 6156396 | 52.2 | 51.4 |
+| pan right | 1744 | 86 | 5158171 | 43 | 4974683 | 19 | 5229660 | 24.3 | 24.2 |
+| zoom in (1/16 x 1/16) | 297 | 65 | 3595945 | 30 | 3589737 | 13 | 3916936 | 76.5 | 6.6 |
+| zoom out (1/4 x 1/4) | 3379 | 93 | 6109595 | 46 | 5920619 | 19 | 6156396 | 31.9 | 31.9 |
+| zoom out (whole drawing) | 49999 | 52 | 29797264 | 2 | 29791720 | 1 | 29793256 | 401.8 | 34.7 |
+| /work/spikes/step-hdf/out/spline-heavy-h2-contiguous.h5 | 50000 entities | wall 0.028 s, cpu 0.028 s | 559 ns/entity cpu (559 wall) | peak RSS 112428 KiB (start 8768 KiB) | checksum c04919188aa6370a |
+| spline-heavy | h2 | 12490 line segments | 0.5 ms | 39.1 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/spline-heavy-h2-contiguous.h5 | file 29793256 bytes | tier-0 datasets read: 25 reads, 1477008 bytes, 3 ranges (gap 64 KiB) | highest address touched 3395962 = 11.4% of the file |
+
+## spline-heavy h1 chunk_65536_p_shuffle_p_deflate_6
+| spline-heavy | h1 | 50000 | 49895 exact | 105 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 658 | 32541010 | 2 | 32138458 | 1 | 32139662 | 493.9 | 261.3 |
+| zoom in (1/4 x 1/4) | 3450 | 857 | 97384079 | 25 | 11203036 | 18 | 11597456 | 3237.4 | 2468.6 |
+| pan right | 3448 | 790 | 88180776 | 27 | 11203036 | 20 | 11597456 | 3606.2 | 2110.6 |
+| pan right | 3443 | 732 | 80592704 | 26 | 11203036 | 21 | 11466384 | 3634.3 | 1938.0 |
+| pan right | 3379 | 702 | 78727853 | 28 | 10613212 | 20 | 11073168 | 3022.2 | 1915.8 |
+| pan right | 1744 | 504 | 54978561 | 27 | 8759873 | 24 | 8892149 | 2082.0 | 1275.3 |
+| zoom in (1/16 x 1/16) | 297 | 227 | 21283490 | 19 | 5158578 | 17 | 5225318 | 608.5 | 508.2 |
+| zoom out (1/4 x 1/4) | 3379 | 702 | 78727853 | 28 | 10613212 | 20 | 11073168 | 6411.1 | 1994.5 |
+| zoom out (whole drawing) | 49999 | 658 | 32541010 | 2 | 32138458 | 1 | 32139662 | 620.7 | 245.2 |
+| /work/spikes/step-hdf/out/spline-heavy-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 50000 entities | wall 0.083 s, cpu 0.083 s | 1659 ns/entity cpu (1659 wall) | peak RSS 128128 KiB (start 8656 KiB) | checksum dc5b9528b5e00f06 |
+| spline-heavy | h1 | 12490 line segments | 51.2 ms | 4100.1 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/spline-heavy-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | file 32139662 bytes | tier-0 datasets read: 63 reads, 12624685 bytes, 2 ranges (gap 64 KiB) | highest address touched 30910827 = 96.2% of the file |
+
+## spline-heavy h2 chunk_65536_p_shuffle_p_deflate_6
+| spline-heavy | h2 | 50000 | 50000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 104 | 20854995 | 2 | 20848883 | 1 | 20849561 | 960.9 | 127.4 |
+| zoom in (1/4 x 1/4) | 3450 | 83 | 10282342 | 8 | 10276230 | 7 | 10276908 | 489.7 | 69.3 |
+| pan right | 3448 | 82 | 9536460 | 8 | 9530348 | 7 | 9531026 | 80.9 | 64.2 |
+| pan right | 3443 | 83 | 10278338 | 8 | 10272226 | 7 | 10272904 | 62.5 | 62.5 |
+| pan right | 3379 | 82 | 9934200 | 8 | 9928088 | 7 | 9928766 | 59.3 | 59.3 |
+| pan right | 1744 | 79 | 8114541 | 11 | 8108429 | 10 | 8109107 | 44.6 | 44.6 |
+| zoom in (1/16 x 1/16) | 297 | 73 | 5929301 | 9 | 5923429 | 7 | 5936421 | 25.9 | 25.9 |
+| zoom out (1/4 x 1/4) | 3379 | 82 | 9934200 | 8 | 9928088 | 7 | 9928766 | 59.1 | 59.1 |
+| zoom out (whole drawing) | 49999 | 104 | 20854995 | 2 | 20848883 | 1 | 20849561 | 100.6 | 100.6 |
+| /work/spikes/step-hdf/out/spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 50000 entities | wall 0.090 s, cpu 0.090 s | 1795 ns/entity cpu (1795 wall) | peak RSS 118208 KiB (start 8928 KiB) | checksum c04919188aa6370a |
+| spline-heavy | h2 | 12490 line segments | 2.6 ms | 204.2 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | file 20849561 bytes | tier-0 datasets read: 31 reads, 1026054 bytes, 3 ranges (gap 64 KiB) | highest address touched 2388338 = 11.5% of the file |
+
+## spline-heavy h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| spline-heavy | h1 | 50000 | 49895 exact | 105 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 943 | 33165617 | 5 | 32830287 | 1 | 32831570 | 993.1 | 283.1 |
+| zoom in (1/4 x 1/4) | 3450 | 281 | 8653838 | 43 | 8647576 | 22 | 9361396 | 87.9 | 87.9 |
+| pan right | 3448 | 277 | 8520179 | 42 | 8513917 | 21 | 9227737 | 80.2 | 80.1 |
+| pan right | 3443 | 282 | 8698211 | 41 | 8691949 | 22 | 9274697 | 79.0 | 79.0 |
+| pan right | 3379 | 240 | 7139357 | 39 | 7133279 | 23 | 7621075 | 651.7 | 73.0 |
+| pan right | 1744 | 202 | 5734285 | 40 | 5728207 | 24 | 6216003 | 50.4 | 50.4 |
+| zoom in (1/16 x 1/16) | 297 | 137 | 3511038 | 31 | 3507008 | 19 | 3758257 | 228.6 | 23.4 |
+| zoom out (1/4 x 1/4) | 3379 | 240 | 7139357 | 39 | 7133279 | 23 | 7621075 | 402.3 | 98.7 |
+| zoom out (whole drawing) | 49999 | 943 | 33165617 | 5 | 32830287 | 1 | 32831570 | 791.7 | 251.4 |
+| /work/spikes/step-hdf/out/spline-heavy-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 50000 entities | wall 0.096 s, cpu 0.096 s | 1914 ns/entity cpu (1914 wall) | peak RSS 127992 KiB (start 8688 KiB) | checksum dc5b9528b5e00f06 |
+| spline-heavy | h1 | 12490 line segments | 62.5 ms | 5007.1 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/spline-heavy-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 32831570 bytes | tier-0 datasets read: 327 reads, 13312784 bytes, 2 ranges (gap 64 KiB) | highest address touched 31602244 = 96.3% of the file |
+
+## spline-heavy h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| spline-heavy | h2 | 50000 | 50000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 49999 | 710 | 21368816 | 5 | 21363601 | 1 | 21364198 | 423.0 | 137.2 |
+| zoom in (1/4 x 1/4) | 3450 | 213 | 5559787 | 29 | 5554804 | 17 | 5729658 | 56.3 | 56.2 |
+| pan right | 3448 | 212 | 5454703 | 30 | 5449720 | 18 | 5624538 | 84.3 | 74.3 |
+| pan right | 3443 | 211 | 5443699 | 32 | 5438716 | 19 | 5626832 | 48.9 | 48.9 |
+| pan right | 3379 | 193 | 4828638 | 30 | 4823655 | 19 | 4942092 | 97.5 | 47.2 |
+| pan right | 1744 | 167 | 3959956 | 30 | 3954973 | 19 | 4073410 | 287.4 | 57.4 |
+| zoom in (1/16 x 1/16) | 297 | 128 | 2735279 | 25 | 2730296 | 14 | 2880238 | 27.9 | 27.8 |
+| zoom out (1/4 x 1/4) | 3379 | 193 | 4828638 | 30 | 4823655 | 19 | 4942092 | 49.1 | 48.8 |
+| zoom out (whole drawing) | 49999 | 710 | 21368816 | 5 | 21363601 | 1 | 21364198 | 118.3 | 118.3 |
+| /work/spikes/step-hdf/out/spline-heavy-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 50000 entities | wall 0.105 s, cpu 0.105 s | 2107 ns/entity cpu (2107 wall) | peak RSS 118304 KiB (start 8792 KiB) | checksum c04919188aa6370a |
+| spline-heavy | h2 | 12490 line segments | 3.7 ms | 300.2 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/spline-heavy-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 21364198 bytes | tier-0 datasets read: 53 reads, 1032599 bytes, 3 ranges (gap 64 KiB) | highest address touched 19595545 = 91.7% of the file |

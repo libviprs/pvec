@@ -1,0 +1,8 @@
+x86_64
+276.97 292.72 291.96 6/1864 959
+spline-heavy h2 contiguous 4638bf0d5c6f01a3 (native libhdf5: cpu 31.9 ms, wall 31.9 ms)
+spline-heavy h2 compressed 4638bf0d5c6f01a3 (native libhdf5: cpu 104.3 ms, wall 104.3 ms)
+spline-heavy h1 latest b78959079d92e620 (native libhdf5: cpu 20.5 ms, wall 20.5 ms)
+million h2 contiguous 43edb76da0f00d3a (native libhdf5: cpu 102.5 ms, wall 102.5 ms)
+million h2 compressed 43edb76da0f00d3a (native libhdf5: cpu 331.1 ms, wall 331.2 ms)
+million h1 latest 1b5c47d961cd9f66 (native libhdf5: cpu 90.6 ms, wall 90.6 ms)

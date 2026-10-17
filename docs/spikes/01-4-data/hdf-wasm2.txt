@@ -1,0 +1,55 @@
+load average: 261.88 291.42 273.88 3/1691 2281591
+== write the files (libhdf5 1.10.8, native x64)
+total 731852
+drwxr-sr-x 2 root   root      4096 Oct 17 04:02 .
+drwxrwsr-x 8 nobody root      4096 Oct 17 04:01 ..
+-rw-r--r-- 1 root   root  90534117 Oct 17 04:01 million-h1-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root 162091844 Oct 17 04:01 million-h1-contiguous.h5
+-rw-r--r-- 1 root   root 162093508 Oct 17 04:01 million-h1-contiguousplatest.h5
+-rw-r--r-- 1 root   root  70085198 Oct 17 04:02 million-h2-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root 100478313 Oct 17 04:02 million-h2-contiguous.h5
+-rw-r--r-- 1 root   root    145957 Oct 17 04:01 small-synthetic-h1-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root    170188 Oct 17 04:01 small-synthetic-h1-contiguous.h5
+-rw-r--r-- 1 root   root    167756 Oct 17 04:01 small-synthetic-h1-contiguousplatest.h5
+-rw-r--r-- 1 root   root    133302 Oct 17 04:01 small-synthetic-h2-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root    112008 Oct 17 04:01 small-synthetic-h2-contiguous.h5
+-rw-r--r-- 1 root   root  32082553 Oct 17 04:01 spline-heavy-h1-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root  40329688 Oct 17 04:01 spline-heavy-h1-contiguous.h5
+-rw-r--r-- 1 root   root  40314968 Oct 17 04:01 spline-heavy-h1-contiguousplatest.h5
+-rw-r--r-- 1 root   root  20826710 Oct 17 04:01 spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5
+-rw-r--r-- 1 root   root  29793256 Oct 17 04:01 spline-heavy-h2-contiguous.h5
+million-h2-contiguous.h5 native hash 43edb76da0f00d3a
+small-synthetic-h2-contiguous.h5 native hash 6883a00d45aabeaf
+spline-heavy-h2-contiguous.h5 native hash 4638bf0d5c6f01a3
+million-h2-chunk_65536_p_shuffle_p_deflate_6.h5 native hash 43edb76da0f00d3a
+small-synthetic-h2-chunk_65536_p_shuffle_p_deflate_6.h5 native hash 6883a00d45aabeaf
+spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5 native hash 4638bf0d5c6f01a3
+million-h1-contiguousplatest.h5 native hash 1b5c47d961cd9f66
+small-synthetic-h1-contiguousplatest.h5 native hash b43bb39f60d6a09f
+spline-heavy-h1-contiguousplatest.h5 native hash b78959079d92e620
+== build the wasm reader (rustc 1.99.1, wasm32-unknown-unknown)
+   Compiling step-hdf-wasm v0.0.0 (/work/spikes/step-hdf-wasm)
+    Finished `release` profile [optimized] target(s) in 2m 22s
+    Finished `release` profile [optimized] target(s) in 11.24s
+-rwxr-xr-x 1 root root 603578 Oct 17 04:06 /work/out/default.wasm
+-rwxr-xr-x 1 root root 483228 Oct 17 04:06 /work/out/size-optimised.wasm
+default gzip 187652 bytes
+size-optimised gzip 152668 bytes
+== run under node 22 (V8)
+v22.23.3
+module /work/out/default.wasm: 603578 bytes, instantiate 5.50 ms wall, 11.90 ms cpu
+| small-synthetic-h2-contiguous.h5 | 112008 bytes | hash 6883a00d45aabeaf | wall 0.6 ms (190 MiB/s) | cpu 1.0 ms | wasm memory 1 MiB |
+| spline-heavy-h2-contiguous.h5 | 29793256 bytes | hash 4638bf0d5c6f01a3 | wall 27.6 ms (1029 MiB/s) | cpu 27.6 ms | wasm memory 87 MiB |
+| million-h2-contiguous.h5 | 100478313 bytes | hash 43edb76da0f00d3a | wall 84.8 ms (1130 MiB/s) | cpu 85.3 ms | wasm memory 374 MiB |
+| spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 20826710 bytes | hash 4638bf0d5c6f01a3 | wall 126.1 ms (157 MiB/s) | cpu 126.0 ms | wasm memory 374 MiB |
+| million-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 70085198 bytes | hash 43edb76da0f00d3a | wall 414.7 ms (161 MiB/s) | cpu 415.3 ms | wasm memory 476 MiB |
+module /work/out/size-optimised.wasm: 483228 bytes, instantiate 0.98 ms wall, 2.61 ms cpu
+| small-synthetic-h2-contiguous.h5 | 112008 bytes | hash 6883a00d45aabeaf | wall 0.4 ms (282 MiB/s) | cpu 0.8 ms | wasm memory 1 MiB |
+| spline-heavy-h2-contiguous.h5 | 29793256 bytes | hash 4638bf0d5c6f01a3 | wall 27.7 ms (1025 MiB/s) | cpu 28.7 ms | wasm memory 87 MiB |
+| million-h2-contiguous.h5 | 100478313 bytes | hash 43edb76da0f00d3a | wall 87.4 ms (1097 MiB/s) | cpu 87.4 ms | wasm memory 374 MiB |
+| spline-heavy-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 20826710 bytes | hash 4638bf0d5c6f01a3 | wall 137.4 ms (145 MiB/s) | cpu 137.8 ms | wasm memory 374 MiB |
+| million-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 70085198 bytes | hash 43edb76da0f00d3a | wall 453.6 ms (147 MiB/s) | cpu 454.4 ms | wasm memory 476 MiB |
+module /work/out/size-optimised.wasm: 483228 bytes, instantiate 1.10 ms wall, 2.70 ms cpu
+| small-synthetic-h1-contiguousplatest.h5 | 167756 bytes | hash -4bc44c609f295f61 | wall 4.4 ms (37 MiB/s) | cpu 5.2 ms | wasm memory 2 MiB |
+| spline-heavy-h1-contiguousplatest.h5 | 40314968 bytes | hash -4876a6f8626d19e0 | wall 383.5 ms (100 MiB/s) | cpu 383.8 ms | wasm memory 117 MiB |
+| million-h1-contiguousplatest.h5 | 162093508 bytes | hash 1b5c47d961cd9f66 | wall 15166.3 ms (10 MiB/s) | cpu 15169.4 ms | wasm memory 581 MiB |

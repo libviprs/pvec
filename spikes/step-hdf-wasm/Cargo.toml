@@ -1,0 +1,16 @@
+# P1.4 spike: can a browser-side reader for the HDF5 layouts be built? A pure-Rust, read-only HDF5
+# decoder compiled for wasm32-unknown-unknown. Own workspace.
+[workspace]
+
+[package]
+name = "step-hdf-wasm"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hdf5-reader = "0.9"
