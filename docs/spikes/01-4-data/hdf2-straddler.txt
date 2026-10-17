@@ -1,0 +1,48 @@
+x86_64
+load average at start: 163.43 197.80 235.11 2/1452 966
+
+## straddler h1 contiguous
+| /work/spikes/step-hdf/out/straddler-h1-contiguous.h5 | 100000 entities | wall 0.011 s, cpu 0.011 s | 107 ns/entity cpu (107 wall) | peak RSS 56204 KiB (start 8668 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 3.4 ms | 56.4 ns/segment | worst deviation 1.137e-13 | count ok: true |
+
+## straddler h2 contiguous
+| /work/spikes/step-hdf/out/straddler-h2-contiguous.h5 | 100000 entities | wall 0.006 s, cpu 0.006 s | 63 ns/entity cpu (63 wall) | peak RSS 48224 KiB (start 8808 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 1.2 ms | 20.2 ns/segment | worst deviation 0.000e0 | count ok: true |
+
+## straddler h1 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/straddler-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 100000 entities | wall 0.041 s, cpu 0.041 s | 405 ns/entity cpu (407 wall) | peak RSS 62388 KiB (start 8736 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 29.6 ms | 491.7 ns/segment | worst deviation 1.137e-13 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 115 | 9340895 | 2 | 9335703 | 1 | 9336486 | 471.0 | 136.9 |
+| zoom in (1/4 x 1/4) | 6434 | 90 | 7828880 | 7 | 7823688 | 4 | 7898199 | 1873.2 | 60.2 |
+| pan right | 6437 | 90 | 7828880 | 7 | 7823688 | 4 | 7898199 | 53.1 | 53.1 |
+| pan right | 6431 | 90 | 7828880 | 7 | 7823688 | 4 | 7898199 | 50.5 | 50.4 |
+| pan right | 6380 | 92 | 7894416 | 7 | 7889224 | 4 | 7963735 | 48.2 | 48.2 |
+| pan right | 3221 | 92 | 7894416 | 7 | 7889224 | 4 | 7963735 | 43.8 | 43.8 |
+| zoom in (1/16 x 1/16) | 443 | 80 | 7501200 | 9 | 7496008 | 5 | 7636055 | 47.0 | 46.9 |
+| zoom out (1/4 x 1/4) | 6380 | 92 | 7894416 | 7 | 7889224 | 4 | 7963735 | 48.3 | 48.3 |
+| zoom out (whole drawing) | 99997 | 115 | 9340895 | 2 | 9335703 | 1 | 9336486 | 121.2 | 121.2 |
+
+## straddler h2 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/straddler-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 100000 entities | wall 0.024 s, cpu 0.024 s | 243 ns/entity cpu (243 wall) | peak RSS 52184 KiB (start 8540 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 8.9 ms | 148.1 ns/segment | worst deviation 0.000e0 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 75 | 7230546 | 4 | 7224434 | 1 | 7225935 | 636.6 | 62.0 |
+| zoom in (1/4 x 1/4) | 6434 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 52.2 | 48.5 |
+| pan right | 6437 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 371.0 | 49.8 |
+| pan right | 6431 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 35.2 | 35.2 |
+| pan right | 6380 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 29.8 | 29.8 |
+| pan right | 3221 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 27.3 | 27.3 |
+| zoom in (1/16 x 1/16) | 443 | 72 | 6978894 | 6 | 6973022 | 2 | 7013560 | 27.6 | 27.6 |
+| zoom out (1/4 x 1/4) | 6380 | 74 | 7018171 | 5 | 7012059 | 2 | 7013560 | 28.5 | 28.5 |
+| zoom out (whole drawing) | 99997 | 75 | 7230546 | 4 | 7224434 | 1 | 7225935 | 46.0 | 46.0 |
+
+## straddler h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/straddler-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 100000 entities | wall 0.042 s, cpu 0.042 s | 418 ns/entity cpu (418 wall) | peak RSS 60648 KiB (start 8684 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 32.9 ms | 547.1 ns/segment | worst deviation 1.137e-13 | count ok: true |
+
+## straddler h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/straddler-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 100000 entities | wall 0.034 s, cpu 0.034 s | 336 ns/entity cpu (336 wall) | peak RSS 51056 KiB (start 8708 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 9.1 ms | 150.9 ns/segment | worst deviation 0.000e0 | count ok: true |

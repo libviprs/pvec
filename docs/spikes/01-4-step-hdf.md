@@ -13,7 +13,8 @@ not read a single digit of precision into a nanosecond figure.
 
 **Corpus.** Fixture revision `pvec-p1-fixtures-r1` (`00-fixtures.md`): `small-synthetic` (1,000
 entities), `spline-heavy` (50,000, 58% splines), `million` (1,000,000), plus `straddler` (100,000, for
-P1.6, not used here). The shared viewport script is the one `pvec_fixtures::viewport_script()` commits.
+P1.6). I did not run `straddler` in P1.4; the phase 1 summary (`01-8-benchmark-summary.md`) adds the run
+(`01-4-data/hdf-straddler.txt`, `hdf2-straddler.txt`) so every candidate appears on the same four fixtures. The shared viewport script is the one `pvec_fixtures::viewport_script()` commits.
 
 ## What I built, and what I did not
 

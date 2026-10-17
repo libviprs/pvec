@@ -1,0 +1,123 @@
+x86_64
+load average at start: 247.35 224.03 246.90 1/1448 964
+## sizes: straddler
+| fixture | layout | config | file bytes | vs Part 21 | logical payload | file over payload | file minus dataset storage | (that) over payload | write s |
+|---|---|---|---|---|---|---|---|---|---|
+| straddler | h1 | contiguous | 16247684 | 0.460 | 15106436 | 7.6% | 4724096 | 31.3% | 0.5 |
+| straddler | h1 | contiguous+latest | 16245252 | 0.460 | 15106436 | 7.5% | 4721664 | 31.3% | 0.0 |
+| straddler | h1 | chunk 4096 | 16573896 | 0.469 | 15106436 | 9.7% | 4830304 | 32.0% | 0.0 |
+| straddler | h1 | chunk 65536 | 20008916 | 0.567 | 15106436 | 32.5% | 5747808 | 38.0% | 0.0 |
+| straddler | h1 | chunk 4096 + deflate 1 | 8944192 | 0.253 | 15106436 | -40.8% | 3494414 | 23.1% | 0.1 |
+| straddler | h1 | chunk 4096 + shuffle + deflate 1 | 10119175 | 0.287 | 15106436 | -33.0% | 4027917 | 26.7% | 0.1 |
+| straddler | h1 | chunk 4096 + shuffle + deflate 6 | 9920973 | 0.281 | 15106436 | -34.3% | 3993454 | 26.4% | 0.3 |
+| straddler | h1 | chunk 65536 + shuffle + deflate 6 | 9654461 | 0.273 | 15106436 | -36.1% | 3988515 | 26.4% | 0.3 |
+| straddler | h1 | chunk 65536 + shuffle + deflate 9 | 9552348 | 0.271 | 15106436 | -36.8% | 3988204 | 26.4% | 1.6 |
+| straddler | h1 | chunk 4096 + shuffle + deflate 6 + latest | 9841587 | 0.279 | 15106436 | -34.9% | 3964567 | 26.2% | 0.3 |
+part21 bytes: 35306923; logical payload bytes: 15106436
+| straddler | h2 | contiguous | 10068859 | 0.285 | 10058235 | 0.1% | 10624 | 0.1% | 0.0 |
+| straddler | h2 | contiguous+latest | 10066427 | 0.285 | 10058235 | 0.1% | 8192 | 0.1% | 0.0 |
+| straddler | h2 | chunk 4096 | 10517808 | 0.298 | 10058235 | 4.6% | 52496 | 0.5% | 0.0 |
+| straddler | h2 | chunk 65536 | 12108795 | 0.343 | 10058235 | 20.4% | 52496 | 0.5% | 0.0 |
+| straddler | h2 | chunk 4096 + deflate 1 | 5948423 | 0.168 | 10058235 | -40.9% | 54520 | 0.5% | 0.1 |
+| straddler | h2 | chunk 4096 + shuffle + deflate 1 | 7433153 | 0.211 | 10058235 | -26.1% | 52924 | 0.5% | 0.1 |
+| straddler | h2 | chunk 4096 + shuffle + deflate 6 | 7314600 | 0.207 | 10058235 | -27.3% | 53918 | 0.5% | 0.1 |
+| straddler | h2 | chunk 65536 + shuffle + deflate 6 | 7241650 | 0.205 | 10058235 | -28.0% | 54005 | 0.5% | 0.2 |
+| straddler | h2 | chunk 65536 + shuffle + deflate 9 | 7229799 | 0.205 | 10058235 | -28.1% | 54052 | 0.5% | 0.3 |
+| straddler | h2 | chunk 4096 + shuffle + deflate 6 + latest | 7283805 | 0.206 | 10058235 | -27.6% | 11012 | 0.1% | 0.1 |
+part21 bytes: 35306923; logical payload bytes: 10058235
+
+## straddler h1 contiguous
+| straddler | h1 | 100000 | 99633 exact | 367 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 103 | 16313636 | 11 | 16247468 | 1 | 16247684 | 96.1 | 96.0 |
+| zoom in (1/4 x 1/4) | 6434 | 108 | 7620048 | 46 | 7404472 | 25 | 7859740 | 13.6 | 13.6 |
+| pan right | 6437 | 110 | 7749064 | 49 | 7533872 | 25 | 7931428 | 13.3 | 13.3 |
+| pan right | 6431 | 110 | 7750528 | 47 | 7573104 | 25 | 7973676 | 13.2 | 13.2 |
+| pan right | 6380 | 107 | 7487568 | 42 | 7273096 | 25 | 7660452 | 11.3 | 11.3 |
+| pan right | 3221 | 103 | 7220720 | 43 | 7213864 | 25 | 7602228 | 7.9 | 7.9 |
+| zoom in (1/16 x 1/16) | 443 | 75 | 5766252 | 34 | 5761092 | 21 | 6184276 | 10.8 | 10.8 |
+| zoom out (1/4 x 1/4) | 6380 | 107 | 7487568 | 42 | 7273096 | 25 | 7660452 | 11.6 | 11.6 |
+| zoom out (whole drawing) | 99997 | 103 | 16313636 | 11 | 16247468 | 1 | 16247684 | 83.0 | 83.0 |
+| /work/spikes/step-hdf/out/straddler-h1-contiguous.h5 | 100000 entities | wall 0.011 s, cpu 0.011 s | 108 ns/entity cpu (108 wall) | peak RSS 56168 KiB (start 8696 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 3.4 ms | 56.8 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/straddler-h1-contiguous.h5 | file 16247684 bytes | tier-0 datasets read: 61 reads, 12081384 bytes, 4 ranges (gap 64 KiB) | highest address touched 13047684 = 80.3% of the file |
+
+## straddler h2 contiguous
+| straddler | h2 | 100000 | 100000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 53 | 10072827 | 3 | 10067283 | 1 | 10068859 | 106.0 | 24.6 |
+| zoom in (1/4 x 1/4) | 6434 | 67 | 5560989 | 33 | 5555221 | 15 | 6007875 | 15.0 | 15.0 |
+| pan right | 6437 | 67 | 5567126 | 31 | 5554534 | 15 | 6013947 | 5.1 | 5.1 |
+| pan right | 6431 | 67 | 5566350 | 33 | 5560454 | 16 | 5964811 | 3.6 | 3.6 |
+| pan right | 6380 | 67 | 5563409 | 33 | 5557001 | 16 | 5989379 | 3.2 | 3.2 |
+| pan right | 3221 | 67 | 5556201 | 34 | 5550945 | 15 | 6057315 | 2.4 | 2.4 |
+| zoom in (1/16 x 1/16) | 443 | 56 | 4861767 | 23 | 4856511 | 13 | 5103319 | 2.7 | 2.7 |
+| zoom out (1/4 x 1/4) | 6380 | 67 | 5563409 | 33 | 5557001 | 16 | 5989379 | 3.3 | 3.3 |
+| zoom out (whole drawing) | 99997 | 53 | 10072827 | 3 | 10067283 | 1 | 10068859 | 20.1 | 20.1 |
+| /work/spikes/step-hdf/out/straddler-h2-contiguous.h5 | 100000 entities | wall 0.006 s, cpu 0.006 s | 60 ns/entity cpu (60 wall) | peak RSS 48224 KiB (start 8784 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 1.4 ms | 23.7 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/straddler-h2-contiguous.h5 | file 10068859 bytes | tier-0 datasets read: 25 reads, 5615836 bytes, 3 ranges (gap 64 KiB) | highest address touched 9011348 = 89.5% of the file |
+
+## straddler h1 chunk_65536_p_shuffle_p_deflate_6
+| straddler | h1 | 100000 | 99633 exact | 367 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 118 | 10502915 | 2 | 9653679 | 1 | 9654461 | 143.0 | 143.0 |
+| zoom in (1/4 x 1/4) | 6434 | 230 | 134888436 | 7 | 8141664 | 4 | 8216174 | 856.6 | 856.3 |
+| pan right | 6437 | 230 | 134888436 | 7 | 8141664 | 4 | 8216174 | 854.0 | 853.8 |
+| pan right | 6431 | 237 | 140601566 | 7 | 8141664 | 4 | 8216174 | 902.5 | 902.4 |
+| pan right | 6380 | 198 | 103549925 | 7 | 8207200 | 4 | 8281710 | 665.2 | 664.9 |
+| pan right | 3221 | 177 | 84538688 | 7 | 8207200 | 4 | 8281710 | 630.4 | 538.4 |
+| zoom in (1/16 x 1/16) | 443 | 252 | 162906311 | 9 | 7813984 | 5 | 7954030 | 1031.7 | 1031.4 |
+| zoom out (1/4 x 1/4) | 6380 | 198 | 103549925 | 7 | 8207200 | 4 | 8281710 | 651.8 | 651.5 |
+| zoom out (whole drawing) | 99997 | 118 | 10502915 | 2 | 9653679 | 1 | 9654461 | 132.5 | 132.5 |
+| /work/spikes/step-hdf/out/straddler-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 100000 entities | wall 0.041 s, cpu 0.041 s | 413 ns/entity cpu (413 wall) | peak RSS 63652 KiB (start 8868 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 31.0 ms | 515.2 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/straddler-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | file 9654461 bytes | tier-0 datasets read: 76 reads, 6593100 bytes, 3 ranges (gap 64 KiB) | highest address touched 7216832 = 74.8% of the file |
+
+## straddler h2 chunk_65536_p_shuffle_p_deflate_6
+| straddler | h2 | 100000 | 100000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 75 | 7246261 | 4 | 7240149 | 1 | 7241650 | 52.8 | 52.8 |
+| zoom in (1/4 x 1/4) | 6434 | 198 | 184791730 | 5 | 7027774 | 2 | 7029275 | 577.0 | 577.0 |
+| pan right | 6437 | 205 | 194826447 | 5 | 7027774 | 2 | 7029275 | 627.7 | 610.8 |
+| pan right | 6431 | 196 | 181924668 | 5 | 7027774 | 2 | 7029275 | 615.5 | 565.8 |
+| pan right | 6380 | 167 | 140352269 | 5 | 7027774 | 2 | 7029275 | 605.1 | 441.7 |
+| pan right | 3221 | 149 | 114548711 | 5 | 7027774 | 2 | 7029275 | 444.6 | 381.5 |
+| zoom in (1/16 x 1/16) | 443 | 213 | 209122480 | 6 | 6988737 | 2 | 7029275 | 648.4 | 648.2 |
+| zoom out (1/4 x 1/4) | 6380 | 167 | 140352269 | 5 | 7027774 | 2 | 7029275 | 538.2 | 448.0 |
+| zoom out (whole drawing) | 99997 | 75 | 7246261 | 4 | 7240149 | 1 | 7241650 | 44.5 | 44.5 |
+| /work/spikes/step-hdf/out/straddler-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 100000 entities | wall 0.024 s, cpu 0.024 s | 240 ns/entity cpu (240 wall) | peak RSS 52176 KiB (start 8836 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 9.0 ms | 150.2 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/straddler-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | file 7241650 bytes | tier-0 datasets read: 34 reads, 3965724 bytes, 3 ranges (gap 64 KiB) | highest address touched 6560164 = 90.6% of the file |
+
+## straddler h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| straddler | h1 | 100000 | 99633 exact | 367 within deviation | 0 shape mismatches | worst 1.137e-13 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 300 | 9845020 | 6 | 9840620 | 1 | 9841587 | 135.6 | 135.6 |
+| zoom in (1/4 x 1/4) | 6434 | 181 | 5433520 | 28 | 5429592 | 12 | 5827280 | 37.0 | 37.0 |
+| pan right | 6437 | 181 | 5471470 | 28 | 5467542 | 11 | 5916355 | 37.0 | 37.0 |
+| pan right | 6431 | 180 | 5421544 | 28 | 5417616 | 13 | 5764030 | 36.5 | 36.5 |
+| pan right | 6380 | 183 | 5529260 | 28 | 5525332 | 11 | 5971848 | 34.7 | 34.7 |
+| pan right | 3221 | 179 | 5346226 | 29 | 5342298 | 14 | 5671269 | 30.2 | 30.2 |
+| zoom in (1/16 x 1/16) | 443 | 141 | 4111215 | 31 | 4107287 | 14 | 4449299 | 27.9 | 27.9 |
+| zoom out (1/4 x 1/4) | 6380 | 183 | 5529260 | 28 | 5525332 | 11 | 5971848 | 34.1 | 34.1 |
+| zoom out (whole drawing) | 99997 | 300 | 9845020 | 6 | 9840620 | 1 | 9841587 | 307.4 | 126.4 |
+| /work/spikes/step-hdf/out/straddler-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 100000 entities | wall 0.044 s, cpu 0.044 s | 436 ns/entity cpu (436 wall) | peak RSS 60812 KiB (start 8768 KiB) | checksum a115707ecdd66d2f |
+| straddler | h1 | 60163 line segments | 33.9 ms | 562.7 ns/segment | worst deviation 1.137e-13 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/straddler-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 9841587 bytes | tier-0 datasets read: 241 reads, 6798852 bytes, 2 ranges (gap 64 KiB) | highest address touched 7401930 = 75.2% of the file |
+
+## straddler h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| straddler | h2 | 100000 | 100000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 99997 | 190 | 7287383 | 4 | 7282222 | 1 | 7283805 | 55.7 | 55.7 |
+| zoom in (1/4 x 1/4) | 6434 | 140 | 4956109 | 18 | 4951208 | 8 | 5189941 | 24.4 | 24.4 |
+| pan right | 6437 | 142 | 4964274 | 17 | 4959373 | 7 | 5199791 | 24.6 | 24.6 |
+| pan right | 6431 | 141 | 4916999 | 18 | 4912098 | 7 | 5199791 | 24.1 | 24.1 |
+| pan right | 6380 | 140 | 4956319 | 18 | 4951418 | 8 | 5188915 | 23.7 | 23.7 |
+| pan right | 3221 | 138 | 4861552 | 19 | 4856651 | 9 | 5093889 | 22.5 | 22.5 |
+| zoom in (1/16 x 1/16) | 443 | 121 | 4017540 | 18 | 4012715 | 11 | 4176632 | 19.4 | 19.4 |
+| zoom out (1/4 x 1/4) | 6380 | 140 | 4956319 | 18 | 4951418 | 8 | 5188915 | 23.9 | 23.9 |
+| zoom out (whole drawing) | 99997 | 190 | 7287383 | 4 | 7282222 | 1 | 7283805 | 48.5 | 48.5 |
+| /work/spikes/step-hdf/out/straddler-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 100000 entities | wall 0.027 s, cpu 0.027 s | 267 ns/entity cpu (267 wall) | peak RSS 51520 KiB (start 8696 KiB) | checksum e72e4e20546834b2 |
+| straddler | h2 | 60163 line segments | 9.2 ms | 153.1 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/straddler-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 7283805 bytes | tier-0 datasets read: 110 reads, 4019794 bytes, 4 ranges (gap 64 KiB) | highest address touched 6988510 = 95.9% of the file |
