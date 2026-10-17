@@ -99,20 +99,29 @@ fn collect(prefix: &str, c: &Curve, out: &mut Vec<(String, Vec<u64>)>) {
         Curve::Bezier(b) => {
             put("kind", vec![6]);
             put("closed", vec![u64::from(b.is_declared_closed())]);
-            put("control_points", b.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect());
+            put(
+                "control_points",
+                b.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect(),
+            );
         }
         Curve::BSpline(s) => {
             put("kind", vec![7]);
             put("degree", vec![s.degree() as u64]);
             put("closed", vec![u64::from(s.is_declared_closed())]);
-            put("control_points", s.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect());
+            put(
+                "control_points",
+                s.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect(),
+            );
             put("knots", bits(s.knots()));
         }
         Curve::RationalBSpline(s) => {
             put("kind", vec![8]);
             put("degree", vec![s.degree() as u64]);
             put("closed", vec![u64::from(s.is_declared_closed())]);
-            put("control_points", s.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect());
+            put(
+                "control_points",
+                s.control_points().iter().flat_map(|q| [q.x.to_bits(), q.y.to_bits()]).collect(),
+            );
             put("knots", bits(s.knots()));
             put("weights", bits(s.weights()));
         }
@@ -143,12 +152,19 @@ pub fn basic_samples() -> Vec<(&'static str, Curve)> {
     let third = 1.0 / 3.0;
     let circle = Circle::new(place(1.0 / 7.0, -2.0 * third, 1.0, 1.0), 3.0 * third).unwrap();
     let ellipse = Ellipse::new(place(0.1, 0.2, 2.0, 1.0), 4.0 * third, 1.5).unwrap();
-    let tc = |t1: f64, t2: f64, s: bool| Curve::Trimmed(Trimmed::new(Curve::Circle(circle), t1, t2, s).unwrap());
-    let te = |t1: f64, t2: f64, s: bool| Curve::Trimmed(Trimmed::new(Curve::Ellipse(ellipse), t1, t2, s).unwrap());
+    let tc =
+        |t1: f64, t2: f64, s: bool| Curve::Trimmed(Trimmed::new(Curve::Circle(circle), t1, t2, s).unwrap());
+    let te =
+        |t1: f64, t2: f64, s: bool| Curve::Trimmed(Trimmed::new(Curve::Ellipse(ellipse), t1, t2, s).unwrap());
     let a = segment(0.0, 0.0, 1.0, 0.0, 0.0, 2.0);
     let b = Curve::Trimmed(
-        Trimmed::new(Curve::Circle(Circle::new(place(2.0, 1.0, 1.0, 0.0), 1.0).unwrap()), -FRAC_PI_2, FRAC_PI_2, true)
-            .unwrap(),
+        Trimmed::new(
+            Curve::Circle(Circle::new(place(2.0, 1.0, 1.0, 0.0), 1.0).unwrap()),
+            -FRAC_PI_2,
+            FRAC_PI_2,
+            true,
+        )
+        .unwrap(),
     );
     let c = Curve::Polyline(Polyline::new(vec![pt(2.0, 2.0), pt(0.0, 2.0), pt(0.0, 0.0)]).unwrap());
     vec![
@@ -169,7 +185,8 @@ pub fn basic_samples() -> Vec<(&'static str, Curve)> {
         (
             "polyline-100",
             Curve::Polyline(
-                Polyline::new((0..100).map(|i| pt(i as f64 * 0.37, ((i * i) % 17) as f64 / 3.0)).collect()).unwrap(),
+                Polyline::new((0..100).map(|i| pt(i as f64 * 0.37, ((i * i) % 17) as f64 / 3.0)).collect())
+                    .unwrap(),
             ),
         ),
         ("composite", Curve::Composite(Composite::new(vec![a, b, c]).unwrap())),

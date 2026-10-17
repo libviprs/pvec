@@ -28,8 +28,11 @@ fn every_basic_sample_round_trips_bit_for_bit() {
 fn a_mixed_block_round_trips_with_ids_attached_to_the_right_curves() {
     let samples = basic_samples();
     // ids deliberately not in sample order
-    let ents: Vec<(EntityId, Curve)> =
-        samples.iter().enumerate().map(|(i, (_, c))| (id((samples.len() - 1 - i) as u32 * 3), c.clone())).collect();
+    let ents: Vec<(EntityId, Curve)> = samples
+        .iter()
+        .enumerate()
+        .map(|(i, (_, c))| (id((samples.len() - 1 - i) as u32 * 3), c.clone()))
+        .collect();
     let back = roundtrip(&ents);
     assert_eq!(back.len(), ents.len());
     for (eid, curve) in &ents {
@@ -59,7 +62,9 @@ fn curve_kind_is_preserved_per_sample() {
         assert_eq!(back[0].1.kind(), curve.kind(), "{name}");
         // an arc stays a trimmed circle and a polyline stays a polyline, all the way down
         match (&curve, &back[0].1) {
-            (Curve::Trimmed(a), Curve::Trimmed(b)) => assert_eq!(a.basis().kind(), b.basis().kind(), "{name}"),
+            (Curve::Trimmed(a), Curve::Trimmed(b)) => {
+                assert_eq!(a.basis().kind(), b.basis().kind(), "{name}")
+            }
             (Curve::Composite(a), Curve::Composite(b)) => {
                 let k = |c: &Composite| c.segments().iter().map(|s| s.kind()).collect::<Vec<_>>();
                 assert_eq!(k(a), k(b), "{name}");
@@ -161,7 +166,8 @@ fn encoding_is_deterministic_and_order_within_a_kind_is_input_order() {
     swapped.swap(6, 7); // two arcs: the same kind, so the order is visible
     assert_ne!(encode(&ents).unwrap().bytes, encode(&swapped).unwrap().bytes);
     let back = decode(&encode(&swapped).unwrap().bytes).unwrap();
-    let arcs: Vec<EntityId> = back.iter().filter(|(_, c)| matches!(c, Curve::Trimmed(_))).map(|(i, _)| *i).collect();
+    let arcs: Vec<EntityId> =
+        back.iter().filter(|(_, c)| matches!(c, Curve::Trimmed(_))).map(|(i, _)| *i).collect();
     let pos = |n: u32| arcs.iter().position(|i| i.index() == n).unwrap();
     assert!(pos(7) < pos(6), "within a kind the input order is kept");
 }
@@ -231,8 +237,9 @@ fn a_block_declares_the_capabilities_it_needs_including_the_bases_of_trimmed_cur
 
 #[test]
 fn the_wire_version_and_section_names_are_documented() {
-    let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/GEOMETRY_ENCODING.md"))
-        .expect("docs/GEOMETRY_ENCODING.md exists");
+    let doc =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/GEOMETRY_ENCODING.md"))
+            .expect("docs/GEOMETRY_ENCODING.md exists");
     let doc = doc.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(doc.contains(&format!("version {FORMAT_VERSION}")));
     for s in Section::ALL {

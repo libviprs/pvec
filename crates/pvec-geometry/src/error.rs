@@ -26,6 +26,8 @@ pub enum GeometryError {
     WeightCount,
     /// A bounding box whose lower corner is above or to the right of its upper corner (GEOM-01).
     InvertedBounds,
+    /// A stored direction is not unit length (NP-10).
+    NotUnitDirection,
 }
 
 impl GeometryError {
@@ -39,6 +41,7 @@ impl GeometryError {
             GeometryError::BadSegment => "PROFILE-9",
             GeometryError::WeightCount => "NP-15",
             GeometryError::InvertedBounds => "GEOM-01",
+            GeometryError::NotUnitDirection => "NP-10",
         }
     }
 
@@ -70,6 +73,9 @@ impl fmt::Display for GeometryError {
             }
             GeometryError::InvertedBounds => {
                 write!(f, "InvertedBounds: min must not exceed max ({})", self.rule())
+            }
+            GeometryError::NotUnitDirection => {
+                write!(f, "NotUnitDirection: a stored direction must be unit length ({})", self.rule())
             }
         }
     }

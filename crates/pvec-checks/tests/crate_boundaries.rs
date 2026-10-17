@@ -17,6 +17,11 @@ pub struct Wire {
 pub enum Kind {
     A,
     B(u32),
+    C {
+        /// doc
+        x: flatbuffers::Table,
+        y: u8,
+    },
 }
 
 pub trait Make {
@@ -43,6 +48,7 @@ mod tests {
         "Wire.inner: serde_json::Value",
         "Kind::A",
         "Kind::B(u32)",
+        "Kind::C { x: flatbuffers::Table, y: u8 }",
         "Make::make(&self, x: flatbuffers::Table) -> u8",
         "Wire::load(path: &str) -> Result<Wire, String>",
     ] {

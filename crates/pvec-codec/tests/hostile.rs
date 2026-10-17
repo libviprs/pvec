@@ -155,7 +155,10 @@ fn the_kind_directory_must_be_ascending_unique_known_and_non_empty() {
     // more kinds than exist
     let mut b = good.clone();
     put_u16(&mut b, KIND_COUNT, 5000);
-    assert!(matches!(refused(&b), DecodeError::Truncated | DecodeError::BadKindDirectory | DecodeError::TooMany));
+    assert!(matches!(
+        refused(&b),
+        DecodeError::Truncated | DecodeError::BadKindDirectory | DecodeError::TooMany
+    ));
 }
 
 #[test]
@@ -168,7 +171,9 @@ fn ids_must_be_below_the_limit_and_unique_within_the_block() {
     put_u32(&mut b, ids_at, 1 << 28);
     assert_eq!(refused(&b), DecodeError::BadId(1 << 28));
 
-    let two = encode(&[(id(0), basic_samples()[0].1.clone()), (id(1), basic_samples()[0].1.clone())]).unwrap().bytes;
+    let two = encode(&[(id(0), basic_samples()[0].1.clone()), (id(1), basic_samples()[0].1.clone())])
+        .unwrap()
+        .bytes;
     let mut b = two.clone();
     put_u32(&mut b, ids_at + 4, 0);
     assert_eq!(refused(&b), DecodeError::DuplicateId(id(0)));
@@ -235,7 +240,10 @@ fn composite_records_with_unknown_tags_or_bad_lengths_are_refused() {
     // the record length in the offset table must match what the record consumes
     let mut b = b0.clone();
     put_u32(&mut b, table + 4, len as u32 - 8);
-    assert!(matches!(refused(&b), DecodeError::LengthMismatch { .. } | DecodeError::BadRecord | DecodeError::Truncated));
+    assert!(matches!(
+        refused(&b),
+        DecodeError::LengthMismatch { .. } | DecodeError::BadRecord | DecodeError::Truncated
+    ));
 }
 
 #[test]
@@ -296,7 +304,9 @@ fn random_corruption_never_panics() {
             assert!(encode(&re).is_ok());
         }
     }
-    println!("{ok} of 4000 mutated blocks still decoded (mutations inside a float column are still valid floats)");
+    println!(
+        "{ok} of 4000 mutated blocks still decoded (mutations inside a float column are still valid floats)"
+    );
 }
 
 #[test]
@@ -325,4 +335,41 @@ fn errors_name_their_rule() {
     assert!(!e.rule().is_empty());
     let e = EncodeError::DuplicateId(id(1));
     assert!(!e.rule().is_empty() && e.to_string().contains("#1"));
+}
+
+#[test]
+fn padding_must_be_zero_so_the_encoding_stays_canonical() {
+    // One line: the id column is 4 bytes followed by 4 bytes of padding.
+    let mut b = single("line");
+    let pad = DIRECTORY + 8 + 4;
+    assert_eq!(&b[pad..pad + 4], &[0, 0, 0, 0]);
+    b[pad + 1] = 7;
+    assert_eq!(refused(&b), DecodeError::NonZeroPadding);
+    // reserved directory bytes too
+    let mut b = single("line");
+    b[DIRECTORY + 2] = 1;
+    assert_eq!(refused(&b), DecodeError::ReservedNotZero);
+}
+
+#[test]
+fn bytes_the_structure_does_not_use_are_refused_even_when_the_header_length_covers_them() {
+    let mut b = single("circle");
+    b.extend_from_slice(&[0; 8]);
+    let n = b.len() as u32;
+    put_u32(&mut b, TOTAL_LEN, n);
+    assert!(matches!(refused(&b), DecodeError::LengthMismatch { .. }));
+}
+
+#[test]
+fn a_composite_record_must_be_consumed_exactly_and_its_segment_flags_checked() {
+    let b0 = single("composite");
+    let arena = DIRECTORY + 8 + 16 + 8;
+    // fewer segments than the record holds: the rest of the record is unexplained
+    let mut b = b0.clone();
+    put_u32(&mut b, arena, 2);
+    assert_eq!(refused(&b), DecodeError::BadRecord);
+    // the reversed word of the first segment (tag at arena + 8, flag word right after) is 0 or 1
+    let mut b = b0.clone();
+    put_u32(&mut b, arena + 12, 2);
+    assert_eq!(refused(&b), DecodeError::BadFlags);
 }

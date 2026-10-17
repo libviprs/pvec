@@ -1,0 +1,54 @@
+decode.rs: pub fn describe(bytes: &[u8]) -> Result<Vec<(Section, usize)>, DecodeError>
+decode.rs: pub fn decode(bytes: &[u8]) -> Result<Vec<(EntityId, Curve)>, DecodeError>
+encode.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Encoded
+encode.rs: Encoded.bytes: Vec<u8>
+encode.rs: Encoded.capabilities: Vec<CapabilityId>
+encode.rs: pub fn encode(entities: &[(EntityId, Curve)]) -> Result<Encoded, EncodeError>
+error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DecodeError
+error.rs: DecodeError::Truncated
+error.rs: DecodeError::BadMagic
+error.rs: DecodeError::UnsupportedVersion(u16)
+error.rs: DecodeError::ReservedNotZero
+error.rs: DecodeError::NonZeroPadding
+error.rs: DecodeError::LengthMismatch { declared: usize, actual: usize }
+error.rs: DecodeError::TooMany
+error.rs: DecodeError::CountMismatch { header: u32, sum: u64 }
+error.rs: DecodeError::BadKindDirectory
+error.rs: DecodeError::UnknownKind(u16)
+error.rs: DecodeError::BadId(u32)
+error.rs: DecodeError::DuplicateId(EntityId)
+error.rs: DecodeError::BadFlags
+error.rs: DecodeError::BadOffsets
+error.rs: DecodeError::BadTag(u32)
+error.rs: DecodeError::BadRecord
+error.rs: DecodeError::Geometry { id: EntityId, error: GeometryError }
+error.rs: DecodeError::rule(&self) -> &'static str
+error.rs: impl fmt::Display for DecodeError
+error.rs: impl std::error::Error for DecodeError {}
+error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum EncodeError
+error.rs: EncodeError::DuplicateId(EntityId)
+error.rs: EncodeError::TooMany
+error.rs: EncodeError::Unsupported(CurveKind)
+error.rs: EncodeError::TooLarge
+error.rs: EncodeError::rule(&self) -> &'static str
+error.rs: impl fmt::Display for EncodeError
+error.rs: impl std::error::Error for EncodeError {}
+lib.rs: pub use decode::{decode, describe}
+lib.rs: pub use encode::{Encoded, encode}
+lib.rs: pub use error::{DecodeError, EncodeError}
+lib.rs: pub use section::Section
+lib.rs: pub const FORMAT_VERSION: u16
+lib.rs: pub fn capability_for(kind: CurveKind) -> Option<CapabilityId>
+lib.rs: pub fn capabilities_of(curve: &Curve) -> Vec<CapabilityId>
+section.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] #[non_exhaustive] pub enum Section
+section.rs: Section::Line = 0
+section.rs: Section::Circle = 1
+section.rs: Section::Ellipse = 2
+section.rs: Section::TrimmedLine = 3
+section.rs: Section::TrimmedCircle = 4
+section.rs: Section::TrimmedEllipse = 5
+section.rs: Section::Polyline = 6
+section.rs: Section::Composite = 7
+section.rs: Section::const ALL: [Section; 8]
+section.rs: Section::id(self) -> u16
+section.rs: Section::name(self) -> &'static str

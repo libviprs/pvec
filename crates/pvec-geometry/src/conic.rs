@@ -23,8 +23,20 @@ impl Placement2 {
     pub fn new(origin: Point2, ref_direction: Vector2) -> Result<Placement2> {
         let origin = Point2::checked(origin.x, origin.y)?;
         let d = POLICY.normalise_direction(ref_direction.x, ref_direction.y)?;
-        // `+ 0.0` turns a negative zero into a positive one.
-        Ok(Placement2 { origin, x_axis: Vector2::new(d[0] + 0.0, d[1] + 0.0) })
+        // NP-01 and NP-03 apply to the normalised axis too: a component that came out subnormal is
+        // refused, and negative zero is stored as positive zero.
+        let x_axis = Vector2::new(check_value(d[0])?, check_value(d[1])?);
+        Ok(Placement2 { origin, x_axis })
+    }
+
+    /// Rebuilds a frame from an axis that was already normalised and stored, keeping its bits. A
+    /// decoder uses this instead of [`Placement2::new`], because normalising a unit vector again can
+    /// move its last bit. The axis must be finite and unit length within NP-05, else it is refused
+    /// under NP-10 (a stored direction that is not unit length) or NP-01.
+    pub fn from_stored(origin: Point2, x_axis: Vector2) -> Result<Placement2> {
+        let origin = Point2::checked(origin.x, origin.y)?;
+        let x_axis = stored_unit(x_axis)?;
+        Ok(Placement2 { origin, x_axis })
     }
 
     /// The location.
@@ -60,7 +72,15 @@ impl Line {
     pub fn new(origin: Point2, direction: Vector2) -> Result<Line> {
         let origin = Point2::checked(origin.x, origin.y)?;
         let d = POLICY.normalise_direction(direction.x, direction.y)?;
-        Ok(Line { origin, direction: Vector2::new(d[0] + 0.0, d[1] + 0.0) })
+        let direction = Vector2::new(check_value(d[0])?, check_value(d[1])?);
+        Ok(Line { origin, direction })
+    }
+
+    /// Rebuilds a line from a direction that was already normalised and stored, keeping its bits
+    /// (see [`Placement2::from_stored`]).
+    pub fn from_stored(origin: Point2, direction: Vector2) -> Result<Line> {
+        let origin = Point2::checked(origin.x, origin.y)?;
+        Ok(Line { origin, direction: stored_unit(direction)? })
     }
 
     /// The point at parameter zero.
@@ -294,4 +314,10 @@ pub(crate) fn arc_bounds(f: &Placement2, a: f64, b: f64, start: f64, span: f64) 
         }
     }
     out
+}
+
+/// A stored direction: finite and normal (NP-01), and unit length within the NP-05 tolerance (NP-10).
+fn stored_unit(d: Vector2) -> Result<Vector2> {
+    let d = Vector2::new(check_value(d.x)?, check_value(d.y)?);
+    if POLICY.is_unit([d.x, d.y]) { Ok(d) } else { Err(GeometryError::NotUnitDirection) }
 }
