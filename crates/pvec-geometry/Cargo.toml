@@ -1,0 +1,21 @@
+[package]
+name = "pvec-geometry"
+version = "0.0.0"
+description = "The source-neutral PVec curve model: validated curves, exact evaluation, bounds and affine transforms"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# The only dependency is the numeric policy. A serialization, file or network crate here is a bug,
+# and crates/pvec-checks fails the gate if one appears.
+[dependencies]
+pvec-numeric = { path = "../pvec-numeric" }
+
+[lints]
+workspace = true
+
+# The pathological suite lives at the repository root so it reads as a specification artefact. It
+# moved here from pvec-numeric when the evaluator it was waiting for (P3.1) landed.
+[[test]]
+name = "pathological"
+path = "../../tests/pathological/main.rs"

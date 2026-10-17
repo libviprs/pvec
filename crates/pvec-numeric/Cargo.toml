@@ -10,9 +10,3 @@ publish.workspace = true
 
 [lints]
 workspace = true
-
-# The pathological suite lives at the repository root so it reads as a specification artefact,
-# not as a unit test of this crate.
-[[test]]
-name = "pathological"
-path = "../../tests/pathological/main.rs"

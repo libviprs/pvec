@@ -1,12 +1,11 @@
-//! The pathological suite (issue P1.2). It is written before any evaluator exists.
+//! The pathological suite (issues P1.2 and P3.1). It was written before any evaluator existed.
 //!
 //! Two kinds of test live here:
 //!
-//! * policy cases, which run against `pvec-numeric` today and must pass, and which must change
-//!   their answer if any tolerance is widened by an order of magnitude;
-//! * evaluator probes, which cannot pass until the evaluator lands (P3.1). They are `#[ignore]`d so
-//!   the ordinary gate stays usable, and `tools/gate.sh` runs them with `--ignored` and fails if
-//!   they ever go green without this file being updated, so they cannot silently rot.
+//! * policy cases, which run against `pvec-numeric` and must pass, and which must change their
+//!   answer if any tolerance is widened or narrowed by an order of magnitude;
+//! * evaluator probes, which were red from P1.2 until the production evaluator landed (P3.1). They
+//!   now run against `pvec-geometry` in the ordinary test run, so there is no ignored test left to rot.
 
 mod policy_cases;
 mod probes;
@@ -89,16 +88,16 @@ fn a_two_sided_derivative_at_a_full_multiplicity_interior_knot_is_refused() {
     assert_eq!(max_two_sided_order(3, 3), Some(0));
 }
 
-/// No evaluator exists yet. P3.1 replaces this with the production one; the geometry spike
-/// (P1.3) supplies its prototype from its own test.
-fn evaluator() -> Option<Box<dyn Evaluator>> {
-    None
+mod production;
+
+#[test]
+fn evaluator_probes() {
+    let ev = production::Production;
+    let failures: Vec<String> = probes().iter().filter_map(|p| run_probe(&ev, p).err()).collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]
-#[ignore = "red until P3.1: no evaluator exists"]
-fn evaluator_probes() {
-    let ev = evaluator().expect("no evaluator exists yet (P3.1)");
-    let failures: Vec<String> = probes().iter().filter_map(|p| run_probe(ev.as_ref(), p).err()).collect();
-    assert!(failures.is_empty(), "{}", failures.join("\n"));
+fn there_are_fifteen_probes() {
+    assert_eq!(probes().len(), 15);
 }
