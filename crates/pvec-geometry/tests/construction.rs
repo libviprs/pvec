@@ -239,3 +239,35 @@ fn bounds_can_be_built_from_two_corners_and_are_validated() {
     assert_eq!(rule_of(Bounds::new(pt(0.0, 0.0), pt(f64::NAN, 3.0))), "NP-01");
     assert_eq!(rule_of(Bounds::new(pt(0.0, 0.0), pt(MAX_ABS_COORD * 2.0, 3.0))), "NP-02");
 }
+
+#[test]
+fn stored_axes_are_validated_not_renormalised_so_a_decoder_keeps_the_bits() {
+    // Normalising an already unit vector can move its last bit; a decoder must not do that.
+    let mut r = Rng(0x57_0ED);
+    let mut moved = 0;
+    for _ in 0..20_000 {
+        let p = Placement2::new(pt(1.0, 2.0), v(r.range(-1.0, 1.0), r.range(-1.0, 1.0))).unwrap();
+        let a = p.x_axis();
+        let q = Placement2::from_stored(p.origin(), a).unwrap();
+        assert_eq!((q.x_axis().x.to_bits(), q.x_axis().y.to_bits()), (a.x.to_bits(), a.y.to_bits()));
+        let l = Line::from_stored(p.origin(), a).unwrap();
+        assert_eq!((l.direction().x.to_bits(), l.direction().y.to_bits()), (a.x.to_bits(), a.y.to_bits()));
+        let again = Placement2::new(p.origin(), a).unwrap();
+        if again.x_axis().x.to_bits() != a.x.to_bits() || again.x_axis().y.to_bits() != a.y.to_bits() {
+            moved += 1;
+        }
+    }
+    assert!(moved > 0, "re-normalising must be shown to move bits for from_stored to be needed");
+}
+
+#[test]
+fn stored_axes_that_are_not_unit_zero_or_not_finite_are_refused() {
+    assert_eq!(rule_of(Placement2::from_stored(pt(0., 0.), v(2.0, 0.0))), "NP-10");
+    assert_eq!(rule_of(Placement2::from_stored(pt(0., 0.), v(0.0, 0.0))), "NP-10");
+    assert_eq!(rule_of(Placement2::from_stored(pt(0., 0.), v(f64::NAN, 0.0))), "NP-01");
+    assert_eq!(rule_of(Placement2::from_stored(pt(f64::INFINITY, 0.), v(1.0, 0.0))), "NP-01");
+    assert_eq!(rule_of(Line::from_stored(pt(0., 0.), v(0.6, 0.6))), "NP-10");
+    assert_eq!(rule_of(Line::from_stored(pt(0., 0.), v(f64::NAN, 1.0))), "NP-01");
+    // a unit vector within the NP-05 tolerance of length one is accepted as it is
+    assert!(Line::from_stored(pt(0., 0.), v(0.6, 0.8)).is_ok());
+}

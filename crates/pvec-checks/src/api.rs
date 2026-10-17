@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 /// `[dependencies]`: a serialization, file or network crate there is a boundary violation.
 pub const API_CRATES: &[(&str, &[&str])] = &[
     ("pvec-capabilities", &[]),
+    ("pvec-codec", &["pvec-capabilities", "pvec-entity", "pvec-geometry", "pvec-numeric"]),
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),
 ];
@@ -260,9 +261,21 @@ pub fn public_api_snapshot_of_text(file: &str, text: &str) -> String {
                 }
             }
             Ctx::Enum(name) => {
-                emit(&mut out, file, &format!("{name}::{body}"));
                 if opens {
-                    push_ctx = Some(Ctx::Skip);
+                    // A struct-like variant: its fields are part of the signature, so they are recorded.
+                    let mut fields = Vec::new();
+                    let mut k = j + 1;
+                    while k < lines.len() && !lines[k].trim().starts_with('}') {
+                        let ft = lines[k].trim();
+                        if !ft.is_empty() && !ft.starts_with("//") && !ft.starts_with("#[") {
+                            fields.push(squash(ft.trim_end_matches(',')));
+                        }
+                        k += 1;
+                    }
+                    emit(&mut out, file, &format!("{name}::{body} {{ {} }}", fields.join(", ")));
+                    j = k;
+                } else {
+                    emit(&mut out, file, &format!("{name}::{body}"));
                 }
             }
             Ctx::Trait(name) => {

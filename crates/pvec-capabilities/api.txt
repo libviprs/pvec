@@ -64,9 +64,9 @@ lib.rs: RegistryError::ReusedRetiredId(CapabilityId)
 lib.rs: RegistryError::UnaccountedId(CapabilityId)
 lib.rs: RegistryError::ComponentMustBeOptional(&'static str)
 lib.rs: RegistryError::NoConstruct(&'static str)
-lib.rs: RegistryError::NoProfileSection
-lib.rs: RegistryError::ConstructNotInSection
-lib.rs: RegistryError::AmbiguousConstruct
+lib.rs: RegistryError::NoProfileSection { name: &'static str, section: u32 }
+lib.rs: RegistryError::ConstructNotInSection { name: &'static str, construct: &'static str, section: u32 }
+lib.rs: RegistryError::AmbiguousConstruct { construct: &'static str, first: &'static str, second: &'static str }
 lib.rs: RegistryError::ComponentNamesConstruct(&'static str)
 lib.rs: impl fmt::Display for RegistryError
 lib.rs: impl std::error::Error for RegistryError {}
@@ -83,8 +83,8 @@ lib.rs: Declaration.capabilities: Vec<Declared>
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Negotiated
 lib.rs: Negotiated.skipped: Vec<CapabilityId>
 lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum NegotiationError
-lib.rs: NegotiationError::ReaderTooOld
-lib.rs: NegotiationError::MissingRequired
+lib.rs: NegotiationError::ReaderTooOld { file_requires: Version, reader: Version }
+lib.rs: NegotiationError::MissingRequired { id: CapabilityId, name: Option<&'static str> }
 lib.rs: NegotiationError::ComponentDeclaredRequired(CapabilityId)
 lib.rs: impl fmt::Display for NegotiationError
 lib.rs: impl std::error::Error for NegotiationError {}

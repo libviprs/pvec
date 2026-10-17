@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/pvec-capabilities",
     "crates/pvec-checks",
+    "crates/pvec-codec",
     "crates/pvec-entity",
     "crates/pvec-geometry",
     "crates/pvec-numeric",

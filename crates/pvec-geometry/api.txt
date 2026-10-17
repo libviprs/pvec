@@ -1,10 +1,12 @@
 conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Placement2
 conic.rs: Placement2::new(origin: Point2, ref_direction: Vector2) -> Result<Placement2>
+conic.rs: Placement2::from_stored(origin: Point2, x_axis: Vector2) -> Result<Placement2>
 conic.rs: Placement2::origin(&self) -> Point2
 conic.rs: Placement2::x_axis(&self) -> Vector2
 conic.rs: Placement2::y_axis(&self) -> Vector2
 conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Line
 conic.rs: Line::new(origin: Point2, direction: Vector2) -> Result<Line>
+conic.rs: Line::from_stored(origin: Point2, direction: Vector2) -> Result<Line>
 conic.rs: Line::origin(&self) -> Point2
 conic.rs: Line::direction(&self) -> Vector2
 conic.rs: impl Curve2d for Line
@@ -62,6 +64,7 @@ error.rs: GeometryError::BadBasis
 error.rs: GeometryError::BadSegment
 error.rs: GeometryError::WeightCount
 error.rs: GeometryError::InvertedBounds
+error.rs: GeometryError::NotUnitDirection
 error.rs: GeometryError::rule(&self) -> &'static str
 error.rs: GeometryError::as_numeric(&self) -> Option<NumericError>
 error.rs: impl From<NumericError> for GeometryError
