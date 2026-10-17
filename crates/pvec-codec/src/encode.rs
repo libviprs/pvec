@@ -1,7 +1,9 @@
 //! The encoder: entities in, one canonical block out.
 
 use crate::error::EncodeError;
-use crate::records::write_composite;
+use crate::records::{
+    basis_tag_of, trimmed_spline_kind, write_composite, write_spline, write_trimmed_spline,
+};
 use crate::rows::fixed_row;
 use crate::section::Section;
 use crate::wire::Writer;
@@ -29,6 +31,10 @@ fn section_of(c: &Curve) -> Result<Section, EncodeError> {
     match c {
         Curve::Polyline(_) => Ok(Section::Polyline),
         Curve::Composite(_) => Ok(Section::Composite),
+        Curve::Bezier(_) => Ok(Section::Bezier),
+        Curve::BSpline(_) => Ok(Section::BSpline),
+        Curve::RationalBSpline(_) => Ok(Section::RationalBSpline),
+        Curve::Trimmed(_) if trimmed_spline_kind(c).is_some() => Ok(Section::TrimmedSpline),
         other => Err(EncodeError::Unsupported(other.kind())),
     }
 }
@@ -83,6 +89,15 @@ pub fn encode(entities: &[(EntityId, Curve)]) -> Result<Encoded, EncodeError> {
                 w.f64s(polys.iter().flat_map(|p| p.vertices().iter().map(|q| q.x)));
                 w.f64s(polys.iter().flat_map(|p| p.vertices().iter().map(|q| q.y)));
             }
+            Section::Bezier | Section::BSpline | Section::RationalBSpline => {
+                arena_section(&mut w, rows, write_spline)?;
+            }
+            Section::TrimmedSpline => {
+                arena_section(&mut w, rows, |a, c| match (trimmed_spline_kind(c), c) {
+                    (Some(k), Curve::Trimmed(t)) => write_trimmed_spline(a, t, basis_tag_of(k)),
+                    _ => Err(EncodeError::Unsupported(c.kind())),
+                })?;
+            }
             Section::Composite => {
                 let comps: Vec<&pvec_geometry::Composite> = rows
                     .iter()
@@ -120,4 +135,22 @@ pub fn encode(entities: &[(EntityId, Curve)]) -> Result<Encoded, EncodeError> {
         caps.extend(capabilities_of(c));
     }
     Ok(Encoded { bytes: w.buf, capabilities: caps.into_iter().collect() })
+}
+
+/// Writes the offsets and the arena of a section whose entities are variable-length records.
+fn arena_section(
+    w: &mut Writer,
+    rows: &[&(EntityId, Curve)],
+    mut write: impl FnMut(&mut Writer, &Curve) -> Result<(), EncodeError>,
+) -> Result<(), EncodeError> {
+    let mut arena = Writer::default();
+    let mut offs: Vec<u32> = vec![0];
+    for (_, c) in rows {
+        write(&mut arena, c)?;
+        offs.push(u32::try_from(arena.buf.len()).map_err(|_| EncodeError::TooLarge)?);
+    }
+    w.u32s(offs);
+    w.buf.extend_from_slice(&arena.buf);
+    w.pad8();
+    Ok(())
 }

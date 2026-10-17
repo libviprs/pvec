@@ -44,6 +44,10 @@ bytes followed by padding; bit 0 is the only defined bit.
 | 5 | `TrimmedEllipse` | ids, the six `Ellipse` columns, trim start, trim span, flags (bit 0: reversed) |
 | 6 | `Polyline` | ids, vertex offsets (`n + 1` u32 padded), all x, all y |
 | 7 | `Composite` | ids, flags (bit 0: declared closed), record offsets (`n + 1` u32 padded), record arena |
+| 8 | `Bezier` | ids, record offsets (`n + 1` u32 padded), record arena of spline records |
+| 9 | `BSpline` | ids, record offsets, record arena of spline records |
+| 10 | `RationalBSpline` | ids, record offsets, record arena of spline records |
+| 11 | `TrimmedSpline` | ids, record offsets, record arena of trimmed spline records |
 
 The axis columns are the stored unit direction of the placement (or of the line), not an angle. The
 decoder checks that it is unit length within the tolerance of NP-05 and keeps its bits; it does not
@@ -66,9 +70,34 @@ arena. Each record is one composite and is consumed exactly. A record is a segme
 | 2 | trimmed circle | reversed (u32), then the seven `TrimmedCircle` numbers |
 | 3 | trimmed ellipse | reversed (u32), then the eight `TrimmedEllipse` numbers |
 | 4 | polyline | vertex count (u32, between 2 and 2^20), then x and y interleaved |
+| 5, 6, 7 | Bezier, B-spline, rational B-spline | a zero u32, then a spline record |
+| 8, 9, 10 | trimmed Bezier, trimmed B-spline, trimmed rational B-spline | reversed (u32, 0 or 1), the trim start and span (f64), then the basis as a spline record |
 
 A kind or tag that is not in the tables is refused. A curve kind with no codec yet is refused by the
 encoder and never written as something else.
+
+### Spline records
+
+A spline record is four u32, then arrays of f64:
+
+| word | meaning |
+|---|---|
+| 0 | degree. For a Bezier curve it must equal the control point count minus one |
+| 1 | control point count: 2 to 65536 for a B-spline, 2 to 17 for a Bezier curve |
+| 2 | knot count, at most 65553. Zero for a Bezier curve, which has no knot vector |
+| 3 | flags, bit 0: declared closed. Any other bit is refused |
+
+The control points follow as x and y interleaved, then the knots, then (rational only) one weight per
+control point. Nothing about a record is believed before it is checked: the counts are compared with the
+bytes left before the arrays are read, and the arrays are then handed to the constructors of
+`pvec-geometry`, which refuse a knot vector whose length is not points plus degree plus one, one that
+decreases, an interior knot repeated more than the degree times, a weight that is zero, negative, not
+finite or below the conditioning floor, and a hull that collapses to a point. A rational curve whose
+weights are all equal is still rational: the section says what it is and nothing is demoted.
+
+A trimmed spline record (section 11) is the basis tag (u32: 1 Bezier, 2 B-spline, 3 rational), the
+reversed flag (u32), the trim start and span (f64), then the basis as a spline record. The trim is
+rebuilt from the written numbers and is not normalised again.
 
 ## Rules a decoder refuses on
 
@@ -100,7 +129,8 @@ claims 2^28 entities in a 40 byte block is refused as truncated without allocati
 
 ## What is not here
 
-Splines (Bezier, B-spline, rational B-spline) and trimmed splines are P3.3. Component references per
+Periodic (wrapped) B-splines have no form of their own, as the profile says; a closed curve written with
+an unclamped knot vector and wrapped control points is an ordinary B-spline here. Component references per
 entity, which the issue text mentions, are deliberately not written: the component streams (P3.7)
 refer to entities by `EntityId`, so the entity side carries no reference, and a reserved column would
 cost four bytes per entity against the 36.7 bytes per line that ADR 0004 measured.

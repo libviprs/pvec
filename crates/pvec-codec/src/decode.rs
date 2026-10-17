@@ -4,7 +4,7 @@
 //! malformed block cannot produce an unvalidated curve.
 
 use crate::error::DecodeError;
-use crate::records::read_composite;
+use crate::records::{SplineKind, kind_from_basis_tag, read_composite, read_spline, read_trimmed_spline};
 use crate::rows::build_fixed;
 use crate::section::Section;
 use crate::wire::{Reader, Res};
@@ -159,6 +159,26 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<(EntityId, Curve)>, DecodeError> {
                     out.push((*id, Curve::Composite(c)));
                 }
             }
+            Section::Bezier | Section::BSpline | Section::RationalBSpline | Section::TrimmedSpline => {
+                let (offs, arena) = read_arena(&mut r, n)?;
+                for (k, id) in id_col.iter().enumerate() {
+                    let mut rec = Reader::new(&arena[offs[k] as usize..offs[k + 1] as usize]);
+                    let curve = match section {
+                        Section::Bezier => read_spline(&mut rec, SplineKind::Bezier, *id)?,
+                        Section::BSpline => read_spline(&mut rec, SplineKind::BSpline, *id)?,
+                        Section::RationalBSpline => read_spline(&mut rec, SplineKind::Rational, *id)?,
+                        _ => {
+                            let kind = kind_from_basis_tag(rec.u32()?)?;
+                            let reversed = rec.u32()?;
+                            read_trimmed_spline(&mut rec, kind, *id, reversed)?
+                        }
+                    };
+                    if rec.remaining() != 0 {
+                        return Err(DecodeError::BadRecord);
+                    }
+                    out.push((*id, curve));
+                }
+            }
             fixed => {
                 let (width, has_flags) = fixed.fixed_shape().ok_or(DecodeError::UnknownKind(fixed.id()))?;
                 let mut cols = Vec::with_capacity(width);
@@ -189,3 +209,19 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<(EntityId, Curve)>, DecodeError> {
     }
     Ok(out)
 }
+
+/// Reads the offset table and arena of a section of variable-length records, and checks the shape of
+/// the table: it starts at zero, each record is a whole number of 8-byte words and at least as big as
+/// the smallest spline record, and the arena is really there.
+fn read_arena<'a>(r: &mut Reader<'a>, n: usize) -> Res<(Vec<u32>, &'a [u8])> {
+    let offs = r.u32s(n + 1)?;
+    let arena_len = *offs.last().unwrap_or(&0) as usize;
+    if arena_len > r.remaining() {
+        return Err(DecodeError::Truncated);
+    }
+    check_offsets(&offs, arena_len, MIN_SPLINE_RECORD, 8)?;
+    Ok((offs, r.take(arena_len)?))
+}
+
+/// Four header words and two control points: the least a spline record can be.
+const MIN_SPLINE_RECORD: u32 = 16 + 32;

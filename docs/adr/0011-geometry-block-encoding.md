@@ -46,3 +46,18 @@ section kind without touching the existing ones, because the kind directory is o
 Add a compact segment section if P8.3 shows that segment payload is more than 25% of block bytes on a real
 drawing and a canonical-form fraction above 90% of segments. Reconsider zero-padding as a requirement if
 the reader cost of checking it shows up in P8.4's decode benchmark.
+
+## Amendment for the spline codecs (P3.3)
+
+The same rules carry over to Bezier, B-spline and rational B-spline records. A spline record is four
+u32 (degree, control point count, knot count, flags) followed by the control points, the knots and, for a
+rational curve, the weights, all contiguous so a curve's arrays are read as one run (the P1.5
+measurement). A Bezier record states its degree and has no knots; its degree must be its point count minus
+one. A rational curve is its own section, so a set of equal weights stays rational, which is what
+`docs/ISO_PROFILE.md` section 12 says. Trimmed splines get a section of their own and composite segments get
+tags 5 to 10 in the table they already shared. The profile has no wrapped periodic form, so a closed curve
+written with an unclamped knot vector and wrapped control points is an ordinary B-spline here.
+
+The counts are the only numbers that size an allocation, and every one is compared with the bytes left
+before the arrays are read. The evaluator is not touched: the codec has none, and a repository check fails
+if any crate but `pvec-geometry` defines one.

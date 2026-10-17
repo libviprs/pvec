@@ -51,7 +51,7 @@ fn spline_samples() -> Vec<(&'static str, Curve)> {
     // clamped cubic, uneven interior knots
     v.push((
         "bspline-clamped",
-        Curve::BSpline(BSpline::new(3, cps(7, 1), clamped_knots(7, 3, &[0.2, 0.55, 0.9 * third + 0.05])).unwrap()),
+        Curve::BSpline(BSpline::new(3, cps(7, 1), clamped_knots(7, 3, &[0.2, 0.55, 0.8])).unwrap()),
     ));
     // full multiplicity interior knot: a C0 break
     v.push((
@@ -116,7 +116,10 @@ fn spline_samples() -> Vec<(&'static str, Curve)> {
     v.push((
         "bezier-closed",
         Curve::Bezier(
-            Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(3., 2.), pt(0., 0.)]).unwrap().declare_closed().unwrap(),
+            Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(3., 2.), pt(0., 0.)])
+                .unwrap()
+                .declare_closed()
+                .unwrap(),
         ),
     ));
     // trimmed splines, forward and reversed
@@ -187,8 +190,16 @@ fn decoded_splines_evaluate_identically_to_the_originals_and_the_worst_deviation
 #[test]
 fn composites_may_hold_splines_and_trimmed_splines_and_keep_their_order() {
     let a = Curve::Bezier(Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(2., 0.)]).unwrap());
-    let b = Curve::BSpline(BSpline::new(2, vec![pt(2., 0.), pt(3., 1.), pt(4., 0.)], vec![0., 0., 0., 1., 1., 1.]).unwrap());
-    let rb = RationalBSpline::new(2, vec![pt(4., 0.), pt(5., 2.), pt(6., 0.)], vec![0., 0., 0., 1., 1., 1.], vec![1., 2., 1.]).unwrap();
+    let b = Curve::BSpline(
+        BSpline::new(2, vec![pt(2., 0.), pt(3., 1.), pt(4., 0.)], vec![0., 0., 0., 1., 1., 1.]).unwrap(),
+    );
+    let rb = RationalBSpline::new(
+        2,
+        vec![pt(4., 0.), pt(5., 2.), pt(6., 0.)],
+        vec![0., 0., 0., 1., 1., 1.],
+        vec![1., 2., 1.],
+    )
+    .unwrap();
     let c = Curve::Trimmed(Trimmed::new(Curve::RationalBSpline(rb), 0.0, 0.5, true).unwrap());
     let end = c.eval(c.domain().hi()).unwrap();
     let d = Curve::Polyline(Polyline::new(vec![end, pt(end.x, end.y + 1.0)]).unwrap());
@@ -215,7 +226,7 @@ fn spline_blocks_declare_the_registrys_spline_capabilities() {
     assert_eq!(encode(&[(id(0), get("rational"))]).unwrap().capabilities, vec![ids::RATIONAL_B_SPLINE_CURVE]);
     assert_eq!(
         encode(&[(id(0), get("trimmed-bspline"))]).unwrap().capabilities,
-        vec![ids::B_SPLINE_CURVE, ids::TRIMMED_CURVE]
+        vec![ids::TRIMMED_CURVE, ids::B_SPLINE_CURVE]
     );
 }
 
@@ -277,9 +288,11 @@ fn non_monotone_knots_and_too_high_multiplicity_are_refused() {
     b[k4..k4 + 8].copy_from_slice(&y);
     b[k5..k5 + 8].copy_from_slice(&x);
     assert_eq!(refused_rule(&b), "NP-14");
-    // an interior knot repeated degree + 1 times
-    let mut b = b0.clone();
-    for k in 4..8 {
+    // an interior knot repeated degree + 1 times (needs eight points to have four interior knots)
+    let eight = BSpline::new(3, cps(8, 9), clamped_knots(8, 3, &[0.3, 0.5, 0.6, 0.7])).unwrap();
+    let mut b = encode(&[(id(0), Curve::BSpline(eight))]).unwrap().bytes;
+    let knots_at = ARENA + 16 + 8 * 16;
+    for k in [4, 6, 7] {
         put_f64(&mut b, knots_at + k * 8, 0.5);
     }
     assert_eq!(refused_rule(&b), "NP-14");
@@ -316,7 +329,10 @@ fn counts_above_the_maxima_are_refused_before_anything_is_allocated_from_them() 
         let mut b = b0.clone();
         put_u32(&mut b, ARENA + NCP, ncp);
         let e = decode(&b).unwrap_err();
-        assert!(matches!(e, DecodeError::BadRecord | DecodeError::Truncated | DecodeError::TooMany), "{ncp}: {e:?}");
+        assert!(
+            matches!(e, DecodeError::BadRecord | DecodeError::Truncated | DecodeError::TooMany),
+            "{ncp}: {e:?}"
+        );
     }
     let mut b = b0.clone();
     put_u32(&mut b, ARENA + NKNOTS, u32::MAX);
@@ -404,4 +420,135 @@ fn random_splines_round_trip_bit_for_bit() {
         };
         assert_bit_equal(&format!("case {case}"), &curve, &roundtrip(&curve));
     }
+}
+
+// ---------------------------------------------------------------- records crafted byte by byte
+
+/// A block with one entity of a spline section whose record is built here, independently of the
+/// encoder, so it can hold numbers the encoder would never write.
+fn raw_block(
+    section: Section,
+    degree: u32,
+    cps: &[(f64, f64)],
+    knots: &[f64],
+    weights: &[f64],
+    flags: u32,
+) -> Vec<u8> {
+    let mut rec = Vec::new();
+    for w in [degree, cps.len() as u32, knots.len() as u32, flags] {
+        rec.extend_from_slice(&w.to_le_bytes());
+    }
+    for (x, y) in cps {
+        rec.extend_from_slice(&x.to_le_bytes());
+        rec.extend_from_slice(&y.to_le_bytes());
+    }
+    for k in knots.iter().chain(weights) {
+        rec.extend_from_slice(&k.to_le_bytes());
+    }
+    let mut b = Vec::new();
+    b.extend_from_slice(b"PVG1");
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&0u16.to_le_bytes());
+    b.extend_from_slice(&0u32.to_le_bytes()); // total length, patched below
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.extend_from_slice(&1u16.to_le_bytes());
+    b.extend_from_slice(&[0; 6]);
+    b.extend_from_slice(&section.id().to_le_bytes());
+    b.extend_from_slice(&0u16.to_le_bytes());
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.extend_from_slice(&0u32.to_le_bytes()); // entity id 0
+    b.extend_from_slice(&[0; 4]);
+    b.extend_from_slice(&0u32.to_le_bytes());
+    b.extend_from_slice(&(rec.len() as u32).to_le_bytes());
+    b.extend_from_slice(&rec);
+    let n = b.len() as u32;
+    b[8..12].copy_from_slice(&n.to_le_bytes());
+    b
+}
+
+fn ramp(n: usize) -> Vec<(f64, f64)> {
+    (0..n).map(|i| (i as f64, ((i * 7) % 5) as f64)).collect()
+}
+
+#[test]
+fn the_raw_block_builder_agrees_with_the_encoder() {
+    // If the independent builder and the encoder ever disagree, the tests below prove nothing.
+    let pts = ramp(4);
+    let knots = [0., 0., 0., 0., 1., 1., 1., 1.];
+    let raw = raw_block(Section::BSpline, 3, &pts, &knots, &[], 0);
+    let s = BSpline::new(3, pts.iter().map(|p| pt(p.0, p.1)).collect(), knots.to_vec()).unwrap();
+    assert_eq!(raw, encode(&[(id(0), Curve::BSpline(s))]).unwrap().bytes);
+}
+
+#[test]
+fn counts_just_above_the_maxima_in_a_record_that_really_holds_them_are_refused_as_bad_records() {
+    // 65537 control points with matching knots (degree 1): the arrays are all present, so only the
+    // cap on the count can refuse this one before the constructors see it.
+    let n = MAX_CONTROL_POINTS + 1;
+    let knots: Vec<f64> =
+        std::iter::once(0.0).chain((0..n).map(|i| i as f64 / (n - 1) as f64)).chain([1.0]).collect();
+    let b = raw_block(Section::BSpline, 1, &ramp(n), &knots, &[], 0);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    // and one knot more than the knot maximum, with a small curve
+    let many = vec![0.5; pvec_numeric::MAX_KNOTS + 1];
+    let b = raw_block(Section::BSpline, 3, &ramp(7), &many, &[], 0);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    // a Bezier curve past degree 16 (18 points), arrays present
+    let b = raw_block(Section::Bezier, 17, &ramp(MAX_DEGREE + 2), &[], &[], 0);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    // the largest legal Bezier and B-spline do decode
+    assert!(decode(&raw_block(Section::Bezier, 16, &ramp(MAX_DEGREE + 1), &[], &[], 0)).is_ok());
+}
+
+#[test]
+fn undefined_record_flags_and_inconsistent_bezier_records_are_refused() {
+    let knots = [0., 0., 0., 0., 1., 1., 1., 1.];
+    let b = raw_block(Section::BSpline, 3, &ramp(4), &knots, &[], 2);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadFlags);
+    // a Bezier record states degree = points - 1 and has no knots
+    let b = raw_block(Section::Bezier, 5, &ramp(4), &[], &[], 0);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    let b = raw_block(Section::Bezier, 3, &ramp(4), &[0.0], &[], 0);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    assert!(decode(&raw_block(Section::Bezier, 3, &ramp(4), &[], &[], 0)).is_ok());
+}
+
+#[test]
+fn a_record_must_be_consumed_exactly_and_be_at_least_as_big_as_the_smallest_spline() {
+    let good = raw_block(Section::Bezier, 3, &ramp(4), &[], &[], 0);
+    let offs_at = DIRECTORY + 8 + 8; // directory, ids (padded), then the offset table
+    // eight spare bytes at the end of the record, covered by the offsets and the total length
+    let mut b = good.clone();
+    b.extend_from_slice(&[0; 8]);
+    let (n, len) = (b.len() as u32, u32::from_le_bytes(b[offs_at + 4..offs_at + 8].try_into().unwrap()) + 8);
+    b[8..12].copy_from_slice(&n.to_le_bytes());
+    b[offs_at + 4..offs_at + 8].copy_from_slice(&len.to_le_bytes());
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadRecord);
+    // an offset table that claims a record smaller than any spline can be
+    let mut b = good.clone();
+    b[offs_at + 4..offs_at + 8].copy_from_slice(&40u32.to_le_bytes());
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadOffsets);
+}
+
+#[test]
+fn trimmed_spline_and_composite_spline_segment_words_are_checked() {
+    // trimmed spline record: basis tag, reversed word, start, span, then the spline record
+    let (_, c) = spline_samples().into_iter().find(|(n, _)| *n == "trimmed-bspline").unwrap();
+    let b0 = encode(&[(id(0), c)]).unwrap().bytes;
+    assert_eq!(&b0[ARENA..ARENA + 4], &2u32.to_le_bytes(), "B-spline basis tag");
+    let mut b = b0.clone();
+    put_u32(&mut b, ARENA + 4, 2);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadFlags);
+    let mut b = b0.clone();
+    put_u32(&mut b, ARENA, 9);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::BadTag(9));
+
+    // a spline segment of a composite: the word after the tag is reserved
+    let a = Curve::Bezier(Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(2., 0.)]).unwrap());
+    let b0 = encode(&[(id(0), Curve::Composite(Composite::new(vec![a]).unwrap()))]).unwrap().bytes;
+    let seg = DIRECTORY + 8 + 8 + 8 + 8 + 8; // ids, flags, offsets, then the record header (count and zero)
+    assert_eq!(&b0[seg..seg + 4], &5u32.to_le_bytes(), "Bezier segment tag");
+    let mut b = b0.clone();
+    put_u32(&mut b, seg + 4, 1);
+    assert_eq!(decode(&b).unwrap_err(), DecodeError::ReservedNotZero);
 }

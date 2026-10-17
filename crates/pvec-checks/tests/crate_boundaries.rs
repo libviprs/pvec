@@ -133,7 +133,11 @@ fn no_crate_but_the_geometry_crate_contains_an_evaluator() {
         for file in rust_files(&entry.path().join("src")) {
             let code = strip_comments_and_tests(&fs::read_to_string(&file).unwrap());
             let found = second_evaluator_markers(&code);
-            assert!(found.is_empty(), "{name}: {} defines an evaluator ({found:?}); there is exactly one, in pvec-geometry", file.display());
+            assert!(
+                found.is_empty(),
+                "{name}: {} defines an evaluator ({found:?}); there is exactly one, in pvec-geometry",
+                file.display()
+            );
         }
     }
 }
