@@ -1,0 +1,48 @@
+x86_64
+load average at start: 274.93 242.55 261.13 3/2193 959
+
+## small-synthetic h1 contiguous
+| /work/spikes/step-hdf/out/small-synthetic-h1-contiguous.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 905 ns/entity cpu (910 wall) | peak RSS 16516 KiB (start 8764 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 0.5 ms | 774.2 ns/segment | worst deviation 5.684e-14 | count ok: true |
+
+## small-synthetic h2 contiguous
+| /work/spikes/step-hdf/out/small-synthetic-h2-contiguous.h5 | 1000 entities | wall 0.000 s, cpu 0.000 s | 472 ns/entity cpu (472 wall) | peak RSS 13592 KiB (start 8740 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.3 ms | 498.8 ns/segment | worst deviation 0.000e0 | count ok: true |
+
+## small-synthetic h1 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/small-synthetic-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 1408 ns/entity cpu (1408 wall) | peak RSS 16892 KiB (start 8844 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 0.6 ms | 1042.0 ns/segment | worst deviation 5.684e-14 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 5.4 | 5.4 |
+| zoom in (1/4 x 1/4) | 74 | 58 | 144856 | 6 | 139904 | 1 | 145962 | 3.8 | 3.8 |
+| pan right | 71 | 58 | 144856 | 6 | 139904 | 1 | 145962 | 4.9 | 4.9 |
+| pan right | 79 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 4.7 | 4.7 |
+| pan right | 78 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 2.3 | 2.3 |
+| pan right | 37 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 4.2 | 4.2 |
+| zoom in (1/16 x 1/16) | 7 | 56 | 142145 | 7 | 137353 | 1 | 145962 | 2.0 | 2.0 |
+| zoom out (1/4 x 1/4) | 78 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 3.3 | 3.3 |
+| zoom out (whole drawing) | 1000 | 62 | 149377 | 4 | 144185 | 1 | 145962 | 2.6 | 2.6 |
+
+## small-synthetic h2 chunk_65536_p_shuffle_p_deflate_6
+| /work/spikes/step-hdf/out/small-synthetic-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 1251 ns/entity cpu (1251 wall) | peak RSS 14256 KiB (start 8864 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.4 ms | 734.5 ns/segment | worst deviation 0.000e0 | count ok: true |
+viewport with a 256 MiB chunk cache
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 71 | 137292 | 4 | 131180 | 1 | 133052 | 3.8 | 3.8 |
+| zoom in (1/4 x 1/4) | 74 | 65 | 127925 | 6 | 122533 | 1 | 128168 | 2.1 | 2.1 |
+| pan right | 71 | 63 | 125631 | 7 | 120479 | 1 | 128168 | 2.0 | 2.0 |
+| pan right | 79 | 69 | 134998 | 6 | 129126 | 1 | 133052 | 2.1 | 2.1 |
+| pan right | 78 | 69 | 134998 | 6 | 129126 | 1 | 133052 | 1.6 | 1.6 |
+| pan right | 37 | 69 | 134998 | 6 | 129126 | 1 | 133052 | 1.6 | 1.6 |
+| zoom in (1/16 x 1/16) | 7 | 61 | 121267 | 7 | 116355 | 1 | 128168 | 1.1 | 1.1 |
+| zoom out (1/4 x 1/4) | 78 | 69 | 134998 | 6 | 129126 | 1 | 133052 | 1.0 | 1.0 |
+| zoom out (whole drawing) | 1000 | 71 | 137292 | 4 | 131180 | 1 | 133052 | 1.0 | 1.0 |
+
+## small-synthetic h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/small-synthetic-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 936 ns/entity cpu (936 wall) | peak RSS 16696 KiB (start 8596 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 0.6 ms | 1068.0 ns/segment | worst deviation 5.684e-14 | count ok: true |
+
+## small-synthetic h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| /work/spikes/step-hdf/out/small-synthetic-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 826 ns/entity cpu (825 wall) | peak RSS 13872 KiB (start 8688 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.3 ms | 519.1 ns/segment | worst deviation 0.000e0 | count ok: true |

@@ -1,0 +1,123 @@
+x86_64
+load average at start: 190.52 253.29 277.67 7/1891 959
+## sizes: small-synthetic
+| fixture | layout | config | file bytes | vs Part 21 | logical payload | file over payload | file minus dataset storage | (that) over payload | write s |
+|---|---|---|---|---|---|---|---|---|---|
+| small-synthetic | h1 | contiguous | 170188 | 0.540 | 148652 | 14.5% | 56960 | 38.3% | 0.3 |
+| small-synthetic | h1 | contiguous+latest | 167756 | 0.532 | 148652 | 12.9% | 54528 | 36.7% | 0.0 |
+| small-synthetic | h1 | chunk 4096 | 200320 | 0.636 | 148652 | 34.8% | 87092 | 58.6% | 0.0 |
+| small-synthetic | h1 | chunk 65536 | 200320 | 0.636 | 148652 | 34.8% | 87092 | 58.6% | 0.0 |
+| small-synthetic | h1 | chunk 4096 + deflate 1 | 127924 | 0.406 | 148652 | -13.9% | 75472 | 50.8% | 0.0 |
+| small-synthetic | h1 | chunk 4096 + shuffle + deflate 1 | 143843 | 0.456 | 148652 | -3.2% | 83334 | 56.1% | 0.0 |
+| small-synthetic | h1 | chunk 4096 + shuffle + deflate 6 | 143556 | 0.456 | 148652 | -3.4% | 83365 | 56.1% | 0.0 |
+| small-synthetic | h1 | chunk 65536 + shuffle + deflate 6 | 141728 | 0.450 | 148652 | -4.7% | 83341 | 56.1% | 0.0 |
+| small-synthetic | h1 | chunk 65536 + shuffle + deflate 9 | 141918 | 0.450 | 148652 | -4.5% | 83238 | 56.0% | 0.0 |
+| small-synthetic | h1 | chunk 4096 + shuffle + deflate 6 + latest | 107886 | 0.342 | 148652 | -27.4% | 49468 | 33.3% | 0.0 |
+part21 bytes: 315128; logical payload bytes: 148652
+| small-synthetic | h2 | contiguous | 112008 | 0.355 | 100145 | 11.8% | 11863 | 11.8% | 0.0 |
+| small-synthetic | h2 | contiguous+latest | 108337 | 0.344 | 100145 | 8.2% | 8192 | 8.2% | 0.0 |
+| small-synthetic | h2 | chunk 4096 | 154224 | 0.489 | 100145 | 54.0% | 54079 | 54.0% | 0.0 |
+| small-synthetic | h2 | chunk 65536 | 154224 | 0.489 | 100145 | 54.0% | 54079 | 54.0% | 0.0 |
+| small-synthetic | h2 | chunk 4096 + deflate 1 | 113391 | 0.360 | 100145 | 13.2% | 54620 | 54.5% | 0.0 |
+| small-synthetic | h2 | chunk 4096 + shuffle + deflate 1 | 134028 | 0.425 | 100145 | 33.8% | 54313 | 54.2% | 0.0 |
+| small-synthetic | h2 | chunk 4096 + shuffle + deflate 6 | 133398 | 0.423 | 100145 | 33.2% | 54376 | 54.3% | 0.0 |
+| small-synthetic | h2 | chunk 65536 + shuffle + deflate 6 | 133603 | 0.424 | 100145 | 33.4% | 54376 | 54.3% | 0.0 |
+| small-synthetic | h2 | chunk 65536 + shuffle + deflate 9 | 133602 | 0.424 | 100145 | 33.4% | 54373 | 54.3% | 0.0 |
+| small-synthetic | h2 | chunk 4096 + shuffle + deflate 6 + latest | 87415 | 0.277 | 100145 | -12.7% | 8192 | 8.2% | 0.0 |
+part21 bytes: 315128; logical payload bytes: 100145
+
+## small-synthetic h1 contiguous
+| small-synthetic | h1 | 1000 | 981 exact | 19 within deviation | 0 shape mismatches | worst 5.684e-14 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 47 | 175252 | 3 | 170124 | 1 | 170188 | 3.2 | 3.2 |
+| zoom in (1/4 x 1/4) | 74 | 45 | 150440 | 12 | 145312 | 1 | 170188 | 2.8 | 2.8 |
+| pan right | 71 | 45 | 150176 | 12 | 145048 | 1 | 170188 | 2.2 | 2.2 |
+| pan right | 79 | 47 | 128204 | 13 | 123076 | 1 | 170188 | 2.1 | 2.1 |
+| pan right | 78 | 47 | 118140 | 13 | 113012 | 1 | 170188 | 1.3 | 1.3 |
+| pan right | 37 | 47 | 117236 | 13 | 112108 | 1 | 170188 | 1.3 | 1.3 |
+| zoom in (1/16 x 1/16) | 7 | 44 | 115640 | 12 | 110512 | 1 | 170188 | 0.6 | 0.6 |
+| zoom out (1/4 x 1/4) | 78 | 47 | 118140 | 13 | 113012 | 1 | 170188 | 1.2 | 1.2 |
+| zoom out (whole drawing) | 1000 | 47 | 175252 | 3 | 170124 | 1 | 170188 | 1.1 | 1.1 |
+| /work/spikes/step-hdf/out/small-synthetic-h1-contiguous.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 605 ns/entity cpu (612 wall) | peak RSS 16236 KiB (start 8784 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 0.5 ms | 763.2 ns/segment | worst deviation 5.684e-14 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/small-synthetic-h1-contiguous.h5 | file 170188 bytes | tier-0 datasets read: 33 reads, 134512 bytes, 1 ranges (gap 64 KiB) | highest address touched 138188 = 81.2% of the file |
+
+## small-synthetic h2 contiguous
+| small-synthetic | h2 | 1000 | 1000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 52 | 114777 | 3 | 109233 | 1 | 112008 | 113.0 | 1.8 |
+| zoom in (1/4 x 1/4) | 74 | 49 | 90056 | 14 | 84772 | 1 | 107552 | 0.7 | 0.7 |
+| pan right | 71 | 48 | 89114 | 13 | 83832 | 1 | 107552 | 0.6 | 0.6 |
+| pan right | 79 | 51 | 85783 | 16 | 80501 | 1 | 112008 | 0.7 | 0.7 |
+| pan right | 78 | 51 | 81033 | 16 | 75757 | 1 | 112008 | 0.4 | 0.4 |
+| pan right | 37 | 51 | 80241 | 16 | 74965 | 1 | 112008 | 0.4 | 0.4 |
+| zoom in (1/16 x 1/16) | 7 | 47 | 76938 | 12 | 71664 | 1 | 107552 | 0.3 | 0.3 |
+| zoom out (1/4 x 1/4) | 78 | 51 | 81033 | 16 | 75757 | 1 | 112008 | 0.4 | 0.4 |
+| zoom out (whole drawing) | 1000 | 52 | 114777 | 3 | 109233 | 1 | 112008 | 0.5 | 0.5 |
+| /work/spikes/step-hdf/out/small-synthetic-h2-contiguous.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 842 ns/entity cpu (842 wall) | peak RSS 13624 KiB (start 8764 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.3 ms | 529.2 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/small-synthetic-h2-contiguous.h5 | file 112008 bytes | tier-0 datasets read: 25 reads, 63928 bytes, 1 ranges (gap 64 KiB) | highest address touched 99712 = 89.0% of the file |
+
+## small-synthetic h1 chunk_65536_p_shuffle_p_deflate_6
+| small-synthetic | h1 | 1000 | 981 exact | 19 within deviation | 0 shape mismatches | worst 5.684e-14 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 5.4 | 5.4 |
+| zoom in (1/4 x 1/4) | 74 | 58 | 140528 | 6 | 135576 | 1 | 141728 | 4.0 | 4.0 |
+| pan right | 71 | 58 | 140528 | 6 | 135576 | 1 | 141728 | 5.0 | 5.0 |
+| pan right | 79 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 3.4 | 3.4 |
+| pan right | 78 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 1.9 | 1.9 |
+| pan right | 37 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 1.9 | 1.9 |
+| zoom in (1/16 x 1/16) | 7 | 56 | 137838 | 7 | 133046 | 1 | 141728 | 1.1 | 1.1 |
+| zoom out (1/4 x 1/4) | 78 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 1.8 | 1.8 |
+| zoom out (whole drawing) | 1000 | 62 | 145149 | 4 | 139957 | 1 | 141728 | 1.7 | 1.7 |
+| /work/spikes/step-hdf/out/small-synthetic-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 1008 ns/entity cpu (1007 wall) | peak RSS 16536 KiB (start 8648 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 1.0 ms | 1656.6 ns/segment | worst deviation 5.684e-14 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/small-synthetic-h1-chunk_65536_p_shuffle_p_deflate_6.h5 | file 141728 bytes | tier-0 datasets read: 42 reads, 101532 bytes, 1 ranges (gap 64 KiB) | highest address touched 111126 = 78.4% of the file |
+
+## small-synthetic h2 chunk_65536_p_shuffle_p_deflate_6
+| small-synthetic | h2 | 1000 | 1000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 71 | 137843 | 4 | 131731 | 1 | 133603 | 2.3 | 2.3 |
+| zoom in (1/4 x 1/4) | 74 | 65 | 128476 | 6 | 123084 | 1 | 128719 | 1.2 | 1.2 |
+| pan right | 71 | 63 | 126182 | 7 | 121030 | 1 | 128719 | 1.1 | 1.1 |
+| pan right | 79 | 69 | 135549 | 6 | 129677 | 1 | 133603 | 1.1 | 1.1 |
+| pan right | 78 | 69 | 135549 | 6 | 129677 | 1 | 133603 | 0.9 | 0.9 |
+| pan right | 37 | 69 | 135549 | 6 | 129677 | 1 | 133603 | 0.9 | 0.9 |
+| zoom in (1/16 x 1/16) | 7 | 61 | 121818 | 7 | 116906 | 1 | 128719 | 0.7 | 0.7 |
+| zoom out (1/4 x 1/4) | 78 | 69 | 135549 | 6 | 129677 | 1 | 133603 | 0.9 | 0.9 |
+| zoom out (whole drawing) | 1000 | 71 | 137843 | 4 | 131731 | 1 | 133603 | 0.9 | 0.9 |
+| /work/spikes/step-hdf/out/small-synthetic-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 810 ns/entity cpu (810 wall) | peak RSS 14260 KiB (start 8804 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.5 ms | 834.7 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/small-synthetic-h2-chunk_65536_p_shuffle_p_deflate_6.h5 | file 133603 bytes | tier-0 datasets read: 31 reads, 66189 bytes, 1 ranges (gap 64 KiB) | highest address touched 111175 = 83.2% of the file |
+
+## small-synthetic h1 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| small-synthetic | h1 | 1000 | 981 exact | 19 within deviation | 0 shape mismatches | worst 5.684e-14 | checksum match: false |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 5.6 | 5.6 |
+| zoom in (1/4 x 1/4) | 74 | 38 | 111342 | 4 | 107129 | 1 | 107886 | 3.8 | 3.8 |
+| pan right | 71 | 38 | 111342 | 4 | 107129 | 1 | 107886 | 4.9 | 4.9 |
+| pan right | 79 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 4.7 | 4.7 |
+| pan right | 78 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 3.2 | 3.2 |
+| pan right | 37 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 3.2 | 3.2 |
+| zoom in (1/16 x 1/16) | 7 | 37 | 110736 | 4 | 106523 | 1 | 107886 | 1.2 | 1.2 |
+| zoom out (1/4 x 1/4) | 78 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 1.8 | 1.8 |
+| zoom out (whole drawing) | 1000 | 40 | 111612 | 4 | 107399 | 1 | 107886 | 1.7 | 1.7 |
+| /work/spikes/step-hdf/out/small-synthetic-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 1397 ns/entity cpu (1397 wall) | peak RSS 16800 KiB (start 8716 KiB) | checksum d7dbde44dd174c82 |
+| small-synthetic | h1 | 594 line segments | 0.9 ms | 1580.2 ns/segment | worst deviation 5.684e-14 | count ok: true |
+| h1 | /work/spikes/step-hdf/out/small-synthetic-h1-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 107886 bytes | tier-0 datasets read: 29 reads, 80553 bytes, 1 ranges (gap 64 KiB) | highest address touched 81044 = 75.1% of the file |
+
+## small-synthetic h2 chunk_4096_p_shuffle_p_deflate_6_p_latest
+| small-synthetic | h2 | 1000 | 1000 exact | 0 within deviation | 0 shape mismatches | worst 0.000e0 | checksum match: true |
+| step | visible | reads | bytes read | ranges (gap 0) | bytes (gap 0) | ranges (gap 64 KiB) | bytes (gap 64 KiB) | wall ms | cpu ms |
+| cold open (whole drawing) | 1000 | 47 | 91239 | 3 | 86393 | 1 | 87415 | 2.0 | 2.0 |
+| zoom in (1/4 x 1/4) | 74 | 44 | 88680 | 3 | 83834 | 1 | 83886 | 1.1 | 1.1 |
+| pan right | 71 | 43 | 88482 | 3 | 83636 | 1 | 83886 | 1.1 | 1.1 |
+| pan right | 79 | 46 | 91041 | 4 | 86195 | 1 | 87415 | 1.1 | 1.1 |
+| pan right | 78 | 46 | 91041 | 4 | 86195 | 1 | 87415 | 0.9 | 0.9 |
+| pan right | 37 | 46 | 91041 | 4 | 86195 | 1 | 87415 | 0.9 | 0.9 |
+| zoom in (1/16 x 1/16) | 7 | 42 | 86734 | 4 | 81888 | 1 | 83886 | 0.7 | 0.7 |
+| zoom out (1/4 x 1/4) | 78 | 46 | 91041 | 4 | 86195 | 1 | 87415 | 0.9 | 0.9 |
+| zoom out (whole drawing) | 1000 | 47 | 91239 | 3 | 86393 | 1 | 87415 | 0.9 | 0.9 |
+| /work/spikes/step-hdf/out/small-synthetic-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | 1000 entities | wall 0.001 s, cpu 0.001 s | 1256 ns/entity cpu (1256 wall) | peak RSS 13920 KiB (start 8736 KiB) | checksum 4d58cf5bcaa5f9ed |
+| small-synthetic | h2 | 594 line segments | 0.3 ms | 528.6 ns/segment | worst deviation 0.000e0 | count ok: true |
+| h2 | /work/spikes/step-hdf/out/small-synthetic-h2-chunk_4096_p_shuffle_p_deflate_6_p_latest.h5 | file 87415 bytes | tier-0 datasets read: 21 reads, 49241 bytes, 1 ranges (gap 64 KiB) | highest address touched 83886 = 96.0% of the file |

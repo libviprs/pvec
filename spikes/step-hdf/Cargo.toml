@@ -1,0 +1,21 @@
+# P1.4 spike: an HDF5-backed representation of the phase 1 fixtures, written with the C library
+# (hdf5-metno on libhdf5 1.10.8) and read back with it and with a pure-Rust reader. Own workspace.
+[workspace]
+
+[package]
+name = "step-hdf-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+pvec-fixtures = { path = "../fixtures" }
+pvec-numeric = { path = "../../crates/pvec-numeric" }
+hdf5-metno = "0.15"
+ndarray = "0.17"
+libc = "0.2"
+
+[[bin]]
+name = "measure"
+path = "src/main.rs"
