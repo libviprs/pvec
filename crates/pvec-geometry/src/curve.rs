@@ -1,7 +1,7 @@
 //! The [`Curve2d`] trait, the closed [`Curve`] enum over the nine v1 kinds, and the three kinds that
 //! are built from others: polyline, trimmed curve and composite curve.
 
-use crate::conic::{Circle, Ellipse, Line, arc_bounds};
+use crate::conic::{Circle, Ellipse, Line, Placement2, arc_bounds};
 use crate::error::{GeometryError, Result};
 use crate::primitives::*;
 use crate::spline::{BSpline, Bezier, RationalBSpline};
@@ -486,4 +486,78 @@ impl Curve2d for Composite {
         let moved = if self.closed { moved.declare_closed()? } else { moved };
         Ok((Curve::Composite(moved), ParamMap::IDENTITY))
     }
+}
+
+impl Curve {
+    /// The exact rational B-spline form of a circle, an ellipse or an arc of either.
+    ///
+    /// The curve is split into arcs of at most a quarter turn and each is a rational quadratic
+    /// segment, so a full circle or ellipse is the nine point curve. The result is the same locus, not
+    /// the same parameterisation: it runs over `[0, 1]`, in the direction the arc runs, and its
+    /// parameter is not the conic's. Nothing is sampled. Any other kind is refused.
+    ///
+    /// A transform never produces this form on its own: the affine image of an ellipse is an ellipse
+    /// (ADR 0012). It is for a consumer that wants a spline, such as an exporter.
+    pub fn to_rational_b_spline(&self) -> Result<Curve> {
+        match self {
+            Curve::Circle(c) => conic_to_rational(c.placement(), c.radius(), c.radius(), 0.0, TAU, false),
+            Curve::Ellipse(e) => {
+                conic_to_rational(e.placement(), e.semi_axis_1(), e.semi_axis_2(), 0.0, TAU, false)
+            }
+            Curve::Trimmed(t) => {
+                let Trim { start, span, reversed } = t.trim();
+                match t.basis() {
+                    Curve::Circle(c) => {
+                        conic_to_rational(c.placement(), c.radius(), c.radius(), start, span, reversed)
+                    }
+                    Curve::Ellipse(e) => conic_to_rational(
+                        e.placement(),
+                        e.semi_axis_1(),
+                        e.semi_axis_2(),
+                        start,
+                        span,
+                        reversed,
+                    ),
+                    _ => Err(GeometryError::BadBasis),
+                }
+            }
+            _ => Err(GeometryError::BadBasis),
+        }
+    }
+}
+
+/// The arc `c + a cos t x + b sin t y` over `[start, start + span]` (run backwards when `reversed`) as
+/// a rational quadratic B-spline. Each segment of angle `phi` has control points at its two ends and at
+/// the intersection of the end tangents, with weights `1, cos(phi / 2), 1`; an affine image of the unit
+/// circle's segment, so it is exact for the ellipse too.
+fn conic_to_rational(f: &Placement2, a: f64, b: f64, start: f64, span: f64, reversed: bool) -> Result<Curve> {
+    let n = ((span / core::f64::consts::FRAC_PI_2).ceil() as usize).clamp(1, 4);
+    let phi = span / n as f64;
+    let (x, y) = (f.x_axis(), f.y_axis());
+    let o = f.origin();
+    let at = |t: f64, r: f64| -> Point2 {
+        let (s, c) = t.sin_cos();
+        Point2::new(o.x + r * (a * c * x.x + b * s * y.x), o.y + r * (a * c * x.y + b * s * y.y))
+    };
+    let angle = |k: usize| if reversed { start + span - k as f64 * phi } else { start + k as f64 * phi };
+    let half = (phi / 2.0).cos();
+    let mut cps = Vec::with_capacity(2 * n + 1);
+    let mut weights = Vec::with_capacity(2 * n + 1);
+    cps.push(at(angle(0), 1.0));
+    weights.push(1.0);
+    for k in 0..n {
+        let mid = 0.5 * (angle(k) + angle(k + 1));
+        cps.push(at(mid, 1.0 / half));
+        weights.push(half);
+        cps.push(at(angle(k + 1), 1.0));
+        weights.push(1.0);
+    }
+    let mut knots = vec![0.0; 3];
+    for k in 1..n {
+        let u = k as f64 / n as f64;
+        knots.push(u);
+        knots.push(u);
+    }
+    knots.extend([1.0; 3]);
+    Ok(Curve::RationalBSpline(RationalBSpline::new(2, cps, knots, weights)?))
 }

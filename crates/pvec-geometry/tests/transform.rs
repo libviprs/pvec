@@ -94,7 +94,10 @@ fn composition_is_associative_within_the_policy_on_the_huge_coordinate_fixtures(
             }
         }
     }
-    println!("associativity: {count} triples, worst relative deviation {:e} at triple {:?}, point {}", worst.0, worst.1, worst.2);
+    println!(
+        "associativity: {count} triples, worst relative deviation {:e} at triple {:?}, point {}",
+        worst.0, worst.1, worst.2
+    );
     assert!(count > 100, "enough triples survived NP-19 to mean something, got {count}");
 }
 
@@ -223,8 +226,14 @@ fn an_arc_under_any_map_keeps_its_end_points_and_stays_an_arc_of_a_conic() {
             let Curve::Trimmed(t) = &img else { panic!("{name}: {:?}", img.kind()) };
             assert!(matches!(t.basis().kind(), CurveKind::Circle | CurveKind::Ellipse), "{name}");
             let (d0, d1) = (arc.domain(), img.domain());
-            assert!(near(img.eval(d1.lo()).unwrap(), m.apply_point(arc.eval(d0.lo()).unwrap()), 10.0), "{name} start");
-            assert!(near(img.eval(d1.hi()).unwrap(), m.apply_point(arc.eval(d0.hi()).unwrap()), 10.0), "{name} end");
+            assert!(
+                near(img.eval(d1.lo()).unwrap(), m.apply_point(arc.eval(d0.lo()).unwrap()), 10.0),
+                "{name} start"
+            );
+            assert!(
+                near(img.eval(d1.hi()).unwrap(), m.apply_point(arc.eval(d0.hi()).unwrap()), 10.0),
+                "{name} end"
+            );
         }
     }
 }
@@ -238,15 +247,27 @@ fn a_spline_under_any_map_keeps_its_knots_and_weights_bit_for_bit_and_moves_only
         let (img, map) = Curve::BSpline(s.clone()).transform(&m).unwrap();
         let Curve::BSpline(t) = &img else { panic!() };
         assert_eq!(map, ParamMap::IDENTITY);
-        assert_eq!(s.knots().iter().map(|k| k.to_bits()).collect::<Vec<_>>(), t.knots().iter().map(|k| k.to_bits()).collect::<Vec<_>>(), "{name}");
+        assert_eq!(
+            s.knots().iter().map(|k| k.to_bits()).collect::<Vec<_>>(),
+            t.knots().iter().map(|k| k.to_bits()).collect::<Vec<_>>(),
+            "{name}"
+        );
         for (a, b) in s.control_points().iter().zip(t.control_points()) {
             assert_eq!(m.apply_point(*a), *b, "{name}");
         }
         let Curve::RationalBSpline(r) = get("rational-bspline") else { unreachable!() };
         let (img, _) = Curve::RationalBSpline(r.clone()).transform(&m).unwrap();
         let Curve::RationalBSpline(q) = &img else { panic!() };
-        assert_eq!(r.weights().iter().map(|w| w.to_bits()).collect::<Vec<_>>(), q.weights().iter().map(|w| w.to_bits()).collect::<Vec<_>>(), "{name}");
-        assert_eq!(r.knots().iter().map(|w| w.to_bits()).collect::<Vec<_>>(), q.knots().iter().map(|w| w.to_bits()).collect::<Vec<_>>(), "{name}");
+        assert_eq!(
+            r.weights().iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
+            q.weights().iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
+            "{name}"
+        );
+        assert_eq!(
+            r.knots().iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
+            q.knots().iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
+            "{name}"
+        );
     }
 }
 
@@ -313,7 +334,8 @@ fn trimming_then_transforming_equals_transforming_then_trimming_for_splines() {
             let (da, db) = (a.domain(), b.domain());
             for i in 0..=200 {
                 let u = i as f64 / 200.0;
-                let (pa, pb) = (a.eval(da.lo() + u * da.width()).unwrap(), b.eval(db.lo() + u * db.width()).unwrap());
+                let (pa, pb) =
+                    (a.eval(da.lo() + u * da.width()).unwrap(), b.eval(db.lo() + u * db.width()).unwrap());
                 let d = dev(pa, pb);
                 if d > worst.0 {
                     worst = (d, name);
@@ -351,7 +373,14 @@ fn full_circles_and_ellipses_have_the_nine_point_rational_form() {
 #[test]
 fn arcs_of_any_span_and_direction_have_an_exact_rational_form_with_the_right_end_points() {
     let ellipse = Ellipse::new(place(1.0, 2.0, 2.0, 1.0), 5.0, 2.0).unwrap();
-    for (t1, t2, sense) in [(0.3, 2.9, true), (4.0, 1.0, false), (5.5, 1.0, true), (0.0, TAU, true), (1.0, 1.0 + 1.0 / 64.0, true), (0.0, PI, true)] {
+    for (t1, t2, sense) in [
+        (0.3, 2.9, true),
+        (4.0, 1.0, false),
+        (5.5, 1.0, true),
+        (0.0, TAU, true),
+        (1.0, 1.0 + 1.0 / 64.0, true),
+        (0.0, PI, true),
+    ] {
         let arc = Curve::Trimmed(Trimmed::new(Curve::Ellipse(ellipse), t1, t2, sense).unwrap());
         let rational = arc.to_rational_b_spline().unwrap();
         let (a, r) = (arc.domain(), rational.domain());
@@ -359,7 +388,10 @@ fn arcs_of_any_span_and_direction_have_an_exact_rational_form_with_the_right_end
         assert!(near(rational.eval(r.hi()).unwrap(), arc.eval(a.hi()).unwrap(), 10.0), "end ({t1}, {t2})");
         for i in 0..=400 {
             let q = rational.eval(r.lo() + r.width() * i as f64 / 400.0).unwrap();
-            assert!(distance_to_conic(&Curve::Ellipse(ellipse), q) <= P.tol(10.0, 10.0), "({t1}, {t2}) sample {i}");
+            assert!(
+                distance_to_conic(&Curve::Ellipse(ellipse), q) <= P.tol(10.0, 10.0),
+                "({t1}, {t2}) sample {i}"
+            );
         }
         let Curve::RationalBSpline(s) = &rational else { panic!() };
         assert_eq!(s.degree(), 2);

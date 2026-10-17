@@ -154,7 +154,11 @@ fn nothing_on_the_geometry_path_calls_a_tessellator() {
     for name in ["pvec-geometry", "pvec-codec", "pvec-entity", "pvec-capabilities"] {
         for file in rust_files(&repo_root().join(format!("crates/{name}/src"))) {
             let code = strip_comments_and_tests(&fs::read_to_string(&file).unwrap());
-            assert!(!mentions_tessellation(&code), "{name}: {} mentions tessellation; exact curves are never flattened here", file.display());
+            assert!(
+                !mentions_tessellation(&code),
+                "{name}: {} mentions tessellation; exact curves are never flattened here",
+                file.display()
+            );
         }
     }
 }

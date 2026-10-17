@@ -7,7 +7,9 @@ use std::fs;
 
 fn table() -> Vec<Vec<String>> {
     let text = fs::read_to_string(repo_root().join("docs/ISO_PROFILE.md")).unwrap();
-    let start = text.find("### Promotion table").expect("ISO_PROFILE.md has a '### Promotion table' subsection in section 13");
+    let start = text
+        .find("### Promotion table")
+        .expect("ISO_PROFILE.md has a '### Promotion table' subsection in section 13");
     let body = &text[start..];
     let end = body[5..].find("\n#").map_or(body.len(), |e| e + 5);
     body[..end]
@@ -21,15 +23,23 @@ fn table() -> Vec<Vec<String>> {
 fn the_table_has_the_rows_the_issue_requires_and_the_exact_results() {
     let rows = table();
     assert!(rows.len() >= 10, "expected at least ten rows, found {}", rows.len());
-    assert!(rows.iter().all(|r| r.len() == 4), "every row has input, transform, exact result and target capability");
+    assert!(
+        rows.iter().all(|r| r.len() == 4),
+        "every row has input, transform, exact result and target capability"
+    );
     let find = |input: &str, tr: &str| {
-        rows.iter().find(|r| r[0].contains(input) && r[1].contains(tr)).unwrap_or_else(|| panic!("no row for {input} under {tr}"))
+        rows.iter()
+            .find(|r| (r[0] == input || r[0].starts_with(&format!("{input} "))) && r[1].contains(tr))
+            .unwrap_or_else(|| panic!("no row for {input} under {tr}"))
     };
     assert!(find("circle", "non-uniform scale")[2].contains("ellipse"));
     assert!(find("ellipse", "shear")[2].contains("ellipse"));
     assert!(find("arc", "any non-degenerate affine")[2].contains("trim parameters"));
     assert!(find("B-spline", "any non-degenerate affine")[2].contains("knots and weights preserved"));
-    assert!(rows.iter().any(|r| r[2].starts_with("refused")), "the too-eccentric case is a documented refusal");
+    assert!(
+        rows.iter().any(|r| r[2].starts_with("refused")),
+        "the too-eccentric case is a documented refusal"
+    );
 }
 
 #[test]
@@ -59,5 +69,8 @@ fn the_table_does_not_promise_a_polyline_fallback() {
     let start = doc.find("### Promotion table").unwrap();
     let section = doc[start..].to_lowercase();
     assert!(section.contains("never"), "the section says what is never done");
-    assert!(!table().iter().any(|r| r[2].contains("polyline") && !r[0].contains("polyline")), "no row turns a curve into a polyline");
+    assert!(
+        !table().iter().any(|r| r[2].contains("polyline") && !r[0].contains("polyline")),
+        "no row turns a curve into a polyline"
+    );
 }

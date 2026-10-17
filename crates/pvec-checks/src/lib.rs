@@ -96,8 +96,11 @@ pub const REQUIRED_FIELDS: [&str; 7] = [
 /// Parses the numbered `## n. Title` sections of the profile into entries.
 pub fn parse_profile(text: &str) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
+    // A `###` subsection (the promotion table) holds tables that are not capability fields.
+    let mut fields_open = true;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("## ") {
+            fields_open = true;
             let numbered = rest.split('.').next().is_some_and(|n| n.parse::<u32>().is_ok());
             if numbered {
                 entries.push(Entry { title: rest.to_string(), fields: Vec::new(), body: String::new() });
@@ -107,9 +110,15 @@ pub fn parse_profile(text: &str) -> Vec<Entry> {
             }
             continue;
         }
+        if line.starts_with("### ") {
+            fields_open = false;
+        }
         let Some(cur) = entries.last_mut() else { continue };
         cur.body.push_str(line);
         cur.body.push('\n');
+        if !fields_open {
+            continue;
+        }
         if let Some(row) = line.strip_prefix('|') {
             let cells: Vec<&str> = row.split('|').map(str::trim).collect();
             if cells.len() >= 2 && !cells[0].starts_with("---") && cells[0] != "Field" {
