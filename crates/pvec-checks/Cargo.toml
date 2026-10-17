@@ -10,3 +10,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }

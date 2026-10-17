@@ -3,8 +3,15 @@
 version = 4
 
 [[package]]
+name = "pvec-capabilities"
+version = "0.0.0"
+
+[[package]]
 name = "pvec-checks"
 version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+]
 
 [[package]]
 name = "pvec-geometry"
