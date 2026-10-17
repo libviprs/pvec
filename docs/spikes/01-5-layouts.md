@@ -281,5 +281,6 @@ the repository so a reader can check.
 (`spikes/layouts/Dockerfile`); the generated code is committed in `spikes/layouts/src/gen/`.
 The measurements were taken before three behaviour-neutral clean-ups (a dereference instead of a `clone`
 on a `Copy` struct in the baseline, `is_empty` in B's validation, and two lint allowances that keep the
-hot loops as measured instead of the newer std spellings clippy prefers). Tests and the wasm build were
-re-run after them.
+hot loops as measured instead of the newer std spellings clippy prefers). The tests and the lints were
+re-run after them, and a clippy check of candidate B for `wasm32-unknown-unknown`; the benchmarks and the
+wasm timings were not.
