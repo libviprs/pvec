@@ -151,6 +151,12 @@ width must exceed `tol(hi - lo, max(|lo|, |hi|))`, both trims must lie in `[lo -
 true), and a trim is refused otherwise. An inverted trim and a zero-length trim are therefore never
 silently swapped or dropped.
 
+An **unbounded** basis (a line, whose parameter is arc length) has no domain width, and using the
+`2 * MAX_ABS_COORD` extent as one would make every trim of ordinary size look collapsed (the
+geometry prototype found exactly that). For a line the trim is collapsed when its length
+`|t2 - t1|` is degenerate under NP-06, with `mag` the larger of the line origin's magnitude and the
+trim parameters; the sense rule is the same.
+
 ### NP-13 Parameter domain and unit map
 
 A B-spline evaluates over `[knots[degree], knots[n]]` (zero based, `n` the last control point), in

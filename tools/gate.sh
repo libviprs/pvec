@@ -22,6 +22,10 @@ rustc --version; uname -m
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked $*
+for d in spikes/*/; do
+  echo == spike \$d
+  (cd \$d && cargo fmt -- --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked)
+done
 echo '== red suite: the evaluator probes must still fail until P3.1 lands'
 if cargo test -p pvec-numeric --test pathological --locked -- --ignored >/tmp/red.log 2>&1; then
   echo 'FAIL: the evaluator probes went green; update tests/pathological/main.rs and this step'; exit 1
