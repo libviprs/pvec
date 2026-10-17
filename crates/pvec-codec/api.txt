@@ -49,6 +49,10 @@ section.rs: Section::TrimmedCircle = 4
 section.rs: Section::TrimmedEllipse = 5
 section.rs: Section::Polyline = 6
 section.rs: Section::Composite = 7
-section.rs: Section::const ALL: [Section; 8]
+section.rs: Section::Bezier = 8
+section.rs: Section::BSpline = 9
+section.rs: Section::RationalBSpline = 10
+section.rs: Section::TrimmedSpline = 11
+section.rs: Section::const ALL: [Section; 12]
 section.rs: Section::id(self) -> u16
 section.rs: Section::name(self) -> &'static str

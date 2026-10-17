@@ -187,13 +187,6 @@ fn duplicate_ids_are_refused_by_the_encoder() {
     assert_eq!(err, EncodeError::DuplicateId(id(5)));
 }
 
-#[test]
-fn a_spline_is_refused_not_degraded_until_the_advanced_codecs_exist() {
-    let b = Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(2., 0.)]).unwrap();
-    let err = encode(&[(id(0), Curve::Bezier(b))]).unwrap_err();
-    assert_eq!(err, EncodeError::Unsupported(CurveKind::Bezier));
-}
-
 // ---------------------------------------------------------------- capabilities come from the registry
 
 #[test]

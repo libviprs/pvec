@@ -113,3 +113,31 @@ fn the_public_api_matches_the_committed_snapshot_and_names_no_wire_type() {
         );
     }
 }
+
+#[test]
+fn the_second_evaluator_scan_flags_evaluation_code_outside_the_geometry_crate() {
+    assert!(second_evaluator_markers("pub fn eval(&self, t: f64) -> f64 { t }").contains(&"fn eval("));
+    assert!(second_evaluator_markers("fn deboor(p: usize) {}").contains(&"deboor"));
+    assert!(second_evaluator_markers("fn casteljau(t: f64) {}").contains(&"casteljau"));
+    assert!(second_evaluator_markers("let p = curve.eval(0.5);").is_empty(), "calling the evaluator is fine");
+    assert!(second_evaluator_markers("fn evaluate_nothing() {}").is_empty());
+}
+
+#[test]
+fn no_crate_but_the_geometry_crate_contains_an_evaluator() {
+    for entry in fs::read_dir(repo_root().join("crates")).unwrap().flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == "pvec-geometry" || name == "pvec-checks" {
+            continue;
+        }
+        for file in rust_files(&entry.path().join("src")) {
+            let code = strip_comments_and_tests(&fs::read_to_string(&file).unwrap());
+            let found = second_evaluator_markers(&code);
+            assert!(
+                found.is_empty(),
+                "{name}: {} defines an evaluator ({found:?}); there is exactly one, in pvec-geometry",
+                file.display()
+            );
+        }
+    }
+}

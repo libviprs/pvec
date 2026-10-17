@@ -22,11 +22,19 @@ pub enum Section {
     Polyline = 6,
     /// A composite curve.
     Composite = 7,
+    /// A Bezier curve.
+    Bezier = 8,
+    /// A non-rational B-spline.
+    BSpline = 9,
+    /// A rational B-spline.
+    RationalBSpline = 10,
+    /// A trimmed curve over a Bezier curve or a B-spline.
+    TrimmedSpline = 11,
 }
 
 impl Section {
     /// Every section kind, in kind order.
-    pub const ALL: [Section; 8] = [
+    pub const ALL: [Section; 12] = [
         Section::Line,
         Section::Circle,
         Section::Ellipse,
@@ -35,6 +43,10 @@ impl Section {
         Section::TrimmedEllipse,
         Section::Polyline,
         Section::Composite,
+        Section::Bezier,
+        Section::BSpline,
+        Section::RationalBSpline,
+        Section::TrimmedSpline,
     ];
 
     /// The numeric kind id written in the directory.
@@ -53,6 +65,10 @@ impl Section {
             Section::TrimmedEllipse => "TrimmedEllipse",
             Section::Polyline => "Polyline",
             Section::Composite => "Composite",
+            Section::Bezier => "Bezier",
+            Section::BSpline => "BSpline",
+            Section::RationalBSpline => "RationalBSpline",
+            Section::TrimmedSpline => "TrimmedSpline",
         }
     }
 

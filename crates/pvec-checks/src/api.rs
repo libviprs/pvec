@@ -376,3 +376,13 @@ fn drop_value(body: &str) -> String {
         _ => body.to_string(),
     }
 }
+
+/// Markers of an evaluator in a piece of code: a function named `eval` or `derivative`, or the names
+/// of the de Boor and de Casteljau recurrences. There is exactly one evaluator in PVec, in
+/// `pvec-geometry`; every other crate reaches it through `Curve2d`.
+pub fn second_evaluator_markers(code: &str) -> Vec<&'static str> {
+    ["fn eval(", "fn derivative(", "fn local_eval", "deboor", "de_boor", "casteljau"]
+        .into_iter()
+        .filter(|m| code.contains(m))
+        .collect()
+}
