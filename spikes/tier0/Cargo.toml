@@ -1,0 +1,18 @@
+# Throwaway spike for P1.7 (Tier 0 complete visual coverage). Own workspace.
+[workspace]
+
+[package]
+name = "tier0-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+pvec-fixtures = { path = "../fixtures" }
+geometry-api-spike = { path = "../geometry-api" }
+
+# Not under src/bin: the shared push wrapper excludes directories named bin.
+[[bin]]
+name = "measure"
+path = "src/measure/main.rs"
