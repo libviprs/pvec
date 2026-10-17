@@ -226,3 +226,16 @@ fn closed_flag_on_splines_is_checked_not_trusted() {
     let ring = Bezier::new(vec![pt(0., 0.), pt(1., 2.), pt(2., 2.), pt(0., 0.)]).unwrap();
     assert!(ring.declare_closed().unwrap().is_declared_closed());
 }
+
+#[test]
+fn bounds_can_be_built_from_two_corners_and_are_validated() {
+    let b = Bounds::new(pt(0.0, 1.0), pt(2.0, 3.0)).unwrap();
+    assert_eq!((b.min(), b.max()), (pt(0.0, 1.0), pt(2.0, 3.0)));
+    // a degenerate box (a point, or a horizontal segment) is a legal bound
+    assert!(Bounds::new(pt(1.0, 1.0), pt(1.0, 1.0)).is_ok());
+    assert!(Bounds::new(pt(0.0, 1.0), pt(5.0, 1.0)).is_ok());
+    // corners in the wrong order, and non-finite or out of range corners, are refused
+    assert_eq!(rule_of(Bounds::new(pt(2.0, 0.0), pt(1.0, 3.0))), "GEOM-01");
+    assert_eq!(rule_of(Bounds::new(pt(0.0, 0.0), pt(f64::NAN, 3.0))), "NP-01");
+    assert_eq!(rule_of(Bounds::new(pt(0.0, 0.0), pt(MAX_ABS_COORD * 2.0, 3.0))), "NP-02");
+}
