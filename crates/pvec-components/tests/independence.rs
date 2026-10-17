@@ -15,10 +15,18 @@ fn id(n: u32) -> EntityId {
 
 /// A little drawing: a segment, an arc, a polyline and a spline.
 fn geometry() -> Vec<(EntityId, Curve)> {
-    let seg = Trimmed::new(Curve::Line(Line::new(Point2::new(0.0, 0.0), Vector2::new(3.0, 4.0)).unwrap()), 0.0, 5.0, true).unwrap();
-    let circle = Circle::new(Placement2::new(Point2::new(1.0, 1.0), Vector2::new(1.0, 0.0)).unwrap(), 2.0).unwrap();
+    let seg = Trimmed::new(
+        Curve::Line(Line::new(Point2::new(0.0, 0.0), Vector2::new(3.0, 4.0)).unwrap()),
+        0.0,
+        5.0,
+        true,
+    )
+    .unwrap();
+    let circle =
+        Circle::new(Placement2::new(Point2::new(1.0, 1.0), Vector2::new(1.0, 0.0)).unwrap(), 2.0).unwrap();
     let arc = Trimmed::new(Curve::Circle(circle), 0.3, 2.9, true).unwrap();
-    let poly = Polyline::new(vec![Point2::new(0.0, 0.0), Point2::new(2.0, 1.0), Point2::new(3.0, 3.0)]).unwrap();
+    let poly =
+        Polyline::new(vec![Point2::new(0.0, 0.0), Point2::new(2.0, 1.0), Point2::new(3.0, 3.0)]).unwrap();
     let spline = BSpline::new(
         2,
         vec![Point2::new(0.0, 0.0), Point2::new(1.0, 2.0), Point2::new(2.0, 0.0), Point2::new(3.0, 1.0)],
@@ -52,11 +60,40 @@ fn verdict(block: &[u8]) -> Vec<u64> {
 
 fn all_streams(r: &Registry) -> Vec<Stream> {
     vec![
-        LayerStream { names: vec!["WALLS".into()], assignments: vec![(id(0), 0), (id(1), 0)] }.into_stream(r).unwrap(),
-        LineStyleStream { styles: vec![LineStyleDef { name: "DASHED".into(), dashes: vec![4.0, 2.0] }], assignments: vec![(id(2), 0)] }.into_stream(r).unwrap(),
-        TextStream { records: vec![TextRecord { entity: id(1), x: 0.0, y: 0.0, height: 1.0, rotation: 0.0, text: "arc".into() }] }.into_stream(r).unwrap(),
-        HatchStream { records: vec![HatchRecord { boundary: vec![id(0), id(1), id(2)], fill: Fill::Solid { rgba: 0x8080_80ff } }] }.into_stream(r).unwrap(),
-        ProvenanceStream { records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: b"2A".to_vec() }] }.into_stream(r).unwrap(),
+        LayerStream { names: vec!["WALLS".into()], assignments: vec![(id(0), 0), (id(1), 0)] }
+            .into_stream(r)
+            .unwrap(),
+        LineStyleStream {
+            styles: vec![LineStyleDef { name: "DASHED".into(), dashes: vec![4.0, 2.0] }],
+            assignments: vec![(id(2), 0)],
+        }
+        .into_stream(r)
+        .unwrap(),
+        TextStream {
+            records: vec![TextRecord {
+                entity: id(1),
+                x: 0.0,
+                y: 0.0,
+                height: 1.0,
+                rotation: 0.0,
+                text: "arc".into(),
+            }],
+        }
+        .into_stream(r)
+        .unwrap(),
+        HatchStream {
+            records: vec![HatchRecord {
+                boundary: vec![id(0), id(1), id(2)],
+                fill: Fill::Solid { rgba: 0x8080_80ff },
+            }],
+        }
+        .into_stream(r)
+        .unwrap(),
+        ProvenanceStream {
+            records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: b"2A".to_vec() }],
+        }
+        .into_stream(r)
+        .unwrap(),
         ReservedStream { payload: vec![0xde, 0xad] }.into_stream(r).unwrap(),
     ]
 }
@@ -73,14 +110,22 @@ fn the_geometry_verdict_is_identical_with_all_streams_with_each_one_removed_and_
     let with_all = encode_streams(&streams).unwrap();
     let reader = pvec_capabilities::Reader {
         version: Version::new(1, 0, 0),
-        implemented: vec![ids::LAYER, ids::LINE_STYLE, ids::TEXT, ids::HATCH, ids::SOURCE_PROVENANCE, ids::DWG_SEMANTICS],
+        implemented: vec![
+            ids::LAYER,
+            ids::LINE_STYLE,
+            ids::TEXT,
+            ids::HATCH,
+            ids::SOURCE_PROVENANCE,
+            ids::DWG_SEMANTICS,
+        ],
     };
     let opened = read_streams(&with_all, &r, &reader).unwrap();
     assert_eq!(opened.streams.len(), 6);
     assert_eq!(verdict(&block), baseline, "with every stream present");
 
     for removed in 0..streams.len() {
-        let rest: Vec<Stream> = streams.iter().enumerate().filter(|(i, _)| *i != removed).map(|(_, s)| s.clone()).collect();
+        let rest: Vec<Stream> =
+            streams.iter().enumerate().filter(|(i, _)| *i != removed).map(|(_, s)| s.clone()).collect();
         let set = encode_streams(&rest).unwrap();
         let opened = read_streams(&set, &r, &reader).unwrap();
         assert_eq!(opened.streams.len(), 5, "without stream {removed}");
@@ -92,7 +137,8 @@ fn the_geometry_verdict_is_identical_with_all_streams_with_each_one_removed_and_
 }
 
 #[test]
-fn a_fixture_with_all_the_streams_still_reaches_display_fidelity_for_linework_with_a_reader_that_knows_none() {
+fn a_fixture_with_all_the_streams_still_reaches_display_fidelity_for_linework_with_a_reader_that_knows_none()
+{
     let r = Registry::v1();
     let block = encode(&geometry()).unwrap().bytes;
     let set = encode_streams(&all_streams(&r)).unwrap();
@@ -113,8 +159,12 @@ fn an_unknown_stream_in_the_set_does_not_stop_the_geometry_opening() {
     let r = Registry::v1();
     let block = encode(&geometry()).unwrap().bytes;
     let mut streams = all_streams(&r);
-    streams.push(Stream { capability: pvec_capabilities::CapabilityId::new(30_000), version: Version::new(1, 0, 0), payload: vec![0xff; 11] });
-    let set = encode_streams(&streams);
+    streams.push(Stream {
+        capability: pvec_capabilities::CapabilityId::new(30_000),
+        version: Version::new(1, 0, 0),
+        payload: vec![0xff; 11],
+    });
+    let set = encode_streams(&streams).unwrap();
     let reader = pvec_capabilities::Reader { version: Version::new(1, 0, 0), implemented: vec![ids::LAYER] };
     let opened = read_streams(&set, &r, &reader).unwrap();
     assert!(opened.skipped.iter().any(|s| s.reason == SkipReason::UnknownCapability));

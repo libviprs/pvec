@@ -3,7 +3,9 @@
 //! it from the geometry.
 #![allow(missing_docs)]
 
-use pvec_capabilities::{CapabilityId, Class, Declaration, Declared, Reader, Registry, Requirement, Version, ids};
+use pvec_capabilities::{
+    CapabilityId, Class, Declaration, Declared, Reader, Registry, Requirement, Version, ids,
+};
 use pvec_components::*;
 use pvec_entity::EntityId;
 
@@ -52,12 +54,18 @@ fn no_component_stream_declares_a_geometry_capability_id() {
         assert!(!geometry_ids.contains(&c.id.get()), "{} reuses a geometry id", c.name);
     }
     // and the stream reader rejects a stream that carries one
-    let bad = encode_streams(&[Stream { capability: ids::LINE, version: Version::new(1, 0, 0), payload: vec![] }]);
+    let bad =
+        encode_streams(&[Stream { capability: ids::LINE, version: Version::new(1, 0, 0), payload: vec![] }]);
     assert_eq!(bad.unwrap_err(), StreamError::GeometryCapability(ids::LINE));
     // a hand-built frame with a geometry id is refused on read as well
-    let mut b = encode_streams(&[Stream { capability: ids::LAYER, version: Version::new(1, 0, 0), payload: vec![] }]).unwrap();
+    let mut b =
+        encode_streams(&[Stream { capability: ids::LAYER, version: Version::new(1, 0, 0), payload: vec![] }])
+            .unwrap();
     b[SET_HEADER..SET_HEADER + 4].copy_from_slice(&ids::CIRCLE.get().to_le_bytes());
-    assert_eq!(read_streams(&b, &reg(), &reader_knowing(&ALL)).unwrap_err(), StreamError::GeometryCapability(ids::CIRCLE));
+    assert_eq!(
+        read_streams(&b, &reg(), &reader_knowing(&ALL)).unwrap_err(),
+        StreamError::GeometryCapability(ids::CIRCLE)
+    );
 }
 
 #[test]
@@ -99,7 +107,10 @@ fn streams_round_trip_through_the_framing() {
     let opened = read_streams(&b, &reg(), &reader_knowing(&ALL)).unwrap();
     assert_eq!(opened.streams, streams);
     assert!(opened.skipped.is_empty());
-    assert_eq!(read_streams(&encode_streams(&[]).unwrap(), &reg(), &reader_knowing(&ALL)).unwrap().streams.len(), 0);
+    assert_eq!(
+        read_streams(&encode_streams(&[]).unwrap(), &reg(), &reader_knowing(&ALL)).unwrap().streams.len(),
+        0
+    );
 }
 
 #[test]
@@ -107,7 +118,7 @@ fn an_unknown_stream_is_reported_skipped_without_parsing_its_payload_and_is_not_
     // The unknown stream's payload is garbage on purpose: nothing may read it.
     let alien = CapabilityId::new(40_000);
     let streams = vec![stream(ids::LAYER, b"ok"), stream(alien, &[0xff; 37]), stream(ids::TEXT, b"fine")];
-    let b = encode_streams(&streams);
+    let b = encode_streams(&streams).unwrap();
     let opened = read_streams(&b, &reg(), &reader_knowing(&ALL)).unwrap();
     assert_eq!(opened.streams.len(), 2);
     assert_eq!(opened.skipped.len(), 1);
@@ -149,7 +160,10 @@ fn a_reader_implementing_none_of_the_streams_skips_them_all_and_negotiation_stil
     assert_eq!(opened.skipped.len(), 6);
     let file = Declaration {
         min_reader: Version::new(1, 0, 0),
-        capabilities: ALL.iter().map(|c| Declared { id: *c, requirement: Requirement::Optional, version: Version::new(1, 0, 0) }).collect(),
+        capabilities: ALL
+            .iter()
+            .map(|c| Declared { id: *c, requirement: Requirement::Optional, version: Version::new(1, 0, 0) })
+            .collect(),
     };
     let n = reg().negotiate(&nobody, &file).unwrap();
     assert_eq!(n.skipped.len(), 6);
@@ -170,10 +184,16 @@ fn the_framing_refuses_every_truncation_and_every_lie() {
     assert_eq!(read_streams(&c, &reg(), &reader_knowing(&ALL)).unwrap_err(), StreamError::BadMagic);
     let mut c = b.clone();
     c[4] = 9;
-    assert!(matches!(read_streams(&c, &reg(), &reader_knowing(&ALL)).unwrap_err(), StreamError::UnsupportedVersion(_)));
+    assert!(matches!(
+        read_streams(&c, &reg(), &reader_knowing(&ALL)).unwrap_err(),
+        StreamError::UnsupportedVersion(_)
+    ));
     let mut c = b.clone();
     c[8..12].copy_from_slice(&u32::MAX.to_le_bytes());
-    assert!(matches!(read_streams(&c, &reg(), &reader_knowing(&ALL)).unwrap_err(), StreamError::Truncated | StreamError::TooMany));
+    assert!(matches!(
+        read_streams(&c, &reg(), &reader_knowing(&ALL)).unwrap_err(),
+        StreamError::Truncated | StreamError::TooMany
+    ));
     // a payload length past the end of the buffer
     let mut c = b.clone();
     let len_at = SET_HEADER + 12;

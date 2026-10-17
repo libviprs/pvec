@@ -36,10 +36,16 @@ fn line_style_streams_round_trip_and_refuse_bad_dashes() {
     };
     assert_eq!(LineStyleStream::decode(&s.encode().unwrap()).unwrap(), s);
     for bad in [f64::NAN, f64::INFINITY, -1.0] {
-        let b = LineStyleStream { styles: vec![LineStyleDef { name: "X".into(), dashes: vec![bad, 1.0] }], assignments: vec![] };
+        let b = LineStyleStream {
+            styles: vec![LineStyleDef { name: "X".into(), dashes: vec![bad, 1.0] }],
+            assignments: vec![],
+        };
         assert!(b.encode().is_err(), "{bad}");
     }
-    let long = LineStyleStream { styles: vec![LineStyleDef { name: "X".into(), dashes: vec![1.0; 17] }], assignments: vec![] };
+    let long = LineStyleStream {
+        styles: vec![LineStyleDef { name: "X".into(), dashes: vec![1.0; 17] }],
+        assignments: vec![],
+    };
     assert_eq!(long.encode().unwrap_err(), ComponentError::TooMany);
 }
 
@@ -47,7 +53,14 @@ fn line_style_streams_round_trip_and_refuse_bad_dashes() {
 fn text_streams_round_trip_and_refuse_bad_numbers_and_oversized_text() {
     let s = TextStream {
         records: vec![
-            TextRecord { entity: id(3), x: 12.5, y: -7.25, height: 2.5, rotation: 0.5, text: "Room 101".into() },
+            TextRecord {
+                entity: id(3),
+                x: 12.5,
+                y: -7.25,
+                height: 2.5,
+                rotation: 0.5,
+                text: "Room 101".into(),
+            },
             TextRecord { entity: id(4), x: 0.0, y: 0.0, height: 1.0, rotation: 0.0, text: String::new() },
         ],
     };
@@ -70,7 +83,7 @@ fn a_hatch_is_boundary_references_plus_fill_parameters_and_embeds_no_curve() {
             HatchRecord { boundary: vec![id(1), id(2), id(3)], fill: Fill::Solid { rgba: 0xff00_00ff } },
             HatchRecord {
                 boundary: vec![id(7)],
-                fill: Fill::Pattern { name: "ANSI31".into(), angle: 0.785_398, scale: 2.0, rgba: 0x0000_00ff },
+                fill: Fill::Pattern { name: "ANSI31".into(), angle: 0.5, scale: 2.0, rgba: 0x0000_00ff },
             },
         ],
     };
@@ -85,12 +98,18 @@ fn a_hatch_is_boundary_references_plus_fill_parameters_and_embeds_no_curve() {
     assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::EmbeddedGeometry);
 
     // an empty boundary and an absurd one
-    let empty = HatchStream { records: vec![HatchRecord { boundary: vec![], fill: Fill::Solid { rgba: 0 } }] };
+    let empty =
+        HatchStream { records: vec![HatchRecord { boundary: vec![], fill: Fill::Solid { rgba: 0 } }] };
     assert_eq!(empty.encode().unwrap_err(), ComponentError::BadCount);
-    let huge = HatchStream { records: vec![HatchRecord { boundary: vec![id(0); 4097], fill: Fill::Solid { rgba: 0 } }] };
+    let huge = HatchStream {
+        records: vec![HatchRecord { boundary: vec![id(0); 4097], fill: Fill::Solid { rgba: 0 } }],
+    };
     assert_eq!(huge.encode().unwrap_err(), ComponentError::TooMany);
     let bad_scale = HatchStream {
-        records: vec![HatchRecord { boundary: vec![id(0)], fill: Fill::Pattern { name: "A".into(), angle: 0.0, scale: 0.0, rgba: 0 } }],
+        records: vec![HatchRecord {
+            boundary: vec![id(0)],
+            fill: Fill::Pattern { name: "A".into(), angle: 0.0, scale: 0.0, rgba: 0 },
+        }],
     };
     assert_eq!(bad_scale.encode().unwrap_err(), ComponentError::BadNumber);
 }
@@ -109,7 +128,9 @@ fn provenance_keeps_the_source_identity_outside_the_entity_id() {
         ],
     };
     assert_eq!(ProvenanceStream::decode(&s.encode().unwrap()).unwrap(), s);
-    let long = ProvenanceStream { records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: vec![1; 65] }] };
+    let long = ProvenanceStream {
+        records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: vec![1; 65] }],
+    };
     assert_eq!(long.encode().unwrap_err(), ComponentError::TooLong);
 }
 
@@ -138,12 +159,59 @@ fn typed_streams_know_their_registry_capability_and_take_their_version_from_it()
 
 #[test]
 fn every_truncation_of_every_payload_is_refused_and_counts_cannot_size_an_allocation() {
-    let payloads: Vec<(&str, Vec<u8>, fn(&[u8]) -> bool)> = vec![
-        ("layer", LayerStream { names: vec!["A".into(), "B".into()], assignments: vec![(id(0), 1)] }.encode().unwrap(), |b| LayerStream::decode(b).is_ok()),
-        ("line_style", LineStyleStream { styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0, 2.0] }], assignments: vec![(id(0), 0)] }.encode().unwrap(), |b| LineStyleStream::decode(b).is_ok()),
-        ("text", TextStream { records: vec![TextRecord { entity: id(0), x: 1.0, y: 2.0, height: 3.0, rotation: 0.0, text: "hi".into() }] }.encode().unwrap(), |b| TextStream::decode(b).is_ok()),
-        ("hatch", HatchStream { records: vec![HatchRecord { boundary: vec![id(0), id(1)], fill: Fill::Solid { rgba: 1 } }] }.encode().unwrap(), |b| HatchStream::decode(b).is_ok()),
-        ("provenance", ProvenanceStream { records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: vec![9, 9] }] }.encode().unwrap(), |b| ProvenanceStream::decode(b).is_ok()),
+    type Case = (&'static str, Vec<u8>, fn(&[u8]) -> bool);
+    let payloads: Vec<Case> = vec![
+        (
+            "layer",
+            LayerStream { names: vec!["A".into(), "B".into()], assignments: vec![(id(0), 1)] }
+                .encode()
+                .unwrap(),
+            |b| LayerStream::decode(b).is_ok(),
+        ),
+        (
+            "line_style",
+            LineStyleStream {
+                styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0, 2.0] }],
+                assignments: vec![(id(0), 0)],
+            }
+            .encode()
+            .unwrap(),
+            |b| LineStyleStream::decode(b).is_ok(),
+        ),
+        (
+            "text",
+            TextStream {
+                records: vec![TextRecord {
+                    entity: id(0),
+                    x: 1.0,
+                    y: 2.0,
+                    height: 3.0,
+                    rotation: 0.0,
+                    text: "hi".into(),
+                }],
+            }
+            .encode()
+            .unwrap(),
+            |b| TextStream::decode(b).is_ok(),
+        ),
+        (
+            "hatch",
+            HatchStream {
+                records: vec![HatchRecord { boundary: vec![id(0), id(1)], fill: Fill::Solid { rgba: 1 } }],
+            }
+            .encode()
+            .unwrap(),
+            |b| HatchStream::decode(b).is_ok(),
+        ),
+        (
+            "provenance",
+            ProvenanceStream {
+                records: vec![ProvenanceRecord { entity: id(0), source_kind: 1, handle: vec![9, 9] }],
+            }
+            .encode()
+            .unwrap(),
+            |b| ProvenanceStream::decode(b).is_ok(),
+        ),
     ];
     for (name, bytes, ok) in payloads {
         assert!(ok(&bytes), "{name} baseline");
@@ -162,7 +230,18 @@ fn every_truncation_of_every_payload_is_refused_and_counts_cannot_size_an_alloca
 
 #[test]
 fn entity_ids_above_the_limit_and_invalid_utf8_are_refused() {
-    let mut b = TextStream { records: vec![TextRecord { entity: id(0), x: 1.0, y: 2.0, height: 3.0, rotation: 0.0, text: "ab".into() }] }.encode().unwrap();
+    let mut b = TextStream {
+        records: vec![TextRecord {
+            entity: id(0),
+            x: 1.0,
+            y: 2.0,
+            height: 3.0,
+            rotation: 0.0,
+            text: "ab".into(),
+        }],
+    }
+    .encode()
+    .unwrap();
     b[4..8].copy_from_slice(&(1u32 << 28).to_le_bytes());
     assert_eq!(TextStream::decode(&b).unwrap_err(), ComponentError::BadEntityId(1 << 28));
     let mut b = LayerStream { names: vec!["ab".into()], assignments: vec![] }.encode().unwrap();
@@ -175,8 +254,26 @@ fn entity_ids_above_the_limit_and_invalid_utf8_are_refused() {
 fn random_corruption_of_payloads_never_panics() {
     let good = vec![
         LayerStream { names: vec!["A".into(), "B".into()], assignments: vec![(id(0), 1)] }.encode().unwrap(),
-        HatchStream { records: vec![HatchRecord { boundary: vec![id(0)], fill: Fill::Pattern { name: "P".into(), angle: 1.0, scale: 1.0, rgba: 2 } }] }.encode().unwrap(),
-        TextStream { records: vec![TextRecord { entity: id(0), x: 1.0, y: 2.0, height: 3.0, rotation: 0.0, text: "hi".into() }] }.encode().unwrap(),
+        HatchStream {
+            records: vec![HatchRecord {
+                boundary: vec![id(0)],
+                fill: Fill::Pattern { name: "P".into(), angle: 1.0, scale: 1.0, rgba: 2 },
+            }],
+        }
+        .encode()
+        .unwrap(),
+        TextStream {
+            records: vec![TextRecord {
+                entity: id(0),
+                x: 1.0,
+                y: 2.0,
+                height: 3.0,
+                rotation: 0.0,
+                text: "hi".into(),
+            }],
+        }
+        .encode()
+        .unwrap(),
     ];
     let mut x: u64 = 0xfeed_beef_1234_5678;
     let mut next = || {
@@ -198,5 +295,72 @@ fn random_corruption_of_payloads_never_panics() {
             let _ = LineStyleStream::decode(&b);
             let _ = ProvenanceStream::decode(&b);
         }
+    }
+}
+
+#[test]
+fn numbers_and_counts_are_checked_on_bytes_the_encoder_did_not_write() {
+    // text: count, then entity (4), x, y, height, rotation (8 each), text length (4), text
+    let good = TextStream {
+        records: vec![TextRecord {
+            entity: id(0),
+            x: 1.0,
+            y: 2.0,
+            height: 3.0,
+            rotation: 0.0,
+            text: "ab".into(),
+        }],
+    }
+    .encode()
+    .unwrap();
+    for (name, at, bad) in [
+        ("height zero", 24usize, 0.0f64),
+        ("height negative", 24, -1.0),
+        ("x nan", 8, f64::NAN),
+        ("rotation inf", 32, f64::INFINITY),
+    ] {
+        let mut b = good.clone();
+        b[at..at + 8].copy_from_slice(&bad.to_le_bytes());
+        assert_eq!(TextStream::decode(&b).unwrap_err(), ComponentError::BadNumber, "{name}");
+    }
+    // hatch: count, boundary kind, boundary count, ids, fill kind, rgba
+    let hatch =
+        HatchStream { records: vec![HatchRecord { boundary: vec![id(1)], fill: Fill::Solid { rgba: 5 } }] }
+            .encode()
+            .unwrap();
+    let mut b = hatch.clone();
+    b[8..12].copy_from_slice(&0u32.to_le_bytes());
+    assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::BadCount);
+    let mut b = hatch.clone();
+    b[8..12].copy_from_slice(&4097u32.to_le_bytes());
+    assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::TooMany);
+    let mut b = hatch.clone();
+    b[4..8].copy_from_slice(&9u32.to_le_bytes());
+    assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::BadTag(9));
+    // a pattern with a zero scale: kind 2, name length, name, angle, scale
+    let pat = HatchStream {
+        records: vec![HatchRecord {
+            boundary: vec![id(1)],
+            fill: Fill::Pattern { name: "P".into(), angle: 0.0, scale: 1.0, rgba: 0 },
+        }],
+    }
+    .encode()
+    .unwrap();
+    let mut b = pat.clone();
+    let scale_at = b.len() - 4 - 8;
+    b[scale_at..scale_at + 8].copy_from_slice(&0.0f64.to_le_bytes());
+    assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::BadNumber);
+    // line style dashes: negative and non-finite on the way in
+    let ls = LineStyleStream {
+        styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0] }],
+        assignments: vec![],
+    }
+    .encode()
+    .unwrap();
+    for bad in [-1.0f64, f64::NAN] {
+        let mut b = ls.clone();
+        let n = b.len();
+        b[n - 8..].copy_from_slice(&bad.to_le_bytes());
+        assert_eq!(LineStyleStream::decode(&b).unwrap_err(), ComponentError::BadNumber);
     }
 }
