@@ -1,0 +1,131 @@
+x86_64
+load average: 219.63 268.39 273.10 1/1389 142
+## million (1000000 entities, payload model 65460700 bytes, world side 101574.601)
+
+| model | index bytes | index / payload | duplication | build cpu ms |
+|---|---|---|---|---|
+| M1 loose quadtree (max level 10) | 23640000 | 0.3611 | 1.000 | 280 |
+| M2 packed Hilbert R-tree (leaf 512, fanout 64) | 63616 | 0.0010 | 1.000 | 50 |
+| M2 packed Hilbert R-tree (leaf 64, fanout 32) | 516256 | 0.0079 | 1.000 | 50 |
+| M3 cells + duplicated references (max level 10, refs without bounds) | 39221080 | 0.5992 | 1.996 | 457 |
+| M3 cells + duplicated references (max level 10, refs carry bounds) | 71156984 | 1.0870 | 1.996 | 475 |
+| M4 leaf cells + long-entity buckets (leaf level 7) | 265712 | 0.0041 | 1.000 | 42 |
+| M4 leaf cells + long-entity buckets (leaf level 8) | 1091792 | 0.0167 | 1.000 | 56 |
+
+Worst-case units (source-space bounds throughout):
+
+* M1 loose quadtree (max level 10): root node payload bytes: 0.0000; largest node payload bytes: 1256.0000; node holding the longest entity (side 840): payload bytes: 148.0000
+* M2 packed Hilbert R-tree (leaf 512, fanout 64): largest leaf payload bytes: 39022.0000; widest leaf bounds, fraction of world side: 0.0536; leaf holding the longest entity: payload bytes: 31978.0000; leaf holding the longest entity: bounds, fraction of world side: 0.0364
+* M2 packed Hilbert R-tree (leaf 64, fanout 32): largest leaf payload bytes: 6006.0000; widest leaf bounds, fraction of world side: 0.0281; leaf holding the longest entity: payload bytes: 4280.0000; leaf holding the longest entity: bounds, fraction of world side: 0.0159
+* M3 cells + duplicated references (max level 10, refs without bounds): largest cell reference list bytes: 372.0000; level-0 cell reference list bytes: 0.0000; reference list of the cell holding the longest entity: bytes (and it is referenced from up to 4 cells): 72.0000
+* M3 cells + duplicated references (max level 10, refs carry bounds): largest cell reference list bytes: 868.0000; level-0 cell reference list bytes: 0.0000; reference list of the cell holding the longest entity: bytes (and it is referenced from up to 4 cells): 168.0000
+* M4 leaf cells + long-entity buckets (leaf level 7): size-class bucket (or leaf cell) holding the longest entity: payload bytes: 346357.0000; largest leaf-cell payload bytes: 6942.0000; largest bucket payload bytes (all chunks of one size class): 346357.0000; chunk table bytes (read on every query): 4704.0000
+* M4 leaf cells + long-entity buckets (leaf level 8): size-class bucket (or leaf cell) holding the longest entity: payload bytes: 346357.0000; largest leaf-cell payload bytes: 3060.0000; largest bucket payload bytes (all chunks of one size class): 4674839.0000; chunk table bytes (read on every query): 67904.0000
+
+Viewport script, bytes and ranges after merging reads at a 64 KiB gap (and, in brackets, no gap). `amp` is bytes fetched over the payload bytes of the entities that actually intersect; `fp` is the share of fetched entities that do not intersect.
+
+### M1 loose quadtree (max level 10)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 999999 | 0.000 | 1 (3) | 89100636 | 89100559 | 1.36 | 18483 |
+| zoom in (1/4 x 1/4) | 63045 | 65456 | 0.037 | 50 (1258) | 8606851 | 5786612 | 2.07 | 1358 |
+| pan right | 63001 | 65097 | 0.032 | 54 (1409) | 8531253 | 5759181 | 2.06 | 1301 |
+| pan right | 63036 | 65126 | 0.032 | 52 (1247) | 8480158 | 5747092 | 2.06 | 1247 |
+| pan right | 62962 | 64707 | 0.027 | 37 (1039) | 7737478 | 5702899 | 1.88 | 1206 |
+| pan right | 31528 | 32686 | 0.035 | 29 (709) | 4186224 | 2879442 | 2.03 | 739 |
+| zoom in (1/16 x 1/16) | 4031 | 4620 | 0.127 | 18 (288) | 1172806 | 394174 | 4.49 | 132 |
+| zoom out (1/4 x 1/4) | 62962 | 64707 | 0.027 | 37 (1039) | 7737478 | 5702899 | 1.88 | 1338 |
+| zoom out (whole drawing) | 999990 | 999999 | 0.000 | 1 (3) | 89100636 | 89100559 | 1.36 | 18315 |
+| **script total** | | | | 279 (6995) | 224653520 | 210173417 | | |
+
+### M2 packed Hilbert R-tree (leaf 512, fanout 64)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65524252 | 65524252 | 1.00 | 599 |
+| zoom in (1/4 x 1/4) | 63045 | 81920 | 0.230 | 16 (27) | 5701960 | 5404526 | 1.37 | 48 |
+| pan right | 63001 | 80384 | 0.216 | 13 (22) | 5493726 | 5290110 | 1.33 | 38 |
+| pan right | 63036 | 79872 | 0.211 | 12 (20) | 5479284 | 5243132 | 1.33 | 39 |
+| pan right | 62962 | 77312 | 0.186 | 12 (24) | 5399892 | 5065402 | 1.32 | 35 |
+| pan right | 31528 | 43008 | 0.267 | 8 (13) | 2992582 | 2818146 | 1.45 | 12 |
+| zoom in (1/16 x 1/16) | 4031 | 8704 | 0.537 | 7 (9) | 656620 | 578560 | 2.51 | 5 |
+| zoom out (1/4 x 1/4) | 62962 | 77312 | 0.186 | 12 (24) | 5399892 | 5065402 | 1.32 | 31 |
+| zoom out (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65524252 | 65524252 | 1.00 | 529 |
+| **script total** | | | | 82 (141) | 162172460 | 160513782 | | |
+
+### M2 packed Hilbert R-tree (leaf 64, fanout 32)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65976892 | 65976892 | 1.01 | 642 |
+| zoom in (1/4 x 1/4) | 63045 | 67904 | 0.072 | 19 (55) | 5240234 | 4539320 | 1.26 | 48 |
+| pan right | 63001 | 68096 | 0.075 | 17 (51) | 5099712 | 4523952 | 1.23 | 31 |
+| pan right | 63036 | 68736 | 0.083 | 14 (45) | 5126900 | 4549278 | 1.24 | 45 |
+| pan right | 62962 | 67520 | 0.068 | 14 (48) | 5163156 | 4467654 | 1.26 | 43 |
+| pan right | 31528 | 34688 | 0.091 | 9 (31) | 2760146 | 2299366 | 1.34 | 18 |
+| zoom in (1/16 x 1/16) | 4031 | 5760 | 0.300 | 8 (18) | 522114 | 389942 | 2.00 | 6 |
+| zoom out (1/4 x 1/4) | 62962 | 67520 | 0.068 | 14 (48) | 5163156 | 4467654 | 1.26 | 46 |
+| zoom out (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65976892 | 65976892 | 1.01 | 705 |
+| **script total** | | | | 97 (298) | 161029202 | 157190950 | | |
+
+### M3 cells + duplicated references (max level 10, refs without bounds)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 999998 | 0.000 | 1 (987) | 104681716 | 104656306 | 1.60 | 104844 |
+| zoom in (1/4 x 1/4) | 63045 | 63963 | 0.014 | 44 (1886) | 8219736 | 6687743 | 1.98 | 7652 |
+| pan right | 63001 | 64295 | 0.020 | 49 (2548) | 8976638 | 6695383 | 2.17 | 6764 |
+| pan right | 63036 | 64273 | 0.019 | 46 (2630) | 8901562 | 6675041 | 2.16 | 6699 |
+| pan right | 62962 | 63880 | 0.014 | 43 (1888) | 8406529 | 6638800 | 2.05 | 6616 |
+| pan right | 31528 | 32087 | 0.017 | 27 (1144) | 4660842 | 3342617 | 2.26 | 3285 |
+| zoom in (1/16 x 1/16) | 4031 | 4410 | 0.086 | 28 (782) | 1226898 | 444988 | 4.69 | 472 |
+| zoom out (1/4 x 1/4) | 62962 | 63880 | 0.014 | 43 (1888) | 8406529 | 6638800 | 2.05 | 7375 |
+| zoom out (whole drawing) | 999990 | 999998 | 0.000 | 1 (987) | 104681716 | 104656306 | 1.60 | 104258 |
+| **script total** | | | | 282 (14740) | 258162166 | 246435984 | | |
+
+### M3 cells + duplicated references (max level 10, refs carry bounds)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 999990 | 0.000 | 1 (995) | 136617620 | 136574922 | 2.09 | 108020 |
+| zoom in (1/4 x 1/4) | 63045 | 63045 | 0.000 | 47 (1679) | 9907271 | 8663841 | 2.39 | 7573 |
+| pan right | 63001 | 63001 | 0.000 | 48 (2018) | 10867092 | 8666985 | 2.63 | 6920 |
+| pan right | 63036 | 63036 | 0.000 | 47 (2152) | 10681527 | 8646046 | 2.59 | 6993 |
+| pan right | 62962 | 62962 | 0.000 | 46 (1656) | 10562425 | 8609142 | 2.57 | 6823 |
+| pan right | 31528 | 31528 | 0.000 | 31 (1027) | 5818040 | 4325344 | 2.82 | 3716 |
+| zoom in (1/16 x 1/16) | 4031 | 4031 | 0.000 | 33 (596) | 1212249 | 560791 | 4.64 | 484 |
+| zoom out (1/4 x 1/4) | 62962 | 62962 | 0.000 | 46 (1656) | 10562425 | 8609142 | 2.57 | 7662 |
+| zoom out (whole drawing) | 999990 | 999990 | 0.000 | 1 (995) | 136617620 | 136574922 | 2.09 | 105231 |
+| **script total** | | | | 300 (12774) | 332846269 | 321231135 | | |
+
+### M4 leaf cells + long-entity buckets (leaf level 7)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65726348 | 65726348 | 1.00 | 1368 |
+| zoom in (1/4 x 1/4) | 63045 | 73369 | 0.141 | 32 (208) | 5948666 | 4833505 | 1.43 | 127 |
+| pan right | 63001 | 71135 | 0.114 | 22 (138) | 5558838 | 4666957 | 1.35 | 123 |
+| pan right | 63036 | 71175 | 0.114 | 23 (143) | 5504996 | 4656039 | 1.34 | 126 |
+| pan right | 62962 | 70839 | 0.111 | 21 (105) | 5353677 | 4638795 | 1.30 | 134 |
+| pan right | 31528 | 36671 | 0.140 | 17 (73) | 2809232 | 2398381 | 1.36 | 61 |
+| zoom in (1/16 x 1/16) | 4031 | 6623 | 0.391 | 9 (36) | 720247 | 429197 | 2.76 | 16 |
+| zoom out (1/4 x 1/4) | 62962 | 70839 | 0.111 | 21 (105) | 5353677 | 4638795 | 1.30 | 112 |
+| zoom out (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 65726348 | 65726348 | 1.00 | 1270 |
+| **script total** | | | | 147 (810) | 162702029 | 157714365 | | |
+
+### M4 leaf cells + long-entity buckets (leaf level 8)
+
+| step | visible | fetched | fp | ranges (gap 0) | bytes | bytes (gap 0) | amp | query cpu us |
+|---|---|---|---|---|---|---|---|---|
+| cold open (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 66552428 | 66552428 | 1.02 | 4087 |
+| zoom in (1/4 x 1/4) | 63045 | 68905 | 0.085 | 29 (226) | 5433310 | 4607597 | 1.31 | 323 |
+| pan right | 63001 | 68697 | 0.083 | 27 (220) | 5327524 | 4578063 | 1.29 | 347 |
+| pan right | 63036 | 68515 | 0.080 | 23 (281) | 5478123 | 4556905 | 1.33 | 374 |
+| pan right | 62962 | 67185 | 0.063 | 22 (154) | 5353687 | 4470447 | 1.30 | 381 |
+| pan right | 31528 | 35170 | 0.104 | 18 (177) | 2866422 | 2358280 | 1.39 | 211 |
+| zoom in (1/16 x 1/16) | 4031 | 5713 | 0.294 | 13 (94) | 766216 | 421387 | 2.93 | 64 |
+| zoom out (1/4 x 1/4) | 62962 | 67185 | 0.063 | 22 (154) | 5353687 | 4470447 | 1.30 | 384 |
+| zoom out (whole drawing) | 999990 | 1000000 | 0.000 | 1 (1) | 66552428 | 66552428 | 1.02 | 4417 |
+| **script total** | | | | 156 (1308) | 163683825 | 158567982 | | |
+
