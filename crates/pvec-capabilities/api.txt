@@ -1,0 +1,100 @@
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct CapabilityId(u32)
+lib.rs: CapabilityId::new(id: u32) -> CapabilityId
+lib.rs: CapabilityId::get(self) -> u32
+lib.rs: impl fmt::Display for CapabilityId
+lib.rs: pub mod ids
+lib.rs: pub const CARTESIAN_POINT: CapabilityId
+lib.rs: pub const DIRECTION_VECTOR: CapabilityId
+lib.rs: pub const AXIS_PLACEMENT_2D: CapabilityId
+lib.rs: pub const LINE: CapabilityId
+lib.rs: pub const POLYLINE: CapabilityId
+lib.rs: pub const CIRCLE: CapabilityId
+lib.rs: pub const ELLIPSE: CapabilityId
+lib.rs: pub const TRIMMED_CURVE: CapabilityId
+lib.rs: pub const COMPOSITE_CURVE: CapabilityId
+lib.rs: pub const BEZIER_CURVE: CapabilityId
+lib.rs: pub const B_SPLINE_CURVE: CapabilityId
+lib.rs: pub const RATIONAL_B_SPLINE_CURVE: CapabilityId
+lib.rs: pub const AFFINE_TRANSFORM_2D: CapabilityId
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct Version
+lib.rs: Version.major: u16
+lib.rs: Version.minor: u16
+lib.rs: Version.patch: u16
+lib.rs: Version::new(major: u16, minor: u16, patch: u16) -> Version
+lib.rs: impl fmt::Display for Version
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Class
+lib.rs: Class::Geometry
+lib.rs: Class::Component
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Requirement
+lib.rs: Requirement::Required
+lib.rs: Requirement::Optional
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum StepBehaviour
+lib.rs: StepBehaviour::ExactForm
+lib.rs: StepBehaviour::BoundedApproximation
+lib.rs: StepBehaviour::NotApplicable
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum GisBehaviour
+lib.rs: GisBehaviour::Exact
+lib.rs: GisBehaviour::Densified
+lib.rs: GisBehaviour::NotApplicable
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Capability
+lib.rs: Capability.id: CapabilityId
+lib.rs: Capability.name: &'static str
+lib.rs: Capability.class: Class
+lib.rs: Capability.version: Version
+lib.rs: Capability.iso_construct: &'static str
+lib.rs: Capability.profile_section: u32
+lib.rs: Capability.requirement: Requirement
+lib.rs: Capability.step: StepBehaviour
+lib.rs: Capability.gis: GisBehaviour
+lib.rs: Capability.min_reader: Version
+lib.rs: Capability.restriction: &'static str
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Retired
+lib.rs: Retired.id: CapabilityId
+lib.rs: Retired.name: &'static str
+lib.rs: Retired.reason: &'static str
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct ProfileSection
+lib.rs: ProfileSection.number: u32
+lib.rs: ProfileSection.constructs: String
+lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RegistryError
+lib.rs: RegistryError::ZeroId
+lib.rs: RegistryError::DuplicateId(CapabilityId)
+lib.rs: RegistryError::DuplicateName(&'static str)
+lib.rs: RegistryError::DuplicateRetired(CapabilityId)
+lib.rs: RegistryError::ReusedRetiredId(CapabilityId)
+lib.rs: RegistryError::UnaccountedId(CapabilityId)
+lib.rs: RegistryError::ComponentMustBeOptional(&'static str)
+lib.rs: RegistryError::NoConstruct(&'static str)
+lib.rs: RegistryError::NoProfileSection
+lib.rs: RegistryError::ConstructNotInSection
+lib.rs: RegistryError::AmbiguousConstruct
+lib.rs: RegistryError::ComponentNamesConstruct(&'static str)
+lib.rs: impl fmt::Display for RegistryError
+lib.rs: impl std::error::Error for RegistryError {}
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Reader
+lib.rs: Reader.version: Version
+lib.rs: Reader.implemented: Vec<CapabilityId>
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Declared
+lib.rs: Declared.id: CapabilityId
+lib.rs: Declared.requirement: Requirement
+lib.rs: Declared.version: Version
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Declaration
+lib.rs: Declaration.min_reader: Version
+lib.rs: Declaration.capabilities: Vec<Declared>
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Negotiated
+lib.rs: Negotiated.skipped: Vec<CapabilityId>
+lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum NegotiationError
+lib.rs: NegotiationError::ReaderTooOld
+lib.rs: NegotiationError::MissingRequired
+lib.rs: NegotiationError::ComponentDeclaredRequired(CapabilityId)
+lib.rs: impl fmt::Display for NegotiationError
+lib.rs: impl std::error::Error for NegotiationError {}
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Registry
+lib.rs: Registry::new(mut entries: Vec<Capability>, retired: Vec<Retired>) -> Result<Registry, RegistryError>
+lib.rs: Registry::entries(&self) -> &[Capability]
+lib.rs: Registry::retired(&self) -> &[Retired]
+lib.rs: Registry::get(&self, id: CapabilityId) -> Option<&Capability>
+lib.rs: Registry::by_name(&self, name: &str) -> Option<&Capability>
+lib.rs: Registry::is_retired(&self, id: CapabilityId) -> bool
+lib.rs: Registry::validate_against_profile(&self, profile: &[ProfileSection]) -> Result<(), RegistryError>
+lib.rs: Registry::negotiate(&self, reader: &Reader, file: &Declaration) -> Result<Negotiated, NegotiationError>
+lib.rs: Registry::v1() -> Registry
