@@ -61,6 +61,7 @@ error.rs: GeometryError::Unbounded
 error.rs: GeometryError::BadBasis
 error.rs: GeometryError::BadSegment
 error.rs: GeometryError::WeightCount
+error.rs: GeometryError::InvertedBounds
 error.rs: GeometryError::rule(&self) -> &'static str
 error.rs: GeometryError::as_numeric(&self) -> Option<NumericError>
 error.rs: impl From<NumericError> for GeometryError
@@ -93,6 +94,7 @@ primitives.rs: Domain::hi(&self) -> f64
 primitives.rs: Domain::width(&self) -> f64
 primitives.rs: Domain::contains(&self, t: f64) -> bool
 primitives.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Bounds
+primitives.rs: Bounds::new(min: Point2, max: Point2) -> Result<Bounds>
 primitives.rs: Bounds::min(&self) -> Point2
 primitives.rs: Bounds::max(&self) -> Point2
 primitives.rs: Bounds::diagonal(&self) -> f64

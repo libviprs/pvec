@@ -14,8 +14,11 @@ use std::path::{Path, PathBuf};
 
 /// The API crates, each with the workspace crates it may depend on. Nothing else may appear in its
 /// `[dependencies]`: a serialization, file or network crate there is a boundary violation.
-pub const API_CRATES: &[(&str, &[&str])] =
-    &[("pvec-capabilities", &[]), ("pvec-geometry", &["pvec-numeric"])];
+pub const API_CRATES: &[(&str, &[&str])] = &[
+    ("pvec-capabilities", &[]),
+    ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
+    ("pvec-geometry", &["pvec-numeric"]),
+];
 
 /// Names that must never appear in a public signature or an API crate's manifest.
 pub const BANNED_WIRE_NAMES: [&str; 10] = [

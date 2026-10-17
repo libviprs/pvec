@@ -14,6 +14,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-entity"
+version = "0.0.0"
+dependencies = [
+ "pvec-geometry",
+ "pvec-numeric",
+]
+
+[[package]]
 name = "pvec-geometry"
 version = "0.0.0"
 dependencies = [

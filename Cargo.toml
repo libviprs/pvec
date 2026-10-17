@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/pvec-capabilities", "crates/pvec-checks", "crates/pvec-geometry", "crates/pvec-numeric"]
+members = [
+    "crates/pvec-capabilities",
+    "crates/pvec-checks",
+    "crates/pvec-entity",
+    "crates/pvec-geometry",
+    "crates/pvec-numeric",
+]
 # Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),
 # so they are separate workspaces and never enter this lockfile.
 exclude = ["spikes"]
