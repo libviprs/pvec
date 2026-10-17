@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 /// `[dependencies]`: a serialization, file or network crate there is a boundary violation.
 pub const API_CRATES: &[(&str, &[&str])] = &[
     ("pvec-capabilities", &[]),
+    ("pvec-codec", &["pvec-capabilities", "pvec-entity", "pvec-geometry", "pvec-numeric"]),
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),
 ];
