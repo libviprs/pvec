@@ -1,0 +1,29 @@
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] #[repr(transparent)] pub struct EntityId(u32)
+lib.rs: EntityId::new(index: u32) -> Result<EntityId, EntityError>
+lib.rs: EntityId::index(self) -> u32
+lib.rs: impl fmt::Display for EntityId
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum EntityError
+lib.rs: EntityError::TooMany
+lib.rs: EntityError::Gap(EntityId)
+lib.rs: EntityError::Duplicate(EntityId)
+lib.rs: EntityError::Unknown(EntityId)
+lib.rs: EntityError::AlreadyExact(EntityId)
+lib.rs: EntityError::rule(&self) -> &'static str
+lib.rs: impl fmt::Display for EntityError
+lib.rs: impl std::error::Error for EntityError {}
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Representation
+lib.rs: Representation::Preview
+lib.rs: Representation::Exact
+lib.rs: #[derive(Clone, Debug, PartialEq, Default)] pub struct EntityTable
+lib.rs: EntityTable::new() -> EntityTable
+lib.rs: EntityTable::with_expected(expected: usize) -> Result<EntityTable, EntityError>
+lib.rs: EntityTable::push(&mut self, kind: CurveKind, bounds: Bounds, representation: Representation) -> Result<EntityId, EntityError>
+lib.rs: EntityTable::len(&self) -> usize
+lib.rs: EntityTable::is_empty(&self) -> bool
+lib.rs: EntityTable::capacity_left(&self) -> usize
+lib.rs: EntityTable::id_at(&self, position: usize) -> Option<EntityId>
+lib.rs: EntityTable::bounds(&self, id: EntityId) -> Result<Bounds, EntityError>
+lib.rs: EntityTable::kind(&self, id: EntityId) -> Result<CurveKind, EntityError>
+lib.rs: EntityTable::representation(&self, id: EntityId) -> Result<Representation, EntityError>
+lib.rs: EntityTable::refine(&mut self, id: EntityId, exact_bounds: Bounds) -> Result<EntityId, EntityError>
+lib.rs: pub fn check_dense(ids: &[EntityId]) -> Result<usize, EntityError>

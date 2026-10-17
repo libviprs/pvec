@@ -119,6 +119,16 @@ pub struct Bounds {
 }
 
 impl Bounds {
+    /// A box from its two corners, which must pass NP-01 to NP-03 and satisfy `min <= max` on both
+    /// axes (a point or a segment is a legal degenerate box).
+    pub fn new(min: Point2, max: Point2) -> Result<Bounds> {
+        let (min, max) = (Point2::checked(min.x, min.y)?, Point2::checked(max.x, max.y)?);
+        if min.x > max.x || min.y > max.y {
+            return Err(crate::GeometryError::InvertedBounds);
+        }
+        Ok(Bounds { min, max })
+    }
+
     pub(crate) fn of(p: Point2) -> Bounds {
         Bounds { min: p, max: p }
     }

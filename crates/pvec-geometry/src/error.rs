@@ -6,8 +6,9 @@ use pvec_numeric::NumericError;
 
 /// Everything a construction or an evaluation can refuse.
 ///
-/// [`GeometryError::rule`] gives the identifier of the violated rule: `NP-nn` for the numeric policy
-/// and `PROFILE-n` for a section of the semantic profile.
+/// [`GeometryError::rule`] gives the identifier of the violated rule: `NP-nn` for the numeric policy,
+/// `PROFILE-n` for a section of the semantic profile, and `GEOM-nn` for the few rules of this crate's
+/// own API (`GEOM-01`: a bounding box has `min <= max`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum GeometryError {
@@ -23,6 +24,8 @@ pub enum GeometryError {
     BadSegment,
     /// The number of weights differs from the number of control points (NP-15).
     WeightCount,
+    /// A bounding box whose lower corner is above or to the right of its upper corner (GEOM-01).
+    InvertedBounds,
 }
 
 impl GeometryError {
@@ -35,6 +38,7 @@ impl GeometryError {
             GeometryError::BadBasis => "PROFILE-8",
             GeometryError::BadSegment => "PROFILE-9",
             GeometryError::WeightCount => "NP-15",
+            GeometryError::InvertedBounds => "GEOM-01",
         }
     }
 
@@ -63,6 +67,9 @@ impl fmt::Display for GeometryError {
             GeometryError::BadSegment => write!(f, "BadSegment: not an allowed segment ({})", self.rule()),
             GeometryError::WeightCount => {
                 write!(f, "WeightCount: one weight per control point ({})", self.rule())
+            }
+            GeometryError::InvertedBounds => {
+                write!(f, "InvertedBounds: min must not exceed max ({})", self.rule())
             }
         }
     }

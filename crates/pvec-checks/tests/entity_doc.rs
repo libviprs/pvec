@@ -4,7 +4,9 @@ use pvec_checks::*;
 use std::fs;
 
 fn doc() -> String {
-    fs::read_to_string(repo_root().join("docs/ENTITY_ID.md")).expect("docs/ENTITY_ID.md exists")
+    let text = fs::read_to_string(repo_root().join("docs/ENTITY_ID.md")).expect("docs/ENTITY_ID.md exists");
+    // Hard wrapping must not hide a sentence from the check.
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[test]
