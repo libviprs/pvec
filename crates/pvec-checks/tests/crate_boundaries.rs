@@ -141,3 +141,24 @@ fn no_crate_but_the_geometry_crate_contains_an_evaluator() {
         }
     }
 }
+
+#[test]
+fn the_tessellation_scan_flags_flattening_code() {
+    assert!(mentions_tessellation("pub fn tessellate(c: &Curve) -> Vec<Point2> { todo!() }"));
+    assert!(mentions_tessellation("let pts = curve.flatten(0.1);"));
+    assert!(!mentions_tessellation("let p = curve.eval(0.5);"));
+}
+
+#[test]
+fn nothing_on_the_geometry_path_calls_a_tessellator() {
+    for name in ["pvec-geometry", "pvec-codec", "pvec-entity", "pvec-capabilities"] {
+        for file in rust_files(&repo_root().join(format!("crates/{name}/src"))) {
+            let code = strip_comments_and_tests(&fs::read_to_string(&file).unwrap());
+            assert!(
+                !mentions_tessellation(&code),
+                "{name}: {} mentions tessellation; exact curves are never flattened here",
+                file.display()
+            );
+        }
+    }
+}

@@ -56,6 +56,7 @@ curve.rs: Composite::segments(&self) -> &[Curve]
 curve.rs: Composite::is_declared_closed(&self) -> bool
 curve.rs: Composite::declare_closed(mut self) -> Result<Composite>
 curve.rs: impl Curve2d for Composite
+curve.rs: Curve::to_rational_b_spline(&self) -> Result<Curve>
 error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum GeometryError
 error.rs: GeometryError::Numeric(NumericError)
 error.rs: GeometryError::OutsideDomain
@@ -140,6 +141,14 @@ spline.rs: impl Curve2d for Bezier
 transform.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Transform2
 transform.rs: Transform2::const IDENTITY: Transform2
 transform.rs: Transform2::new(m: [f64; 6]) -> Result<Transform2>
+transform.rs: Transform2::translate(dx: f64, dy: f64) -> Result<Transform2>
+transform.rs: Transform2::rotate(radians: f64) -> Result<Transform2>
+transform.rs: Transform2::scale(sx: f64, sy: f64) -> Result<Transform2>
+transform.rs: Transform2::mirror_x() -> Result<Transform2>
+transform.rs: Transform2::mirror_y() -> Result<Transform2>
+transform.rs: Transform2::shear(shx: f64, shy: f64) -> Result<Transform2>
+transform.rs: Transform2::then(&self, next: &Transform2) -> Result<Transform2>
+transform.rs: Transform2::inverse(&self) -> Result<Transform2>
 transform.rs: Transform2::matrix(&self) -> [f64; 6]
 transform.rs: Transform2::apply_point(&self, p: Point2) -> Point2
 transform.rs: Transform2::apply_vector(&self, v: Vector2) -> Vector2

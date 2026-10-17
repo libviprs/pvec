@@ -386,3 +386,10 @@ pub fn second_evaluator_markers(code: &str) -> Vec<&'static str> {
         .filter(|m| code.contains(m))
         .collect()
 }
+
+/// True when code mentions tessellation or flattening. Exact curves are never flattened on the
+/// geometry path; tessellation is P7.2, behind its own API, and receives the exact curves.
+pub fn mentions_tessellation(code: &str) -> bool {
+    let lower = code.to_lowercase();
+    lower.contains("tessellat") || lower.contains(".flatten(") || lower.contains("fn flatten")
+}

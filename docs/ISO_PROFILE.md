@@ -265,6 +265,36 @@ count; a weight that is not finite and strictly positive; a weight below the con
 A decoder rejects: any matrix entry that is not finite or exceeds `NP-02` after composition with
 the carried geometry; a matrix that is singular or near-singular under `NP-19`.
 
+### Promotion table
+
+This is what a transform does to each kind, with the exact result and the registry capability it lands
+on (`docs/CAPABILITIES.md`; name and id). Every row is exact. Nothing in this table is ever approximated:
+a transform never calls a tessellator and never turns a curve into a polyline.
+
+| input | transform | exact result | target capability |
+|---|---|---|---|
+| line | any non-degenerate affine | a line; the direction is re-normalised and the parameter scales by the length of the image of the direction | `line` (4) |
+| circle | similarity (rotation, translation, reflection, one uniform scale) | a circle with the scaled radius | `circle` (6) |
+| circle | non-uniform scale, shear, or any non-similarity | an ellipse, axes re-expressed orthogonal and right-handed, major axis first | `ellipse` (7) |
+| ellipse | non-uniform scale | an ellipse | `ellipse` (7) |
+| ellipse | shear | an ellipse (the affine image of an ellipse is an ellipse), with its exact rational form available on request | `ellipse` (7) |
+| ellipse or circle | any map whose image is too eccentric for NP-07 | refused with the NP-07 error | none (refused) |
+| arc (trimmed curve over a circle or ellipse) | any non-degenerate affine | the trim parameters mapped analytically, so the arc keeps its end points, over the image of the basis | `trimmed_curve` (8) |
+| trimmed curve over a line, Bezier or B-spline | any non-degenerate affine | the trim scaled with the line parameter, or unchanged for a spline, over the image of the basis | `trimmed_curve` (8) |
+| polyline | any non-degenerate affine | a polyline with transformed vertices | `polyline` (5) |
+| Bezier | any non-degenerate affine | a Bezier curve with transformed control points | `bezier_curve` (10) |
+| B-spline | any non-degenerate affine | control points transformed, knots and weights preserved | `b_spline_curve` (11) |
+| rational B-spline | any non-degenerate affine | control points transformed, knots and weights preserved | `rational_b_spline_curve` (12) |
+| composite curve | any non-degenerate affine | every segment transformed, order and joints kept | `composite_curve` (9) |
+
+A singular or near-singular map (NP-19) is refused when it is built, so it cannot reach a curve and no
+zero-area curve comes out. A composition that leaves the coordinate range is refused as well.
+
+One row differs from the first draft of the plan, which listed "ellipse under shear" as a rational
+B-spline. The affine image of an ellipse is an ellipse, so the exact and simpler result is an ellipse;
+`Curve::to_rational_b_spline` gives the exact rational form of a conic or an arc when a consumer wants
+a spline (ADR 0012).
+
 ## Unsupported Part 42 constructs, by class
 
 These are outside PVec v1 whichever entry above they might otherwise resemble. A file that carries
