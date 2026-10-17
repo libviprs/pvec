@@ -1,0 +1,18 @@
+[package]
+name = "pvec-numeric"
+version = "0.0.0"
+description = "The single numeric policy for PVec: tolerances, degeneracy rules and limits"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
+
+# The pathological suite lives at the repository root so it reads as a specification artefact,
+# not as a unit test of this crate.
+[[test]]
+name = "pathological"
+path = "../../tests/pathological/main.rs"

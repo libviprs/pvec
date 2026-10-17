@@ -22,4 +22,9 @@ rustc --version; uname -m
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked $*
+echo '== red suite: the evaluator probes must still fail until P3.1 lands'
+if cargo test -p pvec-numeric --test pathological --locked -- --ignored >/tmp/red.log 2>&1; then
+  echo 'FAIL: the evaluator probes went green; update tests/pathological/main.rs and this step'; exit 1
+fi
+grep -E 'no evaluator exists yet|test result' /tmp/red.log
 "
