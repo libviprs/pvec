@@ -1,0 +1,16 @@
+// Baseline: one serialized object per entity, the shape finding 6 warns against.
+namespace obj;
+
+struct Pt { x:double; y:double; }
+table Line { a:Pt; b:Pt; }
+table Circle { c:Pt; r:double; }
+table Arc { c:Pt; r:double; a0:double; a1:double; }
+table Ellipse { c:Pt; a:double; b:double; rot:double; t0:double; t1:double; }
+table Polyline { pts:[Pt]; }
+table Spline { degree:ubyte; cps:[Pt]; knots:[double]; weights:[double]; }
+table Seg { line:Line; arc:Arc; }
+table Composite { parts:[Seg]; }
+union Geom { Line, Circle, Arc, Ellipse, Polyline, Spline, Composite }
+table Entity { id:uint; geom:Geom; }
+table Block { entities:[Entity]; }
+root_type Block;

@@ -1,0 +1,16 @@
+--- packed::sum_f64
+instructions=45 packed_int_adds=4 xmm_ymm_instructions=10 wide_moves=2
+--- packed::sum_u32
+instructions=47 packed_int_adds=4 xmm_ymm_instructions=13 wide_moves=0
+--- fbs_soa::sum_iter
+instructions=130 packed_int_adds=6 xmm_ymm_instructions=16 wide_moves=4
+--- fbs_soa::sum_raw
+instructions=71 packed_int_adds=4 xmm_ymm_instructions=10 wide_moves=2
+--- fbs_soa::sum_ids
+instructions=150 packed_int_adds=6 xmm_ymm_instructions=22 wide_moves=2
+--- rk::sf
+instructions=44 packed_int_adds=4 xmm_ymm_instructions=10 wide_moves=2
+--- rk::si
+instructions=46 packed_int_adds=4 xmm_ymm_instructions=13 wide_moves=0
+--- FbObj.*touch
+instructions=1372 packed_int_adds=28 xmm_ymm_instructions=106 wide_moves=46

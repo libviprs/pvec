@@ -1,0 +1,385 @@
+x86_64
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+corpus revision: pvec-p1-fixtures-r1
+
+## small-synthetic: 1000 entities, 2 blocks of up to 512, Part 21 baseline 315128 bytes
+
+| candidate | file bytes | bytes/entity | ratio to Part 21 | encode ms | cold-open bytes (header + directory) | bulk touch ns/entity | viewport-script touch ns/entity | materialise ns/entity |
+|---|---|---|---|---|---|---|---|---|
+| B packed | 65472 | 65.5 | 0.2078 | 0 | 144 | 2.8 | 2.6 | 93.7 |
+| A flatbuffers SoA | 65168 | 65.2 | 0.2068 | 0 | 144 | 3.3 | 3.2 | 105.4 |
+| A flatbuffers SoA (raw byte view) | 65168 | 65.2 | 0.2068 | 0 | 144 | 3.0 | 2.9 | 104.4 |
+| C rkyv SoA | 64736 | 64.7 | 0.2054 | 0 | 144 | 1.7 | 1.6 | 101.9 |
+| baseline flatbuffers per entity | 90752 | 90.8 | 0.2880 | 0 | 144 | 97.1 | 62.7 | 122.1 |
+
+### small-synthetic, B packed: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 2 | 1 | 65328 | 1000 |
+| zoom in (1/4 x 1/4) | 2 | 1 | 65328 | 1000 |
+| pan right | 2 | 1 | 65328 | 1000 |
+| pan right | 2 | 1 | 65328 | 1000 |
+| pan right | 2 | 1 | 65328 | 1000 |
+| pan right | 2 | 1 | 65328 | 1000 |
+| zoom in (1/16 x 1/16) | 2 | 1 | 65328 | 1000 |
+| zoom out (1/4 x 1/4) | 2 | 1 | 65328 | 1000 |
+| zoom out (whole drawing) | 2 | 1 | 65328 | 1000 |
+| total | | 9 | 587952 | 9000 |
+
+B padding on small-synthetic: section alignment and block tail 36 bytes (0.04 per entity); spline record header 192 bytes (6 per curve x 32 curves); composite records 364 bytes
+
+### small-synthetic, A flatbuffers SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 2 | 1 | 65024 | 1000 |
+| zoom in (1/4 x 1/4) | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| zoom in (1/16 x 1/16) | 2 | 1 | 65024 | 1000 |
+| zoom out (1/4 x 1/4) | 2 | 1 | 65024 | 1000 |
+| zoom out (whole drawing) | 2 | 1 | 65024 | 1000 |
+| total | | 9 | 585216 | 9000 |
+
+### small-synthetic, A flatbuffers SoA (raw byte view): viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 2 | 1 | 65024 | 1000 |
+| zoom in (1/4 x 1/4) | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| pan right | 2 | 1 | 65024 | 1000 |
+| zoom in (1/16 x 1/16) | 2 | 1 | 65024 | 1000 |
+| zoom out (1/4 x 1/4) | 2 | 1 | 65024 | 1000 |
+| zoom out (whole drawing) | 2 | 1 | 65024 | 1000 |
+| total | | 9 | 585216 | 9000 |
+
+### small-synthetic, C rkyv SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 2 | 1 | 64584 | 1000 |
+| zoom in (1/4 x 1/4) | 2 | 1 | 64584 | 1000 |
+| pan right | 2 | 1 | 64584 | 1000 |
+| pan right | 2 | 1 | 64584 | 1000 |
+| pan right | 2 | 1 | 64584 | 1000 |
+| pan right | 2 | 1 | 64584 | 1000 |
+| zoom in (1/16 x 1/16) | 2 | 1 | 64584 | 1000 |
+| zoom out (1/4 x 1/4) | 2 | 1 | 64584 | 1000 |
+| zoom out (whole drawing) | 2 | 1 | 64584 | 1000 |
+| total | | 9 | 581256 | 9000 |
+
+### small-synthetic, baseline flatbuffers per entity: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 2 | 1 | 90608 | 1000 |
+| zoom in (1/4 x 1/4) | 2 | 1 | 90608 | 1000 |
+| pan right | 2 | 1 | 90608 | 1000 |
+| pan right | 2 | 1 | 90608 | 1000 |
+| pan right | 2 | 1 | 90608 | 1000 |
+| pan right | 2 | 1 | 90608 | 1000 |
+| zoom in (1/16 x 1/16) | 2 | 1 | 90608 | 1000 |
+| zoom out (1/4 x 1/4) | 2 | 1 | 90608 | 1000 |
+| zoom out (whole drawing) | 2 | 1 | 90608 | 1000 |
+| total | | 9 | 815472 | 9000 |
+
+## spline-heavy: 50000 entities, 98 blocks of up to 512, Part 21 baseline 89798481 bytes
+
+| candidate | file bytes | bytes/entity | ratio to Part 21 | encode ms | cold-open bytes (header + directory) | bulk touch ns/entity | viewport-script touch ns/entity | materialise ns/entity |
+|---|---|---|---|---|---|---|---|---|
+| B packed | 28216016 | 564.3 | 0.3142 | 13 | 5520 | 18.2 | 19.4 | 197.9 |
+| A flatbuffers SoA | 28000544 | 560.0 | 0.3118 | 21 | 5520 | 16.7 | 13.4 | 240.5 |
+| A flatbuffers SoA (raw byte view) | 28000544 | 560.0 | 0.3118 | 19 | 5520 | 16.2 | 13.1 | 244.7 |
+| C rkyv SoA | 27979840 | 559.6 | 0.3116 | 20 | 5520 | 14.0 | 12.0 | 203.1 |
+| baseline flatbuffers per entity | 29636480 | 592.7 | 0.3300 | 24 | 5520 | 136.7 | 124.7 | 328.2 |
+
+### spline-heavy, B packed: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 98 | 1 | 28210488 | 50000 |
+| zoom in (1/4 x 1/4) | 26 | 5 | 7604664 | 13312 |
+| pan right | 28 | 9 | 8155304 | 14336 |
+| pan right | 25 | 3 | 7249240 | 12800 |
+| pan right | 19 | 4 | 5461600 | 9728 |
+| pan right | 12 | 2 | 3453672 | 6144 |
+| zoom in (1/16 x 1/16) | 7 | 2 | 2020624 | 3584 |
+| zoom out (1/4 x 1/4) | 19 | 4 | 5461600 | 9728 |
+| zoom out (whole drawing) | 98 | 1 | 28210488 | 50000 |
+| total | | 31 | 95827680 | 169632 |
+
+B padding on spline-heavy: section alignment and block tail 1940 bytes (0.04 per entity); spline record header 175206 bytes (6 per curve x 29201 curves); composite records 21820 bytes
+
+### spline-heavy, A flatbuffers SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 98 | 1 | 27995024 | 50000 |
+| zoom in (1/4 x 1/4) | 26 | 5 | 7547224 | 13312 |
+| pan right | 28 | 9 | 8093584 | 14336 |
+| pan right | 25 | 3 | 7193752 | 12800 |
+| pan right | 19 | 4 | 5419728 | 9728 |
+| pan right | 12 | 2 | 3427424 | 6144 |
+| zoom in (1/16 x 1/16) | 7 | 2 | 2005344 | 3584 |
+| zoom out (1/4 x 1/4) | 19 | 4 | 5419728 | 9728 |
+| zoom out (whole drawing) | 98 | 1 | 27995024 | 50000 |
+| total | | 31 | 95096832 | 169632 |
+
+### spline-heavy, A flatbuffers SoA (raw byte view): viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 98 | 1 | 27995024 | 50000 |
+| zoom in (1/4 x 1/4) | 26 | 5 | 7547224 | 13312 |
+| pan right | 28 | 9 | 8093584 | 14336 |
+| pan right | 25 | 3 | 7193752 | 12800 |
+| pan right | 19 | 4 | 5419728 | 9728 |
+| pan right | 12 | 2 | 3427424 | 6144 |
+| zoom in (1/16 x 1/16) | 7 | 2 | 2005344 | 3584 |
+| zoom out (1/4 x 1/4) | 19 | 4 | 5419728 | 9728 |
+| zoom out (whole drawing) | 98 | 1 | 27995024 | 50000 |
+| total | | 31 | 95096832 | 169632 |
+
+### spline-heavy, C rkyv SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 98 | 1 | 27974312 | 50000 |
+| zoom in (1/4 x 1/4) | 26 | 5 | 7541752 | 13312 |
+| pan right | 28 | 9 | 8087672 | 14336 |
+| pan right | 25 | 3 | 7188440 | 12800 |
+| pan right | 19 | 4 | 5415688 | 9728 |
+| pan right | 12 | 2 | 3424880 | 6144 |
+| zoom in (1/16 x 1/16) | 7 | 2 | 2003872 | 3584 |
+| zoom out (1/4 x 1/4) | 19 | 4 | 5415688 | 9728 |
+| zoom out (whole drawing) | 98 | 1 | 27974312 | 50000 |
+| total | | 31 | 95026616 | 169632 |
+
+### spline-heavy, baseline flatbuffers per entity: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 98 | 1 | 29630960 | 50000 |
+| zoom in (1/4 x 1/4) | 26 | 5 | 7982496 | 13312 |
+| pan right | 28 | 9 | 8561808 | 14336 |
+| pan right | 25 | 3 | 7612936 | 12800 |
+| pan right | 19 | 4 | 5737880 | 9728 |
+| pan right | 12 | 2 | 3627968 | 6144 |
+| zoom in (1/16 x 1/16) | 7 | 2 | 2122336 | 3584 |
+| zoom out (1/4 x 1/4) | 19 | 4 | 5737880 | 9728 |
+| zoom out (whole drawing) | 98 | 1 | 29630960 | 50000 |
+| total | | 31 | 100645224 | 169632 |
+
+## million: 1000000 entities, 1954 blocks of up to 512, Part 21 baseline 365814152 bytes
+
+| candidate | file bytes | bytes/entity | ratio to Part 21 | encode ms | cold-open bytes (header + directory) | bulk touch ns/entity | viewport-script touch ns/entity | materialise ns/entity |
+|---|---|---|---|---|---|---|---|---|
+| B packed | 65813472 | 65.8 | 0.1799 | 56 | 109456 | 3.7 | 3.2 | 177.8 |
+| A flatbuffers SoA | 65372368 | 65.4 | 0.1787 | 65 | 109456 | 5.2 | 4.8 | 199.6 |
+| A flatbuffers SoA (raw byte view) | 65372368 | 65.4 | 0.1787 | 66 | 109456 | 5.5 | 4.8 | 190.1 |
+| C rkyv SoA | 64958672 | 65.0 | 0.1776 | 69 | 109456 | 4.7 | 3.1 | 182.8 |
+| baseline flatbuffers per entity | 91215200 | 91.2 | 0.2493 | 147 | 109456 | 72.1 | 71.9 | 241.1 |
+
+### million, B packed: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 1954 | 1 | 65704008 | 1000000 |
+| zoom in (1/4 x 1/4) | 189 | 31 | 6382168 | 96768 |
+| pan right | 194 | 32 | 6522808 | 99328 |
+| pan right | 189 | 31 | 6346408 | 96768 |
+| pan right | 169 | 21 | 5671392 | 86528 |
+| pan right | 94 | 16 | 3161816 | 48128 |
+| zoom in (1/16 x 1/16) | 28 | 10 | 944504 | 14336 |
+| zoom out (1/4 x 1/4) | 169 | 21 | 5671392 | 86528 |
+| zoom out (whole drawing) | 1954 | 1 | 65704008 | 1000000 |
+| total | | 164 | 166108504 | 2528384 |
+
+B padding on million: section alignment and block tail 39000 bytes (0.04 per entity); spline record header 180846 bytes (6 per curve x 30141 curves); composite records 441400 bytes
+
+### million, A flatbuffers SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 1954 | 1 | 65262912 | 1000000 |
+| zoom in (1/4 x 1/4) | 189 | 31 | 6339944 | 96768 |
+| pan right | 194 | 32 | 6481760 | 99328 |
+| pan right | 189 | 31 | 6306360 | 96768 |
+| pan right | 169 | 21 | 5633560 | 86528 |
+| pan right | 94 | 16 | 3139952 | 48128 |
+| zoom in (1/16 x 1/16) | 28 | 10 | 938232 | 14336 |
+| zoom out (1/4 x 1/4) | 169 | 21 | 5633560 | 86528 |
+| zoom out (whole drawing) | 1954 | 1 | 65262912 | 1000000 |
+| total | | 164 | 164999192 | 2528384 |
+
+### million, A flatbuffers SoA (raw byte view): viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 1954 | 1 | 65262912 | 1000000 |
+| zoom in (1/4 x 1/4) | 189 | 31 | 6339944 | 96768 |
+| pan right | 194 | 32 | 6481760 | 99328 |
+| pan right | 189 | 31 | 6306360 | 96768 |
+| pan right | 169 | 21 | 5633560 | 86528 |
+| pan right | 94 | 16 | 3139952 | 48128 |
+| zoom in (1/16 x 1/16) | 28 | 10 | 938232 | 14336 |
+| zoom out (1/4 x 1/4) | 169 | 21 | 5633560 | 86528 |
+| zoom out (whole drawing) | 1954 | 1 | 65262912 | 1000000 |
+| total | | 164 | 164999192 | 2528384 |
+
+### million, C rkyv SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 1954 | 1 | 64849216 | 1000000 |
+| zoom in (1/4 x 1/4) | 189 | 31 | 6299920 | 96768 |
+| pan right | 194 | 32 | 6440560 | 99328 |
+| pan right | 189 | 31 | 6266240 | 96768 |
+| pan right | 169 | 21 | 5597744 | 86528 |
+| pan right | 94 | 16 | 3120056 | 48128 |
+| zoom in (1/16 x 1/16) | 28 | 10 | 932296 | 14336 |
+| zoom out (1/4 x 1/4) | 169 | 21 | 5597744 | 86528 |
+| zoom out (whole drawing) | 1954 | 1 | 64849216 | 1000000 |
+| total | | 164 | 163952992 | 2528384 |
+
+### million, baseline flatbuffers per entity: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 1954 | 1 | 91105744 | 1000000 |
+| zoom in (1/4 x 1/4) | 189 | 31 | 8840512 | 96768 |
+| pan right | 194 | 32 | 9042632 | 99328 |
+| pan right | 189 | 31 | 8801080 | 96768 |
+| pan right | 169 | 21 | 7868120 | 86528 |
+| pan right | 94 | 16 | 4384728 | 48128 |
+| zoom in (1/16 x 1/16) | 28 | 10 | 1308448 | 14336 |
+| zoom out (1/4 x 1/4) | 169 | 21 | 7868120 | 86528 |
+| zoom out (whole drawing) | 1954 | 1 | 91105744 | 1000000 |
+| total | | 164 | 230325128 | 2528384 |
+
+## straddler: 100000 entities, 196 blocks of up to 512, Part 21 baseline 35306923 bytes
+
+| candidate | file bytes | bytes/entity | ratio to Part 21 | encode ms | cold-open bytes (header + directory) | bulk touch ns/entity | viewport-script touch ns/entity | materialise ns/entity |
+|---|---|---|---|---|---|---|---|---|
+| B packed | 6594176 | 65.9 | 0.1868 | 5 | 11008 | 2.0 | 1.8 | 93.4 |
+| A flatbuffers SoA | 6548560 | 65.5 | 0.1855 | 6 | 11008 | 2.4 | 2.2 | 107.2 |
+| A flatbuffers SoA (raw byte view) | 6548560 | 65.5 | 0.1855 | 6 | 11008 | 2.3 | 2.1 | 102.4 |
+| C rkyv SoA | 6506992 | 65.1 | 0.1843 | 6 | 11008 | 1.2 | 1.2 | 98.7 |
+| baseline flatbuffers per entity | 9136560 | 91.4 | 0.2588 | 14 | 11008 | 69.7 | 69.7 | 158.8 |
+
+### straddler, B packed: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 196 | 1 | 6583168 | 100000 |
+| zoom in (1/4 x 1/4) | 39 | 10 | 1317432 | 19968 |
+| pan right | 39 | 13 | 1326512 | 19968 |
+| pan right | 40 | 9 | 1348768 | 20480 |
+| pan right | 29 | 10 | 972448 | 14848 |
+| pan right | 20 | 5 | 667472 | 10240 |
+| zoom in (1/16 x 1/16) | 10 | 4 | 329720 | 5120 |
+| zoom out (1/4 x 1/4) | 29 | 10 | 972448 | 14848 |
+| zoom out (whole drawing) | 196 | 1 | 6583168 | 100000 |
+| total | | 63 | 20101136 | 305472 |
+
+B padding on straddler: section alignment and block tail 3968 bytes (0.04 per entity); spline record header 18384 bytes (6 per curve x 3064 curves); composite records 44980 bytes
+
+### straddler, A flatbuffers SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 196 | 1 | 6537544 | 100000 |
+| zoom in (1/4 x 1/4) | 39 | 10 | 1308456 | 19968 |
+| pan right | 39 | 13 | 1317432 | 19968 |
+| pan right | 40 | 9 | 1340248 | 20480 |
+| pan right | 29 | 10 | 966720 | 14848 |
+| pan right | 20 | 5 | 663544 | 10240 |
+| zoom in (1/16 x 1/16) | 10 | 4 | 327776 | 5120 |
+| zoom out (1/4 x 1/4) | 29 | 10 | 966720 | 14848 |
+| zoom out (whole drawing) | 196 | 1 | 6537544 | 100000 |
+| total | | 63 | 19965984 | 305472 |
+
+### straddler, A flatbuffers SoA (raw byte view): viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 196 | 1 | 6537544 | 100000 |
+| zoom in (1/4 x 1/4) | 39 | 10 | 1308456 | 19968 |
+| pan right | 39 | 13 | 1317432 | 19968 |
+| pan right | 40 | 9 | 1340248 | 20480 |
+| pan right | 29 | 10 | 966720 | 14848 |
+| pan right | 20 | 5 | 663544 | 10240 |
+| zoom in (1/16 x 1/16) | 10 | 4 | 327776 | 5120 |
+| zoom out (1/4 x 1/4) | 29 | 10 | 966720 | 14848 |
+| zoom out (whole drawing) | 196 | 1 | 6537544 | 100000 |
+| total | | 63 | 19965984 | 305472 |
+
+### straddler, C rkyv SoA: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 196 | 1 | 6495976 | 100000 |
+| zoom in (1/4 x 1/4) | 39 | 10 | 1300120 | 19968 |
+| pan right | 39 | 13 | 1309136 | 19968 |
+| pan right | 40 | 9 | 1331744 | 20480 |
+| pan right | 29 | 10 | 960576 | 14848 |
+| pan right | 20 | 5 | 659320 | 10240 |
+| zoom in (1/16 x 1/16) | 10 | 4 | 325664 | 5120 |
+| zoom out (1/4 x 1/4) | 29 | 10 | 960576 | 14848 |
+| zoom out (whole drawing) | 196 | 1 | 6495976 | 100000 |
+| total | | 63 | 19839088 | 305472 |
+
+### straddler, baseline flatbuffers per entity: viewport script
+
+| step | blocks hit | ranges | bytes read | entities in hit blocks |
+|---|---|---|---|---|
+| cold open (whole drawing) | 196 | 1 | 9125552 | 100000 |
+| zoom in (1/4 x 1/4) | 39 | 10 | 1824720 | 19968 |
+| pan right | 39 | 13 | 1833992 | 19968 |
+| pan right | 40 | 9 | 1868264 | 20480 |
+| pan right | 29 | 10 | 1348464 | 14848 |
+| pan right | 20 | 5 | 926744 | 10240 |
+| zoom in (1/16 x 1/16) | 10 | 4 | 459248 | 5120 |
+| zoom out (1/4 x 1/4) | 29 | 10 | 1348464 | 14848 |
+| zoom out (whole drawing) | 196 | 1 | 9125552 | 100000 |
+| total | | 63 | 27861000 | 305472 |
+
+bytes per entity by kind, million fixture, id-order blocks of 512, whole file (header, directory and block overhead included)
+
+| kind | entities | B packed | A flatbuffers SoA | A flatbuffers SoA (raw byte view) | C rkyv SoA | baseline flatbuffers per entity |
+|---|---|---|---|---|---|---|
+| line | 599431 | 36.7 | 36.3 | 36.3 | 36.8 | 60.2 |
+| circle | 40151 | 28.7 | 28.3 | 28.3 | 28.8 | 52.2 |
+| arc | 79920 | 44.7 | 44.3 | 44.3 | 44.8 | 68.2 |
+| ellipse | 30033 | 60.7 | 60.4 | 60.4 | 60.8 | 80.3 |
+| polyline | 200221 | 128.7 | 128.2 | 128.2 | 128.8 | 156.1 |
+| spline | 30141 | 237.9 | 230.6 | 230.6 | 231.0 | 267.5 |
+| composite | 20103 | 212.3 | 176.4 | 176.4 | 176.9 | 279.7 |
+total 520508
+-rwxr-xr-x 1 root root  2705760 Oct 17 03:17 measure
+-rw-r--r-- 1 root root 65372368 Oct 17 03:17 million.A-raw.bin
+-rw-r--r-- 1 root root 65372368 Oct 17 03:17 million.A.bin
+-rw-r--r-- 1 root root 65813472 Oct 17 03:17 million.B.bin
+-rw-r--r-- 1 root root 64958672 Oct 17 03:17 million.C.bin
+-rw-r--r-- 1 root root 91215200 Oct 17 03:17 million.base.bin
+-rw-r--r-- 1 root root    65168 Oct 17 03:17 small-synthetic.A-raw.bin
+-rw-r--r-- 1 root root    65168 Oct 17 03:17 small-synthetic.A.bin
+-rw-r--r-- 1 root root    65472 Oct 17 03:17 small-synthetic.B.bin
+-rw-r--r-- 1 root root    64736 Oct 17 03:17 small-synthetic.C.bin
+-rw-r--r-- 1 root root    90752 Oct 17 03:17 small-synthetic.base.bin
+-rw-r--r-- 1 root root 28000544 Oct 17 03:17 spline-heavy.A-raw.bin
+-rw-r--r-- 1 root root 28000544 Oct 17 03:17 spline-heavy.A.bin
+-rw-r--r-- 1 root root 28216016 Oct 17 03:17 spline-heavy.B.bin
+-rw-r--r-- 1 root root 27979840 Oct 17 03:17 spline-heavy.C.bin
+-rw-r--r-- 1 root root 29636480 Oct 17 03:17 spline-heavy.base.bin
+-rw-r--r-- 1 root root  6548560 Oct 17 03:18 straddler.A-raw.bin
+-rw-r--r-- 1 root root  6548560 Oct 17 03:18 straddler.A.bin
+-rw-r--r-- 1 root root  6594176 Oct 17 03:18 straddler.B.bin
+-rw-r--r-- 1 root root  6506992 Oct 17 03:18 straddler.C.bin
+-rw-r--r-- 1 root root  9136560 Oct 17 03:18 straddler.base.bin
