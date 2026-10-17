@@ -1,0 +1,36 @@
+# P1.8 support spike: per-block compression and checksum costs on layout B's encoded blocks, native
+# and wasm32, so the compression and checksum ADR rests on numbers. Own workspace.
+[workspace]
+
+[package]
+name = "compress-checksum-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+flate2 = "1"
+lz4_flex = "0.11"
+crc32fast = "1"
+crc32c = "0.6"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+sha2 = "0.10"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+zstd = "0.13"
+libc = "0.2"
+pvec-fixtures = { path = "../fixtures" }
+layouts-spike = { path = "../layouts", default-features = false, features = ["cand-b"] }
+
+[[bin]]
+name = "measure"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

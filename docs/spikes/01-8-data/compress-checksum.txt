@@ -1,0 +1,143 @@
+== native (rustc, x86_64)
+load average: 253.35 213.57 228.68 2/1334 656
+## small-synthetic: 2 blocks, 65320 block bytes (file 65472), mean block 32660 bytes
+
+whole-stream reference (one deflate stream over all blocks, no random access): level 1 40166 bytes (0.615), level 6 35499 bytes (0.543)
+
+| codec | pre-filter | compressed bytes | ratio to raw | compress MB/s | decompress MB/s |
+|---|---|---|---|---|---|
+| deflate level 1 | none | 40270 | 0.617 | 233 | 442 |
+| deflate level 6 | none | 36054 | 0.552 | 52 | 478 |
+| LZ4 block | none | 47142 | 0.722 | 703 | 4191 |
+| zstd level 1 | none | 42818 | 0.656 | 450 | 1227 |
+| zstd level 3 | none | 38044 | 0.582 | 302 | 1256 |
+| deflate level 1 | shuffle8 | 51246 | 0.785 | 313 | 444 |
+| deflate level 6 | shuffle8 | 50162 | 0.768 | 83 | 470 |
+| LZ4 block | shuffle8 | 53750 | 0.823 | 1786 | 5819 |
+| zstd level 1 | shuffle8 | 51215 | 0.784 | 830 | 1483 |
+| zstd level 3 | shuffle8 | 50744 | 0.777 | 521 | 1475 |
+load average: 253.35 213.57 228.68 2/1334 657
+## small-synthetic: 2 blocks, 65320 block bytes (file 65472), mean block 32660 bytes
+
+| checksum | MB/s over the blocks (native) | ns per block |
+|---|---|---|
+| crc32 (crc32fast) | 27784 | 1175 |
+| crc32c | 8734 | 3739 |
+| xxh3-64 | 22633 | 1443 |
+| fnv-1a 64 | 696 | 46918 |
+| sha-256 (first 8 bytes) | 2691 | 12139 |
+load average: 253.35 213.57 228.68 2/1334 658
+## spline-heavy: 98 blocks, 28210072 block bytes (file 28216016), mean block 287857 bytes
+
+whole-stream reference (one deflate stream over all blocks, no random access): level 1 20383868 bytes (0.723), level 6 17976732 bytes (0.637)
+
+| codec | pre-filter | compressed bytes | ratio to raw | compress MB/s | decompress MB/s |
+|---|---|---|---|---|---|
+| deflate level 1 | none | 20392219 | 0.723 | 217 | 422 |
+| deflate level 6 | none | 18053288 | 0.640 | 44 | 514 |
+| LZ4 block | none | 21707467 | 0.769 | 822 | 5132 |
+| zstd level 1 | none | 23073494 | 0.818 | 512 | 1432 |
+| zstd level 3 | none | 17911442 | 0.635 | 318 | 1521 |
+| deflate level 1 | shuffle8 | 21848164 | 0.774 | 311 | 467 |
+| deflate level 6 | shuffle8 | 21083919 | 0.747 | 52 | 522 |
+| LZ4 block | shuffle8 | 22751410 | 0.806 | 1387 | 5242 |
+| zstd level 1 | shuffle8 | 21453883 | 0.761 | 658 | 1611 |
+| zstd level 3 | shuffle8 | 21365860 | 0.757 | 367 | 1965 |
+load average: 235.30 210.49 227.60 2/1308 659
+## spline-heavy: 98 blocks, 28210072 block bytes (file 28216016), mean block 287857 bytes
+
+| checksum | MB/s over the blocks (native) | ns per block |
+|---|---|---|
+| crc32 (crc32fast) | 23002 | 12514 |
+| crc32c | 18224 | 15796 |
+| xxh3-64 | 18056 | 15942 |
+| fnv-1a 64 | 1308 | 220114 |
+| sha-256 (first 8 bytes) | 2543 | 113183 |
+load average: 226.55 209.08 227.06 2/1308 660
+## million: 1954 blocks, 65696072 block bytes (file 65813472), mean block 33621 bytes
+
+whole-stream reference (one deflate stream over all blocks, no random access): level 1 40842192 bytes (0.622), level 6 35607726 bytes (0.542)
+
+| codec | pre-filter | compressed bytes | ratio to raw | compress MB/s | decompress MB/s |
+|---|---|---|---|---|---|
+| deflate level 1 | none | 41008296 | 0.624 | 182 | 379 |
+| deflate level 6 | none | 36716000 | 0.559 | 53 | 481 |
+| LZ4 block | none | 46925070 | 0.714 | 689 | 4381 |
+| zstd level 1 | none | 43228526 | 0.658 | 469 | 1254 |
+| zstd level 3 | none | 37958243 | 0.578 | 334 | 1289 |
+| deflate level 1 | shuffle8 | 48720731 | 0.742 | 318 | 478 |
+| deflate level 6 | shuffle8 | 47720049 | 0.726 | 86 | 506 |
+| LZ4 block | shuffle8 | 50960112 | 0.776 | 1666 | 5102 |
+| zstd level 1 | shuffle8 | 48746596 | 0.742 | 798 | 1524 |
+| zstd level 3 | shuffle8 | 48359956 | 0.736 | 538 | 1518 |
+load average: 231.81 211.04 227.41 2/1308 661
+## million: 1954 blocks, 65696072 block bytes (file 65813472), mean block 33621 bytes
+
+| checksum | MB/s over the blocks (native) | ns per block |
+|---|---|---|
+| crc32 (crc32fast) | 16165 | 2080 |
+| crc32c | 13067 | 2573 |
+| xxh3-64 | 13649 | 2463 |
+| fnv-1a 64 | 1304 | 25774 |
+| sha-256 (first 8 bytes) | 2467 | 13627 |
+load average: 231.81 211.04 227.41 2/1308 662
+## straddler: 196 blocks, 6582336 block bytes (file 6594176), mean block 33583 bytes
+
+whole-stream reference (one deflate stream over all blocks, no random access): level 1 4148182 bytes (0.630), level 6 3607784 bytes (0.548)
+
+| codec | pre-filter | compressed bytes | ratio to raw | compress MB/s | decompress MB/s |
+|---|---|---|---|---|---|
+| deflate level 1 | none | 4159856 | 0.632 | 218 | 417 |
+| deflate level 6 | none | 3740468 | 0.568 | 55 | 476 |
+| LZ4 block | none | 4782630 | 0.727 | 755 | 4585 |
+| zstd level 1 | none | 4542770 | 0.690 | 524 | 1280 |
+| zstd level 3 | none | 3891397 | 0.591 | 345 | 1294 |
+| deflate level 1 | shuffle8 | 4988214 | 0.758 | 321 | 455 |
+| deflate level 6 | shuffle8 | 4870477 | 0.740 | 83 | 493 |
+| LZ4 block | shuffle8 | 5221065 | 0.793 | 1921 | 4909 |
+| zstd level 1 | shuffle8 | 4977299 | 0.756 | 886 | 1465 |
+| zstd level 3 | shuffle8 | 4927975 | 0.749 | 567 | 1436 |
+load average: 231.81 211.04 227.41 2/1308 663
+## straddler: 196 blocks, 6582336 block bytes (file 6594176), mean block 33583 bytes
+
+| checksum | MB/s over the blocks (native) | ns per block |
+|---|---|---|
+| crc32 (crc32fast) | 54893 | 612 |
+| crc32c | 18752 | 1791 |
+| xxh3-64 | 34999 | 960 |
+| fnv-1a 64 | 1335 | 25157 |
+| sha-256 (first 8 bytes) | 2594 | 12946 |
+load average: 231.81 211.04 227.41 2/1308 665
+## spline-heavy: 98 blocks, 28210072 block bytes (file 28216016), mean block 287857 bytes
+
+dumped 98 blocks to /work/out
+load average: 231.81 211.04 227.41 2/1308 666
+## million: 1954 blocks, 65696072 block bytes (file 65813472), mean block 33621 bytes
+
+dumped 1954 blocks to /work/out
+== wasm32 build
+   Compiling compress-checksum-spike v0.0.0 (/work/spikes/compress-checksum)
+    Finished `release` profile [optimized] target(s) in 8.00s
+-rwxr-xr-x 1 root root 107709 Oct 17 05:12 /work/out/cc.wasm
+== node 22
+v22.23.3
+## spline-heavy: 98 blocks, 28210072 raw bytes (wasm32, node v22.23.3)
+| deflate1 | 20392619 bytes | decompress 295 MB/s | result ok |
+| deflate1-shuf | 21848564 bytes | decompress 303 MB/s | result ok |
+| lz4 | 21707867 bytes | decompress 4481 MB/s | result ok |
+| lz4-shuf | 22751810 bytes | decompress 1612 MB/s | result ok |
+| crc32 (crc32fast) | 3512 MB/s | 31a31d5589 |
+| crc32c | 2817 MB/s | 300be04190 |
+| xxh3-64 | 11893 MB/s | 1b7146616746c57a |
+| fnv-1a 64 | 1311 MB/s | 12cc06a548308d1e |
+| sha-256 (first 8 bytes) | 504 MB/s | 42654461576bc0e0 |
+## million: 1954 blocks, 65696072 raw bytes (wasm32, node v22.23.3)
+| deflate1 | 41016120 bytes | decompress 287 MB/s | result ok |
+| deflate1-shuf | 48728555 bytes | decompress 313 MB/s | result ok |
+| lz4 | 46932894 bytes | decompress 3796 MB/s | result ok |
+| lz4-shuf | 50967936 bytes | decompress 1589 MB/s | result ok |
+| crc32 (crc32fast) | 3982 MB/s | 3d8a6ace57d |
+| crc32c | 2881 MB/s | 3d37bef24e6 |
+| xxh3-64 | 12856 MB/s | -636e70d7351d1993 |
+| fnv-1a 64 | 1333 MB/s | -7fbb1203e5a93070 |
+| sha-256 (first 8 bytes) | 507 MB/s | 2b0eb96cc211105e |
