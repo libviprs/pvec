@@ -27,10 +27,7 @@ const SECTIONS: [(&str, &str); 7] = [
         "STEP behaviour",
         "There is no exact representation in the profile; bounded approximation with error reported is written through the rational B-spline form.\n",
     ),
-    (
-        "GIS behaviour",
-        "Densified into line work within the reported error budget. fidelity class: display\n",
-    ),
+    ("GIS behaviour", "Densified into line work within the reported error budget. fidelity class: display\n"),
     (
         "Conformance fixtures",
         "- hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT\n- hyperbola-arc-dual: DUAL_ORACLE_EQUIVALENT\n",
@@ -83,7 +80,10 @@ fn an_empty_or_placeholder_section_counts_as_missing() {
     let base = proposal_without(None);
     let emptied = base.replace(SECTIONS[1].1, "\n");
     assert_eq!(problems(&emptied), vec![ProposalProblem::Missing(MissingArtifact::MathematicalDefinition)]);
-    let todo = base.replace(SECTIONS[2].1, "TODO: write the bounds rules here\n");
+    let todo = base.replace(
+        SECTIONS[2].1,
+        "TODO: write the bounds rules here and then also the evaluation rules and the derivatives\n",
+    );
     assert_eq!(problems(&todo), vec![ProposalProblem::Missing(MissingArtifact::BoundsAndEvaluation)]);
     let thin = base.replace(SECTIONS[3].1, "none\n");
     assert_eq!(problems(&thin), vec![ProposalProblem::Missing(MissingArtifact::TessellationRules)]);
@@ -129,10 +129,16 @@ fn quarantined_fixtures_alone_do_not_support_an_extension() {
 #[test]
 fn step_may_not_be_recorded_as_exact_without_a_passing_round_trip_fixture() {
     let base = proposal_without(None);
-    let exact = base.replace(SECTIONS[4].1, "The curve is written as an exact HYPERBOLA entity and read back to the same locus.\n");
+    let exact = base.replace(
+        SECTIONS[4].1,
+        "The curve is written as an exact HYPERBOLA entity and read back to the same locus.\n",
+    );
     assert_eq!(problems(&exact), vec![ProposalProblem::ExactStepWithoutRoundTrip]);
     // with a fixture that records a passing round trip the exact claim is accepted
-    let with_proof = exact.replace("hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT", "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT; round-trip: passing");
+    let with_proof = exact.replace(
+        "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT",
+        "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT; round-trip: passing",
+    );
     let s = check_proposal(&with_proof).unwrap();
     assert!(s.step_exact);
     assert!(s.fixtures[0].round_trip_passing && !s.fixtures[1].round_trip_passing);
@@ -184,7 +190,9 @@ fn each_missing_artifact_blocks_registration_individually() {
     for (heading, _) in SECTIONS {
         let mut r = Registry::v1();
         let id = next_id(&r);
-        let err = r.register_extension(extension(id, "hyperbola_arc"), &proposal_without(Some(heading))).unwrap_err();
+        let err = r
+            .register_extension(extension(id, "hyperbola_arc"), &proposal_without(Some(heading)))
+            .unwrap_err();
         match err {
             ExtensionError::Proposal(p) => assert_eq!(p.len(), 1, "without '{heading}': {p:?}"),
             other => panic!("without '{heading}': {other:?}"),
@@ -199,9 +207,15 @@ fn an_extension_cannot_be_required_without_an_adr_listed_in_its_entry() {
     let id = next_id(&r);
     let mut e = extension(id, "needs_adr");
     e.requirement = Requirement::Required;
-    assert_eq!(r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(), ExtensionError::RequiredWithoutAdr("needs_adr"));
+    assert_eq!(
+        r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(),
+        ExtensionError::RequiredWithoutAdr("needs_adr")
+    );
     e.adr = Some("");
-    assert_eq!(r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(), ExtensionError::RequiredWithoutAdr("needs_adr"));
+    assert_eq!(
+        r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(),
+        ExtensionError::RequiredWithoutAdr("needs_adr")
+    );
     e.adr = Some("docs/adr/0099-hyperbolic-arc.md");
     r.register_extension(e, &proposal_without(None)).unwrap();
     assert_eq!(r.by_name("needs_adr").unwrap().requirement, Requirement::Required);
@@ -213,7 +227,10 @@ fn the_entry_must_be_an_extension_with_the_next_id_and_a_new_name() {
     let id = next_id(&r);
     let mut geometry = extension(id, "g");
     geometry.class = Class::Geometry;
-    assert_eq!(r.register_extension(geometry, &proposal_without(None)).unwrap_err(), ExtensionError::NotAnExtension);
+    assert_eq!(
+        r.register_extension(geometry, &proposal_without(None)).unwrap_err(),
+        ExtensionError::NotAnExtension
+    );
     assert_eq!(
         r.register_extension(extension(id + 1, "skips"), &proposal_without(None)).unwrap_err(),
         ExtensionError::IdNotNext { expected: CapabilityId::new(id) }
@@ -235,11 +252,20 @@ fn the_registered_step_behaviour_must_agree_with_the_proposal() {
     let mut e = extension(id, "claims_exact");
     e.step = StepBehaviour::ExactForm;
     // the proposal says bounded approximation, the entry says exact form
-    assert_eq!(r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(), ExtensionError::StepClaimMismatch("claims_exact"));
+    assert_eq!(
+        r.register_extension(e.clone(), &proposal_without(None)).unwrap_err(),
+        ExtensionError::StepClaimMismatch("claims_exact")
+    );
     // an exact entry needs an exact proposal with a passing fixture
     let exact = proposal_without(None)
-        .replace(SECTIONS[4].1, "The curve is written as an exact HYPERBOLA entity and read back to the same locus.\n")
-        .replace("hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT", "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT; round-trip: passing");
+        .replace(
+            SECTIONS[4].1,
+            "The curve is written as an exact HYPERBOLA entity and read back to the same locus.\n",
+        )
+        .replace(
+            "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT",
+            "hyperbola-arc-synthetic: KNOWN_TRUTH_EXACT; round-trip: passing",
+        );
     r.register_extension(e, &exact).unwrap();
 }
 
@@ -257,4 +283,76 @@ fn extension_ids_stay_dense_and_an_extension_names_no_construct() {
         r2.register_extension(named, &proposal_without(None)).unwrap_err(),
         ExtensionError::ExtensionNamesConstruct("names_a_construct")
     );
+}
+
+// ---------------------------------------------------------------- negotiation with extensions
+
+fn reader(version: Version, implemented: &[CapabilityId]) -> Reader {
+    Reader { version, implemented: implemented.to_vec() }
+}
+
+#[test]
+fn an_optional_extension_is_skipped_by_a_reader_without_it_and_a_file_cannot_declare_it_required() {
+    let mut r = Registry::v1();
+    let id = r.next_id();
+    r.register_extension(extension(id.get(), "hyperbola_arc"), &proposal_without(None)).unwrap();
+    let rdr = reader(Version::new(1, 0, 0), &[ids::LINE]);
+    let optional = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![Declared {
+            id,
+            requirement: Requirement::Optional,
+            version: Version::new(0, 1, 0),
+        }],
+    };
+    assert_eq!(r.negotiate(&rdr, &optional).unwrap().skipped, vec![id]);
+    let required = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![Declared {
+            id,
+            requirement: Requirement::Required,
+            version: Version::new(0, 1, 0),
+        }],
+    };
+    assert_eq!(r.negotiate(&rdr, &required).unwrap_err(), NegotiationError::ExtensionDeclaredRequired(id));
+}
+
+#[test]
+fn a_required_extension_with_an_adr_refuses_a_reader_that_lacks_it() {
+    let mut r = Registry::v1();
+    let id = r.next_id();
+    let mut e = extension(id.get(), "needed");
+    e.requirement = Requirement::Required;
+    e.adr = Some("docs/adr/0099-needed.md");
+    r.register_extension(e, &proposal_without(None)).unwrap();
+    let rdr = reader(Version::new(1, 0, 0), &[ids::LINE]);
+    let file = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![Declared {
+            id,
+            requirement: Requirement::Optional,
+            version: Version::new(0, 1, 0),
+        }],
+    };
+    assert_eq!(
+        r.negotiate(&rdr, &file).unwrap_err(),
+        NegotiationError::MissingRequired { id, name: Some("needed") }
+    );
+    assert!(r.negotiate(&reader(Version::new(1, 0, 0), &[id]), &file).is_ok());
+}
+
+#[test]
+fn registry_new_refuses_a_required_extension_without_an_adr_too() {
+    let mut e = extension(1, "x");
+    e.requirement = Requirement::Required;
+    assert_eq!(
+        Registry::new(vec![e.clone()], vec![]).unwrap_err(),
+        RegistryError::ExtensionRequiredWithoutAdr("x")
+    );
+    e.adr = Some("docs/adr/0099-x.md");
+    assert!(Registry::new(vec![e], vec![]).is_ok());
+    let mut named = extension(1, "y");
+    named.iso_construct = "line";
+    let r = Registry::new(vec![named], vec![]).unwrap();
+    assert_eq!(r.validate_against_profile(&[]).unwrap_err(), RegistryError::ExtensionNamesConstruct("y"));
 }

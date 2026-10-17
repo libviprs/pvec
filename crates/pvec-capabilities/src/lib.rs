@@ -19,6 +19,13 @@
 
 use core::fmt;
 
+mod extension;
+
+pub use extension::{
+    EvidenceClass, ExtensionError, ExtensionFixture, MissingArtifact, ProposalProblem, ProposalSummary,
+    check_proposal,
+};
+
 /// A stable numeric capability id. Ids are never reused: a removed capability moves to the retired
 /// list and its number stays taken for good.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -108,6 +115,10 @@ pub enum Class {
     /// An independent stream (layer, style, text, hatch, provenance). Outside the geometry oracle, so
     /// it names no ISO construct and is always optional.
     Component,
+    /// A custom geometry extension that earned its place through `docs/EXTENSIONS.md`. It names no ISO
+    /// construct (it exists because none fits), is optional unless an ADR is listed, and is registered only
+    /// through [`Registry::register_extension`].
+    Extension,
 }
 
 /// Whether a reader that lacks the capability may still open the file.
@@ -169,6 +180,9 @@ pub struct Capability {
     pub min_reader: Version,
     /// The restriction PVec places on the construct, in a line.
     pub restriction: &'static str,
+    /// The ADR that justifies marking an extension required. Always `None` for the v1 geometry and
+    /// component entries.
+    pub adr: Option<&'static str>,
 }
 
 /// An id that was assigned once and must never be assigned again.
@@ -238,6 +252,10 @@ pub enum RegistryError {
     },
     /// A component entry names an ISO construct.
     ComponentNamesConstruct(&'static str),
+    /// An extension entry names an ISO construct. Extensions exist because no construct fits.
+    ExtensionNamesConstruct(&'static str),
+    /// An extension is registered as required without an ADR listed in its entry.
+    ExtensionRequiredWithoutAdr(&'static str),
 }
 
 impl fmt::Display for RegistryError {
@@ -278,6 +296,12 @@ impl fmt::Display for RegistryError {
                     f,
                     "component {n} must not name an ISO construct: components are outside the geometry oracle"
                 )
+            }
+            RegistryError::ExtensionNamesConstruct(n) => {
+                write!(f, "extension {n} must not name an ISO construct: it exists because none fits")
+            }
+            RegistryError::ExtensionRequiredWithoutAdr(n) => {
+                write!(f, "extension {n} is required but lists no ADR; extensions are optional by default")
             }
         }
     }
@@ -341,6 +365,8 @@ pub enum NegotiationError {
     },
     /// The file marked a component as required, which components never are.
     ComponentDeclaredRequired(CapabilityId),
+    /// The file marked an extension as required while the registry lists it as optional (no ADR).
+    ExtensionDeclaredRequired(CapabilityId),
 }
 
 impl fmt::Display for NegotiationError {
@@ -360,6 +386,12 @@ impl fmt::Display for NegotiationError {
             }
             NegotiationError::ComponentDeclaredRequired(id) => {
                 write!(f, "capability id {id} is a component and cannot be declared required")
+            }
+            NegotiationError::ExtensionDeclaredRequired(id) => {
+                write!(
+                    f,
+                    "capability id {id} is an optional extension and cannot be declared required by a file"
+                )
             }
         }
     }
@@ -421,6 +453,13 @@ impl Registry {
         {
             return Err(RegistryError::ComponentMustBeOptional(c.name));
         }
+        if let Some(c) = entries.iter().find(|c| {
+            c.class == Class::Extension
+                && c.requirement == Requirement::Required
+                && c.adr.is_none_or(|a| a.is_empty())
+        }) {
+            return Err(RegistryError::ExtensionRequiredWithoutAdr(c.name));
+        }
         Ok(Registry { entries, retired })
     }
 
@@ -458,6 +497,11 @@ impl Registry {
                 Class::Component => {
                     if !c.iso_construct.is_empty() {
                         return Err(RegistryError::ComponentNamesConstruct(c.name));
+                    }
+                }
+                Class::Extension => {
+                    if !c.iso_construct.is_empty() {
+                        return Err(RegistryError::ExtensionNamesConstruct(c.name));
                     }
                 }
                 Class::Geometry => {
@@ -525,6 +569,12 @@ impl Registry {
                     if c.class == Class::Component && d.requirement == Requirement::Required {
                         return Err(NegotiationError::ComponentDeclaredRequired(d.id));
                     }
+                    if c.class == Class::Extension
+                        && c.requirement == Requirement::Optional
+                        && d.requirement == Requirement::Required
+                    {
+                        return Err(NegotiationError::ExtensionDeclaredRequired(d.id));
+                    }
                     let required =
                         c.requirement == Requirement::Required || d.requirement == Requirement::Required;
                     if !has {
@@ -566,6 +616,7 @@ impl Registry {
             gis,
             min_reader: Version::new(1, 0, 0),
             restriction,
+            adr: None,
         };
         use GisBehaviour as G;
         use StepBehaviour as S;
@@ -692,6 +743,7 @@ impl Class {
         match self {
             Class::Geometry => "geometry",
             Class::Component => "component",
+            Class::Extension => "extension",
         }
     }
 }
@@ -742,9 +794,9 @@ pub fn render_markdown(registry: &Registry) -> String {
     );
     out.push_str("## Registry\n\n");
     out.push_str(
-        "| id | name | class | version | ISO 10303-42 construct | profile section | requirement | STEP | GIS | min reader | restriction |\n",
+        "| id | name | class | version | ISO 10303-42 construct | profile section | requirement | STEP | GIS | min reader | ADR | restriction |\n",
     );
-    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str("|---|---|---|---|---|---|---|---|---|---|---|---|\n");
     for c in registry.entries() {
         let construct = if c.iso_construct.is_empty() {
             "none".to_string()
@@ -753,7 +805,7 @@ pub fn render_markdown(registry: &Registry) -> String {
         };
         let section = if c.profile_section == 0 { "none".to_string() } else { c.profile_section.to_string() };
         out.push_str(&format!(
-            "| {} | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| {} | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             c.id,
             c.name,
             c.class.label(),
@@ -764,6 +816,7 @@ pub fn render_markdown(registry: &Registry) -> String {
             c.step.label(),
             c.gis.label(),
             c.min_reader,
+            c.adr.unwrap_or("none"),
             c.restriction
         ));
     }

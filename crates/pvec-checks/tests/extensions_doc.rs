@@ -78,7 +78,11 @@ fn deleting_any_one_section_of_the_sample_makes_it_fail_with_that_section_named(
     ] {
         let cut = without_section(&sample, heading);
         assert_ne!(cut, sample, "the sample has a '{heading}' section");
-        assert_eq!(check_proposal(&cut).unwrap_err(), vec![ProposalProblem::Missing(artifact)], "without '{heading}'");
+        assert_eq!(
+            check_proposal(&cut).unwrap_err(),
+            vec![ProposalProblem::Missing(artifact)],
+            "without '{heading}'"
+        );
     }
 }
 
