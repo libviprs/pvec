@@ -125,7 +125,10 @@ fn the_retired_list_itself_cannot_repeat_an_id() {
         Retired { id: CapabilityId::new(1), name: "x", reason: "r" },
         Retired { id: CapabilityId::new(1), name: "y", reason: "r" },
     ];
-    assert_eq!(Registry::new(vec![cap(2, "a")], twice).unwrap_err(), RegistryError::DuplicateRetired(CapabilityId::new(1)));
+    assert_eq!(
+        Registry::new(vec![cap(2, "a")], twice).unwrap_err(),
+        RegistryError::DuplicateRetired(CapabilityId::new(1))
+    );
 }
 
 // ---------------------------------------------------------------- the ISO coupling
@@ -176,7 +179,10 @@ fn component_entries_are_exempt_from_the_construct_rule_but_must_say_so() {
     let mut bad = component(2, "layer");
     bad.iso_construct = "line";
     let r = Registry::new(vec![cap(1, "line"), bad], vec![]).unwrap();
-    assert_eq!(r.validate_against_profile(&[section(4, "`line`")]).unwrap_err(), RegistryError::ComponentNamesConstruct("layer"));
+    assert_eq!(
+        r.validate_against_profile(&[section(4, "`line`")]).unwrap_err(),
+        RegistryError::ComponentNamesConstruct("layer")
+    );
 }
 
 // ---------------------------------------------------------------- class rules
@@ -232,16 +238,28 @@ fn an_unknown_required_capability_refuses_and_an_unknown_optional_one_is_skipped
     let r = Registry::v1();
     let alien = CapabilityId::new(60_000);
     let rdr = reader(Version::new(1, 0, 0), &[ids::LINE]);
-    let required = Declaration { min_reader: Version::new(1, 0, 0), capabilities: vec![declared(alien, Requirement::Required)] };
-    assert_eq!(r.negotiate(&rdr, &required).unwrap_err(), NegotiationError::MissingRequired { id: alien, name: None });
-    let optional = Declaration { min_reader: Version::new(1, 0, 0), capabilities: vec![declared(alien, Requirement::Optional)] };
+    let required = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![declared(alien, Requirement::Required)],
+    };
+    assert_eq!(
+        r.negotiate(&rdr, &required).unwrap_err(),
+        NegotiationError::MissingRequired { id: alien, name: None }
+    );
+    let optional = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![declared(alien, Requirement::Optional)],
+    };
     assert_eq!(r.negotiate(&rdr, &optional).unwrap().skipped, vec![alien]);
 }
 
 #[test]
 fn a_file_cannot_weaken_a_required_capability_by_declaring_it_optional() {
     let r = Registry::v1();
-    let file = Declaration { min_reader: Version::new(1, 0, 0), capabilities: vec![declared(ids::ELLIPSE, Requirement::Optional)] };
+    let file = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![declared(ids::ELLIPSE, Requirement::Optional)],
+    };
     let rdr = reader(Version::new(1, 0, 0), &[ids::LINE]);
     assert!(matches!(r.negotiate(&rdr, &file), Err(NegotiationError::MissingRequired { .. })));
 }
@@ -252,7 +270,13 @@ fn a_minimum_reader_version_above_the_readers_is_refused_naming_both() {
     let file = Declaration { min_reader: Version::new(2, 1, 0), capabilities: vec![] };
     let rdr = reader(Version::new(1, 4, 2), &[]);
     let err = r.negotiate(&rdr, &file).unwrap_err();
-    assert_eq!(err, NegotiationError::ReaderTooOld { file_requires: Version::new(2, 1, 0), reader: Version::new(1, 4, 2) });
+    assert_eq!(
+        err,
+        NegotiationError::ReaderTooOld {
+            file_requires: Version::new(2, 1, 0),
+            reader: Version::new(1, 4, 2)
+        }
+    );
     let msg = err.to_string();
     assert!(msg.contains("2.1.0") && msg.contains("1.4.2"), "{msg}");
     // equal is fine
@@ -277,10 +301,17 @@ fn a_file_may_not_declare_a_component_as_required() {
     let r = Registry::new(vec![cap(1, "line"), component(2, "layer")], vec![]).unwrap();
     let file = Declaration {
         min_reader: Version::new(1, 0, 0),
-        capabilities: vec![Declared { id: CapabilityId::new(2), requirement: Requirement::Required, version: Version::new(1, 0, 0) }],
+        capabilities: vec![Declared {
+            id: CapabilityId::new(2),
+            requirement: Requirement::Required,
+            version: Version::new(1, 0, 0),
+        }],
     };
     let rdr = reader(Version::new(1, 0, 0), &[CapabilityId::new(1)]);
-    assert_eq!(r.negotiate(&rdr, &file).unwrap_err(), NegotiationError::ComponentDeclaredRequired(CapabilityId::new(2)));
+    assert_eq!(
+        r.negotiate(&rdr, &file).unwrap_err(),
+        NegotiationError::ComponentDeclaredRequired(CapabilityId::new(2))
+    );
 }
 
 #[test]
@@ -302,4 +333,17 @@ fn the_markdown_is_deterministic_and_lists_every_entry_and_retired_id() {
         assert!(md.contains(needle), "{needle:?} missing from\n{md}");
     }
     assert!(md.ends_with('\n') && !md.ends_with("\n\n"));
+}
+
+#[test]
+fn input_order_does_not_matter_entries_come_out_sorted_and_lookup_works() {
+    let retired = vec![Retired { id: CapabilityId::new(2), name: "old", reason: "r" }];
+    let r = Registry::new(vec![cap(4, "d"), cap(3, "c"), cap(1, "a")], retired).unwrap();
+    let ids: Vec<u32> = r.entries().iter().map(|c| c.id.get()).collect();
+    assert_eq!(ids, vec![1, 3, 4]);
+    for id in [1, 3, 4] {
+        assert_eq!(r.get(CapabilityId::new(id)).map(|c| c.id.get()), Some(id));
+    }
+    assert!(r.get(CapabilityId::new(2)).is_none());
+    assert!(r.get(CapabilityId::new(5)).is_none());
 }
