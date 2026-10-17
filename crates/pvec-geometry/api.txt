@@ -1,0 +1,146 @@
+conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Placement2
+conic.rs: Placement2::new(origin: Point2, ref_direction: Vector2) -> Result<Placement2>
+conic.rs: Placement2::origin(&self) -> Point2
+conic.rs: Placement2::x_axis(&self) -> Vector2
+conic.rs: Placement2::y_axis(&self) -> Vector2
+conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Line
+conic.rs: Line::new(origin: Point2, direction: Vector2) -> Result<Line>
+conic.rs: Line::origin(&self) -> Point2
+conic.rs: Line::direction(&self) -> Vector2
+conic.rs: impl Curve2d for Line
+conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Circle
+conic.rs: Circle::new(placement: Placement2, radius: f64) -> Result<Circle>
+conic.rs: Circle::placement(&self) -> &Placement2
+conic.rs: Circle::radius(&self) -> f64
+conic.rs: impl Curve2d for Circle
+conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Ellipse
+conic.rs: Ellipse::new(placement: Placement2, semi_axis_1: f64, semi_axis_2: f64) -> Result<Ellipse>
+conic.rs: Ellipse::placement(&self) -> &Placement2
+conic.rs: Ellipse::semi_axis_1(&self) -> f64
+conic.rs: Ellipse::semi_axis_2(&self) -> f64
+conic.rs: impl Curve2d for Ellipse
+curve.rs: pub trait Curve2d: crate::Sealed
+curve.rs: Curve2d::kind(&self) -> CurveKind
+curve.rs: Curve2d::domain(&self) -> Domain
+curve.rs: Curve2d::eval(&self, t: f64) -> Result<Point2>
+curve.rs: Curve2d::derivative(&self, t: f64, order: usize, side: Side) -> Result<Vector2>
+curve.rs: Curve2d::bounds(&self) -> Result<Bounds>
+curve.rs: Curve2d::transform(&self, m: &Transform2) -> Result<(Curve, ParamMap)>
+curve.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum Curve
+curve.rs: Curve::Line(Line)
+curve.rs: Curve::Circle(Circle)
+curve.rs: Curve::Ellipse(Ellipse)
+curve.rs: Curve::Polyline(Polyline)
+curve.rs: Curve::Trimmed(Trimmed)
+curve.rs: Curve::Composite(Composite)
+curve.rs: Curve::Bezier(Bezier)
+curve.rs: Curve::BSpline(BSpline)
+curve.rs: Curve::RationalBSpline(RationalBSpline)
+curve.rs: Curve::nesting_depth(&self) -> usize
+curve.rs: impl Curve2d for Curve
+curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Polyline
+curve.rs: Polyline::new(vertices: Vec<Point2>) -> Result<Polyline>
+curve.rs: Polyline::vertices(&self) -> &[Point2]
+curve.rs: impl Curve2d for Polyline
+curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Trimmed
+curve.rs: Trimmed::new(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Trimmed>
+curve.rs: Trimmed::from_normalised(basis: Curve, trim: Trim) -> Result<Trimmed>
+curve.rs: Trimmed::basis(&self) -> &Curve
+curve.rs: Trimmed::trim(&self) -> Trim
+curve.rs: impl Curve2d for Trimmed
+curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Composite
+curve.rs: Composite::new(segments: Vec<Curve>) -> Result<Composite>
+curve.rs: Composite::segments(&self) -> &[Curve]
+curve.rs: Composite::is_declared_closed(&self) -> bool
+curve.rs: Composite::declare_closed(mut self) -> Result<Composite>
+curve.rs: impl Curve2d for Composite
+error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum GeometryError
+error.rs: GeometryError::Numeric(NumericError)
+error.rs: GeometryError::OutsideDomain
+error.rs: GeometryError::Unbounded
+error.rs: GeometryError::BadBasis
+error.rs: GeometryError::BadSegment
+error.rs: GeometryError::WeightCount
+error.rs: GeometryError::rule(&self) -> &'static str
+error.rs: GeometryError::as_numeric(&self) -> Option<NumericError>
+error.rs: impl From<NumericError> for GeometryError
+error.rs: impl fmt::Display for GeometryError
+error.rs: impl std::error::Error for GeometryError {}
+lib.rs: pub use conic::{Circle, Ellipse, Line, Placement2}
+lib.rs: pub use curve::{Composite, Curve, Curve2d, Polyline, Trimmed}
+lib.rs: pub use error::GeometryError
+lib.rs: pub use primitives::{Bounds, CurveKind, Domain, Point2, Vector2}
+lib.rs: pub use pvec_numeric::{Side, Trim}
+lib.rs: pub use spline::{BSpline, Bezier, RationalBSpline}
+lib.rs: pub use transform::{ParamMap, Transform2}
+primitives.rs: #[derive(Clone, Copy, Debug, PartialEq, Default)] pub struct Point2
+primitives.rs: Point2.x: f64
+primitives.rs: Point2.y: f64
+primitives.rs: Point2::new(x: f64, y: f64) -> Point2
+primitives.rs: Point2::checked(x: f64, y: f64) -> Result<Point2>
+primitives.rs: Point2::vector_to(self, other: Point2) -> Vector2
+primitives.rs: Point2::distance(self, other: Point2) -> f64
+primitives.rs: #[derive(Clone, Copy, Debug, PartialEq, Default)] pub struct Vector2
+primitives.rs: Vector2.x: f64
+primitives.rs: Vector2.y: f64
+primitives.rs: Vector2::new(x: f64, y: f64) -> Vector2
+primitives.rs: Vector2::length(self) -> f64
+primitives.rs: Vector2::dot(self, other: Vector2) -> f64
+primitives.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Domain
+primitives.rs: Domain::new(lo: f64, hi: f64) -> Result<Domain>
+primitives.rs: Domain::lo(&self) -> f64
+primitives.rs: Domain::hi(&self) -> f64
+primitives.rs: Domain::width(&self) -> f64
+primitives.rs: Domain::contains(&self, t: f64) -> bool
+primitives.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Bounds
+primitives.rs: Bounds::min(&self) -> Point2
+primitives.rs: Bounds::max(&self) -> Point2
+primitives.rs: Bounds::diagonal(&self) -> f64
+primitives.rs: Bounds::magnitude(&self) -> f64
+primitives.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] #[non_exhaustive] pub enum CurveKind
+primitives.rs: CurveKind::Line
+primitives.rs: CurveKind::Circle
+primitives.rs: CurveKind::Ellipse
+primitives.rs: CurveKind::Polyline
+primitives.rs: CurveKind::TrimmedCurve
+primitives.rs: CurveKind::CompositeCurve
+primitives.rs: CurveKind::Bezier
+primitives.rs: CurveKind::BSpline
+primitives.rs: CurveKind::RationalBSpline
+primitives.rs: CurveKind::const ALL: [CurveKind; 9]
+spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct BSpline(Core)
+spline.rs: BSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<BSpline>
+spline.rs: BSpline::degree(&self) -> usize
+spline.rs: BSpline::control_points(&self) -> &[Point2]
+spline.rs: BSpline::knots(&self) -> &[f64]
+spline.rs: BSpline::is_declared_closed(&self) -> bool
+spline.rs: BSpline::declare_closed(self) -> Result<BSpline>
+spline.rs: impl Curve2d for BSpline
+spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct RationalBSpline(Core)
+spline.rs: RationalBSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>, weights: Vec<f64>) -> Result<RationalBSpline>
+spline.rs: RationalBSpline::degree(&self) -> usize
+spline.rs: RationalBSpline::control_points(&self) -> &[Point2]
+spline.rs: RationalBSpline::knots(&self) -> &[f64]
+spline.rs: RationalBSpline::weights(&self) -> &[f64]
+spline.rs: RationalBSpline::is_declared_closed(&self) -> bool
+spline.rs: RationalBSpline::declare_closed(self) -> Result<RationalBSpline>
+spline.rs: impl Curve2d for RationalBSpline
+spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct Bezier
+spline.rs: Bezier::new(control_points: Vec<Point2>) -> Result<Bezier>
+spline.rs: Bezier::degree(&self) -> usize
+spline.rs: Bezier::control_points(&self) -> &[Point2]
+spline.rs: Bezier::is_declared_closed(&self) -> bool
+spline.rs: Bezier::declare_closed(mut self) -> Result<Bezier>
+spline.rs: impl Curve2d for Bezier
+transform.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Transform2
+transform.rs: Transform2::const IDENTITY: Transform2
+transform.rs: Transform2::new(m: [f64; 6]) -> Result<Transform2>
+transform.rs: Transform2::matrix(&self) -> [f64; 6]
+transform.rs: Transform2::apply_point(&self, p: Point2) -> Point2
+transform.rs: Transform2::apply_vector(&self, v: Vector2) -> Vector2
+transform.rs: Transform2::determinant(&self) -> f64
+transform.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ParamMap
+transform.rs: ParamMap.offset: f64
+transform.rs: ParamMap.scale: f64
+transform.rs: ParamMap::const IDENTITY: ParamMap
+transform.rs: ParamMap::apply(&self, t: f64) -> f64

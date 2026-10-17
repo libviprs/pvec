@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Local gate: fmt, clippy and the full test suite, run on MARS (native x86_64) in a throw-away
-# container through the shared wrapper. Nothing but ssh, docker and tar runs on this machine.
+# Local gate: fmt, clippy, the full test suite and the wasm32 build of the geometry crate, run on
+# MARS (native x86_64) in a throw-away container through the shared wrapper. Nothing but ssh,
+# docker and tar runs on this machine.
 #
 #   tools/gate.sh [rust-image] [extra cargo test args...]
 #
@@ -26,9 +27,6 @@ for d in spikes/*/; do
   echo == spike \$d
   (cd \$d && cargo fmt -- --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked)
 done
-echo '== red suite: the evaluator probes must still fail until P3.1 lands'
-if cargo test -p pvec-numeric --test pathological --locked -- --ignored >/tmp/red.log 2>&1; then
-  echo 'FAIL: the evaluator probes went green; update tests/pathological/main.rs and this step'; exit 1
-fi
-grep -E 'no evaluator exists yet|test result' /tmp/red.log
+echo '== the geometry crate builds for wasm32 (pure Rust, no file or network access)'
+cargo build -p pvec-geometry --target wasm32-unknown-unknown --locked
 "

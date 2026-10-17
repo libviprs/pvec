@@ -7,5 +7,12 @@ name = "pvec-checks"
 version = "0.0.0"
 
 [[package]]
+name = "pvec-geometry"
+version = "0.0.0"
+dependencies = [
+ "pvec-numeric",
+]
+
+[[package]]
 name = "pvec-numeric"
 version = "0.0.0"
