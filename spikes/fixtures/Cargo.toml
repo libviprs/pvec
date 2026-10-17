@@ -1,0 +1,15 @@
+# Shared fixture generator for the phase 1 spikes (P1.4 to P1.7). Own workspace, no dependencies.
+[workspace]
+
+[package]
+name = "pvec-fixtures"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+
+[[bin]]
+name = "fixture-info"
+path = "src/info.rs"

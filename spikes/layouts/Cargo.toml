@@ -1,0 +1,37 @@
+# P1.5 spike: custom physical layouts measured on the shared fixtures. Own workspace.
+[workspace]
+
+[package]
+name = "layouts-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+# One wasm bundle per candidate, so the bundle cost of each is its own.
+cand-a = ["dep:flatbuffers"]
+cand-base = ["dep:flatbuffers"]
+cand-c = ["dep:rkyv"]
+cand-b = []
+all = ["cand-a", "cand-b", "cand-c", "cand-base"]
+default = ["all"]
+
+[dependencies]
+pvec-fixtures = { path = "../fixtures" }
+flatbuffers = { version = "25.12.19", optional = true }
+rkyv = { version = "0.8", optional = true }
+
+[[bin]]
+name = "measure"
+path = "src/measure/main.rs"
+required-features = ["all"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = 0
+strip = false

@@ -1,0 +1,21 @@
+v22.23.3
+touch_b small-synthetic.B.bin wasm_bytes=29365 compile_ms=0.6 instantiate_ms=0.1 median_ms=0.01 ns_per_entity=5.2 MB_per_s=12603 memory_MB=1 result=15603336986852737833
+touch_a small-synthetic.A.bin wasm_bytes=60511 compile_ms=0.3 instantiate_ms=0.0 median_ms=0.01 ns_per_entity=8.1 MB_per_s=8088 memory_MB=1 result=15603336986852737833
+touch_a_raw small-synthetic.A-raw.bin wasm_bytes=60511 compile_ms=0.5 instantiate_ms=0.1 median_ms=0.01 ns_per_entity=10.1 MB_per_s=6441 memory_MB=1 result=15603336986852737833
+touch_c small-synthetic.C.bin wasm_bytes=34855 compile_ms=0.3 instantiate_ms=0.0 median_ms=0.00 ns_per_entity=4.1 MB_per_s=15739 memory_MB=1 result=15603336986852737833
+touch_base small-synthetic.base.bin wasm_bytes=65596 compile_ms=0.4 instantiate_ms=0.1 median_ms=0.14 ns_per_entity=137.9 MB_per_s=658 memory_MB=1 result=15603336986852737833
+touch_b spline-heavy.B.bin wasm_bytes=29365 compile_ms=0.3 instantiate_ms=0.0 median_ms=1.94 ns_per_entity=38.8 MB_per_s=14527 memory_MB=28 result=14607154708878626777
+touch_a spline-heavy.A.bin wasm_bytes=60511 compile_ms=0.3 instantiate_ms=0.0 median_ms=1.83 ns_per_entity=36.5 MB_per_s=15330 memory_MB=28 result=14607154708878626777
+touch_a_raw spline-heavy.A-raw.bin wasm_bytes=60511 compile_ms=0.3 instantiate_ms=0.0 median_ms=2.02 ns_per_entity=40.3 MB_per_s=13896 memory_MB=28 result=14607154708878626777
+touch_c spline-heavy.C.bin wasm_bytes=34855 compile_ms=0.3 instantiate_ms=0.1 median_ms=1.45 ns_per_entity=28.9 MB_per_s=19348 memory_MB=28 result=14607154708878626777
+touch_base spline-heavy.base.bin wasm_bytes=65596 compile_ms=0.4 instantiate_ms=0.1 median_ms=9.23 ns_per_entity=184.7 MB_per_s=3210 memory_MB=29 result=14607154708878626777
+touch_b million.B.bin wasm_bytes=29365 compile_ms=0.3 instantiate_ms=0.3 median_ms=5.53 ns_per_entity=5.5 MB_per_s=11908 memory_MB=64 result=12197642663940161707
+touch_a million.A.bin wasm_bytes=60511 compile_ms=0.3 instantiate_ms=0.4 median_ms=8.78 ns_per_entity=8.8 MB_per_s=7442 memory_MB=64 result=12197642663940161707
+touch_a_raw million.A-raw.bin wasm_bytes=60511 compile_ms=0.6 instantiate_ms=0.3 median_ms=8.53 ns_per_entity=8.5 MB_per_s=7664 memory_MB=64 result=12197642663940161707
+touch_c million.C.bin wasm_bytes=34855 compile_ms=0.3 instantiate_ms=0.3 median_ms=4.91 ns_per_entity=4.9 MB_per_s=13241 memory_MB=63 result=12197642663940161707
+touch_base million.base.bin wasm_bytes=65596 compile_ms=1.5 instantiate_ms=0.1 median_ms=96.05 ns_per_entity=96.1 MB_per_s=950 memory_MB=88 result=12197642663940161707
+touch_b straddler.B.bin wasm_bytes=29365 compile_ms=0.2 instantiate_ms=0.0 median_ms=0.42 ns_per_entity=4.2 MB_per_s=15610 memory_MB=7 result=17223581990954783530
+touch_a straddler.A.bin wasm_bytes=60511 compile_ms=0.3 instantiate_ms=0.0 median_ms=0.50 ns_per_entity=5.0 MB_per_s=13111 memory_MB=7 result=17223581990954783530
+touch_a_raw straddler.A-raw.bin wasm_bytes=60511 compile_ms=0.4 instantiate_ms=0.0 median_ms=0.45 ns_per_entity=4.5 MB_per_s=14594 memory_MB=7 result=17223581990954783530
+touch_c straddler.C.bin wasm_bytes=34855 compile_ms=0.2 instantiate_ms=0.0 median_ms=0.24 ns_per_entity=2.4 MB_per_s=26934 memory_MB=7 result=17223581990954783530
+touch_base straddler.base.bin wasm_bytes=65596 compile_ms=0.3 instantiate_ms=0.1 median_ms=9.36 ns_per_entity=93.6 MB_per_s=976 memory_MB=10 result=17223581990954783530
