@@ -1,6 +1,6 @@
 # The PVec container
 
-This file is generated from `crates/pvec-container/src/spec.rs`. I do not edit it by hand: a test regenerates it and fails if the committed file differs by a single byte. To change it I change the constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.
+This file is generated from `crates/pvec-container/src/spec.rs` and `crates/pvec-container/src/blocks/hot.rs`. I do not edit it by hand: a test regenerates it and fails if the committed file differs by a single byte. To change it I change the constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.
 
 ## 1. The container prefix
 
@@ -122,3 +122,73 @@ Every field named `reserved` is zero in version 1.0 and a reader refuses a file 
 ### 1.8 Refusals
 
 `ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header length, a pointer outside the artifact, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.
+
+## 2. Hot geometry blocks
+
+Simple geometry that a viewport reads over and over lives in hot blocks: one block per geometry type, holding parallel columns (structure of arrays, layout B of ADR 0004) and not one serialised record per entity. A reader decodes a block by slicing its columns out of the bytes, so a viewport costs a bounded number of column copies and no per-entity pointer chase or branch. Which spatial partition a block belongs to is decided by the spatial index (P5.1, P5.2), not here.
+
+### 2.1 Block header
+
+The header is 32 bytes, little-endian, and the first byte of the block must be 8-aligned in memory (the reader refuses a buffer that is not, rather than copying it). Offsets are from the first byte of the block.
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 4 | magic | bytes | `50 56 48 31` (`PVH1`) |
+| 4 | 2 | version | u16 | 1; a reader refuses any other |
+| 6 | 2 | kind | u16 | geometry type, from the table in section 2.2 |
+| 8 | 4 | entity_count | u32 | entities in the block, 1 to 2^28 - 1 |
+| 12 | 4 | vertex_count | u32 | total vertices of a polyline block; zero for every other kind |
+| 16 | 4 | block_length | u32 | length of the whole block in bytes, equal to the bytes present |
+| 20 | 12 | reserved | bytes | zero |
+
+### 2.2 Kinds and columns
+
+Coordinates are `f64` end to end: there is no quantisation or rounding in this layer, and a value comes back with the bits it went in with. They are finite (`NP-01`); a NaN or an infinity refuses the block. These are the immediate display forms (a line is its two end points); the exact curve parameters of ADR 0011 stay in the codec sections of P3.2.
+
+| id | kind | `f64` columns, in order | meaning |
+|---|---|---|---|
+| 1 | Line | `x0`, `y0`, `x1`, `y1` | start point (`x0`, `y0`) and end point (`x1`, `y1`), one entry per segment |
+| 2 | Polyline | `x`, `y` | all x, then all y, concatenated run by run; run `i` is `offsets[i]..offsets[i+1]` |
+| 3 | CircleArc | `cx`, `cy`, `radius`, `start`, `sweep` | centre, radius, start angle and signed sweep in radians; a full circle sweeps 2 pi |
+| 4 | EllipseArc | `cx`, `cy`, `rx`, `ry`, `rotation`, `start`, `sweep` | centre, the two semi-axes, the rotation of the first axis, start angle and signed sweep in radians |
+
+### 2.3 Column order and alignment
+
+After the header the columns follow in this order: the entity ids (`u32`, `n` of them), the style references (`u32`, `n`), for a polyline block the run offsets (`u32`, `n + 1`), zero padding up to a multiple of 8, then the `f64` columns of the kind, each `n` long (a polyline block: the vertex count) with no padding between them. Every column starts at its natural alignment: a `u32` column on a multiple of 4 and an `f64` column on a multiple of 8, from the first byte of the block. Because the block itself starts on 8, a decoded block is directly loadable, including in WASM linear memory, where a `Float64Array` over the memory throws on a byte offset that is not a multiple of 8. The only padding a block can contain is the gap before the first `f64` column (0 or 4 bytes), the block is a multiple of 8 bytes long, and the header's `block_length` is that length.
+
+Padding is zero and a reader refuses a block where it is not, which keeps the encoding canonical: decoding and re-encoding gives the same bytes.
+
+### 2.4 Order, ids and styles
+
+Entities are stored in strictly ascending `EntityId` order (P3.6), so the same set of entities always encodes to the same bytes whatever order the writer saw them in (P4.4). An id is below `2^28` (NP-18) and appears once. The style reference is an opaque `u32` per entity that the style component stream (P3.7) resolves; this layer stores it and does not interpret it. ADR 0011 left references out of the geometry codec because the component streams point at entities by id, but a viewport that draws from these blocks needs the style next to the coordinates, and four bytes per entity is the price.
+
+### 2.5 Polyline runs
+
+The run offsets index the `x` and `y` columns. The first is 0, they never decrease, the last is the vertex count in the header, and every run has between 2 and 1048576 vertices. A block whose run offsets break any of these is refused whole and never read. The vertex count is at most `entity_count * 1048576`, so a lying count cannot size anything before the bytes are checked.
+
+### 2.6 Refusals
+
+Each refusal is a typed `HotError` with a rule identifier. Every count is compared with the bytes left before it is used, and decoding allocates nothing.
+
+| rule | meaning |
+|---|---|
+| HOT-01 | the block is shorter than its structure requires |
+| HOT-02 | bad magic |
+| HOT-03 | unsupported version |
+| HOT-04 | unknown kind id |
+| HOT-05 | a reserved header field is not zero |
+| HOT-06 | a padding byte is not zero |
+| HOT-07 | the declared length differs from the bytes present, or part of the block is unused |
+| HOT-08 | no entities |
+| HOT-09 | more entities than NP-18 allows |
+| HOT-10 | a vertex count that the entity count cannot account for, or vertices in a block with no runs |
+| HOT-11 | an entity id at or above the NP-18 limit |
+| HOT-12 | ids that are not strictly ascending (the builder reports a repeated id here too) |
+| HOT-13 | run offsets that decrease |
+| HOT-14 | run offsets that do not start at zero or do not end at the vertex count |
+| HOT-15 | a polyline run of fewer than 2 or more than 2^20 vertices |
+| HOT-16 | a NaN or infinite coordinate (NP-01) |
+| HOT-17 | the buffer does not start on an 8-byte boundary |
+| HOT-18 | the host is not little-endian, so columns cannot be borrowed in place |
+| HOT-19 | (builder) an entity of another kind than the block |
+| HOT-20 | (builder) the block would not fit 32-bit lengths |

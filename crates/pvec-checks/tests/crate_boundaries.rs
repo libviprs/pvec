@@ -91,7 +91,25 @@ fn api_crates_do_no_file_network_or_process_access_and_name_no_wire_crate() {
                 assert!(!code.contains(f), "{name}: {} uses {f}", file.display());
             }
             assert!(banned_wire_names(&code).is_empty(), "{name}: {} names a wire crate", file.display());
-            assert!(!code.contains("unsafe "), "{name}: {} contains unsafe", file.display());
+            // The one module that reinterprets block bytes in place may use `unsafe`, and every use must
+            // carry its argument in a `SAFETY:` comment just above it.
+            if name == &"pvec-container" && file.ends_with("src/blocks/aligned.rs") {
+                let lines: Vec<&str> = text.lines().collect();
+                for (i, l) in lines.iter().enumerate() {
+                    let t = l.trim_start();
+                    if t.starts_with("//") || !t.contains("unsafe ") {
+                        continue;
+                    }
+                    assert!(
+                        lines[i.saturating_sub(5)..i].iter().any(|c| c.contains("SAFETY:")),
+                        "{}:{}: unsafe without a SAFETY comment",
+                        file.display(),
+                        i + 1
+                    );
+                }
+            } else {
+                assert!(!code.contains("unsafe "), "{name}: {} contains unsafe", file.display());
+            }
         }
     }
 }

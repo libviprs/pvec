@@ -310,7 +310,7 @@ pub const DIRECTORY_ENTRY_FIELDS: &[FieldSpec] = &[
     f("length", dir::LENGTH, 8, "u64", "length; offset plus length is at most the artifact length"),
 ];
 
-fn table(fields: &[FieldSpec]) -> String {
+pub(crate) fn table(fields: &[FieldSpec]) -> String {
     let mut s = String::from("| offset | size | name | encoding | meaning |\n|---|---|---|---|---|\n");
     for x in fields {
         s.push_str(&format!("| {} | {} | {} | {} | {} |\n", x.offset, x.size, x.name, x.encoding, x.meaning));
@@ -323,7 +323,7 @@ pub fn render_markdown() -> String {
     let mut s = String::new();
     s.push_str(
         "# The PVec container\n\n\
-This file is generated from `crates/pvec-container/src/spec.rs`. I do not edit it by hand: a test \
+This file is generated from `crates/pvec-container/src/spec.rs` and `crates/pvec-container/src/blocks/hot.rs`. I do not edit it by hand: a test \
 regenerates it and fails if the committed file differs by a single byte. To change it I change the \
 constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.\n\n\
 ## 1. The container prefix\n\n\
@@ -401,7 +401,8 @@ corruption.\n\
 ### 1.8 Refusals\n\n\
 `ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header \
 length, a pointer outside the artifact, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, \
-a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.\n",
+a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.\n\n",
     );
+    s.push_str(&crate::blocks::hot::render_chapter());
     s
 }

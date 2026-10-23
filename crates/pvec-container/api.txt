@@ -1,3 +1,74 @@
+blocks/aligned.rs: #[derive(Clone, Debug, Default, PartialEq, Eq)] pub struct AlignedBytes
+blocks/aligned.rs: AlignedBytes::from_bytes(bytes: &[u8]) -> AlignedBytes
+blocks/aligned.rs: AlignedBytes::as_bytes(&self) -> &[u8]
+blocks/aligned.rs: AlignedBytes::len(&self) -> usize
+blocks/aligned.rs: AlignedBytes::is_empty(&self) -> bool
+blocks/hot.rs: pub const HOT_MAGIC: [u8; 4]
+blocks/hot.rs: pub const HOT_VERSION: u16
+blocks/hot.rs: pub const HOT_HEADER_LEN: usize
+blocks/hot.rs: pub const HOT_HEADER_FIELDS: &[FieldSpec]
+blocks/hot.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum HotKind
+blocks/hot.rs: HotKind::Line
+blocks/hot.rs: HotKind::Polyline
+blocks/hot.rs: HotKind::CircleArc
+blocks/hot.rs: HotKind::EllipseArc
+blocks/hot.rs: HotKind::const ALL: [HotKind; 4]
+blocks/hot.rs: HotKind::id(self) -> u16
+blocks/hot.rs: HotKind::from_id(id: u16) -> Option<HotKind>
+blocks/hot.rs: HotKind::name(self) -> &'static str
+blocks/hot.rs: HotKind::f64_columns(self) -> &'static [&'static str]
+blocks/hot.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum HotError
+blocks/hot.rs: HotError::Truncated { needed: u64, got: u64 }
+blocks/hot.rs: HotError::BadMagic
+blocks/hot.rs: HotError::UnsupportedVersion { found: u16 }
+blocks/hot.rs: HotError::UnknownKind { id: u16 }
+blocks/hot.rs: HotError::NonZeroReserved
+blocks/hot.rs: HotError::NonZeroPadding
+blocks/hot.rs: HotError::LengthMismatch { declared: u32, actual: u64 }
+blocks/hot.rs: HotError::EmptyBlock
+blocks/hot.rs: HotError::TooManyEntities { count: u32 }
+blocks/hot.rs: HotError::TooManyVertices { count: u32 }
+blocks/hot.rs: HotError::EntityIdOutOfRange { id: u32 }
+blocks/hot.rs: HotError::IdsNotAscending { index: usize }
+blocks/hot.rs: HotError::RunOffsetsNotMonotonic { index: usize }
+blocks/hot.rs: HotError::RunOffsetsBadBounds
+blocks/hot.rs: HotError::BadRunLength { index: usize }
+blocks/hot.rs: HotError::NonFinite { column: &'static str, index: usize }
+blocks/hot.rs: HotError::Misaligned
+blocks/hot.rs: HotError::HostEndianness
+blocks/hot.rs: HotError::WrongKind { block: HotKind, pushed: HotKind }
+blocks/hot.rs: HotError::DuplicateId { id: u32 }
+blocks/hot.rs: HotError::TooLarge
+blocks/hot.rs: HotError::rule(&self) -> &'static str
+blocks/hot.rs: impl core::fmt::Display for HotError
+blocks/hot.rs: impl std::error::Error for HotError {}
+blocks/hot.rs: pub const HOT_RULES: &[(&str, &str)]
+blocks/hot.rs: pub const MAX_RUN_VERTICES: u32
+blocks/hot.rs: #[derive(Clone, Debug)] pub struct HotBlockBuilder
+blocks/hot.rs: HotBlockBuilder::new(kind: HotKind) -> HotBlockBuilder
+blocks/hot.rs: HotBlockBuilder::kind(&self) -> HotKind
+blocks/hot.rs: HotBlockBuilder::len(&self) -> usize
+blocks/hot.rs: HotBlockBuilder::is_empty(&self) -> bool
+blocks/hot.rs: HotBlockBuilder::push_line(&mut self, id: EntityId, style: u32, a: [f64; 2], b: [f64; 2]) -> Result<(), HotError>
+blocks/hot.rs: HotBlockBuilder::push_polyline(&mut self, id: EntityId, style: u32, points: &[[f64; 2]]) -> Result<(), HotError>
+blocks/hot.rs: HotBlockBuilder::push_circle_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), HotError>
+blocks/hot.rs: HotBlockBuilder::push_ellipse_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), HotError>
+blocks/hot.rs: HotBlockBuilder::finish(self) -> Result<AlignedBytes, HotError>
+blocks/hot.rs: #[derive(Clone, Copy, Debug)] pub struct HotBlockView<'a>
+blocks/hot.rs: HotBlockView<'a>::parse(bytes: &'a [u8]) -> Result<HotBlockView<'a>, HotError>
+blocks/hot.rs: HotBlockView<'a>::kind(&self) -> HotKind
+blocks/hot.rs: HotBlockView<'a>::len(&self) -> usize
+blocks/hot.rs: HotBlockView<'a>::is_empty(&self) -> bool
+blocks/hot.rs: HotBlockView<'a>::entity_ids(&self) -> &'a [u32]
+blocks/hot.rs: HotBlockView<'a>::styles(&self) -> &'a [u32]
+blocks/hot.rs: HotBlockView<'a>::run_offsets(&self) -> &'a [u32]
+blocks/hot.rs: HotBlockView<'a>::f64_columns(&self) -> &[&'a [f64]]
+blocks/hot.rs: HotBlockView<'a>::column(&self, name: &str) -> Option<&'a [f64]>
+blocks/hot.rs: HotBlockView<'a>::polyline(&self, index: usize) -> Option<(&'a [f64], &'a [f64])>
+blocks/hot.rs: pub fn render_chapter() -> String
+blocks/mod.rs: pub mod aligned
+blocks/mod.rs: pub mod hot
+blocks/mod.rs: pub use aligned::AlignedBytes
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -44,6 +115,7 @@ header.rs: Header::const MAJOR: u16
 header.rs: Header::const MINOR: u16
 header.rs: Header::parse(prefix: &[u8], artifact_len: u64) -> Result<Header, ContainerError>
 header.rs: Header::encode(&self) -> [u8; Header::LEN]
+lib.rs: pub mod blocks
 lib.rs: pub mod error
 lib.rs: pub mod header
 lib.rs: pub mod manifest

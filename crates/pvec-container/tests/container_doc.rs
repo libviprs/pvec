@@ -160,3 +160,18 @@ fn chapter_two_states_the_alignment_and_padding_rules_and_every_kind() {
         }
     }
 }
+
+#[test]
+fn every_hot_block_rule_is_documented_once_and_the_error_type_reports_them() {
+    use pvec_container::blocks::hot::{HOT_RULES, HotError};
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for (rule, meaning) in HOT_RULES {
+        assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/CONTAINER.md lacks {rule}");
+    }
+    let mut ids: Vec<&str> = HOT_RULES.iter().map(|r| r.0).collect();
+    ids.dedup();
+    assert_eq!(ids.len(), HOT_RULES.len(), "a rule id is listed twice");
+    for e in [HotError::BadMagic, HotError::NonZeroPadding, HotError::Misaligned, HotError::EmptyBlock] {
+        assert!(ids.contains(&e.rule()), "{e} reports a rule the document does not list");
+    }
+}
