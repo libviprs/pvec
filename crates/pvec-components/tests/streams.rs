@@ -237,3 +237,44 @@ fn the_same_streams_always_encode_to_the_same_bytes() {
     assert!(EntityId::new(0).is_ok());
     let _ = id(0);
 }
+
+#[test]
+fn every_geometry_capability_id_is_refused_as_a_stream_on_write_and_on_read() {
+    let r = reg();
+    let geometry: Vec<CapabilityId> =
+        r.entries().iter().filter(|c| c.class == Class::Geometry).map(|c| c.id).collect();
+    assert!(geometry.len() >= 9, "the registry has the geometry capabilities");
+    for g in geometry {
+        let s = Stream { capability: g, version: Version::new(1, 0, 0), payload: vec![] };
+        assert_eq!(encode_streams(&[s]).unwrap_err(), StreamError::GeometryCapability(g), "write {g:?}");
+        let mut b = encode_streams(&[Stream {
+            capability: ids::LAYER,
+            version: Version::new(1, 0, 0),
+            payload: vec![],
+        }])
+        .unwrap();
+        b[SET_HEADER..SET_HEADER + 4].copy_from_slice(&g.get().to_le_bytes());
+        assert_eq!(
+            read_streams(&b, &r, &reader_knowing(&ALL)).unwrap_err(),
+            StreamError::GeometryCapability(g),
+            "read {g:?}"
+        );
+        // and a reader that knows nothing refuses it too: it is not skippable as "unknown"
+        assert!(read_streams(&b, &r, &reader_knowing(&[])).is_err(), "nobody {g:?}");
+    }
+}
+
+#[test]
+fn bumping_any_one_component_leaves_every_geometry_version_and_every_other_component_unchanged() {
+    for bumped in ALL {
+        let before = reg();
+        let mut after = reg();
+        after.bump_component_version(bumped, Version::new(1, 3, 0)).unwrap();
+        assert_eq!(after.get(bumped).unwrap().version, Version::new(1, 3, 0));
+        for (a, b) in before.entries().iter().zip(after.entries()) {
+            if a.id != bumped {
+                assert_eq!(a, b, "{} changed when {bumped:?} was bumped", a.name);
+            }
+        }
+    }
+}

@@ -181,3 +181,20 @@ fn the_components_crate_cannot_reach_the_geometry_or_the_codec() {
     assert!(!deps.contains("pvec-codec"));
     assert!(!deps.contains("pvec-geometry"));
 }
+
+#[test]
+fn a_damaged_payload_in_any_one_stream_cannot_move_the_geometry_verdict_or_stop_the_set_opening() {
+    let r = Registry::v1();
+    let block = encode(&geometry()).unwrap().bytes;
+    let baseline = verdict(&block);
+    let nobody = pvec_capabilities::Reader { version: Version::new(1, 0, 0), implemented: vec![] };
+    let streams = all_streams(&r);
+    for damaged in 0..streams.len() {
+        let mut set = streams.clone();
+        set[damaged].payload = vec![0xff; 37];
+        let opened = read_streams(&encode_streams(&set).unwrap(), &r, &nobody).unwrap();
+        assert_eq!(opened.skipped.len(), 6, "stream {damaged}: skipped, never an error");
+        assert_eq!(verdict(&block), baseline, "stream {damaged} damaged");
+        assert_eq!(decode(&block).unwrap().len(), 4, "stream {damaged} damaged");
+    }
+}
