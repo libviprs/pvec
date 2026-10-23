@@ -64,6 +64,7 @@ lib.rs: pub const TEXT: CapabilityId
 lib.rs: pub const HATCH: CapabilityId
 lib.rs: pub const SOURCE_PROVENANCE: CapabilityId
 lib.rs: pub const DWG_SEMANTICS: CapabilityId
+lib.rs: pub const SEMANTIC_CLASS: CapabilityId
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct Version
 lib.rs: Version.major: u16
 lib.rs: Version.minor: u16

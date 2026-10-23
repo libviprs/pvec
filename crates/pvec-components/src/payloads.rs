@@ -25,19 +25,19 @@ pub const MAX_HANDLE: usize = 64;
 /// Most records in one stream of records.
 pub const MAX_RECORDS: usize = 1 << 20;
 
-struct R<'a> {
+pub(crate) struct R<'a> {
     b: &'a [u8],
     p: usize,
 }
 
 impl<'a> R<'a> {
-    fn new(b: &'a [u8]) -> Self {
+    pub(crate) fn new(b: &'a [u8]) -> Self {
         R { b, p: 0 }
     }
-    fn left(&self) -> usize {
+    pub(crate) fn left(&self) -> usize {
         self.b.len() - self.p
     }
-    fn take(&mut self, n: usize) -> Res<&'a [u8]> {
+    pub(crate) fn take(&mut self, n: usize) -> Res<&'a [u8]> {
         if n > self.left() {
             return Err(E::Truncated);
         }
@@ -45,30 +45,30 @@ impl<'a> R<'a> {
         self.p += n;
         Ok(s)
     }
-    fn u32(&mut self) -> Res<u32> {
+    pub(crate) fn u32(&mut self) -> Res<u32> {
         let s = self.take(4)?;
         Ok(u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
     }
-    fn f64(&mut self) -> Res<f64> {
+    pub(crate) fn f64(&mut self) -> Res<f64> {
         let s = self.take(8)?;
         Ok(f64::from_le_bytes([s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]]))
     }
-    fn entity(&mut self) -> Res<EntityId> {
+    pub(crate) fn entity(&mut self) -> Res<EntityId> {
         let i = self.u32()?;
         EntityId::new(i).map_err(|_| E::BadEntityId(i))
     }
-    fn string(&mut self, max: usize) -> Res<String> {
+    pub(crate) fn string(&mut self, max: usize) -> Res<String> {
         let n = self.u32()? as usize;
         if n > max {
             return Err(E::TooLong);
         }
         String::from_utf8(self.take(n)?.to_vec()).map_err(|_| E::BadUtf8)
     }
-    fn done(&self) -> Res<()> {
+    pub(crate) fn done(&self) -> Res<()> {
         if self.left() == 0 { Ok(()) } else { Err(E::Trailing) }
     }
     /// A count of records that each take at least `min` bytes: it cannot exceed what is left.
-    fn count(&mut self, limit: usize, min: usize) -> Res<usize> {
+    pub(crate) fn count(&mut self, limit: usize, min: usize) -> Res<usize> {
         let n = self.u32()? as usize;
         if n > limit {
             return Err(E::TooMany);
@@ -81,16 +81,16 @@ impl<'a> R<'a> {
 }
 
 #[derive(Default)]
-struct W(Vec<u8>);
+pub(crate) struct W(pub(crate) Vec<u8>);
 
 impl W {
-    fn u32(&mut self, v: u32) {
+    pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn f64(&mut self, v: f64) {
+    pub(crate) fn f64(&mut self, v: f64) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn string(&mut self, s: &str, max: usize) -> Res<()> {
+    pub(crate) fn string(&mut self, s: &str, max: usize) -> Res<()> {
         if s.len() > max {
             return Err(E::TooLong);
         }
@@ -100,7 +100,7 @@ impl W {
     }
 }
 
-fn finite(x: f64) -> Res<f64> {
+pub(crate) fn finite(x: f64) -> Res<f64> {
     if x.is_finite() { Ok(x) } else { Err(E::BadNumber) }
 }
 
@@ -108,7 +108,7 @@ fn positive(x: f64) -> Res<f64> {
     if x.is_finite() && x > 0.0 { Ok(x) } else { Err(E::BadNumber) }
 }
 
-fn into_stream(registry: &Registry, cap: CapabilityId, payload: Vec<u8>) -> Res<Stream> {
+pub(crate) fn into_stream(registry: &Registry, cap: CapabilityId, payload: Vec<u8>) -> Res<Stream> {
     let version = registry.get(cap).ok_or(E::UnknownCapability(cap))?.version;
     Ok(Stream { capability: cap, version, payload })
 }

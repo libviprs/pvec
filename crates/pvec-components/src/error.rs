@@ -105,6 +105,8 @@ pub enum ComponentError {
     UnknownCapability(CapabilityId),
     /// An entity appears twice where it may appear once.
     Duplicate(EntityId),
+    /// A confidence on an entry whose source is not `inferred`.
+    ConfidenceNotAllowed,
 }
 
 impl ComponentError {
@@ -125,6 +127,7 @@ impl ComponentError {
             ComponentError::ReservedNotZero => "COMP-12",
             ComponentError::UnknownCapability(_) => "COMP-13",
             ComponentError::Duplicate(_) => "COMP-14",
+            ComponentError::ConfidenceNotAllowed => "COMP-15",
         }
     }
 }

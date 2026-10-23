@@ -66,7 +66,9 @@ impl EntityGeometry for Plan {
     }
 }
 
-const TOL: f64 = 1e-9;
+/// The caller supplies the closure tolerance; the stream crate has none of its own. Test coordinates are
+/// tens of units and the only inexact endpoint is the end of a full circle, off by about 1e-16.
+const TOL: f64 = 0.001;
 
 fn rule(source: SourceTag) -> Origin {
     Origin { source, confidence: None }
@@ -208,7 +210,7 @@ fn stripping_the_stream_leaves_the_geometry_verdict_identical() {
 
     let framed = fixture_stream().into_stream(&r).unwrap();
     let reader = knows(&[ids::SEMANTIC_CLASS]);
-    let with = read_streams(&encode_streams(&[framed.clone()]).unwrap(), &r, &reader).unwrap();
+    let with = read_streams(&encode_streams(std::slice::from_ref(&framed)).unwrap(), &r, &reader).unwrap();
     assert_eq!(with.streams.len(), 1, "present");
     assert_eq!(verdict(&block), baseline, "with the stream");
 
@@ -296,6 +298,10 @@ fn bumping_the_semantic_class_version_leaves_every_geometry_capability_version_u
 fn the_fixture_validates_including_a_wall_drawn_against_the_ring_direction_and_a_round_hole() {
     let plan = Plan::new(&encode(&geometry()).unwrap().bytes);
     assert_eq!(fixture_stream().validate(&plan, TOL), Ok(()));
+    // a ring may start on an edge that is drawn against its walk: it closes only by reversing that first edge
+    let mut rotated = fixture_stream();
+    rotated.regions[1].outer = vec![id(6), id(7), id(8), id(5)];
+    assert_eq!(rotated.validate(&plan, TOL), Ok(()));
     // and the same after a trip through the bytes
     let back = SemanticClassStream::decode(&fixture_stream().encode().unwrap()).unwrap();
     assert_eq!(back.validate(&plan, TOL), Ok(()));
@@ -455,6 +461,17 @@ fn an_entity_is_classified_once_and_a_ring_is_never_empty_or_oversized() {
     let mut s = fixture_stream();
     s.regions[0].holes = vec![vec![]];
     assert_eq!(s.encode().unwrap_err(), ComponentError::BadCount);
+}
+
+#[test]
+fn a_region_with_more_holes_than_the_limit_is_refused_on_decode_as_well() {
+    let mut region = u32s(&[1, 4, 0]);
+    region.extend_from_slice(&0f64.to_le_bytes());
+    region.extend(u32s(&[1, 1, 0, (MAX_HOLES + 1) as u32]));
+    for _ in 0..=MAX_HOLES {
+        region.extend(u32s(&[1, 1, 4]));
+    }
+    assert_eq!(SemanticClassStream::decode(&raw_stream(&[region])).unwrap_err(), ComponentError::TooMany);
 }
 
 #[test]

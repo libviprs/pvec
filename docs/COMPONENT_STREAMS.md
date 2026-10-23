@@ -1,8 +1,8 @@
 # Component streams
 
-Style, text, hatch and provenance evolve on a different schedule from the geometry mathematics, so they
+Style, text, hatch, provenance and the semantic class of what is drawn evolve on a different schedule from the geometry mathematics, so they
 are not geometry. Each is an independently versioned, independently skippable stream with its own registry
-capability (`docs/CAPABILITIES.md`, ids 14 to 19), and none of them can move a conformance verdict. The
+capability (`docs/CAPABILITIES.md`, ids 14 to 20), and none of them can move a conformance verdict. The
 implementation is `crates/pvec-components`. This is the layout of the streams, version 1. The block
 framing, compression and negotiation around a stream set belong to phase 4.
 
@@ -63,9 +63,39 @@ Each is consumed exactly. Strings are a u32 byte length and UTF-8 bytes, at most
 | 17 | `hatch` | record count, then per record: boundary kind (1, references), boundary count (1 to 4096), the entity ids, fill kind (1 solid with an RGBA word, 2 pattern with a name, an angle, a positive scale and an RGBA word) |
 | 18 | `source_provenance` | record count, then per record: entity, source kind (u16 in a u32), handle length (at most 64), handle bytes |
 | 19 | `dwg_semantics` | opaque: reserved space for future DWG semantics, never interpreted here |
+| 20 | `semantic_class` | element entries, then region records, see below |
 
 A hatch boundary kind other than 1 is refused. Kind 2 is the word an inline curve would use, and it is
 refused as embedded geometry: curve parameters in a hatch stream fail validation.
+
+## The semantic class stream (20)
+
+What a drawn thing is in the building, so a reader can show only the walls, hide the columns or pick a room.
+It is one optional stream with two kinds of subject, and it says nothing about how anything is drawn.
+
+The payload is two u32 counts (elements, regions), the element entries, then the region records.
+
+* **Element entry**, 24 bytes: entity, class, source, confidence present (0 or 1), confidence (f64). The
+  class is 0 `Other` (so absence is stated, not implied), 1 `Wall`, 2 `Column`. An entity is classified at
+  most once. The enum is closed for this stream version: a new class bumps the stream version, and a value
+  this version does not define is refused (COMP-11), never carried as a vendor value.
+* **Region record**: kind (1 `Room`, 2 `Corridor`), source, confidence present, confidence, then the outer
+  ring, the hole count (at most 256) and each hole. A ring is a ring kind word (1, references), a count
+  (1 to 4096) and that many entity ids. The ring is ordered. A region is not drawn linework, so it holds
+  references and no curve parameters: ring kind 2, the word an inline curve would use, is refused as
+  embedded geometry (COMP-10), in the outer ring and in a hole alike.
+* **Source**: 1 `layer-rule`, 2 `block-rule`, 3 `inferred`, 4 `explicit`. Only an `inferred` entry may carry a
+  confidence (finite, 0 to 1). With no confidence the confidence bytes are zero.
+
+Decoding checks the shape. Whether the references mean anything needs the geometry, which this crate does
+not depend on, so `SemanticClassStream::validate` takes an `EntityGeometry` (start and end point of an
+entity, or nothing when it does not exist) from the caller and a closure tolerance. It refuses a reference
+to a missing entity (COMP-16) and a ring that does not close (COMP-17). A ring closes when its entities, in
+order and each in either direction, meet end to start and the last returns to where the first began. A
+single entity closes when its own ends meet.
+
+`entities_of(class)` and `regions_of(kind)` filter the stream. The spatial query (P7.5) will use them to
+query by class.
 
 ## Rules a reader refuses on
 
@@ -85,6 +115,10 @@ refused as embedded geometry: curve parameters in a hatch stream fail validation
 | COMP-11 | an undefined tag |
 | COMP-12 | a reserved field is not zero |
 | COMP-13 | a capability the registry does not know |
+| COMP-14 | an entity classified twice |
+| COMP-15 | a confidence on an entry that is not inferred |
+| COMP-16 | a region or element that references a missing entity (validation) |
+| COMP-17 | a region ring that does not close (validation) |
 
 ## What this does not decide
 
