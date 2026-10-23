@@ -1,6 +1,6 @@
 # The PVec container
 
-This file is generated from `crates/pvec-container/src/spec.rs` and `crates/pvec-container/src/blocks/hot.rs`. I do not edit it by hand: a test regenerates it and fails if the committed file differs by a single byte. To change it I change the constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.
+This file is generated from `crates/pvec-container/src/spec.rs` and the `hot.rs`, `arena.rs` and `advanced.rs` modules under `crates/pvec-container/src/blocks/`. I do not edit it by hand: a test regenerates it and fails if the committed file differs by a single byte. To change it I change the constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.
 
 ## 1. The container prefix
 
@@ -192,3 +192,128 @@ Each refusal is a typed `HotError` with a rule identifier. Every count is compar
 | HOT-18 | the host is not little-endian, so columns cannot be borrowed in place |
 | HOT-19 | (builder) an entity of another kind than the block |
 | HOT-20 | (builder) the block would not fit 32-bit lengths |
+
+## 3. Advanced geometry arenas
+
+B-spline knot vectors, weight arrays, control-point sets, composite segment lists and trim domains have a different length for every entity, which the fixed columns of chapter 2 cannot express. They live in arenas: one block per payload kind, holding every entity's values back to back, with an offset table that says where each entity's run starts and how long it is. An advanced curve is a fixed record of integers, so the curve is located by two integer reads (its record, then the offset-table entry of the payload kind it needs) and each payload is one contiguous run. This is layout B of ADR 0004 and the panel's sixth finding: there is no nested per-entity byte blob to chase and no per-entity allocation. The exact curve parameters are those of ADR 0011 and `docs/GEOMETRY_ENCODING.md`; this chapter is the container's view of them.
+
+### 3.1 Arena block
+
+An arena block is a 32 byte header, the offset table, and the payload, all little-endian. The first byte of the block must be 8-aligned in memory (the reader refuses a buffer that is not, rather than copying it). Offsets are from the first byte of the block.
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 4 | magic | bytes | `50 56 41 31` (`PVA1`) |
+| 4 | 2 | version | u16 | 1; a reader refuses any other |
+| 6 | 2 | payload_kind | u16 | what the arena holds, from the table in section 3.2 |
+| 8 | 4 | entry_count | u32 | entries in the offset table |
+| 12 | 4 | element_count | u32 | elements in each payload column, the arena length the entries are checked against |
+| 16 | 4 | block_length | u32 | length of the whole block in bytes, equal to the bytes present |
+| 20 | 12 | reserved | bytes | zero |
+
+After the header come `entry_count` offset-table entries of 8 bytes each (see section 3.3), which leaves the payload on a multiple of 8, and then the payload columns, each `element_count` elements long, one after the other with no padding between them. Every column starts at its natural alignment: an `f64` column on a multiple of 8 and a `u32` column on a multiple of 4, from the first byte of the block, which is what a `Float64Array` over WASM linear memory needs. The block is a multiple of 8 bytes long, so the only padding it can contain is the 0 or 4 bytes after a segment arena with an odd element count. Padding is zero and a reader refuses a block where it is not, which keeps the encoding canonical.
+
+### 3.2 Payload kinds
+
+| id | kind | element | columns | one entry holds |
+|---|---|---|---|---|
+| 1 | Knots | f64 | `knots` | one knot vector per entry; the same vector may serve many curves |
+| 2 | Weights | f64 | `weights` | one weight per control point of a rational curve |
+| 3 | ControlPoints | f64 | `x`, `y` | all x of the entry, in one column, and all y at the same positions in the second |
+| 4 | Segments | u32 | `segments` | record indices naming the segments of a composite curve, in order |
+| 5 | Trims | f64 | `trims` | `t1`, `t2` per segment of a composite, flattened: twice as long as its segment list |
+
+Coordinates, knots, weights and trims are `f64` end to end, so a value comes back with the bits it went in with. The two control-point columns have the same length and the entry's range applies to both.
+
+### 3.3 The offset table
+
+An entry is `start: u32` then `len: u32`, both counted in elements (not bytes) of the arena's columns. Entry `i` of the table is at `32 + 8 * i`. The entry names the run `start..start + len` of each column. Nothing requires entries to be ordered or disjoint: two entries may name the same range, and that is how equal payloads share storage (section 3.6). An index of `ffffffff` in a record means the curve has no payload of that kind; it is never a table index.
+
+A reader checks an entry in range before it hands out a slice: `start + len` is added with overflow checked, and the sum must not exceed `element_count`. An entry that fails is refused, never clamped. The table is checked entry by entry as it is used, so opening an arena does not cost anything in the number of entries.
+
+### 3.4 Advanced curve records
+
+The record block is a 32 byte header followed by `record_count` records of 32 bytes each, in strictly ascending entity id order (P3.6), so the same set of curves always encodes to the same bytes (P4.4). A record is degree, flags and one offset-table index per arena, and nothing else: there is no nested per-entity byte blob, and a record never holds a number of the curve.
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 4 | magic | bytes | `50 56 52 31` (`PVR1`) |
+| 4 | 2 | version | u16 | 1; a reader refuses any other |
+| 6 | 2 | reserved_a | u16 | zero |
+| 8 | 4 | record_count | u32 | records in the block, 1 to 2^28 - 1 |
+| 12 | 4 | block_length | u32 | length of the whole block in bytes, equal to the bytes present |
+| 16 | 16 | reserved_b | bytes | zero |
+
+The record:
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 4 | id | u32 | entity id, below 2^28; records are in strictly ascending id order |
+| 4 | 4 | style | u32 | opaque style reference, as in the hot blocks |
+| 8 | 1 | kind | u8 | 1 spline, 2 composite |
+| 9 | 1 | degree | u8 | 1 to 16 for a spline, 0 for a composite |
+| 10 | 2 | flags | u16 | bit 0 rational, bit 1 closed, bit 2 periodic (refused); the rest zero |
+| 12 | 4 | knots | u32 | index into the knots offset table; `ffffffff` for a composite |
+| 16 | 4 | weights | u32 | index into the weights offset table; `ffffffff` unless rational |
+| 20 | 4 | control_points | u32 | index into the control-points offset table; `ffffffff` for a composite |
+| 24 | 4 | segments | u32 | index into the segments offset table; `ffffffff` for a spline |
+| 28 | 4 | trims | u32 | index into the trims offset table; `ffffffff` for no trims |
+
+A spline (kind 1) needs knots and control points, and weights if and only if the rational flag is set; it has no segment list or trims. A composite (kind 2) has a degree of 0, a segment list, optionally trims, and no knots, weights or control points; it cannot be rational. The closed flag is a claim about the geometry that NP-20 checks for a spline (the end meets the start); for a composite it is carried and not checked, because checking it needs the segments evaluated, which is not this layer's job.
+
+The periodic flag is defined and refused. ISO_PROFILE section 12 and ADR 0011 say the profile has no wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. A later minor version can give the bit a meaning by lifting that refusal.
+
+### 3.5 Counts, weights and composites
+
+For a spline of degree `p` with `n` control points the knot vector has `n + p + 1` entries and a rational curve has exactly `n` weights. A weight array that is shorter is refused, not padded with ones, and so is one that is longer. Beyond the counts, the knots go through NP-14 (non-decreasing, multiplicities, no ambiguous pairs), the weights through NP-15, every coordinate through NP-01 and NP-02, and the closed flag through NP-20.
+
+A composite's segment list is a list of record indices: it names other records of the same block, so a segment that two composites use is one record and its geometry is stored once. The list has 1 to 65536 entries (NP-18) and, when the composite has trims, the trims entry has two numbers `t1`, `t2` per segment. This layer does not check a trim against the curve it trims (NP-12 needs that curve's domain), and it only references records of its own block: a segment that is a hot line or arc has to be written as a degree 1 spline here.
+
+Composites may nest up to the depth of NP-18, counting the outermost curve as 1, so a composite of composites of splines is depth 3. `curve` follows nothing. `nesting_depth` walks the references with each record read once, and refuses a cycle (a composite that leads back to itself, itself included) and a chain deeper than the limit before anything is resolved. The writer runs the same walk over everything it wrote and refuses the set if it fails.
+
+### 3.6 Sharing and canonical order
+
+An arena builder adds a payload once: if the same bits were added before, it returns the existing table index. Two entities with the same knot vector therefore share one table entry and one arena range, and the record of each points at it. Entries are numbered in the order the writer first needs them, and the writer visits curves in ascending entity id order, so the bytes do not depend on the order curves were pushed in. Sharing compares bits, not values: vectors one ulp apart are two payloads.
+
+### 3.7 What a reader may assume and what it must verify
+
+A reader may assume, once the six blocks have parsed: every block is exactly as long as its header says, its padding is zero, and every column is inside the buffer and at its natural alignment; the record block's ids ascend and are below 2^28; every record has a known kind, only defined flags, no periodic flag, and exactly the index fields its kind uses; and each arena is the kind its slot expects.
+
+A reader must verify, as it uses them: that an offset-table index is below the entry count and the entry lies inside the arena (`ArenaView::slice` and its siblings do both); that the numbers are finite and satisfy the numeric policy (`AdvancedView::curve` does, for a spline); that a composite's segment indices name records and its trims are twice as many as its segments (`curve` does); and that nesting is acyclic and shallow enough (`nesting_depth`, which a reader calls before it resolves segments). It must also apply the ceilings of P4.8, which cite NP-18 and are not restated here, and it must not assume two entries are disjoint.
+
+Reading one curve costs at most one offset-table read and one arena read for each payload kind it has, and the number does not depend on how many curves are in the file; a test counts them with a probe.
+
+### 3.8 Refusals
+
+Each refusal is a typed `ArenaError` with a rule identifier. Every count is compared with the bytes present before it is used, and parsing allocates nothing.
+
+| rule | meaning |
+|---|---|
+| ARN-01 | the block is shorter than its structure requires |
+| ARN-02 | bad magic |
+| ARN-03 | unsupported version |
+| ARN-04 | an unknown payload or record kind id, or an arena of the wrong kind in its slot |
+| ARN-05 | a reserved field is not zero |
+| ARN-06 | a padding byte is not zero |
+| ARN-07 | the declared length differs from the bytes present, or part of the block is unused |
+| ARN-08 | the buffer does not start on an 8-byte boundary |
+| ARN-09 | the host is not little-endian, so payloads cannot be borrowed in place |
+| ARN-10 | an offset-table index or a record index at or past the end of its table |
+| ARN-11 | an entry whose start plus len passes the arena length, or overflows |
+| ARN-12 | an accessor used on an arena of another payload kind |
+| ARN-13 | the knot count is not control points plus degree plus one |
+| ARN-14 | weights that are missing, extra, or not one per control point (never padded) |
+| ARN-15 | control-point x and y columns of different lengths |
+| ARN-16 | the periodic flag is set; this profile has no wrapped periodic form |
+| ARN-17 | flag bits that are not defined, or a flag the record kind cannot have |
+| ARN-18 | a record field its kind does not use is set, or one it needs is empty |
+| ARN-19 | record ids that are not strictly ascending, or at or above the NP-18 limit |
+| ARN-20 | a segment that names a record that does not exist |
+| ARN-21 | a composite whose segment lists lead back to itself |
+| ARN-22 | composites nested deeper than NP-18 allows |
+| ARN-23 | trim values that are not two per segment |
+| ARN-24 | a numeric policy rule (NP-nn) refused a count or a value; the error carries it |
+| ARN-25 | a block with no records |
+| ARN-26 | (builder) the same entity id twice |
+| ARN-27 | (builder) a composite names an entity that was not pushed |
+| ARN-28 | (builder) the blocks would not fit 32-bit lengths |

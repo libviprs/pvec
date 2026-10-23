@@ -769,8 +769,9 @@ fn trims_are_two_numbers_per_segment_and_finite() {
     let mut b = AdvancedBuilder::new();
     spline_at(&mut b, 1);
     spline_at(&mut b, 2);
-    b.push_composite(id(3), 0, &[id(1), id(2)], Some(&[[0.0, 1.0]]), false).unwrap();
-    assert_eq!(b.finish().unwrap_err(), ArenaError::TrimCount { values: 2, segments: 2 });
+    let e = b.push_composite(id(3), 0, &[id(1), id(2)], Some(&[[0.0, 1.0]]), false).unwrap_err();
+    assert_eq!(e, ArenaError::TrimCount { values: 2, segments: 2 });
+    assert_eq!(e.rule(), "ARN-23");
 
     let mut b = AdvancedBuilder::new();
     spline_at(&mut b, 1);
