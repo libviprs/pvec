@@ -207,3 +207,45 @@ fn the_hot_block_module_exposes_no_per_entity_struct() {
         );
     }
 }
+
+#[test]
+fn the_advanced_record_carries_no_byte_blob_and_the_arena_view_returns_borrowed_slices() {
+    let adv = fs::read_to_string(repo_root().join("crates/pvec-container/src/blocks/advanced.rs")).unwrap();
+    let snap = public_api_snapshot_of_text("blocks/advanced.rs", &adv);
+    // every field of the record is a plain integer or the kind: no Vec, slice or byte string
+    let fields: Vec<&str> = snap.lines().filter(|l| l.contains("AdvancedCurveRecord.")).collect();
+    assert!(fields.len() >= 9, "the record's fields are missing from the snapshot:\n{snap}");
+    for l in &fields {
+        for banned in ["Vec<", "[u8]", "&[", "String", "Box<"] {
+            assert!(!l.contains(banned), "the record holds a per-entity blob: {l}");
+        }
+    }
+    // the record block view hands out borrowed rows and the curve views only borrowed arrays
+    for l in snap.lines().filter(|l| l.contains("SplineView.") || l.contains("CompositeView.")) {
+        assert!(!l.contains("Vec<"), "a curve view owns its numbers: {l}");
+    }
+    let arena = fs::read_to_string(repo_root().join("crates/pvec-container/src/blocks/arena.rs")).unwrap();
+    let snap = public_api_snapshot_of_text("blocks/arena.rs", &arena);
+    assert!(
+        snap.lines().any(|l| l.contains("ArenaView<'a>::slice(") && l.contains("&'a [f64]")),
+        "ArenaView::slice does not return a borrowed slice:\n{snap}"
+    );
+    assert!(
+        snap.lines().any(|l| l.contains("ArenaView<'a>::slice_u32(") && l.contains("&'a [u32]")),
+        "ArenaView::slice_u32 does not return a borrowed slice:\n{snap}"
+    );
+    for l in snap.lines().filter(|l| l.contains("ArenaView<'a>::")) {
+        assert!(!l.contains("Vec<"), "the arena view returns an owned collection: {l}");
+    }
+}
+
+#[test]
+fn the_arena_modules_add_no_unsafe_and_no_second_aligned_cast() {
+    for f in ["arena.rs", "advanced.rs"] {
+        let text =
+            fs::read_to_string(repo_root().join(format!("crates/pvec-container/src/blocks/{f}"))).unwrap();
+        let code = strip_comments_and_tests(&text);
+        assert!(!code.contains("unsafe"), "{f} contains unsafe; the only unsafe is in blocks/aligned.rs");
+        assert!(!code.contains("align_to"), "{f} reinterprets bytes itself; use aligned::f64s / u32s");
+    }
+}
