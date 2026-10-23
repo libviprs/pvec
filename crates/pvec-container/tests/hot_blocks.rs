@@ -190,7 +190,7 @@ fn coordinates_round_trip_bit_for_bit_including_the_last_mantissa_bit() {
     fn up(x: f64) -> f64 {
         f64::from_bits(x.to_bits() + 1)
     }
-    let base = [1.0, 0.1, core::f64::consts::PI, 549_755_813_887.5, 1.0e-300, -123.456];
+    let base = [1.0, 0.1, core::f64::consts::PI, 549_755_813_887.5, f64::MIN_POSITIVE * 7.0, -123.456];
     let mut vals: Vec<f64> = Vec::new();
     for v in base {
         vals.push(v);
