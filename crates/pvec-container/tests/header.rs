@@ -23,6 +23,7 @@ fn the_header_fits_one_range_read_of_at_most_4_kib() {
     let mut b = padded_header(4096);
     b[16..18].copy_from_slice(&4096u16.to_le_bytes());
     b[24..32].copy_from_slice(&4096u64.to_le_bytes());
+    b[40..48].copy_from_slice(&4320u64.to_le_bytes());
     assert_eq!(parse(&b).unwrap().header_len, 4096);
 }
 

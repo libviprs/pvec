@@ -88,8 +88,8 @@ fn undefined_flag_bits_and_reserved_fields_must_be_zero() {
         let r = m(&with(&MANIFEST_BYTES, offset, &[1]));
         assert!(matches!(r, Err(ContainerError::NonZeroReserved { .. })), "offset {offset}: {r:?}");
     }
-    // reserved bytes inside a capability entry (offset 128 + 7 and 128 + 12) and a directory entry
-    for offset in [FIXED + 7, FIXED + 12, FIXED + 32 + 4, FIXED + 32 + 16 + 5] {
+    // reserved bytes inside a capability entry (11 and 12 of 16) and inside both directory entries
+    for offset in [FIXED + 11, FIXED + 12, FIXED + 32 + 4, FIXED + 32 + 24 + 4] {
         let r = m(&with(&MANIFEST_BYTES, offset, &[1]));
         assert!(matches!(r, Err(ContainerError::NonZeroReserved { .. })), "offset {offset}: {r:?}");
     }
@@ -129,7 +129,7 @@ fn an_unknown_unit_code_is_refused() {
 
 #[test]
 fn a_factor_that_is_not_the_units_own_is_refused() {
-    for f in [0.002f64, 1.0, 0.0, -0.001, f64::NAN, 0.001 + 1e-12] {
+    for f in [0.002f64, 1.0, 0.0, -0.001, f64::NAN, f64::from_bits(0.001f64.to_bits() + 1)] {
         assert_eq!(m(&put_f64(8, f)), Err(ContainerError::UnitFactorMismatch), "{f}");
     }
 }
@@ -153,8 +153,8 @@ fn an_infinite_subnormal_or_out_of_range_bound_is_refused() {
         (f64::INFINITY, NumericError::NotFinite),
         (f64::NEG_INFINITY, NumericError::NotFinite),
         (f64::MIN_POSITIVE / 2.0, NumericError::Subnormal),
-        (1.1e12, NumericError::OutOfRange),
-        (-1.1e12, NumericError::OutOfRange),
+        (1_100_000_000_000.0, NumericError::OutOfRange),
+        (-1_100_000_000_000.0, NumericError::OutOfRange),
     ] {
         for offset in [16usize, 24, 32, 40] {
             match m(&put_f64(offset, v)) {
@@ -257,8 +257,8 @@ fn directory_pointers_are_read_from_their_offsets() {
         DirectoryPointer::KIND_COMPONENT
     );
     assert_eq!(m(&with(&b, base + 8, &512u64.to_le_bytes())).unwrap().directories[0].offset, 512);
-    assert_eq!(m(&with(&b, base + 16, &1u32.to_le_bytes())).unwrap().directories[1].kind, 1);
-    assert_eq!(m(&with(&b, base + 32, &128u64.to_le_bytes())).unwrap().directories[1].length, 128);
+    assert_eq!(m(&with(&b, base + 24, &1u32.to_le_bytes())).unwrap().directories[1].kind, 1);
+    assert_eq!(m(&with(&b, base + 40, &128u64.to_le_bytes())).unwrap().directories[1].length, 128);
 }
 
 #[test]

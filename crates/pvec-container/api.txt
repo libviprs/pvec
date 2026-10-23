@@ -1,0 +1,165 @@
+error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
+error.rs: ContainerError::BadMagic
+error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
+error.rs: ContainerError::UnsupportedByteOrder { found: u32 }
+error.rs: ContainerError::Truncated { needed: u64, got: u64 }
+error.rs: ContainerError::BadHeaderLength { found: u32 }
+error.rs: ContainerError::PointerOutOfRange { field: &'static str, offset: u64, length: u64, artifact_len: u64 }
+error.rs: ContainerError::ManifestTooLarge { length: u64 }
+error.rs: ContainerError::UnknownChecksumAlgorithm { id: u8 }
+error.rs: ContainerError::NonZeroReserved { field: &'static str }
+error.rs: ContainerError::InvalidFlags { bits: u16 }
+error.rs: ContainerError::UnknownLengthUnit { code: u16 }
+error.rs: ContainerError::UnitFactorMismatch
+error.rs: ContainerError::Bound { field: &'static str, rule: NumericError }
+error.rs: ContainerError::InvertedBounds { axis: &'static str }
+error.rs: ContainerError::ZeroCapabilityId
+error.rs: ContainerError::DuplicateCapability { id: u32 }
+error.rs: ContainerError::InvalidRequirement { id: u32, value: u8 }
+error.rs: ContainerError::DirectoryTableMismatch
+error.rs: ContainerError::MissingProducer
+error.rs: ContainerError::StringTooLong { field: &'static str, length: u32 }
+error.rs: ContainerError::InvalidUtf8 { field: &'static str }
+error.rs: ContainerError::TrailingBytes { extra: u64 }
+error.rs: impl fmt::Display for ContainerError
+error.rs: impl std::error::Error for ContainerError {}
+header.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum ChecksumAlgorithm
+header.rs: ChecksumAlgorithm::Xxh3_64
+header.rs: ChecksumAlgorithm::Sha256
+header.rs: ChecksumAlgorithm::id(self) -> u8
+header.rs: ChecksumAlgorithm::from_id(id: u8) -> Option<ChecksumAlgorithm>
+header.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Header
+header.rs: Header.major: u16
+header.rs: Header.minor: u16
+header.rs: Header.header_len: u16
+header.rs: Header.block_checksum: ChecksumAlgorithm
+header.rs: Header.artifact_checksum: ChecksumAlgorithm
+header.rs: Header.manifest_offset: u64
+header.rs: Header.manifest_length: u64
+header.rs: Header.directory_table_offset: u64
+header.rs: Header.directory_table_length: u64
+header.rs: Header::const LEN: usize
+header.rs: Header::const MAX_LEN: usize
+header.rs: Header::const MAJOR: u16
+header.rs: Header::const MINOR: u16
+header.rs: Header::parse(prefix: &[u8], artifact_len: u64) -> Result<Header, ContainerError>
+header.rs: Header::encode(&self) -> [u8; Header::LEN]
+lib.rs: pub mod error
+lib.rs: pub mod header
+lib.rs: pub mod manifest
+lib.rs: pub mod spec
+lib.rs: pub use error::ContainerError
+lib.rs: pub use header::{ChecksumAlgorithm, Header}
+lib.rs: pub use manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata}
+manifest.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum LengthUnit
+manifest.rs: LengthUnit::Metre
+manifest.rs: LengthUnit::Millimetre
+manifest.rs: LengthUnit::Centimetre
+manifest.rs: LengthUnit::Kilometre
+manifest.rs: LengthUnit::Inch
+manifest.rs: LengthUnit::Foot
+manifest.rs: LengthUnit::const ALL: [LengthUnit; 6]
+manifest.rs: LengthUnit::code(self) -> u16
+manifest.rs: LengthUnit::from_code(code: u16) -> Option<LengthUnit>
+manifest.rs: LengthUnit::metres_per_unit(self) -> f64
+manifest.rs: LengthUnit::iso_declaration(self) -> &'static str
+manifest.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Bounds
+manifest.rs: Bounds.min: [f64; 2]
+manifest.rs: Bounds.max: [f64; 2]
+manifest.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct ByteRange
+manifest.rs: ByteRange.offset: u64
+manifest.rs: ByteRange.length: u64
+manifest.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct DirectoryPointer
+manifest.rs: DirectoryPointer.kind: u32
+manifest.rs: DirectoryPointer.offset: u64
+manifest.rs: DirectoryPointer.length: u64
+manifest.rs: DirectoryPointer::const KIND_BLOCK: u32
+manifest.rs: DirectoryPointer::const KIND_COMPONENT: u32
+manifest.rs: DirectoryPointer::const KIND_SPATIAL: u32
+manifest.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Metadata
+manifest.rs: Metadata.producer_id: String
+manifest.rs: Metadata.producer_version: String
+manifest.rs: Metadata.corpus_revision: Option<String>
+manifest.rs: #[derive(Clone, Debug, PartialEq)] pub struct Manifest
+manifest.rs: Manifest.unit: LengthUnit
+manifest.rs: Manifest.bounds: Bounds
+manifest.rs: Manifest.min_reader: Version
+manifest.rs: Manifest.capabilities: Vec<Declared>
+manifest.rs: Manifest.directories: Vec<DirectoryPointer>
+manifest.rs: Manifest.block_checksums: Option<ByteRange>
+manifest.rs: Manifest.artifact_digest: Option<[u8; 32]>
+manifest.rs: Manifest.metadata: Metadata
+manifest.rs: Manifest::const FIXED_LEN: usize
+manifest.rs: Manifest::const MAX_LEN: u64
+manifest.rs: Manifest::parse(bytes: &[u8], header: &Header, artifact_len: u64) -> Result<Manifest, ContainerError>
+manifest.rs: Manifest::encode(&self) -> Vec<u8>
+manifest.rs: Manifest::declaration(&self) -> Declaration
+spec.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct FieldSpec
+spec.rs: FieldSpec.name: &'static str
+spec.rs: FieldSpec.offset: usize
+spec.rs: FieldSpec.size: usize
+spec.rs: FieldSpec.encoding: &'static str
+spec.rs: FieldSpec.meaning: &'static str
+spec.rs: pub const MAGIC: [u8; 8]
+spec.rs: pub const BYTE_ORDER_MARKER: u32
+spec.rs: pub mod h
+spec.rs: pub const MAGIC: usize
+spec.rs: pub const MAJOR: usize
+spec.rs: pub const MINOR: usize
+spec.rs: pub const BYTE_ORDER: usize
+spec.rs: pub const HEADER_LEN: usize
+spec.rs: pub const RESERVED_A: usize
+spec.rs: pub const BLOCK_CHECKSUM: usize
+spec.rs: pub const ARTIFACT_CHECKSUM: usize
+spec.rs: pub const RESERVED_B: usize
+spec.rs: pub const MANIFEST_OFFSET: usize
+spec.rs: pub const MANIFEST_LENGTH: usize
+spec.rs: pub const DIRECTORY_TABLE_OFFSET: usize
+spec.rs: pub const DIRECTORY_TABLE_LENGTH: usize
+spec.rs: pub const RESERVED_C: usize
+spec.rs: pub mod m
+spec.rs: pub const UNIT: usize
+spec.rs: pub const FLAGS: usize
+spec.rs: pub const CAPABILITY_COUNT: usize
+spec.rs: pub const METRES_PER_UNIT: usize
+spec.rs: pub const MIN_X: usize
+spec.rs: pub const MIN_Y: usize
+spec.rs: pub const MAX_X: usize
+spec.rs: pub const MAX_Y: usize
+spec.rs: pub const MIN_READER_MAJOR: usize
+spec.rs: pub const MIN_READER_MINOR: usize
+spec.rs: pub const MIN_READER_PATCH: usize
+spec.rs: pub const RESERVED_A: usize
+spec.rs: pub const DIRECTORY_COUNT: usize
+spec.rs: pub const RESERVED_B: usize
+spec.rs: pub const BLOCK_CHECKSUMS_OFFSET: usize
+spec.rs: pub const BLOCK_CHECKSUMS_LENGTH: usize
+spec.rs: pub const ARTIFACT_DIGEST: usize
+spec.rs: pub const PRODUCER_ID_LEN: usize
+spec.rs: pub const PRODUCER_VERSION_LEN: usize
+spec.rs: pub const CORPUS_REVISION_LEN: usize
+spec.rs: pub const RESERVED_C: usize
+spec.rs: pub const FLAG_DIGEST: u16
+spec.rs: pub mod cap
+spec.rs: pub const SIZE: usize
+spec.rs: pub const ID: usize
+spec.rs: pub const MAJOR: usize
+spec.rs: pub const MINOR: usize
+spec.rs: pub const PATCH: usize
+spec.rs: pub const REQUIREMENT: usize
+spec.rs: pub const RESERVED_A: usize
+spec.rs: pub const RESERVED_B: usize
+spec.rs: pub const REQUIRED: u8
+spec.rs: pub const OPTIONAL: u8
+spec.rs: pub mod dir
+spec.rs: pub const SIZE: usize
+spec.rs: pub const KIND: usize
+spec.rs: pub const RESERVED: usize
+spec.rs: pub const OFFSET: usize
+spec.rs: pub const LENGTH: usize
+spec.rs: pub const MAX_STRING_LEN: u32
+spec.rs: pub const HEADER_FIELDS: &[FieldSpec]
+spec.rs: pub const MANIFEST_FIELDS: &[FieldSpec]
+spec.rs: pub const CAPABILITY_ENTRY_FIELDS: &[FieldSpec]
+spec.rs: pub const DIRECTORY_ENTRY_FIELDS: &[FieldSpec]
+spec.rs: pub fn render_markdown() -> String
