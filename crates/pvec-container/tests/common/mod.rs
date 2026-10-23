@@ -1,0 +1,133 @@
+//! Shared fixtures: a byte-literal header and manifest, written by hand from the field tables in
+//! `docs/CONTAINER.md` and not produced by the code under test.
+#![allow(dead_code)]
+
+use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
+use pvec_container::*;
+
+pub const ARTIFACT_LEN: u64 = 8192;
+
+pub const HEADER_BYTES: [u8; 64] = [
+    0x89, 0x50, 0x56, 0x45, 0x43, 0x0d, 0x0a, 0x1a, // magic
+    0x01, 0x00, // container_major = 1
+    0x00, 0x00, // container_minor = 0
+    0x04, 0x03, 0x02, 0x01, // byte_order = 0x01020304
+    0x40, 0x00, // header_len = 64
+    0x00, 0x00, // reserved
+    0x01, // block_checksum = 1 (XXH3-64)
+    0x02, // artifact_checksum = 2 (SHA-256)
+    0x00, 0x00, // reserved
+    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // manifest_offset = 64
+    0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // manifest_length = 224
+    0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // directory_table_offset = 224
+    0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // directory_table_length = 48
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // reserved
+];
+
+pub const MANIFEST_BYTES: [u8; 224] = [
+    0x02, 0x00, // length_unit = 2 (millimetre)
+    0x01, 0x00, // flags = 1 (digest present)
+    0x02, 0x00, 0x00, 0x00, // capability_count = 2
+    0xfc, 0xa9, 0xf1, 0xd2, 0x4d, 0x62, 0x50, 0x3f, // metres_per_unit = 0.001
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x59, 0xc0, // min_x = -100.5
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x49, 0xc0, // min_y = -50.25
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x9f, 0x40, // max_x = 2000.0
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x73, 0x97, 0x40, // max_y = 1500.75
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // min_reader 1.0.0
+    0x02, 0x00, 0x00, 0x00, // directory_count = 2
+    0x00, 0x00, 0x00, 0x00, // reserved
+    0x00, 0x1c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // block_checksums_offset = 7168
+    0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // block_checksums_length = 256
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+    0x0f, // artifact_digest 00..1f
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+    0x1f, // artifact_digest 00..1f (cont.)
+    0x08, 0x00, 0x00, 0x00, // producer_id_len = 8
+    0x05, 0x00, 0x00, 0x00, // producer_version_len = 5
+    0x02, 0x00, 0x00, 0x00, // corpus_revision_len = 2
+    0x00, 0x00, 0x00, 0x00, // reserved
+    0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, // capability 1: id 1, 1.0.0, required
+    0x0d, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+    0x00, // capability 2: id 13, 1.2.3, optional
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, // directory 1: block, 4096, 2048
+    0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // directory 1: block, 4096, 2048 (cont.)
+    0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, // directory 2: spatial, 6144, 1024
+    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // directory 2: spatial, 6144, 1024 (cont.)
+    0x61, 0x63, 0x6d, 0x65, 0x2d, 0x63, 0x61, 0x64, // producer_id "acme-cad"
+    0x31, 0x2e, 0x32, 0x2e, 0x33, // producer_version "1.2.3"
+    0x72, 0x31, 0x00, // corpus_revision "r1" + 1 pad byte
+];
+
+pub fn fixture_header() -> Header {
+    Header::parse(&HEADER_BYTES, ARTIFACT_LEN).expect("the fixture header parses")
+}
+
+pub fn expected_header() -> Header {
+    Header {
+        major: 1,
+        minor: 0,
+        header_len: 64,
+        block_checksum: ChecksumAlgorithm::Xxh3_64,
+        artifact_checksum: ChecksumAlgorithm::Sha256,
+        manifest_offset: 64,
+        manifest_length: 224,
+        directory_table_offset: 224,
+        directory_table_length: 48,
+    }
+}
+
+pub fn expected_manifest() -> Manifest {
+    let mut digest = [0u8; 32];
+    for (i, b) in digest.iter_mut().enumerate() {
+        *b = i as u8;
+    }
+    Manifest {
+        unit: LengthUnit::Millimetre,
+        bounds: Bounds { min: [-100.5, -50.25], max: [2000.0, 1500.75] },
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![
+            Declared {
+                id: CapabilityId::new(1),
+                requirement: Requirement::Required,
+                version: Version::new(1, 0, 0),
+            },
+            Declared {
+                id: CapabilityId::new(13),
+                requirement: Requirement::Optional,
+                version: Version::new(1, 2, 3),
+            },
+        ],
+        directories: vec![
+            DirectoryPointer { kind: DirectoryPointer::KIND_BLOCK, offset: 4096, length: 2048 },
+            DirectoryPointer { kind: DirectoryPointer::KIND_SPATIAL, offset: 6144, length: 1024 },
+        ],
+        block_checksums: Some(ByteRange { offset: 7168, length: 256 }),
+        artifact_digest: Some(digest),
+        metadata: Metadata {
+            producer_id: "acme-cad".into(),
+            producer_version: "1.2.3".into(),
+            corpus_revision: Some("r1".into()),
+        },
+    }
+}
+
+/// `bytes` with `patch` written at `offset`.
+pub fn with(bytes: &[u8], offset: usize, patch: &[u8]) -> Vec<u8> {
+    let mut v = bytes.to_vec();
+    v[offset..offset + patch.len()].copy_from_slice(patch);
+    v
+}
+
+/// The fixture header followed by zeros up to `n` bytes, as a single range read would return it.
+pub fn padded_header(n: usize) -> Vec<u8> {
+    let mut v = HEADER_BYTES.to_vec();
+    v.resize(n, 0);
+    v
+}
+
+pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, ContainerError> {
+    Manifest::parse(bytes, &fixture_header(), ARTIFACT_LEN)
+}
