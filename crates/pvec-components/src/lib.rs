@@ -14,6 +14,7 @@
 mod error;
 mod frame;
 mod payloads;
+mod semantic;
 
 pub use error::{ComponentError, StreamError};
 pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams};
@@ -21,4 +22,8 @@ pub use payloads::{
     Fill, HatchRecord, HatchStream, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES,
     MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream,
     ReservedStream, TextRecord, TextStream,
+};
+pub use semantic::{
+    ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord,
+    SemanticClassStream, SourceTag,
 };

@@ -92,6 +92,8 @@ pub mod ids {
     pub const SOURCE_PROVENANCE: CapabilityId = CapabilityId::new(18);
     /// The reserved space for future DWG semantics (P3.7).
     pub const DWG_SEMANTICS: CapabilityId = CapabilityId::new(19);
+    /// The semantic class stream (P3.9).
+    pub const SEMANTIC_CLASS: CapabilityId = CapabilityId::new(20);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
