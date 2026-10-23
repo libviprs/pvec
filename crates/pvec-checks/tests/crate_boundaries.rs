@@ -162,3 +162,30 @@ fn nothing_on_the_geometry_path_calls_a_tessellator() {
         }
     }
 }
+
+#[test]
+fn the_hot_block_module_exposes_no_per_entity_struct() {
+    let text = fs::read_to_string(repo_root().join("crates/pvec-container/src/blocks/hot.rs")).unwrap();
+    let snap = public_api_snapshot_of_text("blocks/hot.rs", &text);
+    let structs: Vec<&str> = snap.lines().filter(|l| l.contains("pub struct ")).collect();
+    // The builder and the view are the only structs; neither is one entity read out of the file.
+    assert!(structs.iter().any(|l| l.contains("HotBlockView")), "the view is missing:\n{snap}");
+    for l in &structs {
+        assert!(l.contains("HotBlockView") || l.contains("HotBlockBuilder"), "per-entity struct? {l}");
+    }
+    for l in snap.lines() {
+        for owner in ["HotBlockView.", "HotBlockView<'a>.", "HotBlockBuilder."] {
+            assert!(!l.contains(owner), "public field: {l}");
+        }
+    }
+    // every collection the view hands out is a borrowed slice, never an owned Vec
+    for l in snap.lines().filter(|l| l.contains("HotBlockView<'a>::")) {
+        assert!(!l.contains("Vec<"), "the view returns an owned collection: {l}");
+    }
+    for name in ["entity_ids", "styles", "run_offsets", "column"] {
+        assert!(
+            snap.lines().any(|l| l.contains(&format!("HotBlockView<'a>::{name}(")) && l.contains("&'a [")),
+            "HotBlockView::{name} does not return a borrowed slice:\n{snap}"
+        );
+    }
+}
