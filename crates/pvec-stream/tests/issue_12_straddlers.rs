@@ -13,8 +13,8 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Limits, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    Aabb, BuiltDirectory, CELL_CAPACITY, CellId, EntityBox, HEADER_LEN, LevelScale,
-    LongEntity, NODE_LEN, PAGE_LEN, PayloadLoc, STRADDLER_PAGE, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR, STRADDLER_HEADER_LEN,
+    Aabb, BuiltDirectory, CELL_CAPACITY, CellId, EntityBox, HEADER_LEN, LevelScale, LongEntity, NODE_LEN,
+    PAGE_LEN, PayloadLoc, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR, STRADDLER_HEADER_LEN, STRADDLER_PAGE,
     STRADDLER_RULES, SpatialDirectory, StraddlerError, StraddlerLists, ViewportHits, ancestor_placement,
     build_directory, build_straddlers, classify, congestion, extent, query_viewport, unique_entities,
 };
@@ -120,7 +120,11 @@ fn rooms_1m() -> Fixture {
     // lines of two other lengths, so the straddlers use more than one level
     let mut rng = Rng(8);
     for k in 0..1000 {
-        let len = three(if k % 2 == 0 { 8_000.0 + 22_000.0 * rng.unit() } else { 45_000.0 + 55_000.0 * rng.unit() });
+        let len = three(if k % 2 == 0 {
+            8_000.0 + 22_000.0 * rng.unit()
+        } else {
+            45_000.0 + 55_000.0 * rng.unit()
+        });
         let (x, y) = (three(rng.unit() * (world - len)), three(rng.unit() * world));
         let id = eid(all.len() as u32);
         all.push(EntityBox { id, bounds: bx(x, y, x + len, y) });
@@ -361,7 +365,8 @@ fn the_estimated_cell_sizes_match_the_cells_of_the_directory_over_the_local_enti
         let mut sides: BTreeMap<u16, Vec<f64>> = BTreeMap::new();
         for i in 0..built.nodes as usize {
             let at = HEADER_LEN + NODE_LEN * i;
-            let f64_at = |k: usize| f64::from_le_bytes(built.bytes[at + 8 * k..at + 8 * k + 8].try_into().unwrap());
+            let f64_at =
+                |k: usize| f64::from_le_bytes(built.bytes[at + 8 * k..at + 8 * k + 8].try_into().unwrap());
             let side = (f64_at(2) - f64_at(0)).max(f64_at(3) - f64_at(1));
             let level = u16::from_le_bytes([built.bytes[at + 44], built.bytes[at + 45]]);
             sides.entry(level).or_default().push(side);
@@ -371,7 +376,10 @@ fn the_estimated_cell_sizes_match_the_cells_of_the_directory_over_the_local_enti
             let median = v[v.len() / 2];
             let est = c.scale.sizes()[usize::from(level)];
             let ratio = est / median;
-            eprintln!("{} level {level}: estimate {est:.1}, median node side {median:.1}, ratio {ratio:.2}", f.name);
+            eprintln!(
+                "{} level {level}: estimate {est:.1}, median node side {median:.1}, ratio {ratio:.2}",
+                f.name
+            );
             if v.len() >= 3 && est < 0.9 * f.world {
                 assert!((1.0 / 3.0..=3.0).contains(&ratio), "{} level {level}: ratio {ratio}", f.name);
             }
@@ -389,7 +397,12 @@ fn classification_does_not_depend_on_arrival_order_or_on_how_many_straddlers_the
     // leaf of a directory over everything is swollen and a cell size read from it would be useless
     let f = stress_long();
     let c = classify(&f.all, STRADDLER_FACTOR).unwrap();
-    eprintln!("stress-long: {} local, {} long, level sizes {:?}", c.local.len(), c.long.len(), c.scale.sizes());
+    eprintln!(
+        "stress-long: {} local, {} long, level sizes {:?}",
+        c.local.len(),
+        c.long.len(),
+        c.scale.sizes()
+    );
     assert!(c.local.len() >= 20_000, "{} local: every room entity should stay in a cell", c.local.len());
     assert!(c.long.len() >= 7_500, "{} long of 10,000 random lines of 1,000 to 5,000", c.long.len());
     assert!(c.local.iter().all(|e| extent(&e.bounds) <= STRADDLER_FACTOR * c.scale.sizes()[0]));
@@ -405,8 +418,9 @@ fn classification_does_not_depend_on_arrival_order_or_on_how_many_straddlers_the
     assert_eq!(ids(&c.long), ids(&d.long));
     assert_eq!(c.scale, d.scale);
     // a drawing of points has nothing to measure and keeps everything in cells
-    let points: Vec<EntityBox> =
-        (0..200).map(|i| EntityBox { id: eid(i), bounds: bx(f64::from(i), 0.0, f64::from(i), 0.0) }).collect();
+    let points: Vec<EntityBox> = (0..200)
+        .map(|i| EntityBox { id: eid(i), bounds: bx(f64::from(i), 0.0, f64::from(i), 0.0) })
+        .collect();
     let p = classify(&points, STRADDLER_FACTOR).unwrap();
     assert_eq!((p.local.len(), p.long.len()), (200, 0));
     assert!(classify(&[], STRADDLER_FACTOR).is_err());
@@ -420,7 +434,8 @@ fn straddlers_keep_the_cells_tight_where_long_entities_are_scattered_among_local
     let s = split(&f.all);
     let (qb, _) = split_status_quo(&f.all);
     let (r, qr) = (reader(artifact(&s.local, &s.built)), reader(qb));
-    let (dir, qdir) = (SpatialDirectory::open(&r).unwrap().unwrap(), SpatialDirectory::open(&qr).unwrap().unwrap());
+    let (dir, qdir) =
+        (SpatialDirectory::open(&r).unwrap().unwrap(), SpatialDirectory::open(&qr).unwrap().unwrap());
     let per_entity = hot_bytes_per_entity(&r);
     let (mut ours, mut theirs, mut our_cells, mut their_cells) = (0u64, 0u64, 0usize, 0usize);
     let mut rng = Rng(6);
@@ -503,7 +518,11 @@ fn a_one_screen_viewport_on_drawing_100k_stays_under_a_byte_budget_and_a_fractio
     );
     assert!(hits.cells.len() <= qhits.cells.len(), "straddlers swell no cell, so no more cells are hit");
     assert!(cells <= status_quo, "the cells are no bigger without the long entities");
-    assert!(list < s.block.len() as u64 / 2, "a viewport reads pages, not the whole list: {list} of {}", s.block.len());
+    assert!(
+        list < s.block.len() as u64 / 2,
+        "a viewport reads pages, not the whole list: {list} of {}",
+        s.block.len()
+    );
 }
 
 /// The status quo artifact: one directory over every entity.
@@ -633,7 +652,10 @@ fn a_straddler_is_listed_once_at_its_level_and_never_again_below_it() {
     let base = STRADDLER_HEADER_LEN + PAGE_LEN * 3;
     // entry 0 (id 10, level 0) is rewritten to the id of entry 6 (id 30, level 2)
     put32(&mut twice, base + 32, 30);
-    assert!(matches!(parse(&twice), Err(StraddlerError::Placement { .. } | StraddlerError::Duplicate { .. })));
+    assert!(matches!(
+        parse(&twice),
+        Err(StraddlerError::Placement { .. } | StraddlerError::Duplicate { .. })
+    ));
 }
 
 #[test]
@@ -673,7 +695,10 @@ fn the_block_round_trips_is_deterministic_and_independent_of_arrival_order() {
     assert_eq!(bytes.len(), STRADDLER_HEADER_LEN + 3 * PAGE_LEN + 9 * STRADDLER_ENTRY_LEN);
     // entries come back finest level first, in page order, with their payload locations
     let ids: Vec<u32> = lists.entries().iter().map(|e| e.id.index()).collect();
-    assert_eq!(ids.iter().copied().collect::<BTreeSet<_>>(), (1..=3).flat_map(|l| (0..3).map(move |k| 10 * l + k)).collect());
+    assert_eq!(
+        ids.iter().copied().collect::<BTreeSet<_>>(),
+        (1..=3).flat_map(|l| (0..3).map(move |k| 10 * l + k)).collect()
+    );
     assert!(ids[..3].iter().all(|i| (10..13).contains(i)), "level 0 first: {ids:?}");
     assert!(ids[6..].iter().all(|i| (30..33).contains(i)), "level 2 last: {ids:?}");
     assert_eq!(lists.pages(), 3);

@@ -25,7 +25,6 @@
 //! the reference P5.2 gives every payload (`PayloadLoc`), so the payload is stored exactly once wherever
 //! the writer put it.
 
-#![allow(unused)]
 use crate::directory::{
     Aabb, BuiltDirectory, CELL_CAPACITY, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN,
     SpatialDirectory, hilbert,
@@ -79,7 +78,10 @@ pub const STRADDLER_RULES: &[(&str, &str)] = &[
         "STR-07",
         "an entry at the wrong level: its longer side must exceed the factor times the cell size of its level and must not exceed it for any coarser level",
     ),
-    ("STR-08", "an entity listed twice, in one page, in one level or in two"),
+    (
+        "STR-08",
+        "an entity id at or above the NP-18 ceiling, or an entity listed twice, in one page, in one level or in two",
+    ),
     (
         "STR-09",
         "a block cannot be built from the input: a duplicate entity id, an entity that is no straddler at any level, or more entities than NP-18 allows",
@@ -179,7 +181,9 @@ impl core::fmt::Display for StraddlerError {
             StraddlerError::Placement { id, level } => {
                 write!(f, "{rule}: entity {id} is listed at level {level}, which is not its level")
             }
-            StraddlerError::Duplicate { id } => write!(f, "{rule}: entity {id} is listed twice or out of order"),
+            StraddlerError::Duplicate { id } => {
+                write!(f, "{rule}: entity {id} is listed twice or out of order")
+            }
             StraddlerError::Build { reason } => write!(f, "{rule}: {reason}"),
         }
     }
@@ -233,7 +237,20 @@ pub struct LevelScale {
 
 impl LevelScale {
     /// A scale from a factor above 1 and one cell size per level, finest first: finite and above 0.
-    pub fn new(factor: f64, sizes: Vec<f64>) -> Result<LevelScale, StraddlerError> { unimplemented!("P5.3: not written yet") }
+    pub fn new(factor: f64, sizes: Vec<f64>) -> Result<LevelScale, StraddlerError> {
+        if !(factor.is_finite() && factor > 1.0) {
+            return Err(StraddlerError::Header { reason: "the factor is not finite and above 1" });
+        }
+        if sizes.is_empty() || sizes.len() > MAX_HEIGHT as usize {
+            return Err(StraddlerError::Header { reason: "a level count of 0 or above the height ceiling" });
+        }
+        for (l, s) in sizes.iter().enumerate() {
+            if !(s.is_finite() && *s > 0.0) {
+                return Err(StraddlerError::Scale { level: l as u16 });
+            }
+        }
+        Ok(LevelScale { factor, sizes })
+    }
 
     /// The factor.
     pub fn factor(&self) -> f64 {
@@ -247,7 +264,9 @@ impl LevelScale {
 
     /// The level an entity of this longer side is listed at: the coarsest level whose cell size it
     /// exceeds by the factor. `None` when it exceeds none, which is a local entity.
-    pub fn level_of(&self, extent: f64) -> Option<u16> { unimplemented!("P5.3: not written yet") }
+    pub fn level_of(&self, extent: f64) -> Option<u16> {
+        self.sizes.iter().rposition(|s| extent > self.factor * *s).map(|l| l as u16)
+    }
 }
 
 /// The entities of an artifact split into those a cell holds and those a list does.
@@ -330,7 +349,36 @@ fn finest_cell(entities: &[EntityBox]) -> Result<f64, StraddlerError> {
 /// Each level above the leaves grows the cell by the square root of [`FANOUT`] (a node covers [`FANOUT`]
 /// times the area of the one below), capped at the longer side of the local drawing. The tests hold the
 /// estimate to the cells a directory over the local entities really builds.
-pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, StraddlerError> { unimplemented!("P5.3: not written yet") }
+pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, StraddlerError> {
+    let build = |reason| StraddlerError::Build { reason };
+    if entities.is_empty() {
+        return Err(build("there is no entity"));
+    }
+    let mut order: Vec<usize> = (0..entities.len()).collect();
+    order.sort_by(|a, b| {
+        extent(&entities[*a].bounds)
+            .total_cmp(&extent(&entities[*b].bounds))
+            .then(entities[*a].id.cmp(&entities[*b].id))
+    });
+    let shorter: Vec<EntityBox> = order[..entities.len().div_ceil(2)].iter().map(|i| entities[*i]).collect();
+    let s0 = finest_cell(&shorter)?;
+    if !(s0.is_finite() && s0 > 0.0) {
+        // entities that cell sizes cannot measure (points): nothing is long
+        let scale = LevelScale::new(factor, vec![f64::MAX])?;
+        return Ok(Classification { local: entities.to_vec(), long: Vec::new(), scale });
+    }
+    let (local, long): (Vec<EntityBox>, Vec<EntityBox>) =
+        entities.iter().partition(|e| extent(&e.bounds) <= factor * s0);
+    if local.is_empty() {
+        return Err(build("every entity is long"));
+    }
+    let world = local.iter().skip(1).fold(local[0].bounds, |w, e| union(&w, &e.bounds));
+    let cap = extent(&world).max(s0);
+    let grow = f64::from(FANOUT).sqrt();
+    let sizes: Vec<f64> = (0..height_for(local.len())).map(|l| (s0 * grow.powi(l as i32)).min(cap)).collect();
+    let scale = LevelScale::new(factor, sizes)?;
+    Ok(Classification { local, long, scale })
+}
 
 /// A straddler block as built.
 #[derive(Clone, Debug, PartialEq)]
@@ -366,7 +414,77 @@ fn put_box(out: &mut Vec<u8>, b: &Aabb) {
 /// stay tight: a viewport reads the pages its box touches and no others. The result depends on the set
 /// of entities and not on the order they arrive in. An entity that is no straddler at any level is
 /// refused: it belongs in a cell.
-pub fn build_straddlers(scale: &LevelScale, long: &[LongEntity]) -> Result<BuiltStraddlers, StraddlerError> { unimplemented!("P5.3: not written yet") }
+pub fn build_straddlers(scale: &LevelScale, long: &[LongEntity]) -> Result<BuiltStraddlers, StraddlerError> {
+    let build = |reason| StraddlerError::Build { reason };
+    if long.len() > pvec_numeric::MAX_ENTITIES {
+        return Err(build("more entities than NP-18 allows"));
+    }
+    let mut ids: Vec<u32> = long.iter().map(|e| e.id.index()).collect();
+    ids.sort_unstable();
+    if ids.windows(2).any(|w| w[0] == w[1]) {
+        return Err(build("an entity id is used twice"));
+    }
+    let levels = scale.sizes.len();
+    let mut by_level: Vec<Vec<&LongEntity>> = vec![Vec::new(); levels];
+    for e in long {
+        let level =
+            scale.level_of(extent(&e.bounds)).ok_or(build("an entity is no straddler at any level"))?;
+        by_level[usize::from(level)].push(e);
+    }
+    let mut per_level = vec![0u32; levels];
+    let mut pages: Vec<(u16, Vec<&LongEntity>)> = Vec::new();
+    for (level, group) in by_level.iter_mut().enumerate() {
+        per_level[level] = group.len() as u32;
+        if group.is_empty() {
+            continue;
+        }
+        let world = group.iter().skip(1).fold(group[0].bounds, |w, e| union(&w, &e.bounds));
+        let (wx, wy) = (world.max()[0] - world.min()[0], world.max()[1] - world.min()[1]);
+        let grid = |v: f64, lo: f64, w: f64| -> u32 {
+            if w > 0.0 { (((v - lo) / w * 65535.0).floor().clamp(0.0, 65535.0)) as u32 } else { 0 }
+        };
+        group.sort_by_key(|e| {
+            let key = hilbert(
+                grid(e.bounds.min()[0], world.min()[0], wx),
+                grid(e.bounds.min()[1], world.min()[1], wy),
+            );
+            (key, e.id.index())
+        });
+        for chunk in group.chunks(STRADDLER_PAGE) {
+            pages.push((level as u16, chunk.to_vec()));
+        }
+    }
+    let total: usize = pages.iter().map(|p| p.1.len()).sum();
+    let mut bytes =
+        Vec::with_capacity(STRADDLER_HEADER_LEN + PAGE_LEN * pages.len() + STRADDLER_ENTRY_LEN * total);
+    bytes.extend_from_slice(&MAGIC);
+    bytes.extend_from_slice(&VERSION.to_le_bytes());
+    bytes.extend_from_slice(&0u16.to_le_bytes());
+    for v in [levels as u32, pages.len() as u32, total as u32, 0] {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    put_f64(&mut bytes, scale.factor);
+    for l in 0..MAX_HEIGHT as usize {
+        put_f64(&mut bytes, scale.sizes.get(l).copied().unwrap_or(0.0));
+    }
+    debug_assert_eq!(bytes.len(), STRADDLER_HEADER_LEN);
+    for (level, page) in &pages {
+        let bounds = page.iter().skip(1).fold(page[0].bounds, |w, e| union(&w, &e.bounds));
+        bytes.extend_from_slice(&level.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&(page.len() as u32).to_le_bytes());
+        put_box(&mut bytes, &bounds);
+    }
+    for (_, page) in &pages {
+        for e in page {
+            put_box(&mut bytes, &e.bounds);
+            for v in [e.id.index(), e.payload.block, e.payload.slot] {
+                bytes.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+    }
+    Ok(BuiltStraddlers { bytes, entries: total as u32, pages: pages.len() as u32, per_level })
+}
 
 /// One listed straddler.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -401,7 +519,122 @@ impl StraddlerLists {
     /// Parses and validates a block against [`STRADDLER_RULES`] before anything is searched. The length
     /// is held to the header before any page or entry is allocated, so a header that claims four
     /// billion entries costs nothing.
-    pub fn parse(bytes: &[u8], limits: &Limits) -> Result<StraddlerLists, StraddlerError> { unimplemented!("P5.3: not written yet") }
+    pub fn parse(bytes: &[u8], limits: &Limits) -> Result<StraddlerLists, StraddlerError> {
+        let length = bytes.len() as u64;
+        if bytes.len() < STRADDLER_HEADER_LEN {
+            return Err(StraddlerError::Length { length, expected: STRADDLER_HEADER_LEN as u64 });
+        }
+        let (levels, pages, entries) = (u32_at(bytes, 8), u32_at(bytes, 12), u32_at(bytes, 16));
+        let expected = STRADDLER_HEADER_LEN as u64
+            + PAGE_LEN as u64 * u64::from(pages)
+            + STRADDLER_ENTRY_LEN as u64 * u64::from(entries);
+        if length != expected {
+            return Err(StraddlerError::Length { length, expected });
+        }
+        let header = |reason| Err(StraddlerError::Header { reason });
+        if bytes[..4] != MAGIC {
+            return header("bad magic");
+        }
+        if u16_at(bytes, 4) != VERSION {
+            return header("unsupported version");
+        }
+        if u16_at(bytes, 6) != 0 || u32_at(bytes, 20) != 0 {
+            return header("a flag or reserved field is set");
+        }
+        if levels == 0 || levels > MAX_HEIGHT {
+            return header("a level count of 0 or above the height ceiling");
+        }
+        let factor = f64_at(bytes, 24);
+        if !(factor.is_finite() && factor > 1.0) {
+            return header("the factor is not finite and above 1");
+        }
+        limits.check(LimitKind::EntitiesPerArtifact, u64::from(entries)).map_err(StraddlerError::Limit)?;
+
+        let mut sizes = Vec::with_capacity(levels as usize);
+        for l in 0..MAX_HEIGHT as usize {
+            let s = f64_at(bytes, 32 + 8 * l);
+            if l < levels as usize {
+                if !(s.is_finite() && s > 0.0) {
+                    return Err(StraddlerError::Scale { level: l as u16 });
+                }
+                sizes.push(s);
+            } else if s != 0.0 {
+                return Err(StraddlerError::Scale { level: l as u16 });
+            }
+        }
+        let scale = LevelScale { factor, sizes };
+
+        let read_box = |at: usize| -> Option<Aabb> {
+            let mut v = [0.0f64; 4];
+            for (k, slot) in v.iter_mut().enumerate() {
+                *slot = check_value(f64_at(bytes, at + 8 * k)).ok()?;
+            }
+            Aabb::new([v[0], v[1]], [v[2], v[3]]).ok()
+        };
+
+        let mut parsed: Vec<Page> = Vec::with_capacity(pages as usize);
+        let mut next = 0usize;
+        let mut previous = 0u16;
+        for i in 0..pages as usize {
+            let at = STRADDLER_HEADER_LEN + PAGE_LEN * i;
+            let shape = |reason| Err(StraddlerError::List { list: i as u32, reason });
+            let level = u16_at(bytes, at);
+            if u16_at(bytes, at + 2) != 0 {
+                return shape("a reserved field is set");
+            }
+            if u32::from(level) >= levels || level < previous {
+                return shape("levels are not ascending and below the level count");
+            }
+            previous = level;
+            let count = u32_at(bytes, at + 4) as usize;
+            if count == 0 || count > STRADDLER_PAGE {
+                return shape("a page has no entries or more than a page holds");
+            }
+            let bounds = read_box(at + 8).ok_or(StraddlerError::Bounds { index: i as u32, list: true })?;
+            parsed.push(Page { level, bounds, first: next, count });
+            next += count;
+        }
+        if next != entries as usize {
+            return Err(StraddlerError::List {
+                list: pages.saturating_sub(1),
+                reason: "entries do not tile the pages",
+            });
+        }
+
+        let base = STRADDLER_HEADER_LEN + PAGE_LEN * pages as usize;
+        let mut out: Vec<StraddlerRef> = Vec::with_capacity(entries as usize);
+        let mut seen: BTreeSet<u32> = BTreeSet::new();
+        for (pi, page) in parsed.iter().enumerate() {
+            let mut union_box: Option<Aabb> = None;
+            for k in page.first..page.first + page.count {
+                let at = base + STRADDLER_ENTRY_LEN * k;
+                let b = read_box(at).ok_or(StraddlerError::Bounds { index: k as u32, list: false })?;
+                let id = u32_at(bytes, at + 32);
+                let eid = EntityId::new(id).map_err(|_| StraddlerError::Duplicate { id })?;
+                if !seen.insert(id) {
+                    return Err(StraddlerError::Duplicate { id });
+                }
+                // the coarsest level this entity exceeds: it must be this page's
+                if scale.level_of(extent(&b)) != Some(page.level) {
+                    return Err(StraddlerError::Placement { id, level: page.level });
+                }
+                union_box = Some(union_box.map_or(b, |u| union(&u, &b)));
+                out.push(StraddlerRef {
+                    id: eid,
+                    bounds: b,
+                    payload: PayloadLoc { block: u32_at(bytes, at + 36), slot: u32_at(bytes, at + 40) },
+                    level: page.level,
+                });
+            }
+            if union_box != Some(page.bounds) {
+                return Err(StraddlerError::List {
+                    list: pi as u32,
+                    reason: "bounds are not the union of the entries",
+                });
+            }
+        }
+        Ok(StraddlerLists { scale, pages: parsed, entries: out })
+    }
 
     /// The scale the entries were classified against.
     pub fn scale(&self) -> &LevelScale {
@@ -409,33 +642,45 @@ impl StraddlerLists {
     }
 
     /// Entries in all lists.
-    pub fn len(&self) -> usize { unimplemented!("P5.3: not written yet") }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
 
     /// Whether there are no entries.
-    pub fn is_empty(&self) -> bool { unimplemented!("P5.3: not written yet") }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 
     /// Pages in all lists.
-    pub fn pages(&self) -> usize { unimplemented!("P5.3: not written yet") }
+    pub fn pages(&self) -> usize {
+        self.pages.len()
+    }
 
     /// Entries at a level.
-    pub fn level_len(&self, level: u16) -> usize { unimplemented!("P5.3: not written yet") }
+    pub fn level_len(&self, level: u16) -> usize {
+        self.pages.iter().filter(|p| p.level == level).map(|p| p.count).sum()
+    }
 
     /// Every entry, finest level first, in page order.
-    pub fn entries(&self) -> &[StraddlerRef] { unimplemented!("P5.3: not written yet") }
+    pub fn entries(&self) -> &[StraddlerRef] {
+        &self.entries
+    }
 
     /// The straddlers whose bounds touch `q` (closed boxes), finest level first, in page order. A page
     /// whose bounds miss `q` is skipped whole. Each entity is yielded at most once because the block
     /// lists it once (STR-08).
     pub fn query<'a>(&'a self, q: &'a Aabb) -> impl Iterator<Item = StraddlerRef> + 'a {
-        if true {
-            unimplemented!("P5.3: not written yet")
-        }
-        std::iter::empty()
+        self.pages.iter().filter(move |p| p.bounds.intersects(q)).flat_map(move |p| {
+            self.entries[p.first..p.first + p.count].iter().filter(move |e| e.bounds.intersects(q)).copied()
+        })
     }
 
     /// The bytes of the block a reader fetches for `q`: the header and every page descriptor, which it
     /// needs to choose pages, and the entries of the pages whose bounds touch `q`.
-    pub fn read_bytes(&self, q: &Aabb) -> u64 { unimplemented!("P5.3: not written yet") }
+    pub fn read_bytes(&self, q: &Aabb) -> u64 {
+        let touched: usize = self.pages.iter().filter(|p| p.bounds.intersects(q)).map(|p| p.count).sum();
+        (STRADDLER_HEADER_LEN + PAGE_LEN * self.pages.len() + STRADDLER_ENTRY_LEN * touched) as u64
+    }
 }
 
 /// What one viewport touches: the cells of the directory and the straddlers of the lists.
@@ -453,7 +698,12 @@ pub struct ViewportHits {
 /// A list is searched whenever `q` touches its bounds, not only when `q` touches a node of that level,
 /// because the directory is built over the local entities alone: a straddler crossing a gap in the
 /// drawing is reachable only through its list, and a query that matched no cell must still find it.
-pub fn query_viewport(dir: &SpatialDirectory, long: Option<&StraddlerLists>, q: &Aabb) -> ViewportHits { unimplemented!("P5.3: not written yet") }
+pub fn query_viewport(dir: &SpatialDirectory, long: Option<&StraddlerLists>, q: &Aabb) -> ViewportHits {
+    ViewportHits {
+        cells: dir.query(q).collect(),
+        long: long.map(|l| l.query(q).collect()).unwrap_or_default(),
+    }
+}
 
 /// The entities of a viewport, each once. `cell_entities` are the entity ids the caller decoded from
 /// the hit cells' blocks; an entity that is also in a straddler list (a writer that referenced it from
@@ -462,7 +712,16 @@ pub fn query_viewport(dir: &SpatialDirectory, long: Option<&StraddlerLists>, q: 
 pub fn unique_entities(
     cell_entities: impl IntoIterator<Item = EntityId>,
     hits: &ViewportHits,
-) -> Vec<EntityId> { unimplemented!("P5.3: not written yet") }
+) -> Vec<EntityId> {
+    let mut seen: BTreeSet<EntityId> = BTreeSet::new();
+    let mut out = Vec::new();
+    for id in cell_entities.into_iter().chain(hits.long.iter().map(|s| s.id)) {
+        if seen.insert(id) {
+            out.push(id);
+        }
+    }
+    out
+}
 
 /// One level of the congestion report.
 #[derive(Clone, Debug, PartialEq)]
@@ -504,10 +763,74 @@ pub struct CongestionReport {
 }
 
 /// The congestion metrics of a directory and its lists.
-pub fn congestion(dir: &SpatialDirectory, long: Option<&StraddlerLists>) -> CongestionReport { unimplemented!("P5.3: not written yet") }
+pub fn congestion(dir: &SpatialDirectory, long: Option<&StraddlerLists>) -> CongestionReport {
+    let sizes: Vec<f64> = long.map_or_else(Vec::new, |l| l.scale.sizes.clone());
+    let top = dir.height().saturating_sub(1) as u16;
+    let mut levels = Vec::new();
+    let mut straddlers = 0u64;
+    let mut coarsest_page = 0u64;
+    for (l, size) in sizes.iter().enumerate() {
+        let n = long.map_or(0, |x| x.level_len(l as u16)) as u64;
+        let pages = long.map_or(0, |x| x.pages.iter().filter(|p| usize::from(p.level) == l).count()) as u64;
+        let list_bytes = PAGE_LEN as u64 * pages + STRADDLER_ENTRY_LEN as u64 * n;
+        if n > 0 {
+            coarsest_page = STRADDLER_ENTRY_LEN as u64 * n.min(STRADDLER_PAGE as u64);
+        }
+        straddlers += n;
+        levels.push(LevelCongestion {
+            level: l as u16,
+            cell_size: *size,
+            entities: if l == 0 { dir.entities() + n } else { n },
+            straddlers: n,
+            pages,
+            list_bytes,
+        });
+    }
+    let (block_bytes, index_bytes) = long.map_or((0, 0), |x| {
+        let index = (STRADDLER_HEADER_LEN + PAGE_LEN * x.pages.len()) as u64;
+        (index + STRADDLER_ENTRY_LEN as u64 * x.entries.len() as u64, index)
+    });
+    let root_references = long.map_or(0, |x| x.level_len(top)) as u64;
+    let coarsest_bytes = NODE_LEN as u64 + index_bytes + coarsest_page;
+    CongestionReport {
+        local_entities: dir.entities(),
+        straddlers,
+        levels,
+        root_references,
+        block_bytes,
+        index_bytes,
+        coarsest_bytes,
+    }
+}
 
 /// The baseline the straddler lists are measured against: promote each entity to the lowest node of
 /// `built` whose bounds contain it (the root when none lower does). Returns how many of `entities` land
 /// at each level, finest first. Nothing writes this placement; it exists so the report can say what the
 /// naive answer would have put in the root.
-pub fn ancestor_placement(built: &BuiltDirectory, entities: &[EntityBox]) -> Vec<u64> { unimplemented!("P5.3: not written yet") }
+pub fn ancestor_placement(built: &BuiltDirectory, entities: &[EntityBox]) -> Vec<u64> {
+    let nodes = built_nodes(built);
+    let height = nodes.last().map_or(1, |n| usize::from(n.3) + 1);
+    let mut counts = vec![0u64; height];
+    for e in entities {
+        let level;
+        // walk down from the root while one child contains the entity
+        let mut at = nodes.len() - 1;
+        'down: loop {
+            let (_, first, count, l) = nodes[at];
+            if l == 0 {
+                level = 0;
+                break;
+            }
+            for c in first..first + count {
+                if nodes[c as usize].0.contains(&e.bounds) {
+                    at = c as usize;
+                    continue 'down;
+                }
+            }
+            level = usize::from(l);
+            break;
+        }
+        counts[level] += 1;
+    }
+    counts
+}

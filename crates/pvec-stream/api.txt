@@ -67,3 +67,84 @@ directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
 directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
 directory.rs: impl Iterator for CellCursor<'_>
 lib.rs: pub use directory::*
+lib.rs: pub use straddler::*
+straddler.rs: pub const STRADDLER_FACTOR: f64
+straddler.rs: pub const STRADDLER_HEADER_LEN: usize
+straddler.rs: pub const PAGE_LEN: usize
+straddler.rs: pub const STRADDLER_PAGE: usize
+straddler.rs: pub const STRADDLER_ENTRY_LEN: usize
+straddler.rs: pub const STRADDLER_RULES: &[(&str, &str)]
+straddler.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum StraddlerError
+straddler.rs: StraddlerError::Length { length: u64, expected: u64 }
+straddler.rs: StraddlerError::Header { reason: &'static str }
+straddler.rs: StraddlerError::Limit(LimitExceeded)
+straddler.rs: StraddlerError::Bounds { index: u32, list: bool }
+straddler.rs: StraddlerError::List { list: u32, reason: &'static str }
+straddler.rs: StraddlerError::Scale { level: u16 }
+straddler.rs: StraddlerError::Placement { id: u32, level: u16 }
+straddler.rs: StraddlerError::Duplicate { id: u32 }
+straddler.rs: StraddlerError::Build { reason: &'static str }
+straddler.rs: StraddlerError::rule(&self) -> &'static str
+straddler.rs: impl core::fmt::Display for StraddlerError
+straddler.rs: impl std::error::Error for StraddlerError {}
+straddler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)] pub struct PayloadLoc
+straddler.rs: PayloadLoc.block: u32
+straddler.rs: PayloadLoc.slot: u32
+straddler.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct LongEntity
+straddler.rs: LongEntity.id: EntityId
+straddler.rs: LongEntity.bounds: Aabb
+straddler.rs: LongEntity.payload: PayloadLoc
+straddler.rs: pub fn extent(b: &Aabb) -> f64
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct LevelScale
+straddler.rs: LevelScale::new(factor: f64, sizes: Vec<f64>) -> Result<LevelScale, StraddlerError>
+straddler.rs: LevelScale::factor(&self) -> f64
+straddler.rs: LevelScale::sizes(&self) -> &[f64]
+straddler.rs: LevelScale::level_of(&self, extent: f64) -> Option<u16>
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct Classification
+straddler.rs: Classification.local: Vec<EntityBox>
+straddler.rs: Classification.long: Vec<EntityBox>
+straddler.rs: Classification.scale: LevelScale
+straddler.rs: pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, StraddlerError>
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct BuiltStraddlers
+straddler.rs: BuiltStraddlers.bytes: Vec<u8>
+straddler.rs: BuiltStraddlers.entries: u32
+straddler.rs: BuiltStraddlers.pages: u32
+straddler.rs: BuiltStraddlers.per_level: Vec<u32>
+straddler.rs: pub fn build_straddlers(scale: &LevelScale, long: &[LongEntity]) -> Result<BuiltStraddlers, StraddlerError>
+straddler.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct StraddlerRef
+straddler.rs: StraddlerRef.id: EntityId
+straddler.rs: StraddlerRef.bounds: Aabb
+straddler.rs: StraddlerRef.payload: PayloadLoc
+straddler.rs: StraddlerRef.level: u16
+straddler.rs: #[derive(Clone, Debug)] pub struct StraddlerLists
+straddler.rs: StraddlerLists::parse(bytes: &[u8], limits: &Limits) -> Result<StraddlerLists, StraddlerError>
+straddler.rs: StraddlerLists::scale(&self) -> &LevelScale
+straddler.rs: StraddlerLists::len(&self) -> usize
+straddler.rs: StraddlerLists::is_empty(&self) -> bool
+straddler.rs: StraddlerLists::pages(&self) -> usize
+straddler.rs: StraddlerLists::level_len(&self, level: u16) -> usize
+straddler.rs: StraddlerLists::entries(&self) -> &[StraddlerRef]
+straddler.rs: StraddlerLists::query<'a>(&'a self, q: &'a Aabb) -> impl Iterator<Item = StraddlerRef> + 'a
+straddler.rs: StraddlerLists::read_bytes(&self, q: &Aabb) -> u64
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct ViewportHits
+straddler.rs: ViewportHits.cells: Vec<Cell>
+straddler.rs: ViewportHits.long: Vec<StraddlerRef>
+straddler.rs: pub fn query_viewport(dir: &SpatialDirectory, long: Option<&StraddlerLists>, q: &Aabb) -> ViewportHits
+straddler.rs: pub fn unique_entities(cell_entities: impl IntoIterator<Item = EntityId>, hits: &ViewportHits) -> Vec<EntityId>
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct LevelCongestion
+straddler.rs: LevelCongestion.level: u16
+straddler.rs: LevelCongestion.cell_size: f64
+straddler.rs: LevelCongestion.entities: u64
+straddler.rs: LevelCongestion.straddlers: u64
+straddler.rs: LevelCongestion.pages: u64
+straddler.rs: LevelCongestion.list_bytes: u64
+straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct CongestionReport
+straddler.rs: CongestionReport.local_entities: u64
+straddler.rs: CongestionReport.straddlers: u64
+straddler.rs: CongestionReport.levels: Vec<LevelCongestion>
+straddler.rs: CongestionReport.root_references: u64
+straddler.rs: CongestionReport.block_bytes: u64
+straddler.rs: CongestionReport.index_bytes: u64
+straddler.rs: CongestionReport.coarsest_bytes: u64
+straddler.rs: pub fn congestion(dir: &SpatialDirectory, long: Option<&StraddlerLists>) -> CongestionReport
+straddler.rs: pub fn ancestor_placement(built: &BuiltDirectory, entities: &[EntityBox]) -> Vec<u64>
