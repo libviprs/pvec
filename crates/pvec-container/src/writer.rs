@@ -196,9 +196,9 @@ impl fmt::Display for WriteError {
             WriteError::Unsupported { what } => write!(f, "{rule}: cannot store a {what}"),
             WriteError::Hot(e) => write!(f, "{rule}: {e}"),
             WriteError::Arena(e) => write!(f, "{rule}: {e}"),
-            WriteError::Stream(e) => write!(f, "{rule}: component stream: {e:?}"),
+            WriteError::Stream(e) => write!(f, "{rule}: {e}"),
             WriteError::Container(e) => write!(f, "{rule}: {e}"),
-            WriteError::Geometry(e) => write!(f, "{rule}: {e:?}"),
+            WriteError::Geometry(e) => write!(f, "{rule}: {e}"),
         }
     }
 }
@@ -334,9 +334,20 @@ fn checked_bounds(bounds: Bounds) -> Option<Bounds> {
     Some(Bounds { min: [v[0], v[1]], max: [v[2], v[3]] })
 }
 
-fn bounds_of(curve: &Curve) -> Result<Bounds, WriteError> {
-    let b = curve.bounds()?;
-    Ok(Bounds { min: [b.min().x, b.min().y], max: [b.max().x, b.max().y] })
+/// The box of some points, from comparisons only.
+fn boxed(points: &[[f64; 2]]) -> Bounds {
+    let first = points.first().copied().unwrap_or([0.0, 0.0]);
+    points.iter().fold(Bounds { min: first, max: first }, |b, p| union(b, Bounds { min: *p, max: *p }))
+}
+
+fn hull(x: &[f64], y: &[f64]) -> Bounds {
+    let points: Vec<[f64; 2]> = x.iter().zip(y).map(|(a, b)| [*a, *b]).collect();
+    boxed(&points)
+}
+
+/// The box of an axis-aligned ellipse (or circle) around `centre`, from additions only.
+fn around(centre: [f64; 2], rx: f64, ry: f64) -> Bounds {
+    Bounds { min: [centre[0] - rx, centre[1] - ry], max: [centre[0] + rx, centre[1] + ry] }
 }
 
 fn xy(p: Point2) -> [f64; 2] {
@@ -471,7 +482,7 @@ impl ContainerWriter {
         self.push_advanced(meta, shape)
     }
 
-    /// Adds a curve of the semantic model (P3.1) with the bounds the model reports for it.
+    /// Adds a curve of the semantic model (P3.1).
     ///
     /// Polylines, B-splines, rational B-splines and Bezier curves are stored as they are; a trimmed
     /// line is the segment between its end points; a circle, an ellipse or an arc of either is stored
@@ -479,6 +490,11 @@ impl ContainerWriter {
     /// machine is refused, never approximated: an unbounded line, a composite (its segments need ids,
     /// so push them with [`ContainerWriter::push_composite`]), a trimmed spline, and a rotated frame
     /// (its angle needs `atan2`, whose last bit belongs to the C library and not to the format).
+    ///
+    /// The bounds are computed here from basic arithmetic only and are conservative: the box of the
+    /// vertices, the control points, the end points, or, for a circle, an ellipse or any arc of
+    /// either, the whole circle's or ellipse's box. The model's own bounds are not used because for an
+    /// arc they go through `sin_cos` and `atan2`, which would put a libm result into the artifact.
     pub fn push_curve(
         &mut self,
         id: EntityId,
@@ -488,16 +504,15 @@ impl ContainerWriter {
     ) -> Result<(), WriteError> {
         let unsupported = |what| Err(WriteError::Unsupported { what });
         let axis_aligned = |x: pvec_geometry::Vector2| x.x == 1.0 && x.y == 0.0;
+        let meta = |bounds| EntityMeta { id, style, cell, bounds };
         match curve {
             Curve::Line(_) => unsupported("unbounded line"),
             Curve::Composite(_) => unsupported("composite curve"),
             Curve::Polyline(p) => {
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
                 let points: Vec<[f64; 2]> = p.vertices().iter().map(|v| xy(*v)).collect();
-                self.push_polyline(meta, &points)
+                self.push_polyline(meta(boxed(&points)), &points)
             }
             Curve::BSpline(b) => {
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
                 let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
                 let spec = SplineSpec {
                     degree: b.degree(),
@@ -508,10 +523,9 @@ impl ContainerWriter {
                     closed: b.is_declared_closed(),
                     periodic: false,
                 };
-                self.push_spline(meta, spec)
+                self.push_spline(meta(hull(&x, &y)), spec)
             }
             Curve::RationalBSpline(b) => {
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
                 let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
                 let spec = SplineSpec {
                     degree: b.degree(),
@@ -522,10 +536,9 @@ impl ContainerWriter {
                     closed: b.is_declared_closed(),
                     periodic: false,
                 };
-                self.push_spline(meta, spec)
+                self.push_spline(meta(hull(&x, &y)), spec)
             }
             Curve::Bezier(b) => {
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
                 let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
                 let degree = b.degree();
                 let mut knots = vec![0.0; degree + 1];
@@ -539,16 +552,16 @@ impl ContainerWriter {
                     closed: b.is_declared_closed(),
                     periodic: false,
                 };
-                self.push_spline(meta, spec)
+                self.push_spline(meta(hull(&x, &y)), spec)
             }
             Curve::Circle(c) => {
                 if !axis_aligned(c.placement().x_axis()) {
                     return unsupported("rotated placement");
                 }
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
+                let o = xy(c.placement().origin());
                 self.push_circle_arc(
-                    meta,
-                    xy(c.placement().origin()),
+                    meta(around(o, c.radius(), c.radius())),
+                    o,
                     c.radius(),
                     [0.0, core::f64::consts::TAU],
                 )
@@ -557,11 +570,11 @@ impl ContainerWriter {
                 if !axis_aligned(e.placement().x_axis()) {
                     return unsupported("rotated placement");
                 }
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
+                let o = xy(e.placement().origin());
                 let radii = [e.semi_axis_1(), e.semi_axis_2()];
                 self.push_ellipse_arc(
-                    meta,
-                    xy(e.placement().origin()),
+                    meta(around(o, radii[0], radii[1])),
+                    o,
                     radii,
                     [0.0, 0.0, core::f64::consts::TAU],
                 )
@@ -573,25 +586,36 @@ impl ContainerWriter {
                 } else {
                     (trim.start, trim.span)
                 };
-                let meta = EntityMeta { id, style, cell, bounds: bounds_of(curve)? };
                 match t.basis() {
                     Curve::Line(_) => {
                         let d = curve.domain();
-                        let (a, b) = (curve.eval(d.lo())?, curve.eval(d.hi())?);
-                        self.push_line(meta, xy(a), xy(b))
+                        let (a, b) = (xy(curve.eval(d.lo())?), xy(curve.eval(d.hi())?));
+                        self.push_line(meta(boxed(&[a, b])), a, b)
                     }
                     Curve::Circle(c) => {
                         if !axis_aligned(c.placement().x_axis()) {
                             return unsupported("rotated placement");
                         }
-                        self.push_circle_arc(meta, xy(c.placement().origin()), c.radius(), [start, sweep])
+                        let o = xy(c.placement().origin());
+                        self.push_circle_arc(
+                            meta(around(o, c.radius(), c.radius())),
+                            o,
+                            c.radius(),
+                            [start, sweep],
+                        )
                     }
                     Curve::Ellipse(e) => {
                         if !axis_aligned(e.placement().x_axis()) {
                             return unsupported("rotated placement");
                         }
+                        let o = xy(e.placement().origin());
                         let radii = [e.semi_axis_1(), e.semi_axis_2()];
-                        self.push_ellipse_arc(meta, xy(e.placement().origin()), radii, [0.0, start, sweep])
+                        self.push_ellipse_arc(
+                            meta(around(o, radii[0], radii[1])),
+                            o,
+                            radii,
+                            [0.0, start, sweep],
+                        )
                     }
                     _ => unsupported("trimmed spline"),
                 }
@@ -687,6 +711,8 @@ impl ContainerWriter {
             return Ok(Vec::new());
         };
         let mut items: Vec<&AdvancedItem> = self.advanced.iter().collect();
+        // The advanced builder sorts by id itself, so this sort is a second line of defence and is not
+        // what the mutation check relies on (that is the hot path); the writer still owns the order.
         if self.sorts(SortKey::EntityId) {
             items.sort_by_key(|i| i.meta.id);
         }

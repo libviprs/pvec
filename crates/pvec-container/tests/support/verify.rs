@@ -8,8 +8,8 @@ use pvec_components::read_streams;
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices};
 use pvec_container::blocks::hot::HotBlockView;
-use pvec_container::directory::{BlockKind, parse_directory};
-use pvec_container::{DirectoryPointer, Header, Manifest};
+use pvec_container::directory::{BlockKind, parse_directory_checked};
+use pvec_container::{ByteRange, DirectoryPointer, Header, Manifest};
 use std::collections::BTreeSet;
 
 pub struct Summary {
@@ -43,8 +43,11 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
         return Err(format!("the directory ends at {}, the file at {len}", ptr.offset + ptr.length));
     }
     let table = &bytes[ptr.offset as usize..(ptr.offset + ptr.length) as usize];
+    let manifest_range = ByteRange { offset: header.manifest_offset, length: header.manifest_length };
+    let directory_range = ByteRange { offset: ptr.offset, length: ptr.length };
     let entries =
-        parse_directory(table, header.header_len as u64, len).map_err(|e| format!("directory: {e}"))?;
+        parse_directory_checked(table, header.header_len as u64, len, manifest_range, directory_range)
+            .map_err(|e| format!("directory: {e}"))?;
     if entries.is_empty() {
         return Err("no blocks".to_string());
     }

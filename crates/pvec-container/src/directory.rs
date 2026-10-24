@@ -326,7 +326,10 @@ pub const DIRECTORY_RULES: &[(&str, &str)] = &[
         "DIR-04",
         "a must-understand block of a kind the reader does not know (an optional one is kept and skipped)",
     ),
-    ("DIR-05", "a codec id the reader does not know"),
+    (
+        "DIR-05",
+        "a codec id the reader does not know on a must-understand block (on an optional one the entry is kept and skipped)",
+    ),
     (
         "DIR-06",
         "a block that starts before the end of the header, runs past the end of the artifact, or whose end overflows",
@@ -335,6 +338,10 @@ pub const DIRECTORY_RULES: &[(&str, &str)] = &[
     ("DIR-08", "a block that starts before the previous block ends"),
     ("DIR-09", "stored and uncompressed lengths that differ while the codec is 0"),
     ("DIR-10", "bounds that are not finite, in range and ordered, or non-zero without the has-bounds flag"),
+    (
+        "DIR-11",
+        "a block that overlaps the manifest or the directory table (checked when the caller knows where they are)",
+    ),
 ];
 
 fn u16_at(b: &[u8], at: usize) -> u16 {
@@ -383,8 +390,10 @@ pub fn parse_directory(
         if BlockKind::from_id(kind).is_none() && flags & FLAG_MUST_UNDERSTAND != 0 {
             return Err(DirectoryError::UnknownRequiredKind { index, id: kind });
         }
+        // codec ids follow the kind rule (ADR 0008): one this reader does not know refuses a block it
+        // must understand and is kept, to be skipped, on a block it need not
         let codec = b[e::CODEC];
-        if codec != CODEC_NONE {
+        if codec != CODEC_NONE && flags & FLAG_MUST_UNDERSTAND != 0 {
             return Err(DirectoryError::UnknownCodec { index, id: codec });
         }
         let (offset, stored_length) = (u64_at(b, e::OFFSET), u32_at(b, e::STORED_LENGTH));
@@ -408,7 +417,7 @@ pub fn parse_directory(
         }
         previous_end = offset + u64::from(stored_length);
         let uncompressed_length = u32_at(b, e::UNCOMPRESSED_LENGTH);
-        if uncompressed_length != stored_length {
+        if codec == CODEC_NONE && uncompressed_length != stored_length {
             return Err(DirectoryError::LengthMismatch { index });
         }
         let raw = [f64_at(b, e::MIN_X), f64_at(b, e::MIN_Y), f64_at(b, e::MAX_X), f64_at(b, e::MAX_Y)];
@@ -442,13 +451,23 @@ pub fn parse_directory(
     Ok(out)
 }
 
-/// [`parse_directory`], and in addition no block may overlap the manifest or the directory table.
+/// [`parse_directory`], and in addition no block may overlap the manifest or the directory table,
+/// which the caller knows from the header and the manifest.
 pub fn parse_directory_checked(
     table: &[u8],
     header_len: u64,
     artifact_len: u64,
-    _manifest: ByteRange,
-    _directory: ByteRange,
+    manifest: ByteRange,
+    directory: ByteRange,
 ) -> Result<Vec<BlockEntry>, DirectoryError> {
-    parse_directory(table, header_len, artifact_len)
+    let entries = parse_directory(table, header_len, artifact_len)?;
+    for (index, e) in entries.iter().enumerate() {
+        let (start, end) = (e.offset, e.offset + u64::from(e.stored_length));
+        for r in [manifest, directory] {
+            if start < r.offset.saturating_add(r.length) && end > r.offset {
+                return Err(DirectoryError::OverlapsReserved { index });
+            }
+        }
+    }
+    Ok(entries)
 }

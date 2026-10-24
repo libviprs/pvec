@@ -82,7 +82,7 @@ not split a group by size (that is tuning, P8.6), so a group is one block.\n\n\
 | stream id | the streams of the component set | the capability id, which is the id of a stream (P3.7) |\n\n\
 The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a \
 composite names other records of its own block, so a curve cannot be split from its segments by cell; an \
-advanced curve given another cell is refused. The records are in ascending `EntityId` order and the \
+advanced curve given another cell is refused. In short, cell 0 is both no cell (the advanced set and the component set) and an ordinary cell a hot block can be in, so a block in cell 0 does not say which it is: P5.1 gives the spatial directory the way to tell the two apart (the block kind does today). The records are in ascending `EntityId` order and the \
 arenas number their entries in the order the writer first needs them, which is the same order, so shared \
 payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities \
 are those the caller listed plus those of the streams pushed, each once, and each is declared with the \
@@ -96,7 +96,7 @@ The producer id, the producer version and the corpus revision are exactly what t
 writer, and there is no timestamp. No absolute path, host name, user name, environment variable, \
 process id, hash-map iteration order or address-derived value is read, so a file written from another \
 directory, host or time zone is the same file. Bounds are normalised so that negative zero is written as \
-positive zero. The writer calls no transcendental function: a curve whose stored form would need one \
+positive zero. The bounds `push_curve` derives for a model curve are conservative boxes from comparisons and additions only (vertices, control points, end points, or the whole circle or ellipse for an arc), because the model's own bounds of an arc go through `sin_cos` and `atan2`. The writer calls no transcendental function: a curve whose stored form would need one \
 (an arc on a rotated frame, whose angle needs `atan2`) is refused (WRT-08) instead of being stored with \
 a last bit that belongs to the C library of the machine.\n\n\
 ### 4.5 Refusals\n\n\

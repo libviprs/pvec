@@ -364,12 +364,13 @@ Flag bit 0 is must-understand: a reader that does not know the kind refuses the 
 | DIR-02 | a reserved field is not zero |
 | DIR-03 | a flag bit other than must-understand and has-bounds is set |
 | DIR-04 | a must-understand block of a kind the reader does not know (an optional one is kept and skipped) |
-| DIR-05 | a codec id the reader does not know |
+| DIR-05 | a codec id the reader does not know on a must-understand block (on an optional one the entry is kept and skipped) |
 | DIR-06 | a block that starts before the end of the header, runs past the end of the artifact, or whose end overflows |
 | DIR-07 | a block that does not start on a multiple of 8 |
 | DIR-08 | a block that starts before the previous block ends |
 | DIR-09 | stored and uncompressed lengths that differ while the codec is 0 |
 | DIR-10 | bounds that are not finite, in range and ordered, or non-zero without the has-bounds flag |
+| DIR-11 | a block that overlaps the manifest or the directory table (checked when the caller knows where they are) |
 
 ### 4.3 Canonical order
 
@@ -384,13 +385,13 @@ Every order below is decided by the writer from the content, never from the orde
 | capability id | the manifest's capability table | the stable id from the registry (P3.4), each declared once |
 | stream id | the streams of the component set | the capability id, which is the id of a stream (P3.7) |
 
-The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a composite names other records of its own block, so a curve cannot be split from its segments by cell; an advanced curve given another cell is refused. The records are in ascending `EntityId` order and the arenas number their entries in the order the writer first needs them, which is the same order, so shared payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities are those the caller listed plus those of the streams pushed, each once, and each is declared with the version and requirement the registry gives it; the manifest's minimum reader is the highest the declared capabilities ask for, and at least 1.0.0.
+The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a composite names other records of its own block, so a curve cannot be split from its segments by cell; an advanced curve given another cell is refused. In short, cell 0 is both no cell (the advanced set and the component set) and an ordinary cell a hot block can be in, so a block in cell 0 does not say which it is: P5.1 gives the spatial directory the way to tell the two apart (the block kind does today). The records are in ascending `EntityId` order and the arenas number their entries in the order the writer first needs them, which is the same order, so shared payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities are those the caller listed plus those of the streams pushed, each once, and each is declared with the version and requirement the registry gives it; the manifest's minimum reader is the highest the declared capabilities ask for, and at least 1.0.0.
 
 Every scalar of every block, the directory and the manifest is written with an explicit little-endian conversion, so nothing depends on the byte order of the host that wrote it. The tests write the same input on x86_64 and on arm64 and compare the digests with a committed golden file.
 
 ### 4.4 Stable metadata
 
-The producer id, the producer version and the corpus revision are exactly what the caller gives the writer, and there is no timestamp. No absolute path, host name, user name, environment variable, process id, hash-map iteration order or address-derived value is read, so a file written from another directory, host or time zone is the same file. Bounds are normalised so that negative zero is written as positive zero. The writer calls no transcendental function: a curve whose stored form would need one (an arc on a rotated frame, whose angle needs `atan2`) is refused (WRT-08) instead of being stored with a last bit that belongs to the C library of the machine.
+The producer id, the producer version and the corpus revision are exactly what the caller gives the writer, and there is no timestamp. No absolute path, host name, user name, environment variable, process id, hash-map iteration order or address-derived value is read, so a file written from another directory, host or time zone is the same file. Bounds are normalised so that negative zero is written as positive zero. The bounds `push_curve` derives for a model curve are conservative boxes from comparisons and additions only (vertices, control points, end points, or the whole circle or ellipse for an arc), because the model's own bounds of an arc go through `sin_cos` and `atan2`. The writer calls no transcendental function: a curve whose stored form would need one (an arc on a rotated frame, whose angle needs `atan2`) is refused (WRT-08) instead of being stored with a last bit that belongs to the C library of the machine.
 
 ### 4.5 Refusals
 
