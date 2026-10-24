@@ -62,9 +62,6 @@ pub enum Family {
 pub enum Expect {
     /// Refuse, naming one of these rules.
     Refuse(Vec<&'static str>),
-    /// Refuse, naming some rule: what matters is that the file does not parse, not which check
-    /// noticed first (a truncated file is short whichever field the reader reached).
-    RefuseAny,
     /// Accept: the mutation is something a reader must tolerate.
     Accept,
 }
@@ -295,8 +292,30 @@ pub fn catalog(bases: &[Base]) -> Vec<Case> {
     truncation(&mut b, &drawing);
     trailing(&mut b, &line);
     tags(&mut b, &drawing, &line, &splines, &streams);
-    corruption(&mut b, &drawing, &composites, &streams);
+    let gapped = get("gapped");
+    corruption(&mut b, &drawing, &composites, &streams, &gapped);
     sweeps(&mut b);
+    // A cut or a removed byte is refused for being wrong in whichever way the reader reached first, so
+    // those cases allow any rule some other case pins for a refusal, and no other.
+    let known: Vec<&'static str> = {
+        let mut v: Vec<&'static str> = b
+            .cases
+            .iter()
+            .filter(|c| c.requires == Requires::Parse)
+            .filter_map(|c| if let Expect::Refuse(r) = &c.expect { Some(r.clone()) } else { None })
+            .flatten()
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    };
+    for c in b.cases.iter_mut().filter(|c| c.family == Family::Truncation) {
+        if let Expect::Refuse(r) = &mut c.expect {
+            if r.is_empty() {
+                *r = known.clone();
+            }
+        }
+    }
     b.cases
 }
 
@@ -714,7 +733,14 @@ fn truncation(b: &mut Builder, d: &At) {
     for (name, at) in cuts {
         // a cut of a valid file is refused for being short; which rule says so depends on what the
         // reader reached first
-        b.add(F, Requires::Parse, name, "drawing", vec![Op::Truncate { len: at }], Expect::RefuseAny);
+        b.add(
+            F,
+            Requires::Parse,
+            name,
+            "drawing",
+            vec![Op::Truncate { len: at }],
+            Expect::Refuse(Vec::new()),
+        );
     }
 }
 
@@ -832,7 +858,7 @@ fn tags(b: &mut Builder, d: &At, line: &At, s: &At, st: &At) {
     );
 }
 
-fn corruption(b: &mut Builder, d: &At, c: &At, st: &At) {
+fn corruption(b: &mut Builder, d: &At, c: &At, st: &At, gapped: &At) {
     use Family::Corruption as F;
     let e = |i: usize, name: &str| d.layout.blocks[i].entry + entry_field(name);
     b.refuse(
@@ -925,6 +951,82 @@ fn corruption(b: &mut Builder, d: &At, c: &At, st: &At) {
         vec![Op::u32(poly_runs + 4, 9)],
         &["HOT-13", "HOT-14"],
     );
+    // the layout rules of the reference
+    b.refuse(
+        F,
+        "header_length_below_fixed_header",
+        "drawing",
+        vec![Op::u16(h::HEADER_LEN, 32)],
+        &["BadHeaderLength"],
+    );
+    // the manifest's one directory pointer says it points at a spatial directory, not the block directory
+    b.refuse(
+        F,
+        "directory_pointer_of_another_kind",
+        "drawing",
+        vec![Op::u32(d.layout.pointer_table + dir::KIND, 3)],
+        &["LAYOUT-03"],
+    );
+    b.refuse(
+        F,
+        "manifest_not_after_header",
+        "drawing",
+        vec![Op::u64(h::MANIFEST_OFFSET, 72)],
+        &["LAYOUT-01"],
+    );
+    let caps = d.layout.manifest + pvec_container::Manifest::FIXED_LEN;
+    let (id0, id1) = (u32_at(d.bytes, caps + cap::ID), u32_at(d.bytes, caps + cap::SIZE + cap::ID));
+    assert!(id0 < id1, "the base declares its capabilities in ascending order");
+    b.refuse(
+        F,
+        "capabilities_out_of_order",
+        "drawing",
+        vec![Op::u32(caps + cap::ID, id1), Op::u32(caps + cap::SIZE + cap::ID, id0)],
+        &["LAYOUT-02"],
+    );
+    let records = d.layout.blocks.iter().find(|x| x.kind == 2).expect("a records block");
+    b.refuse(
+        F,
+        "record_count_disagrees_with_directory",
+        "drawing",
+        vec![Op::u32(
+            records.entry + entry_field("count"),
+            u32_at(d.bytes, records.entry + entry_field("count")) - 1,
+        )],
+        &["CONSIST-02"],
+    );
+    // the last arena is filed under a payload kind nobody asks for, so the advanced blocks are one short
+    let trims = d.block(3, TRIMS);
+    b.refuse(
+        F,
+        "arena_block_missing",
+        "drawing",
+        vec![Op::u16(trims.entry + entry_field("subtype"), 6)],
+        &["CONSIST-04"],
+    );
+    b.refuse(
+        F,
+        "directory_empty",
+        "drawing",
+        vec![Op::Truncate { len: d.layout.directory }, Op::u64(d.layout.pointer_table + dir::LENGTH, 0)],
+        &["LAYOUT-06"],
+    );
+    // a legal gap of zero bytes between blocks and before the directory, with a byte of it set
+    let g = &gapped.layout;
+    b.refuse(
+        F,
+        "padding_nonzero_between_blocks",
+        "gapped",
+        vec![Op::u8(g.blocks[1].offset - 1, 1)],
+        &["LAYOUT-08"],
+    );
+    b.refuse(
+        F,
+        "padding_nonzero_before_directory",
+        "gapped",
+        vec![Op::u8(g.directory - 1, 1)],
+        &["LAYOUT-08"],
+    );
     let set = st.block(4, 0).offset;
     b.refuse(F, "stream_length_lies", "streams", vec![Op::u32(set + 16 + 12, 0x00FF_FFFF)], &["STREAM-04"]);
     b.refuse(F, "stream_set_trailing_bytes", "streams", vec![Op::u32(set + 8, 0)], &["STREAM-07"]);
@@ -951,7 +1053,7 @@ fn sweeps(b: &mut Builder) {
                     requires: Requires::Parse,
                     base,
                     ops: vec![Op::Truncate { len }],
-                    expect: Expect::RefuseAny,
+                    expect: Expect::Refuse(Vec::new()),
                 });
             }
         }
@@ -967,7 +1069,7 @@ fn sweeps(b: &mut Builder) {
                     requires: Requires::Parse,
                     base,
                     ops: vec![Op::Remove { at, len: 1 }],
-                    expect: Expect::RefuseAny,
+                    expect: Expect::Refuse(Vec::new()),
                 });
             }
         }

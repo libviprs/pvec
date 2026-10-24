@@ -202,6 +202,8 @@ const NAMED: &[(Family, &str)] = &[
     (Family::Corruption, "corruption/stream_set_trailing_bytes"),
     (Family::Corruption, "corruption/stream_reserved_nonzero"),
     (Family::Corruption, "corruption/manifest_not_after_header"),
+    (Family::Corruption, "corruption/directory_pointer_of_another_kind"),
+    (Family::Corruption, "corruption/header_length_below_fixed_header"),
     (Family::Corruption, "corruption/capabilities_out_of_order"),
     (Family::Corruption, "corruption/record_count_disagrees_with_directory"),
     (Family::Corruption, "corruption/arena_block_missing"),
@@ -309,6 +311,13 @@ fn the_reference_reader_satisfies_every_case_it_provides() {
     let report = run_full(ReferenceReader::new(), Limits::default());
     assert!(report.passed(), "{}", report.summary());
     assert!(report.ran > 10_000, "ran only {}", report.ran);
+    // the calibration of Limits::default: the reference's largest read, over the whole corpus
+    let floor = Limits::default().alloc_floor;
+    assert!(
+        report.peak_allocation * 2 < floor,
+        "the reference peaked at {}, the floor is {floor}",
+        report.peak_allocation
+    );
     let skipped: usize = report.skipped.values().sum();
     assert_eq!(report.ran + skipped, cases.len());
     // what a later issue has to provide is counted, not hidden
@@ -468,11 +477,8 @@ fn parse_cases() -> Vec<Case> {
 #[test]
 fn a_reader_that_accepts_hostile_files_fails_every_case_that_wants_a_refusal() {
     let report = run_with(AcceptsAnything, Limits::default());
-    let wants_refusal = corpus()
-        .1
-        .iter()
-        .filter(|c| !is_sweep(c) && matches!(c.expect, Expect::Refuse(_) | Expect::RefuseAny))
-        .count();
+    let wants_refusal =
+        corpus().1.iter().filter(|c| !is_sweep(c) && matches!(c.expect, Expect::Refuse(_))).count();
     assert!(wants_refusal > 80, "{wants_refusal}");
     assert_eq!(report.failures.len(), wants_refusal, "{}", report.summary());
     assert!(report.failures.iter().all(|(_, f)| *f == Failure::Accepted));
@@ -640,7 +646,9 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
         let Expect::Refuse(rules) = &c.expect else { continue };
         assert!(!rules.is_empty(), "{}: a refusal with no rule", c.name);
         for r in rules {
-            seen.insert(*r);
+            if !seen.insert(*r) {
+                continue;
+            }
             let documented = if ["DIR-", "HOT-", "ARN-"].iter().any(|p| r.starts_with(p)) {
                 docs.contains(&format!("| {r} |"))
             } else if ["STREAM-", "COMP-"].iter().any(|p| r.starts_with(p)) {
@@ -806,7 +814,11 @@ fn every_layout_consistency_and_limit_rule_of_the_reference_is_pinned_by_a_case_
 
 #[test]
 fn a_sweep_case_wants_a_rule_the_container_knows_not_just_any_refusal() {
-    let names = ["truncation/prefix/drawing/100", "truncation/remove_byte/drawing/100"];
+    let (_, cases) = corpus();
+    let first =
+        |prefix: &str| cases.iter().find(|c| c.name.starts_with(prefix)).expect("a sweep case").name.clone();
+    let names = [first("truncation/prefix/drawing/"), first("truncation/remove_byte/drawing/")];
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let report = run_subset(WrongRule, &names, Limits::default());
     assert_eq!(report.failures.len(), 2, "{}", report.summary());
     assert!(

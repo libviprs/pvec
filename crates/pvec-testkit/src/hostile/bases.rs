@@ -1,5 +1,6 @@
 //! The valid artifacts every case is a mutation of.
 
+use super::mutate::Layout;
 use crate::generate::{GENERATOR_VERSION, PRODUCER_PREFIX, generate_all, generate_record};
 use crate::records::*;
 use pvec_capabilities::Registry;
@@ -160,7 +161,34 @@ fn splines() -> Base {
     from_record("splines", &es)
 }
 
-/// Every base: the emitted corpus fixtures by id, then `drawing`, `splines`, `composites`, `streams`.
+/// `drawing` with a legal gap of eight zero bytes before its second block and another before the
+/// directory. The writer leaves none (every block is a multiple of 8 long), so without this base the
+/// padding rules of the reader could never be reached.
+fn gapped(drawing: &[u8]) -> Vec<u8> {
+    let l = Layout::of(drawing);
+    let (b1, dir) = (l.blocks[1].offset, l.directory);
+    let mut v = drawing[..b1].to_vec();
+    v.extend_from_slice(&[0; 8]);
+    v.extend_from_slice(&drawing[b1..dir]);
+    v.extend_from_slice(&[0; 8]);
+    v.extend_from_slice(&drawing[dir..]);
+    let new_dir = dir + 16;
+    // the pointer to the directory, and the offset of every block after the first
+    let ptr = l.pointer_table + pvec_container::spec::dir::OFFSET;
+    v[ptr..ptr + 8].copy_from_slice(&(new_dir as u64).to_le_bytes());
+    for (i, b) in l.blocks.iter().enumerate().skip(1) {
+        let at = new_dir + i * pvec_container::directory::ENTRY_LEN + entry_offset();
+        v[at..at + 8].copy_from_slice(&((b.offset + 8) as u64).to_le_bytes());
+    }
+    v
+}
+
+fn entry_offset() -> usize {
+    super::mutate::entry_field("offset")
+}
+
+/// Every base: the emitted corpus fixtures by id, then `drawing`, `splines`, `composites`, `streams`
+/// and `gapped`.
 pub fn bases(bundle: &Bundle) -> Vec<Base> {
     let mut out: Vec<Base> = generate_all(bundle)
         .expect("the bundle registers")
@@ -171,5 +199,7 @@ pub fn bases(bundle: &Bundle) -> Vec<Base> {
     out.push(splines());
     out.push(Base { name: "composites".to_string(), bytes: composites() });
     out.push(Base { name: "streams".to_string(), bytes: streams() });
+    let gap = gapped(&out.iter().find(|b| b.name == "drawing").expect("drawing").bytes);
+    out.push(Base { name: "gapped".to_string(), bytes: gap });
     out
 }
