@@ -164,7 +164,8 @@ fn digests_from_child(dir: Option<&std::path::Path>, env: &[(&str, &str)]) -> BT
     assert!(out.status.success(), "the child failed: {}", String::from_utf8_lossy(&out.stderr));
     String::from_utf8_lossy(&out.stdout)
         .lines()
-        .filter_map(|l| l.strip_prefix("DIGEST "))
+        // libtest prints "test name ... " in front of the first line, so look for the marker, not a prefix
+        .filter_map(|l| l.split_once("DIGEST ").map(|(_, rest)| rest))
         .filter_map(|l| l.split_once(' '))
         .map(|(n, d)| (n.to_string(), d.to_string()))
         .collect()

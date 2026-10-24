@@ -194,7 +194,7 @@ fn advanced_curves_are_a_record_block_and_five_arenas_in_cell_zero() {
     let records: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Records)).collect();
     let arenas: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Arena)).collect();
     assert_eq!(records.len(), 1);
-    assert_eq!(records[0].count, 340, "300 splines and 40 composites");
+    assert_eq!(records[0].count, 370, "300 splines and 70 composites");
     assert_eq!(arenas.iter().map(|e| e.subtype).collect::<Vec<_>>(), [1, 2, 3, 4, 5]);
     for e in records.iter().chain(&arenas) {
         assert_eq!(e.cell, 0);

@@ -427,6 +427,19 @@ impl HotBlockBuilder {
 
     /// The block, entities ordered by `EntityId` so the same set of entities always gives the same bytes.
     pub fn finish(self) -> Result<AlignedBytes, HotError> {
+        self.finish_ordered(true)
+    }
+
+    /// The block with the entities in the order they were pushed, which breaks the canonical order.
+    ///
+    /// The writer's mutation check uses it to show that its own sort by `EntityId` is load-bearing;
+    /// nothing else should.
+    #[doc(hidden)]
+    pub fn finish_unsorted(self) -> Result<AlignedBytes, HotError> {
+        self.finish_ordered(false)
+    }
+
+    fn finish_ordered(self, sorted: bool) -> Result<AlignedBytes, HotError> {
         let n = self.ids.len();
         if n == 0 {
             return Err(HotError::EmptyBlock);
@@ -440,6 +453,9 @@ impl HotBlockBuilder {
             if self.ids[w[0]] == self.ids[w[1]] {
                 return Err(HotError::DuplicateId { id: self.ids[w[0]] });
             }
+        }
+        if !sorted {
+            order = (0..n).collect();
         }
         let is_poly = self.kind == HotKind::Polyline;
         let m = if is_poly { self.columns[0].len() as u64 } else { 0 };

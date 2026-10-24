@@ -218,6 +218,7 @@ blocks/hot.rs: HotBlockBuilder::push_polyline(&mut self, id: EntityId, style: u3
 blocks/hot.rs: HotBlockBuilder::push_circle_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), HotError>
 blocks/hot.rs: HotBlockBuilder::push_ellipse_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), HotError>
 blocks/hot.rs: HotBlockBuilder::finish(self) -> Result<AlignedBytes, HotError>
+blocks/hot.rs: HotBlockBuilder::finish_unsorted(self) -> Result<AlignedBytes, HotError>
 blocks/hot.rs: #[derive(Clone, Copy, Debug)] pub struct HotBlockView<'a>
 blocks/hot.rs: HotBlockView<'a>::parse(bytes: &'a [u8]) -> Result<HotBlockView<'a>, HotError>
 blocks/hot.rs: HotBlockView<'a>::kind(&self) -> HotKind
@@ -264,7 +265,6 @@ directory.rs: BlockEntry.codec: u8
 directory.rs: BlockEntry::block_kind(&self) -> Option<BlockKind>
 directory.rs: BlockEntry::encode(&self) -> [u8; ENTRY_LEN]
 directory.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DirectoryError
-directory.rs: DirectoryError::NotImplemented
 directory.rs: DirectoryError::BadLength { length: u64 }
 directory.rs: DirectoryError::NonZeroReserved { index: usize }
 directory.rs: DirectoryError::BadFlags { index: usize, bits: u8 }
@@ -279,7 +279,7 @@ directory.rs: DirectoryError::rule(&self) -> &'static str
 directory.rs: impl fmt::Display for DirectoryError
 directory.rs: impl std::error::Error for DirectoryError {}
 directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
-directory.rs: pub fn parse_directory(_table: &[u8], _header_len: u64, _artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
+directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -469,7 +469,6 @@ writer.rs: EntityMeta.style: u32
 writer.rs: EntityMeta.cell: u32
 writer.rs: EntityMeta.bounds: Bounds
 writer.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum WriteError
-writer.rs: WriteError::NotImplemented
 writer.rs: WriteError::Empty
 writer.rs: WriteError::DuplicateId { id: u32 }
 writer.rs: WriteError::CellOnAdvanced { id: u32 }
@@ -487,15 +486,20 @@ writer.rs: WriteError::rule(&self) -> &'static str
 writer.rs: pub const WRITE_RULES: &[(&str, &str)]
 writer.rs: impl fmt::Display for WriteError
 writer.rs: impl std::error::Error for WriteError {}
+writer.rs: impl From<HotError> for WriteError
+writer.rs: impl From<ArenaError> for WriteError
+writer.rs: impl From<StreamError> for WriteError
+writer.rs: impl From<ContainerError> for WriteError
+writer.rs: impl From<GeometryError> for WriteError
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: ContainerWriter::new(config: WriterConfig) -> ContainerWriter
-writer.rs: ContainerWriter::skip_sort(&mut self, _key: SortKey) {}
-writer.rs: ContainerWriter::push_line(&mut self, _meta: EntityMeta, _a: [f64; 2], _b: [f64; 2]) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_polyline(&mut self, _meta: EntityMeta, _points: &[[f64; 2]]) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_circle_arc(&mut self, _meta: EntityMeta, _centre: [f64; 2], _radius: f64, _start_sweep: [f64; 2]) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_ellipse_arc(&mut self, _meta: EntityMeta, _centre: [f64; 2], _radii: [f64; 2], _angles: [f64; 3]) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_spline(&mut self, _meta: EntityMeta, _spec: SplineSpec<'_>) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_composite(&mut self, _meta: EntityMeta, _segments: &[EntityId], _trims: Option<&[[f64; 2]]>, _closed: bool) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_curve(&mut self, _id: EntityId, _style: u32, _cell: u32, _curve: &Curve) -> Result<(), WriteError>
-writer.rs: ContainerWriter::push_stream(&mut self, _stream: Stream) -> Result<(), WriteError>
+writer.rs: ContainerWriter::skip_sort(&mut self, key: SortKey)
+writer.rs: ContainerWriter::push_line(&mut self, meta: EntityMeta, a: [f64; 2], b: [f64; 2]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_circle_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_ellipse_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>

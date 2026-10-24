@@ -247,7 +247,7 @@ fn frac(n: u64, d: f64) -> f64 {
 }
 
 fn hot(i: u32, cells: u32) -> Ent {
-    let (id, style, cell) = (i, i % 5, i % cells);
+    let (id, style, cell) = (i, i % 5, (i / 4) % cells);
     let u = u64::from(i);
     let p = |k: u64| [frac((u * 37 + k * 11) % 1000, 8.0), frac((u * 91 + k * 5) % 997, 1000.0)];
     match i % 4 {

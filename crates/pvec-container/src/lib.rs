@@ -15,6 +15,7 @@ pub mod header;
 pub mod manifest;
 pub mod spec;
 pub mod writer;
+mod writer_doc;
 
 pub use error::ContainerError;
 pub use header::{ChecksumAlgorithm, Header};
