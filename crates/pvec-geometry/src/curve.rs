@@ -362,8 +362,9 @@ impl Trimmed {
         Ok(Trimmed { basis: Box::new(basis), trim: Trim { start, span, reversed: trim.reversed } })
     }
 
-    /// Whether the trim covers the whole period of a circle or ellipse basis, under the same
-    /// tolerance as NP-11 rule 3. It says nothing about where the trim starts or which way it runs: a
+    /// Whether the trim covers the whole period of a circle or ellipse basis, under the tolerance of
+    /// NP-11 rule 3. The parameters as given are not kept, so the magnitude term of that tolerance is
+    /// taken from the stored start and span; for any parameters of ordinary size the two agree. It says nothing about where the trim starts or which way it runs: a
     /// whole-period trim that starts at `pi` is a full period and is still a trimmed curve. A line or a
     /// spline has no period, so it is never a full period.
     pub fn is_full_period(&self) -> bool {
