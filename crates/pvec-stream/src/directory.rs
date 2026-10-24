@@ -382,7 +382,7 @@ pub struct BuiltDirectory {
 
 /// The Hilbert distance of a cell of a 65,536 x 65,536 grid (the classic rotate-and-flip walk, integer
 /// arithmetic only).
-fn hilbert(mut x: u32, mut y: u32) -> u32 {
+pub(crate) fn hilbert(mut x: u32, mut y: u32) -> u32 {
     let n: u32 = 1 << 16;
     let mut d: u64 = 0;
     let mut s = n / 2;

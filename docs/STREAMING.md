@@ -182,6 +182,111 @@ Two things follow and are left for the follow-up (see the scope note). In the P5
 
 Delivered here: the reference type and its size budget, the placement pass with the ceiling and the straddler hand-off, the report, the reference arrays with their byte layout, and read-side deduplication. Not delivered, and moved to a follow-up issue: a container block kind that stores the arrays (the layout above is ready for one; the kind needs a CONTAINER.md entry and a decision on lazy per-cell reads that #117 asks for), splitting the advanced curve set by cell (it is one set in cell 0, so it has no cell to reference from), and re-measuring and tightening the stated fraction once P5.3 lands.
 
+## 3. Long entities and straddlers
+
+One 400-metre grid line or a drawing-wide hatch boundary touches nearly every cell, and both obvious answers turn the first read into the whole file. Promoting it to the lowest node that contains it puts it in the root, which every viewport reads. Duplicating a reference to it into every cell it crosses puts it everywhere. There is a third cost I care about as much: a long entity left inside a cell stretches that cell's bounds to cover it, and a stretched cell is fetched by every viewport that touches the stretched box, whether or not anything in the cell is on screen. So I keep long entities out of the cells.
+
+### 3.1 The design
+
+An entity is a *straddler at a level* when its longer side exceeds that level's cell size by `STRADDLER_FACTOR`, which is 4: it is at least four cells long there. It is listed once, at the coarsest level where that holds, with its own bounds and the location of its payload, and it is not listed at any finer level. The directory is built over the entities that are not straddlers, so its cells stay tight. The payload is stored once, wherever the writer put it (P5.2's rule), and the list carries a reference to it.
+
+ADR 0005 kept one answer in reserve beside the packed R-tree: leaf cells with a long-entity bucket (its model M4), which P1.6 measured as a single bucket. I split that bucket by scale, one list per level, because one bucket makes an entity that is merely wide cost what a drawing-wide one costs: both are read by every viewport that reads the bucket. With a list per level the wide entity is in a level whose pages a viewport only reads when it touches them. The factor is the one knob. 4 is my starting value, chosen so that an entity is long only when it would touch four or more cells in a row at that level, and it is a named constant so P8.6 can tune it against real drawings.
+
+The cell size of each level is a model of the directory, not a measurement of it, because the directory has to be built after the classification and the classification needs the sizes. `classify` takes the shorter half of the entities (by longer side, ties by entity id) and builds a directory over them. The finest cell size is the lower quartile of the longer sides of that directory's leaves. As long as fewer than half of the entities are long none of them is in the shorter half, so the estimate is the size of a cell of ordinary entities however many straddlers there are and wherever they lie. I tried reading the sizes from a directory built over everything first and dropped it: on `stress-long`, with a third of the entities long and scattered, nearly every leaf is stretched and the estimate was too large to call anything long. Half the entities make cells larger by at most the square root of two than all of the local ones would, which keeps a borderline entity local rather than listing it by mistake. Each level above grows the cell by the square root of the fanout (a node covers `FANOUT` times the area of the one below), capped at the longer side of the local drawing, so a level no longer than the drawing can never be exceeded. A drawing in which most entities are long has no ordinary cell to measure. Little or nothing is then called long, which is still correct, only not useful.
+
+What the model costs: an entity up to four cells long stays in a cell, and does stretch it by up to four cells. On `stress-long` that is the 2,032 lines between one and four cells long. The factor is what bounds the damage.
+
+### 3.2 Layout
+
+The straddler block is its own run of bytes with the magic `PVST`. It is not a block kind of the container yet, for the same reason P5.2's reference arrays are not (its scope note): a kind needs a CONTAINER.md entry and a decision on lazy reads, and one follow-up, #136, does it for the straddler block and #131 for the reference arrays. Until then it is built by `build_straddlers`, parsed by `StraddlerLists::parse`, and carried by whoever holds the bytes. All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 4 | magic | bytes | `PVST` |
+| 4 | 2 | version | u16 | 1 |
+| 6 | 2 | flags | u16 | zero |
+| 8 | 4 | levels | u32 | levels of the scale, 1 to 8, finest first |
+| 12 | 4 | pages | u32 | page descriptors |
+| 16 | 4 | entries | u32 | entries in all pages |
+| 20 | 4 | reserved | u32 | zero |
+| 24 | 8 | factor | f64 | the factor the entries were classified with, above 1 |
+| 32 | 64 | cell_size | 8 x f64 | the cell size of each level, zero past `levels` |
+
+Then `pages` descriptors of 40 bytes, finest level first, then the entries in the same order. A level's list is cut into pages of at most 64 entries (`STRADDLER_PAGE`), which start near each other so a page's bounds stay tight: inside a level the entries are ordered by the Hilbert key of the lower-left corner of their bounds, ties by entity id, so the same set gives the same bytes whatever order it arrives in.
+
+| offset | size | name | encoding | meaning |
+|---|---|---|---|---|
+| 0 | 2 | level | u16 | the level of every entry of the page |
+| 2 | 2 | reserved | u16 | zero |
+| 4 | 4 | count | u32 | entries in the page, 1 to 64 |
+| 8 | 32 | bounds | 4 x f64 | min x, min y, max x, max y: the union of the page's entries |
+
+An entry is 44 bytes: the entity's bounds as four f64, then its entity id, the block and the slot of its payload as three u32. The block and slot are P5.2's `PayloadRef` (eight bytes), so what its placement pass hands over goes straight in through `LongEntity::from(PlacedEntity)`. A page is 2,816 bytes at full size and its descriptor is 1.4 per cent of that.
+
+### 3.3 What a reader validates
+
+`StraddlerLists::parse` checks all of this before a query runs. The length is held to the header before any page or entry is allocated, so a header that claims four billion entries costs nothing.
+
+| rule | meaning |
+|---|---|
+| STR-01 | the block is shorter than its header, or its length is not the header plus 40 bytes per declared page plus 44 bytes per declared entry |
+| STR-02 | a magic, version, flags or reserved field that is not defined, a level count of 0 or above the height ceiling, or a factor that is not finite and above 1 |
+| STR-03 | more entries declared than the artifact ceiling of the reader's limits (P4.8) |
+| STR-04 | an entry or page whose bounds are not finite, in range and ordered |
+| STR-05 | a page that breaks the shape: levels not ascending or not below the level count, no entries or more than a page holds, entries that do not tile the pages exactly, or bounds that are not the union of the page's entries |
+| STR-06 | a level cell size that is not finite and above 0, or a size declared beyond the levels |
+| STR-07 | an entry at the wrong level: its longer side must exceed the factor times the cell size of its level and must not exceed it for any coarser level |
+| STR-08 | an entity id at or above the NP-18 ceiling, or an entity listed twice, in one page, in one level or in two |
+| STR-09 | a block cannot be built from the input: a duplicate entity id, an entity that is no straddler at any level, or more entities than NP-18 allows |
+
+STR-07 and STR-08 together are the structural form of "a straddler listed at level 2 is not listed again at level 5": every entry's level is a function of its own bounds and the declared scale, and no entity appears twice, so a reader can check the placement without trusting the writer.
+
+### 3.4 Queries
+
+`query_viewport` returns the cells `SpatialDirectory::query` yields (chapter 1.4) and the straddlers whose bounds touch the box, finest level first and in page order. A page whose bounds miss the box is skipped whole, and a reader fetches only the pages it keeps: `StraddlerLists::read_bytes` is the header, every page descriptor and the entries of the pages touched.
+
+The issue says to union the straddler lists of every level the query descends through. I read that as every level whose list the box touches, and not only the levels where it touches a tree node, because the directory is built over the local entities alone. A long line that crosses a gap in the drawing is reachable only through its list, and a viewport in the gap matches no cell and must still find it. `gap` is the fixture for that: a viewport between its two clusters touches no cell and finds the line.
+
+Each entity is yielded once. A straddler is listed once (STR-08), and `unique_entities` merges the entities a caller decoded from the hit cells with the straddlers, so an entity that is in both (a writer that also referenced it from a cell, P5.2) comes out where it is first met and not again.
+
+With P5.2 the two ceilings meet. `place` hands over an entity that intersects more cells than `DuplicationPolicy` allows (16 by default), counted on a directory that already holds it. On `drawing-100k` with every entity in the directory it hands over 1,006: the 1,000 spanning lines and six more entities, none of which is over the ceiling once the lines are out of the directory. Over the directory of the local entities, which is the one the classification leaves, it hands over none. Every entity the factor lists is among those it hands over, and building the lists from `place`'s output (the entities that are long at some level) gives the same bytes as building them from `classify`'s, which the tests assert. An entity that is over the ceiling but not over the factor (a large square, say, four cells on a side, touches 25) stays in its owner's cell, as P5.2 already leaves it, and is found through that cell.
+
+### 3.5 Congestion metrics
+
+`congestion(dir, lists)` reports, per artifact: the local entities and the straddlers, for every level the cell size, the entities placed there, the straddlers, the pages and the bytes of its list, the references the root level carries (`root_references`, the straddlers listed at the directory's top level), the bytes of the whole block, the bytes every viewport reads of it (`index_bytes`, the header and the page descriptors), and `coarsest_bytes`: what a minimal viewport read must fetch from the coarsest level, which is the directory's root node, the block's index and one page of the coarsest level that has a list. `ancestor_placement` is the baseline: it places each entity at the lowest node of the directory whose bounds contain it, which is what promoting to the ancestor does, so a report can say what the naive answer would have put in the root.
+
+### 3.6 Measurements
+
+Native x64 on MARS, `rustc 1.99.1`, release, hot blocks written through the container writer as lines. All of it is asserted by `crates/pvec-stream/tests/issue_12_straddlers.rs`.
+
+`drawing-100k`: 100,000 local entities (20 x 20 rooms of 250, 500 units wide) and 1,000 drawing-spanning lines over 10,000 x 10,000. The estimated cell sizes are 459, 2,594 and 10,000 for levels 0 to 2 (the median node side of the directory over the local entities is 486, 2,103 and 10,000). All 1,000 lines are listed at level 0, in 16 pages: the block is 44,736 bytes and its index 736.
+
+| one 500 x 500 screen at the centre | cells | bytes |
+|---|---|---|
+| straddler lists | 9 | 46,369: cells 23,328, list pages 20,448 (of the 44,736-byte block), 64 payloads 2,593 |
+| everything in cells (P5.1 alone) | 10 | 25,920 |
+| promote to the root (cells and every long payload) | 9 | 63,829 |
+
+The stated budget is 64 KiB and 2 per cent of the artifact, which is 4,325,685 bytes with the block and the straddlers' payloads: the straddler path is 1.07 per cent. The root's reference count is where the strategies differ most, and the stated ceiling is 64, one cell's capacity: promote-to-ancestor puts 1,000 references in the root, the lists put 0 there (1,000 at level 0).
+
+I should be straight about what the screen row says. For this fixture the status quo is cheaper by about 20 KB at the centre of the drawing. The spanning lines' centres all lie on the middle cross, so Hilbert order puts them in cells of their own, and those cells are the only stretched ones. The strategy pays where long entities are scattered among local ones, which is what real drawings do, and `stress-long` is that case: 20,000 room entities and 10,000 random axis-aligned lines of 1,000 to 5,000 over 5,000 x 5,000. 7,968 of them are classified long (estimated cell sizes 447, 2,530, 5,000). Over 60 random 250-unit viewports the lists read 15.4 MB in 1,973 cells, and the same entities all in cells read 22.6 MB in 8,725.
+
+Congestion metrics for each fixture of the phase 5 set (`local`, `long`, root references with the promote baseline in brackets, block bytes, index bytes, `coarsest_bytes`):
+
+| fixture | local | long | root refs (promote) | block | index | coarsest read |
+|---|---|---|---|---|---|---|
+| `drawing-100k` | 100,000 | 1,000 | 0 (1,000) | 44,736 | 736 | 3,600 |
+| `stress-long` | 22,032 | 7,968 | 0 (5,223) | 355,688 | 5,096 | 7,960 |
+| `rooms-1m` plus 2,000 long lines | 1,000,000 | 2,000 | 0 (1,695) | 89,376 | 1,376 | 4,240 |
+| `gap` | 3,600 | 3 | 0 (3) | 268 | 136 | 316 |
+| `tied` (640 identical boxes) | 640 | 0 | 0 (0) | 96 | 96 | 144 |
+
+`rooms-1m` uses two levels: 500 lines of 8,000 to 30,000 units at level 0 and 1,500 longer ones at level 1, so the once-per-level rule is exercised on a fixture with more than one list.
+
+### 3.7 Out of scope here
+
+Writing the block into the container and the placement of straddler payloads (#136), previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry.
+
 ## 5. Viewport queries and read plans
 
 A pan or a zoom has to become the smallest practical set of range requests: not one per cell, and not the whole file. `ViewportQuery::plan` (in `crates/pvec-stream/src/viewport.rs`, issue P5.5) turns a viewport rectangle into a `ReadPlan`: an ordered list of the range requests the container reader's planner (P4.5) builds for the blocks the viewport wants. It reads nothing and changes nothing, and it never opens a file: it takes the `SpatialDirectory` and anything that answers `PlanSource` (both `ContainerReader` and `AsyncContainerReader` do), so the same plan serves a blocking and an async reader.
