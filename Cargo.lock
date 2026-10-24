@@ -111,6 +111,14 @@ name = "pvec-hermetic"
 version = "0.0.0"
 
 [[package]]
+name = "pvec-interchange"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-entity",
+]
+
+[[package]]
 name = "pvec-mmap"
 version = "0.0.0"
 dependencies = [
@@ -133,6 +141,15 @@ dependencies = [
  "pvec-capabilities",
  "pvec-container",
  "pvec-entity",
+]
+
+[[package]]
+name = "pvec-stream"
+version = "0.0.0"
+dependencies = [
+ "pvec-container",
+ "pvec-entity",
+ "pvec-numeric",
 ]
 
 [[package]]

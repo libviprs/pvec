@@ -81,12 +81,12 @@ fn a_directory_round_trips_and_an_empty_one_parses() {
 #[test]
 fn every_block_kind_has_a_stable_id() {
     let ids: Vec<u16> = BlockKind::ALL.iter().map(|k| k.id()).collect();
-    assert_eq!(ids, [1, 2, 3, 4]);
+    assert_eq!(ids, [1, 2, 3, 4, 5]);
     for k in BlockKind::ALL {
         assert_eq!(BlockKind::from_id(k.id()), Some(k));
     }
     assert_eq!(BlockKind::from_id(0), None);
-    assert_eq!(BlockKind::from_id(5), None);
+    assert_eq!(BlockKind::from_id(6), None);
 }
 
 #[test]

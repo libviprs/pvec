@@ -285,7 +285,8 @@ directory.rs: BlockKind::Hot
 directory.rs: BlockKind::Records
 directory.rs: BlockKind::Arena
 directory.rs: BlockKind::Components
-directory.rs: BlockKind::const ALL: [BlockKind; 4]
+directory.rs: BlockKind::SpatialDirectory
+directory.rs: BlockKind::const ALL: [BlockKind; 5]
 directory.rs: BlockKind::id(self) -> u16
 directory.rs: BlockKind::from_id(id: u16) -> Option<BlockKind>
 directory.rs: BlockKind::name(self) -> &'static str
@@ -870,4 +871,5 @@ writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: Splin
 writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
+writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>

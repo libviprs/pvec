@@ -1,0 +1,15 @@
+[package]
+name = "pvec-stream"
+version = "0.0.0"
+description = "Viewport streaming over a PVec container: the spatial directory over source-space bounds"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+pvec-container = { path = "../pvec-container" }
+pvec-entity = { path = "../pvec-entity" }
+pvec-numeric = { path = "../pvec-numeric" }
+
+[lints]
+workspace = true
