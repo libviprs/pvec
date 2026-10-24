@@ -83,16 +83,20 @@ pub enum BlockKind {
     /// The spatial directory over source-space bounds (`docs/STREAMING.md` chapter 1, issue P5.1). The
     /// container carries it as opaque bytes; `pvec-stream` defines and validates its layout.
     SpatialDirectory,
+    /// The per-cell payload references (`docs/STREAMING.md` chapter 2, issue P5.2b). The container carries
+    /// it as opaque bytes, read on demand and never at open; `pvec-stream` defines and validates its layout.
+    CellRefs,
 }
 
 impl BlockKind {
     /// Every kind, in id order.
-    pub const ALL: [BlockKind; 5] = [
+    pub const ALL: [BlockKind; 6] = [
         BlockKind::Hot,
         BlockKind::Records,
         BlockKind::Arena,
         BlockKind::Components,
         BlockKind::SpatialDirectory,
+        BlockKind::CellRefs,
     ];
 
     /// The id stored in the file.
@@ -103,6 +107,7 @@ impl BlockKind {
             BlockKind::Arena => 3,
             BlockKind::Components => 4,
             BlockKind::SpatialDirectory => 5,
+            BlockKind::CellRefs => 6,
         }
     }
 
@@ -119,6 +124,7 @@ impl BlockKind {
             BlockKind::Arena => "arena",
             BlockKind::Components => "components",
             BlockKind::SpatialDirectory => "spatial",
+            BlockKind::CellRefs => "refs",
         }
     }
 }

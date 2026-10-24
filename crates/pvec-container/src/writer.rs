@@ -446,6 +446,7 @@ pub struct ContainerWriter {
     advanced: Vec<AdvancedItem>,
     streams: Vec<(usize, Stream)>,
     spatial: Option<SpatialItem>,
+    cell_refs: Option<RefsItem>,
 }
 
 /// The spatial directory block as the caller built it.
@@ -454,6 +455,14 @@ struct SpatialItem {
     seq: usize,
     nodes: u32,
     bounds: Bounds,
+    bytes: Vec<u8>,
+}
+
+/// The reference arrays block as the caller built it.
+#[derive(Clone, Debug)]
+struct RefsItem {
+    seq: usize,
+    cells: u32,
     bytes: Vec<u8>,
 }
 
@@ -521,6 +530,7 @@ impl ContainerWriter {
             advanced: Vec::new(),
             streams: Vec::new(),
             spatial: None,
+            cell_refs: None,
         }
     }
 
@@ -803,6 +813,19 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Sets the reference block (`pvec-stream`'s `CellRefs::encode` makes it): `cells` is the number of
+    /// cells that have references, which becomes the entry's count, and `bytes` is the block. A second
+    /// call replaces the first. The block is optional, is stored as it is and is not a must-understand
+    /// block, so a reader that does not know it skips it; it sorts after every other kind, so adding it
+    /// moves no block id and the references it holds stay valid. The writer does not parse it: that the
+    /// count is the cell count of the bytes is checked when `pvec-stream` reads it.
+    pub fn set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError> {
+        u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
+        let seq = self.next_seq();
+        self.cell_refs = Some(RefsItem { seq, cells, bytes });
+        Ok(())
+    }
+
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
     fn declarations(&self) -> Result<(Vec<Declared>, Version), WriteError> {
         let mut wanted: Vec<CapabilityId> = Vec::new();
@@ -1001,6 +1024,17 @@ impl ContainerWriter {
                 bytes: s.bytes.clone(),
             });
         }
+        if let Some(r) = &self.cell_refs {
+            blocks.push(Planned {
+                first_seen: r.seq,
+                kind: BlockKind::CellRefs,
+                cell: 0,
+                subtype: 0,
+                count: r.cells,
+                bounds: None,
+                bytes: r.bytes.clone(),
+            });
+        }
         // arrival order first, so that a key that is switched off falls back to it and nothing else
         blocks.sort_by_key(|b| b.first_seen);
         let by = |key: SortKey, a: Ordering| if self.sorts(key) { a } else { Ordering::Equal };
@@ -1016,7 +1050,10 @@ impl ContainerWriter {
             let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
             // a block is stored compressed only if that is smaller, and an uncompressed block is legal
             let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
-            let mut flags = if matches!(b.kind, BlockKind::Components | BlockKind::SpatialDirectory) {
+            let mut flags = if matches!(
+                b.kind,
+                BlockKind::Components | BlockKind::SpatialDirectory | BlockKind::CellRefs
+            ) {
                 0
             } else {
                 FLAG_MUST_UNDERSTAND
