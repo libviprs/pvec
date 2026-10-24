@@ -401,7 +401,7 @@ corruption.\n\
 * The header never grows past 4096 bytes and the manifest never past 1 MiB, so a reader's first fetch stays bounded.\n\n\
 ### 1.8 Refusals\n\n\
 `ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header \
-length, a pointer outside the artifact, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, \
+length, a pointer outside the artifact, a directory table length that is not a multiple of 24, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, \
 a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.\n",
     );
     s

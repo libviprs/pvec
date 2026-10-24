@@ -2,7 +2,7 @@
 
 use crate::error::ContainerError;
 use crate::manifest::Manifest;
-use crate::spec::{BYTE_ORDER_MARKER, MAGIC, h};
+use crate::spec::{BYTE_ORDER_MARKER, MAGIC, dir, h};
 
 /// A checksum algorithm id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -157,6 +157,9 @@ impl Header {
             return Err(ContainerError::ManifestTooLarge { length: manifest_length });
         }
         check_range("directory_table", directory_table_offset, directory_table_length, floor, artifact_len)?;
+        if directory_table_length % dir::SIZE as u64 != 0 {
+            return Err(ContainerError::BadDirectoryTableLength { length: directory_table_length });
+        }
         Ok(Header {
             major,
             minor: u16_at(prefix, h::MINOR),

@@ -121,4 +121,4 @@ Every field named `reserved` is zero in version 1.0 and a reader refuses a file 
 
 ### 1.8 Refusals
 
-`ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header length, a pointer outside the artifact, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.
+`ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header length, a pointer outside the artifact, a directory table length that is not a multiple of 24, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.
