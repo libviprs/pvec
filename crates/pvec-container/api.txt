@@ -291,21 +291,21 @@ directory.rs: impl std::error::Error for DirectoryError {}
 directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
 directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
 directory.rs: pub fn parse_directory_checked(table: &[u8], header_len: u64, artifact_len: u64, manifest: ByteRange, directory: ByteRange) -> Result<Vec<BlockEntry>, DirectoryError>
-engine.rs: Core::entry(&self, _id: BlockId) -> Result<&BlockEntry, ReadError>
-engine.rs: Core::range_of(&self, _id: BlockId) -> Result<(u64, u32), ReadError>
-engine.rs: Core::slice_of<'a>(&self, _id: BlockId, _at: u64, _bytes: &'a [u8]) -> Result<&'a [u8], ReadError>
-engine.rs: Core::plan(&self, _ids: &[BlockId], _gap: u32, _max: u32) -> Result<Vec<RangeRequest>, ReadError>
-engine.rs: Core::decode(&self, _id: BlockId, _stored: &[u8], _r: Reservation) -> Result<DecodedBlock, ReadError>
-engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
-engine.rs: Opening::new(_artifact_len: u64, _limits: &Limits) -> Result<Opening, ReadError>
+engine.rs: Opening::new(artifact_len: u64, limits: &Limits, acct: &Accountant) -> Result<Opening, ReadError>
 engine.rs: Opening::request(&self) -> Option<(u64, u32)>
-engine.rs: Opening::feed(&mut self, _bytes: &[u8]) -> Result<(), ReadError>
+engine.rs: Opening::feed(&mut self, bytes: &[u8]) -> Result<(), ReadError>
 engine.rs: Opening::finish(self) -> Result<Core, ReadError>
-engine.rs: Validation<'a>::new(_core: &'a Core, _limits: &Limits, _acct: &Accountant) -> Result<Validation<'a>, ReadError>
+engine.rs: Core::entry(&self, id: BlockId) -> Result<&BlockEntry, ReadError>
+engine.rs: Core::range_of(&self, id: BlockId) -> Result<(u64, u32), ReadError>
+engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'a [u8]) -> Result<&'a [u8], ReadError>
+engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
+engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
+engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
+engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
 engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
-engine.rs: Validation<'a>::feed_gap(&mut self, _offset: u64, _bytes: &[u8]) -> Result<(), ReadError>
-engine.rs: Validation<'a>::feed_block(&mut self, _block: Arc<DecodedBlock>) -> Result<(), ReadError>
-engine.rs: Validation<'a>::finish(self) -> Result<Validated, ReadError>
+engine.rs: Validation<'a>::feed_gap(&mut self, offset: u64, bytes: &[u8]) -> Result<(), ReadError>
+engine.rs: Validation<'a>::feed_block(&mut self, block: Arc<DecodedBlock>) -> Result<(), ReadError>
+engine.rs: Validation<'a>::finish(mut self) -> Result<Validated, ReadError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -509,7 +509,13 @@ reader.rs: DecodedBlock::entry(&self) -> &BlockEntry
 reader.rs: DecodedBlock::as_bytes(&self) -> &[u8]
 reader.rs: DecodedBlock::hot(&self) -> Result<HotBlockView<'_>, ReadError>
 reader.rs: #[derive(Debug)] pub struct AdvancedSet
-reader.rs: AdvancedSet::view(&self) -> Result<AdvancedView<'_>, ReadError>
+reader.rs: AdvancedSet::view(&self) -> Result<CheckedView<'_>, ReadError>
+reader.rs: #[derive(Clone, Copy, Debug)] pub struct CheckedView<'a>
+reader.rs: CheckedView<'a>::len(&self) -> usize
+reader.rs: CheckedView<'a>::is_empty(&self) -> bool
+reader.rs: CheckedView<'a>::record(&self, index: usize) -> Option<AdvancedCurveRecord>
+reader.rs: CheckedView<'a>::curve(&self, index: usize) -> Result<CurveView<'a>, ReadError>
+reader.rs: CheckedView<'a>::as_view(&self) -> &AdvancedView<'a>
 reader.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct ReadStats
 reader.rs: ReadStats.requests: u64
 reader.rs: ReadStats.bytes: u64

@@ -331,14 +331,14 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
         enforced: "reading a curve, from the offset-table entry, before anything is copied",
     },
     LimitRow {
-        kind: LimitKind::Extent,
-        rationale: "Every offset and length in the file is attacker-controlled, and a range past the end of the artifact (or one whose end wraps around 2^64) is never fetched. The ceiling is the length of the artifact itself, so it has no configuration of its own and no browser value.",
-        enforced: "the block directory, from the raw entries, before the table is parsed or any block fetched",
-    },
-    LimitRow {
         kind: LimitKind::NestingDepth,
         rationale: "Cites NP-18's maximum composite nesting depth (4, the outermost curve counting as 1). A walk deeper than this is refused before the segments are resolved, so the recursion is bounded by the ceiling.",
         enforced: "the nesting walk over the record block, before any segment is resolved",
+    },
+    LimitRow {
+        kind: LimitKind::Extent,
+        rationale: "Every offset and length in the file is attacker-controlled, and a range past the end of the artifact (or one whose end wraps around 2^64) is never fetched. The ceiling is the length of the artifact itself, so it has no configuration of its own and no browser value.",
+        enforced: "the block directory, from the raw entries, before the table is parsed or any block fetched",
     },
 ];
 
@@ -479,14 +479,15 @@ refused.\n\n\
     );
     for row in LIMIT_TABLE {
         let k = row.kind;
-        s.push_str(&format!(
-            "| {} | {:?} | `{}` | {} | {} |\n",
-            k.rule(),
-            k,
-            k.field(),
-            Limits::DEFAULT.get(k),
-            Limits::BROWSER.get(k)
-        ));
+        let (default, browser) = match k {
+            LimitKind::Extent => ("the artifact length".to_string(), "the artifact length".to_string()),
+            _ => (Limits::DEFAULT.get(k).to_string(), Limits::BROWSER.get(k).to_string()),
+        };
+        let field = match k {
+            LimitKind::Extent => "none".to_string(),
+            _ => format!("`{}`", k.field()),
+        };
+        s.push_str(&format!("| {} | {:?} | {} | {} | {} |\n", k.rule(), k, field, default, browser));
     }
     s.push_str(
         "\n## Rationale and where each is enforced\n\n| rule | rationale | enforced |\n|---|---|---|\n",

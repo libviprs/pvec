@@ -606,7 +606,7 @@ fn the_decoded_size_ceiling_refuses_from_the_directory_alone() {
         budget: Some(Budget { max_expansion_ratio: 64, max_decoded_bytes: 16 }),
     };
     let e = read_with(&bases[0].bytes, &tiny).expect_err("a ceiling of 16 bytes refuses any artifact");
-    assert_eq!(e.rule, "LIMIT-02");
+    assert_eq!(e.rule, "LIMIT-03");
     assert!(read_with(&bases[0].bytes, &Options::default()).is_ok());
 }
 
@@ -656,6 +656,8 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
     let stream_errors = include_str!("../../pvec-components/src/error.rs");
     let reference = include_str!("../src/reference.rs");
     let policy = include_str!("../../../docs/NUMERIC_POLICY.md");
+    let limits_doc = include_str!("../../../docs/SECURITY_LIMITS.md");
+    let reader_doc = include_str!("../../../docs/READER.md");
     let mut seen = BTreeSet::new();
     for c in cases.iter() {
         let Expect::Refuse(rules) = &c.expect else { continue };
@@ -668,8 +670,12 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
                 docs.contains(&format!("| {r} |"))
             } else if ["STREAM-", "COMP-"].iter().any(|p| r.starts_with(p)) {
                 stream_errors.contains(&format!("\"{r}\""))
-            } else if ["LAYOUT-", "CONSIST-", "LIMIT-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
-                reference.contains(&format!("\"{r}\""))
+            } else if r.starts_with("LIMIT-") {
+                // the limits of P4.8 are documented in SECURITY_LIMITS.md; LIMIT-03 is also the
+                // reference reader's own stand-in for a decoded-size budget
+                limits_doc.contains(&format!("| {r} |")) || reference.contains(&format!("\"{r}\""))
+            } else if ["LAYOUT-", "CONSIST-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
+                reference.contains(&format!("\"{r}\"")) || reader_doc.contains(&format!("| {r} |"))
             } else if r.starts_with("NP-") {
                 policy.contains(&format!("### {r} "))
             } else if r.starts_with("INTEGRITY-") {

@@ -414,9 +414,10 @@ fn a_short_response_for_a_block_is_an_error_and_nothing_is_decoded_or_held() {
     let reader =
         block_on(AsyncContainerReader::open(http(&art, Mode::ShortAt(from)), ReaderConfig::default()))
             .expect("the prefix and the directory arrive whole");
+    let held_by_the_layout = reader.accountant().live();
     let e = block_on(reader.read_block(BlockId(0))).unwrap_err();
     assert!(matches!(e, ReadError::Source(SourceError::Short { .. })), "{e:?}");
-    assert_eq!(reader.accountant().live(), 0, "a short block holds no memory");
+    assert_eq!(reader.accountant().live(), held_by_the_layout, "a short block holds no memory");
 }
 
 #[test]

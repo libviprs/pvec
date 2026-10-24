@@ -21,13 +21,13 @@
 //! contract.
 
 use crate::blocks::AlignedBytes;
-use crate::blocks::advanced::{AdvancedView, BlockSlices};
+use crate::blocks::advanced::{AdvancedCurveRecord, AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
 use crate::blocks::hot::{HotBlockView, HotError};
 use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
 use crate::engine::{Core, Need, Opening, Validation};
-use crate::limits::{Accountant, LimitExceeded, LimitKind, Limits, LimitsError, Reservation};
+use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation};
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
 use pvec_components::StreamError;
@@ -181,7 +181,6 @@ pub struct DecodedBlock {
 }
 
 impl DecodedBlock {
-    #[allow(dead_code)]
     pub(crate) fn new(
         id: BlockId,
         entry: BlockEntry,
@@ -216,13 +215,13 @@ impl DecodedBlock {
 #[derive(Debug)]
 pub struct AdvancedSet {
     blocks: [Arc<DecodedBlock>; 6],
-    max_nesting_depth: usize,
+    limits: Limits,
 }
 
 impl AdvancedSet {
     /// Parses the six blocks and checks the nesting of the composites against the reader's ceiling
     /// before any segment is resolved.
-    pub fn view(&self) -> Result<AdvancedView<'_>, ReadError> {
+    pub fn view(&self) -> Result<CheckedView<'_>, ReadError> {
         let b = &self.blocks;
         let view = AdvancedView::parse(BlockSlices {
             records: b[0].as_bytes(),
@@ -233,8 +232,44 @@ impl AdvancedSet {
             trims: b[5].as_bytes(),
         })
         .map_err(ReadError::Arena)?;
-        crate::engine::check_nesting(&view, self.max_nesting_depth)?;
-        Ok(view)
+        crate::engine::check_nesting(&view, self.limits.max_nesting_depth as usize)?;
+        Ok(CheckedView { view, limits: self.limits })
+    }
+}
+
+/// The advanced curves of a file, read under the reader's limits: a curve whose offset-table entries
+/// declare more control points or knots than the ceiling is refused as a limit before anything is read
+/// out of the arenas.
+#[derive(Clone, Copy, Debug)]
+pub struct CheckedView<'a> {
+    view: AdvancedView<'a>,
+    limits: Limits,
+}
+
+impl<'a> CheckedView<'a> {
+    /// Number of records.
+    pub fn len(&self) -> usize {
+        self.view.len()
+    }
+
+    /// Whether there are no records (a parsed block never has none).
+    pub fn is_empty(&self) -> bool {
+        self.view.is_empty()
+    }
+
+    /// Record `index`, in ascending entity id order.
+    pub fn record(&self, index: usize) -> Option<AdvancedCurveRecord> {
+        self.view.record(index)
+    }
+
+    /// The curve at record `index`, borrowed from the arenas.
+    pub fn curve(&self, index: usize) -> Result<CurveView<'a>, ReadError> {
+        crate::engine::checked_curve(&self.view, &self.limits, index)
+    }
+
+    /// The unchecked view, for a caller that applies its own limits.
+    pub fn as_view(&self) -> &AdvancedView<'a> {
+        &self.view
     }
 }
 
@@ -346,14 +381,8 @@ struct Shared {
 }
 
 impl Shared {
-    fn new(core: Core, config: ReaderConfig, counters: Counters) -> Shared {
-        Shared {
-            acct: Accountant::new(&config.limits),
-            cache: Mutex::new(Cache::new(config.cache_bytes)),
-            core,
-            config,
-            counters,
-        }
+    fn new(core: Core, config: ReaderConfig, counters: Counters, acct: Accountant) -> Shared {
+        Shared { cache: Mutex::new(Cache::new(config.cache_bytes)), core, config, counters, acct }
     }
 
     fn note_request(&self, len: u32) {
@@ -384,12 +413,25 @@ impl Shared {
         }
     }
 
-    /// Decodes the bytes fetched for block `id` and caches the result.
-    fn finish_block(&self, id: BlockId, stored: &[u8]) -> Result<Arc<DecodedBlock>, ReadError> {
+    /// Everything a block costs, charged before a byte of it is fetched: the decode work, the room for
+    /// the decoded block, and the room for the bytes in flight. A block the budget would refuse is
+    /// refused here, without a request.
+    fn admit(&self, id: BlockId, in_flight: u64) -> Result<(Reservation, Reservation), ReadError> {
         let entry = self.core.entry(id)?;
         self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
-        let reservation = self.reserve(u64::from(entry.uncompressed_length))?;
-        let block = Arc::new(self.core.decode(id, stored, reservation)?);
+        let decoded = self.reserve(u64::from(entry.uncompressed_length))?;
+        let transient = self.reserve(in_flight)?;
+        Ok((decoded, transient))
+    }
+
+    /// Decodes the bytes fetched for block `id` into the room reserved for it and caches the result.
+    fn finish_block(
+        &self,
+        id: BlockId,
+        stored: &[u8],
+        decoded: Reservation,
+    ) -> Result<Arc<DecodedBlock>, ReadError> {
+        let block = Arc::new(self.core.decode(id, stored, decoded)?);
         if let Ok(mut c) = self.cache.lock() {
             let evicted = c.insert(Arc::clone(&block));
             self.counters.evictions.fetch_add(evicted, Ordering::Relaxed);
@@ -413,7 +455,19 @@ impl Shared {
             rule: "CONSIST-04",
             detail: "the advanced set is not six blocks".into(),
         })?;
-        Ok(AdvancedSet { blocks, max_nesting_depth: self.config.limits.max_nesting_depth as usize })
+        Ok(AdvancedSet { blocks, limits: self.config.limits })
+    }
+
+    /// For each request of a plan: the room for what it fetches, reserved before it is asked for.
+    fn admit_request(&self, request: &RangeRequest) -> Result<(Vec<Reservation>, Reservation), ReadError> {
+        let mut decoded = Vec::with_capacity(request.blocks.len());
+        for id in &request.blocks {
+            let entry = self.core.entry(*id)?;
+            self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
+            decoded.push(self.reserve(u64::from(entry.uncompressed_length))?);
+        }
+        let transient = self.reserve(u64::from(request.len))?;
+        Ok((decoded, transient))
     }
 }
 
@@ -484,7 +538,8 @@ impl<S: BlockSource> ContainerReader<S> {
     pub fn open(source: S, config: ReaderConfig) -> Result<ContainerReader<S>, ReadError> {
         config.limits.validate().map_err(ReadError::BadLimits)?;
         let counters = Counters::default();
-        let mut opening = Opening::new(BlockSource::len(&source), &config.limits)?;
+        let acct = Accountant::new(&config.limits);
+        let mut opening = Opening::new(BlockSource::len(&source), &config.limits, &acct)?;
         while let Some((offset, len)) = opening.request() {
             counters.requests.fetch_add(1, Ordering::Relaxed);
             counters.bytes.fetch_add(u64::from(len), Ordering::Relaxed);
@@ -492,7 +547,7 @@ impl<S: BlockSource> ContainerReader<S> {
             opening.feed(&bytes)?;
         }
         let core = opening.finish()?;
-        Ok(ContainerReader { source, shared: Shared::new(core, config, counters) })
+        Ok(ContainerReader { source, shared: Shared::new(core, config, counters, acct) })
     }
 
     accessors!();
@@ -509,8 +564,9 @@ impl<S: BlockSource> ContainerReader<S> {
             return Ok(block);
         }
         let (offset, len) = self.shared.core.range_of(id)?;
+        let (decoded, _in_flight) = self.shared.admit(id, u64::from(len))?;
         let stored = self.fetch(offset, len)?;
-        self.shared.finish_block(id, &stored)
+        self.shared.finish_block(id, &stored, decoded)
     }
 
     /// Several blocks, fetched through [`ContainerReader::plan`]: blocks close together arrive in one
@@ -528,10 +584,11 @@ impl<S: BlockSource> ContainerReader<S> {
             }
         }
         for request in self.plan(&missing)? {
+            let (decoded, _in_flight) = self.shared.admit_request(&request)?;
             let bytes = self.fetch(request.offset, request.len)?;
-            for id in &request.blocks {
+            for (id, room) in request.blocks.iter().zip(decoded) {
                 let stored = self.shared.core.slice_of(*id, request.offset, &bytes)?;
-                found.insert(*id, self.shared.finish_block(*id, stored)?);
+                found.insert(*id, self.shared.finish_block(*id, stored, room)?);
             }
         }
         ids.iter()
@@ -583,7 +640,8 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
     pub async fn open(source: S, config: ReaderConfig) -> Result<AsyncContainerReader<S>, ReadError> {
         config.limits.validate().map_err(ReadError::BadLimits)?;
         let counters = Counters::default();
-        let mut opening = Opening::new(AsyncBlockSource::len(&source), &config.limits)?;
+        let acct = Accountant::new(&config.limits);
+        let mut opening = Opening::new(AsyncBlockSource::len(&source), &config.limits, &acct)?;
         while let Some((offset, len)) = opening.request() {
             counters.requests.fetch_add(1, Ordering::Relaxed);
             counters.bytes.fetch_add(u64::from(len), Ordering::Relaxed);
@@ -591,7 +649,7 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
             opening.feed(&bytes)?;
         }
         let core = opening.finish()?;
-        Ok(AsyncContainerReader { source, shared: Shared::new(core, config, counters) })
+        Ok(AsyncContainerReader { source, shared: Shared::new(core, config, counters, acct) })
     }
 
     accessors!();
@@ -608,8 +666,9 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
             return Ok(block);
         }
         let (offset, len) = self.shared.core.range_of(id)?;
+        let (decoded, _in_flight) = self.shared.admit(id, u64::from(len))?;
         let stored = self.fetch(offset, len).await?;
-        self.shared.finish_block(id, &stored)
+        self.shared.finish_block(id, &stored, decoded)
     }
 
     /// As [`ContainerReader::read_blocks`].
@@ -626,10 +685,11 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
             }
         }
         for request in self.plan(&missing)? {
+            let (decoded, _in_flight) = self.shared.admit_request(&request)?;
             let bytes = self.fetch(request.offset, request.len).await?;
-            for id in &request.blocks {
+            for (id, room) in request.blocks.iter().zip(decoded) {
                 let stored = self.shared.core.slice_of(*id, request.offset, &bytes)?;
-                found.insert(*id, self.shared.finish_block(*id, stored)?);
+                found.insert(*id, self.shared.finish_block(*id, stored, room)?);
             }
         }
         ids.iter()
@@ -675,6 +735,3 @@ pub fn render_markdown() -> String {
 
 /// The refusals of this module that are not the parsers' own, for the document.
 pub const READER_RULES: &[(&str, &str)] = crate::engine::READER_RULES;
-
-#[allow(dead_code)]
-fn _kinds_are_used(_: LimitKind) {}

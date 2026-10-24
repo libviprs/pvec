@@ -77,9 +77,13 @@ fn entity_counts_a_directory_declaring_4294967295_entities_is_refused_when_the_f
     let err = ContainerReader::open(source, ReaderConfig::default()).err().expect("refused at open");
     let used = counting_alloc::requested() - before;
     let l = *err.limit().expect("a LimitExceeded");
-    assert_eq!(l.limit, LimitKind::EntitiesPerArtifact);
+    assert_eq!(
+        l.limit,
+        LimitKind::EntitiesPerBlock,
+        "the block ceiling is the more specific one and is checked first"
+    );
     assert_eq!(l.declared, u64::from(u32::MAX));
-    assert_eq!(l.ceiling, Limits::DEFAULT.max_entities_per_artifact);
+    assert_eq!(l.ceiling, u64::from(Limits::DEFAULT.max_entities_per_block));
     assert!(used < SMALL, "{used} bytes requested");
 }
 

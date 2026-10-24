@@ -27,6 +27,6 @@ for d in spikes/*/; do
   echo == spike \$d
   (cd \$d && cargo fmt -- --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked)
 done
-echo '== the geometry crate builds for wasm32 (pure Rust, no file or network access)'
-cargo build -p pvec-geometry --target wasm32-unknown-unknown --locked
+echo '== the geometry crate and the container reader build for wasm32 (pure Rust, no file or network access)'
+cargo build -p pvec-geometry -p pvec-container --target wasm32-unknown-unknown --locked
 "

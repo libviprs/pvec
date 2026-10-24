@@ -73,9 +73,10 @@ fn a_range_past_the_end_of_a_file_and_a_file_cut_short_after_opening_are_errors(
     let reader = ContainerReader::open(source, ReaderConfig::default()).unwrap();
     // the file is cut to the header and the manifest after the reader opened it
     std::fs::OpenOptions::new().write(true).open(&path).unwrap().set_len(200).unwrap();
+    let held_by_the_layout = reader.accountant().live();
     let err = reader.read_block(BlockId(0)).unwrap_err();
     assert!(matches!(err, ReadError::Source(SourceError::Short { .. })), "{err:?}");
-    assert_eq!(reader.accountant().live(), 0, "a short read holds no memory");
+    assert_eq!(reader.accountant().live(), held_by_the_layout, "a short read holds no memory");
     std::fs::remove_file(&path).unwrap();
 }
 
