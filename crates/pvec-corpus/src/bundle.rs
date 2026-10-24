@@ -128,12 +128,18 @@ fn check_sums(files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
         .ok_or_else(|| CorpusError::Missing("SHA256SUMS in the bundle".to_string()))?;
     let text = std::str::from_utf8(sums)
         .map_err(|_| CorpusError::Invalid { what: "SHA256SUMS".to_string(), why: "not UTF-8".to_string() })?;
-    let mut listed = 0usize;
+    let mut listed: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     for line in text.lines() {
         let (digest, path) = line.split_once("  ").ok_or_else(|| CorpusError::Invalid {
             what: "SHA256SUMS".to_string(),
             why: format!("line `{line}` is not `<digest>  <path>`"),
         })?;
+        if !listed.insert(path) {
+            return Err(CorpusError::Invalid {
+                what: "SHA256SUMS".to_string(),
+                why: format!("`{path}` is listed twice"),
+            });
+        }
         let data =
             files.get(path).ok_or_else(|| CorpusError::Missing(format!("{path}, which SHA256SUMS lists")))?;
         let actual = hex_digest(data);
@@ -144,12 +150,14 @@ fn check_sums(files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
                 actual,
             });
         }
-        listed += 1;
     }
-    if listed + 1 != files.len() {
+    // The listed set has to be exactly the files present, SHA256SUMS itself excepted.
+    if let Some(unlisted) =
+        files.keys().map(String::as_str).find(|p| *p != "SHA256SUMS" && !listed.contains(p))
+    {
         return Err(CorpusError::Invalid {
             what: "SHA256SUMS".to_string(),
-            why: "a file in the bundle is not listed".to_string(),
+            why: format!("`{unlisted}` is in the bundle but not listed"),
         });
     }
     Ok(())

@@ -160,14 +160,14 @@ fn issue_34_every_recorded_verdict_is_reproduced_by_the_rust_rules() {
 #[test]
 fn issue_34_exact_mode_sees_every_single_bit_flip() {
     // Odd and even mantissas, a power of two, a negative and a subnormal-free small value.
-    let bases = [1.0f64, 2.75, 0.5f64.sqrt(), -3.0, 3.0, 1048576.0, -0.1, 6.283185307179586];
+    let bases = [1.0f64, 2.75, 0.5f64.sqrt(), -3.0, 3.0, 1048576.0, -0.1, std::f64::consts::TAU];
     for x in bases {
         let want = scalar_of(x);
         assert!(compare(Mode::Exact, &want, x, 1.0));
         for bit in 0..64 {
             let flipped = f64::from_bits(x.to_bits() ^ (1u64 << bit));
             assert!(
-                !compare(Mode::Exact, &want, flipped, 1.0e6),
+                !compare(Mode::Exact, &want, flipped, 1000000.0),
                 "{x} with bit {bit} flipped must not be exact"
             );
             assert!(
