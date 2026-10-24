@@ -60,12 +60,19 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
         ));
     }
 
-    // every byte outside a block and the directory is zero
+    // every byte outside a block, the checksum table and the directory is zero
     let mut at = m1;
     for e in &entries {
         let (start, end) = (e.offset as usize, e.offset as usize + e.stored_length as usize);
         if bytes[at..start].iter().any(|b| *b != 0) {
             return Err(format!("non-zero padding before the block at {start}"));
+        }
+        at = end;
+    }
+    if let Some(table) = manifest.block_checksums {
+        let (start, end) = (table.offset as usize, (table.offset + table.length) as usize);
+        if bytes[at..start].iter().any(|b| *b != 0) {
+            return Err("non-zero padding before the checksum table".to_string());
         }
         at = end;
     }

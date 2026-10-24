@@ -16,11 +16,13 @@
 use crate::blocks::advanced::{AdvancedBuilder, SplineSpec};
 use crate::blocks::arena::{ArenaError, PayloadKind};
 use crate::blocks::hot::{HotBlockBuilder, HotError, HotKind};
+use crate::compress::CodecPolicy;
 use crate::directory::{
     BLOCK_ALIGN, BlockEntry, BlockKind, CODEC_NONE, ENTRY_LEN, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND,
 };
 use crate::error::ContainerError;
 use crate::header::{ChecksumAlgorithm, Header};
+use crate::integrity::Integrity;
 use crate::manifest::{Bounds, DirectoryPointer, LengthUnit, Manifest, Metadata};
 use crate::spec::{cap, dir};
 use core::cmp::Ordering;
@@ -72,6 +74,55 @@ pub struct WriterConfig {
     pub bounds: Option<Bounds>,
     /// Capabilities to declare, in any order.
     pub capabilities: Vec<CapabilityId>,
+}
+
+/// How an artifact is compressed and sealed. The default compresses nothing and writes both the block
+/// checksum table and the artifact digest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct WriterOptions {
+    /// What is recorded for integrity.
+    pub integrity: Integrity,
+    /// Which codec each kind of block is written with.
+    pub codecs: CodecPolicy,
+}
+
+/// A block ready to be placed by [`assemble`]: the descriptor fields that are the caller's, and the bytes
+/// as they are stored. The offset and the stored length are the assembler's to decide.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RawBlock {
+    /// The kind id.
+    pub kind: u16,
+    /// The subtype.
+    pub subtype: u16,
+    /// The spatial cell.
+    pub cell: u32,
+    /// The count.
+    pub count: u32,
+    /// The bounds of the entities, when the block has any.
+    pub bounds: Option<Bounds>,
+    /// The flag bits.
+    pub flags: u8,
+    /// The codec id.
+    pub codec: u8,
+    /// The capability id, or 0.
+    pub capability: u16,
+    /// The length once decoded.
+    pub uncompressed_length: u32,
+    /// The bytes as stored.
+    pub stored: Vec<u8>,
+}
+
+/// Lays out an artifact from a manifest and blocks that are already encoded: header, manifest, the blocks
+/// each on a multiple of 8, the checksum table when `integrity` asks for one, and the directory last.
+/// The manifest's directory pointer, checksum table pointer and digest are set here. This is what the
+/// writer itself uses, and it is how a tool that must carry a block it does not understand byte for byte
+/// (or a test that needs a file no writer would make) builds one.
+pub fn assemble(
+    _manifest: Manifest,
+    _blocks: &[RawBlock],
+    _integrity: Integrity,
+) -> Result<Vec<u8>, WriteError> {
+    Err(WriteError::Unsupported { what: "assemble (not written yet)" })
 }
 
 /// What every entity carries.
@@ -304,6 +355,8 @@ struct Planned {
 #[derive(Debug)]
 pub struct ContainerWriter {
     config: WriterConfig,
+    #[allow(dead_code)]
+    options: WriterOptions,
     skipped: Vec<SortKey>,
     seq: usize,
     hot: Vec<HotItem>,
@@ -361,8 +414,14 @@ fn align8(n: u64) -> u64 {
 impl ContainerWriter {
     /// A writer with nothing in it.
     pub fn new(config: WriterConfig) -> ContainerWriter {
+        ContainerWriter::with_options(config, WriterOptions::default())
+    }
+
+    /// A writer that compresses and seals as `options` say.
+    pub fn with_options(config: WriterConfig, options: WriterOptions) -> ContainerWriter {
         ContainerWriter {
             config,
+            options,
             skipped: Vec::new(),
             seq: 0,
             hot: Vec::new(),
@@ -861,6 +920,7 @@ impl ContainerWriter {
                 subtype: b.subtype,
                 flags,
                 codec: CODEC_NONE,
+                capability: 0,
             });
             at += u64::from(stored_length);
         }

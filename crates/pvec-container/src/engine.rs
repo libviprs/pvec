@@ -624,6 +624,7 @@ impl<'a> Validation<'a> {
             blocks: self.core.entries.len(),
             entities: self.entities,
             stream_capabilities: self.streams,
+            skipped: Vec::new(),
         })
     }
 }

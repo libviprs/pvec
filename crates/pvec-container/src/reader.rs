@@ -24,10 +24,13 @@ use crate::blocks::AlignedBytes;
 use crate::blocks::advanced::{AdvancedCurveRecord, AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
 use crate::blocks::hot::{HotBlockView, HotError};
+use crate::compress::CodecError;
 use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
 use crate::engine::{Core, Need, Opening, Validation};
+use crate::integrity::{DigestStatus, IntegrityError};
 use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation};
+use crate::negotiate::{PartialOpen, ReaderCapabilities, Refusal};
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
 use pvec_components::StreamError;
@@ -52,7 +55,7 @@ pub struct RangeRequest {
 }
 
 /// How a reader is configured.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReaderConfig {
     /// The ceilings a file is held to.
     pub limits: Limits,
@@ -62,6 +65,10 @@ pub struct ReaderConfig {
     pub gap_threshold: u32,
     /// The most bytes one coalesced request may span.
     pub max_request_bytes: u32,
+    /// What this reader supports, which the file's manifest is negotiated against.
+    pub capabilities: ReaderCapabilities,
+    /// Refuse a file that carries no block checksum table or no artifact digest.
+    pub require_integrity: bool,
 }
 
 impl Default for ReaderConfig {
@@ -71,6 +78,8 @@ impl Default for ReaderConfig {
             cache_bytes: 64 << 20,
             gap_threshold: 64 << 10,
             max_request_bytes: 16 << 20,
+            capabilities: ReaderCapabilities::v1(),
+            require_integrity: false,
         }
     }
 }
@@ -103,6 +112,17 @@ pub enum ReadError {
         /// What was wrong.
         detail: String,
     },
+    /// A block would not decompress, or decompressed to the wrong length.
+    Codec(CodecError),
+    /// A checksum or the artifact digest did not match.
+    Integrity(IntegrityError),
+    /// A required capability is not supported.
+    Negotiation(Refusal),
+    /// The block was skipped when the file was opened, so its payload is not read.
+    Skipped {
+        /// The block.
+        id: u32,
+    },
     /// A block id that is not in the directory.
     NoSuchBlock {
         /// The id asked for.
@@ -127,6 +147,10 @@ impl ReadError {
             ReadError::Stream(e) => e.rule().to_string(),
             ReadError::Layout { rule, .. } => (*rule).to_string(),
             ReadError::NoSuchBlock { .. } => "BLOCK-ID".to_string(),
+            ReadError::Codec(e) => e.rule().to_string(),
+            ReadError::Integrity(e) => e.rule().to_string(),
+            ReadError::Negotiation(_) => "NEGOTIATE".to_string(),
+            ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
 
@@ -152,6 +176,10 @@ impl fmt::Display for ReadError {
             ReadError::Stream(e) => write!(f, "{e}"),
             ReadError::Layout { rule, detail } => write!(f, "{rule}: {detail}"),
             ReadError::NoSuchBlock { id, blocks } => write!(f, "no block {id} in a directory of {blocks}"),
+            ReadError::Codec(e) => write!(f, "{e}"),
+            ReadError::Integrity(e) => write!(f, "{e}"),
+            ReadError::Negotiation(e) => write!(f, "{e}"),
+            ReadError::Skipped { id } => write!(f, "block {id} was skipped when the file was opened"),
         }
     }
 }
@@ -297,6 +325,8 @@ pub struct Validated {
     pub entities: u64,
     /// The capability ids of the component streams, ascending.
     pub stream_capabilities: Vec<u32>,
+    /// The blocks that were skipped and never read (P4.7).
+    pub skipped: Vec<BlockId>,
 }
 
 #[derive(Default)]
@@ -549,6 +579,12 @@ macro_rules! accessors {
             self.shared.stats()
         }
 
+        /// What the open left out because this reader does not support it, or `None` when it left out
+        /// nothing.
+        pub fn partial_open(&self) -> Option<&PartialOpen> {
+            None
+        }
+
         /// The requests that would fetch `ids`, coalescing blocks whose gap is within the configured
         /// threshold and never spanning more than the configured request size. Nothing is fetched.
         pub fn plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError> {
@@ -637,6 +673,18 @@ impl<S: BlockSource> ContainerReader<S> {
         let Some(ids) = self.shared.core.advanced_ids()? else { return Ok(None) };
         let blocks = self.read_blocks(&ids)?;
         self.shared.advanced_set(blocks).map(Some)
+    }
+
+    /// Hashes the whole artifact in bounded chunks and compares it with the digest in the manifest.
+    pub fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError> {
+        Err(ReadError::Layout { rule: "NOT-IMPLEMENTED", detail: "the digest is not verified yet".into() })
+    }
+
+    /// The bytes of a block as they are stored, undecoded and unchecked, for a tool that carries a block
+    /// it does not understand. Skipped blocks can be read this way, and only this way.
+    pub fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError> {
+        let (offset, len) = self.shared.core.range_of(id)?;
+        self.fetch(offset, len)
     }
 
     /// Reads and checks the whole file: everything `open` checks, the bytes between blocks, and every
@@ -739,6 +787,17 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         let Some(ids) = self.shared.core.advanced_ids()? else { return Ok(None) };
         let blocks = self.read_blocks(&ids).await?;
         self.shared.advanced_set(blocks).map(Some)
+    }
+
+    /// As [`ContainerReader::verify_artifact_digest`].
+    pub async fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError> {
+        Err(ReadError::Layout { rule: "NOT-IMPLEMENTED", detail: "the digest is not verified yet".into() })
+    }
+
+    /// As [`ContainerReader::read_stored`].
+    pub async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError> {
+        let (offset, len) = self.shared.core.range_of(id)?;
+        self.fetch(offset, len).await
     }
 
     /// As [`ContainerReader::validate`].

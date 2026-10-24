@@ -9,12 +9,15 @@
 //! writer that puts it all together (issue P4.4).
 
 pub mod blocks;
+pub mod compress;
 pub mod directory;
 mod engine;
 pub mod error;
 pub mod header;
+pub mod integrity;
 pub mod limits;
 pub mod manifest;
+pub mod negotiate;
 pub mod reader;
 pub mod source;
 pub mod spec;

@@ -336,13 +336,10 @@ fn the_safe_reader_satisfies_every_case_it_provides() {
     let report = run_full(SafeReader::new(), Limits::default());
     assert!(report.passed(), "{}", report.summary());
     assert!(report.ran > 10_000, "ran only {}", report.ran);
-    let skipped: usize = report.skipped.values().sum();
-    assert_eq!(report.ran + skipped, cases.len());
-    // what P4.6 and P4.7 provide is counted, not hidden
-    assert_eq!(
-        report.skipped.keys().copied().collect::<Vec<_>>(),
-        vec![Requires::Integrity, Requires::Negotiation]
-    );
+    // with the integrity work (P4.6), the limits (P4.8) and the negotiation (P4.7) in, nothing is left
+    // that the safe reader is not held to: the skipped count that #103 tracks is zero
+    assert!(report.skipped.is_empty(), "the safe reader provides every requirement: {:?}", report.skipped);
+    assert_eq!(report.ran, cases.len());
     // the floor was calibrated on the reference reader; say how the safe reader sits against it
     let floor = Limits::default().alloc_floor;
     assert!(
@@ -753,14 +750,14 @@ fn a_reader_that_breaks_on_the_valid_file_is_caught_on_the_repair() {
 
 #[test]
 fn a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_know() {
-    // the reference does not skip unknown optional blocks: it refuses them, naming NEGOTIATE-01
+    // the reference does not skip unknown optional blocks: it refuses them, naming NEGOTIATE-90
     let report = run_subset(
         RefusesEvenWhatItShouldSkip,
         &["tags/unknown_optional_block_kind_is_skipped"],
         Limits::default(),
     );
     assert_eq!(report.failures.len(), 1, "{}", report.summary());
-    assert!(matches!(&report.failures[0].1, Failure::Rejected(r) if r.rule == "NEGOTIATE-01"));
+    assert!(matches!(&report.failures[0].1, Failure::Rejected(r) if r.rule == "NEGOTIATE-90"));
 }
 
 const HOT_NUMERIC: [(&str, &str, &str); 6] = [
@@ -801,7 +798,11 @@ fn the_cases_for_later_issues_are_well_formed_files_that_only_the_missing_featur
     for c in pending {
         // a parser sees nothing wrong with them: a digest that does not match is invisible without P4.6
         let bytes = c.bytes(&bases[c.base]);
-        assert!(read(&bytes).is_ok(), "{}: only an integrity check may refuse this file", c.name);
+        // a table moved over the blocks or made longer than the blocks are many is a layout the reference
+        // refuses on its own (LAYOUT-07); every other integrity case is a file only a verifier can refuse
+        if !c.name.contains("checksum_table_declared") && !c.name.contains("checksum_table_one_entry") {
+            assert!(read(&bytes).is_ok(), "{}: only an integrity check may refuse this file", c.name);
+        }
         assert!(matches!(&c.expect, Expect::Refuse(r) if r[0].starts_with("INTEGRITY-")), "{}", c.name);
     }
 }
@@ -817,7 +818,7 @@ const DEFENSIVE: &[(&str, &str)] = &[
         "a block that overlaps the one before it or runs into the directory: DIR-08 and DIR-11 refuse it first",
     ),
     (
-        "NEGOTIATE-01",
+        "NEGOTIATE-90",
         "pinned by a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_know",
     ),
 ];

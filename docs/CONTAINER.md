@@ -350,7 +350,7 @@ The block directory is a table of 64 byte entries, one per block, in file order.
 | 58 | 2 | subtype | u16 | geometry type of a hot block, payload kind of an arena, otherwise 0 |
 | 60 | 1 | flags | u8 | bit 0 must-understand, bit 1 has-bounds; the rest zero |
 | 61 | 1 | codec | u8 | 0 stored as it is; later ids belong to P4.6 |
-| 62 | 2 | reserved | u16 | zero |
+| 62 | 2 | capability | u16 | the registry id of the capability the block belongs to; zero for a block of a kind the format defines |
 
 The block kinds:
 

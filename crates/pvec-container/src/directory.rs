@@ -53,7 +53,13 @@ pub const BLOCK_ENTRY_FIELDS: &[FieldSpec] = &[
     field("subtype", 58, 2, "u16", "geometry type of a hot block, payload kind of an arena, otherwise 0"),
     field("flags", 60, 1, "u8", "bit 0 must-understand, bit 1 has-bounds; the rest zero"),
     field("codec", 61, 1, "u8", "0 stored as it is; later ids belong to P4.6"),
-    field("reserved", 62, 2, "u16", "zero"),
+    field(
+        "capability",
+        62,
+        2,
+        "u16",
+        "the registry id of the capability the block belongs to; zero for a block of a kind the format defines",
+    ),
 ];
 
 /// What a block holds.
@@ -123,6 +129,8 @@ pub struct BlockEntry {
     pub flags: u8,
     /// Codec id.
     pub codec: u8,
+    /// The capability the block belongs to, or 0.
+    pub capability: u16,
 }
 
 impl BlockEntry {
@@ -150,6 +158,7 @@ impl BlockEntry {
         put(e::SUBTYPE, &self.subtype.to_le_bytes());
         put(e::FLAGS, &[self.flags]);
         put(e::CODEC, &[self.codec]);
+        put(e::CAPABILITY, &self.capability.to_le_bytes());
         b
     }
 }
@@ -169,7 +178,7 @@ mod e {
     pub const SUBTYPE: usize = 58;
     pub const FLAGS: usize = 60;
     pub const CODEC: usize = 61;
-    pub const RESERVED: usize = 62;
+    pub const CAPABILITY: usize = 62;
 }
 
 /// Why a directory was refused.
@@ -379,7 +388,7 @@ pub fn parse_directory(
     let mut out = Vec::with_capacity(table.len() / ENTRY_LEN);
     let mut previous_end = header_len;
     for (index, b) in table.chunks_exact(ENTRY_LEN).enumerate() {
-        if u16_at(b, e::RESERVED) != 0 {
+        if u16_at(b, e::CAPABILITY) != 0 {
             return Err(DirectoryError::NonZeroReserved { index });
         }
         let flags = b[e::FLAGS];
@@ -446,6 +455,7 @@ pub fn parse_directory(
             subtype: u16_at(b, e::SUBTYPE),
             flags,
             codec,
+            capability: 0,
         });
     }
     Ok(out)
