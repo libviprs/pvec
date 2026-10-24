@@ -207,6 +207,13 @@ A decoder rejects: a gap between consecutive segments larger than `NP-17`; more 
 `NP-18`; a `.DISCONTINUOUS.` transition; a segment whose own entry (sections 4 to 8, 10, 11, 12)
 would be rejected; a declared closed composite whose last end does not meet its first start.
 
+A polyline segment with a bulge is one circular arc, and a producer that holds its two end points and the
+bulge builds it with `Trimmed::from_bulge`: a positive bulge runs counter-clockwise from the first point to
+the second and a negative one clockwise, which comes back as a reversed trim (`NP-11`). The span is
+`4 atan |bulge|` and the radius is `L (1 + b^2) / (4 |b|)` for a chord of length `L`. A zero bulge is a line
+and is refused (`GEOM-02`), as are the values `NP-01`, `NP-02`, `NP-06` and `NP-07` refuse. The closing
+segment of a closed polyline is built with the same call, from the last vertex to the first.
+
 ## 10. Bezier
 
 | Field | Value |
@@ -227,12 +234,12 @@ A decoder rejects: a control point count other than `degree + 1`; a degree outsi
 | Field | Value |
 |---|---|
 | ISO 10303-42:2025 construct | `b_spline_curve_with_knots` |
-| PVec restriction | non-rational; degree `1..=MAX_DEGREE`; explicit knot vector with multiplicities; control points as in section 1; no weights. The `curve_form` attribute is written `.UNSPECIFIED.` and ignored on read, so a file that says `.CIRCULAR_ARC.` does not make the curve a circle. `closed_curve` records geometric closure only and is checked, not trusted (`NP-20`). There is no wrapped periodic representation in v1 |
+| PVec restriction | non-rational; degree `1..=MAX_DEGREE`; explicit knot vector with multiplicities; control points as in section 1; no weights. The `curve_form` attribute is written `.UNSPECIFIED.` and ignored on read, so a file that says `.CIRCULAR_ARC.` does not make the curve a circle. `closed_curve` records geometric closure only and is checked, not trusted (`NP-20`). There is no wrapped periodic representation in the exchange form: a periodic spline is turned into this clamped form by `BSpline::from_periodic` (ADR 0011, amendment for issue 93), which keeps its locus and domain and declares it closed under `NP-20` |
 | Allowed dimensions | 2 |
 | Parameter-domain convention | native knot values; the evaluated domain is `[knots[degree], knots[n]]` (zero based, `n` the last control point index), the usual clamped or unclamped definition. The unit map of `NP-13` takes it onto `[0, 1]` for comparison |
 | Trim convention | bounded by the domain; further trimming through a trimmed curve |
 | Exact Part 21 form | `B_SPLINE_CURVE_WITH_KNOTS('',degree,(#cp0,...),.UNSPECIFIED.,.F.,.U.,(m0,m1,...),(k0,k1,...),.UNSPECIFIED.);` The `self_intersect` logical is written `.U.` because PVec does not compute it, and ignored on read |
-| Unsupported Part 42 features | the knot-spec shortcut subtypes (`uniform_curve`, `quasi_uniform_curve`, `piecewise_bezier_curve`), which carry no information beyond a particular explicit knot vector; `b_spline_curve` without knots; `rational_b_spline_curve` with non-positive weights; periodic wrap-around; `b_spline_curve` on a surface |
+| Unsupported Part 42 features | the knot-spec shortcut subtypes (`uniform_curve`, `quasi_uniform_curve`, `piecewise_bezier_curve`), which carry no information beyond a particular explicit knot vector; `b_spline_curve` without knots; `rational_b_spline_curve` with non-positive weights; periodic wrap-around as a stored form (the unwrap above is a conversion, not a representation); `b_spline_curve` on a surface |
 
 A decoder rejects: a knot vector that is not non-decreasing or whose length is not
 `control_points + degree + 1`; a multiplicity rule violation of `NP-14` (including an interior
