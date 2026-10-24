@@ -358,10 +358,8 @@ fn the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_bud
     let hits = index.query(&r, &screen).unwrap();
     let cells = query_viewport(&dir, None, &screen).cells;
     let stored = |b: u32| u64::from(r.entries()[b as usize].stored_length);
-    let cell_bytes: u64 = cells
-        .iter()
-        .flat_map(|c| (c.blocks.first.0..c.blocks.first.0 + c.blocks.count).map(|b| stored(b)))
-        .sum();
+    let cell_bytes: u64 =
+        cells.iter().flat_map(|c| (c.blocks.first.0..c.blocks.first.0 + c.blocks.count).map(&stored)).sum();
     let payload_blocks: BTreeSet<u32> = hits.iter().map(|h| h.payload.block_id.0).collect();
     let payload_bytes: u64 = payload_blocks.iter().map(|b| stored(*b)).sum();
     let list_bytes = index.read_bytes(&screen);
