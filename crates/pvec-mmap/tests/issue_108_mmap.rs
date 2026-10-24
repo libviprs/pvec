@@ -7,9 +7,7 @@ use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_entity::EntityId;
 use pvec_mmap::MmapSource;
 use pvec_sources::{FileSource, PositionalFile};
-use pvec_testkit::hostile::{
-    Limits, NoMeter, Reader, Refusal, Requires, Verdict, bases, catalog, run,
-};
+use pvec_testkit::hostile::{Limits, NoMeter, Reader, Refusal, Requires, Verdict, bases, catalog, run};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -102,7 +100,10 @@ fn a_missing_file_and_a_directory_are_errors_and_an_empty_file_is_an_empty_sourc
     assert_eq!(source.len(), 0);
     assert!(source.is_empty());
     assert!(matches!(source.read_range(0, 1), Err(SourceError::OutOfRange { .. })));
-    assert!(ContainerReader::open(source, ReaderConfig::default()).is_err(), "an empty file is not an artifact");
+    assert!(
+        ContainerReader::open(source, ReaderConfig::default()).is_err(),
+        "an empty file is not an artifact"
+    );
     std::fs::remove_file(&path).unwrap();
 }
 
@@ -120,8 +121,7 @@ fn a_file_cut_short_after_the_map_was_made_is_an_error_and_not_a_fault() {
     let err = reader.read_block(BlockId(0)).unwrap_err();
     assert!(matches!(err, ReadError::Source(SourceError::Short { .. })), "{err:?}");
     assert_eq!(reader.accountant().live(), held_by_the_layout, "a short read holds no memory");
-    // and the part that is still there is still readable
-    assert!(reader.validate().is_err());
+    assert!(reader.validate().is_err(), "and a validation of a cut file fails as a whole");
     std::fs::remove_file(&path).unwrap();
 }
 

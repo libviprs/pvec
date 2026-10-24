@@ -94,7 +94,10 @@ fn the_mmap_crate_depends_on_the_container_crate_and_one_vetted_map_crate_and_no
     deps.sort();
     assert_eq!(deps, ["memmap2", "pvec-container"]);
     let line = manifest.lines().find(|l| l.starts_with("memmap2")).unwrap();
-    assert!(line.contains('=') && !line.contains("git") && !line.contains("path"), "{line}: a registry version");
+    assert!(
+        line.contains('=') && !line.contains("git") && !line.contains("path"),
+        "{line}: a registry version"
+    );
     for (name, allowed) in API_CRATES {
         assert!(!allowed.contains(&"memmap2") && !allowed.contains(&"pvec-mmap"), "{name} allows the map");
         let m = fs::read_to_string(repo_root().join(format!("crates/{name}/Cargo.toml"))).unwrap();
