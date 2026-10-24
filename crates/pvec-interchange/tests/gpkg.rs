@@ -3,9 +3,9 @@
 //! reproducibility. The file is read back by `common`, a SQLite reader that shares no code with the
 //! writer; the independent GIS reader and the GeoPackage validator run from `tools/gpkg-validate.sh`.
 
-mod common;
+mod gpkg_reader;
 
-use common::*;
+use gpkg_reader::*;
 use pvec_capabilities::ids;
 use pvec_entity::EntityId;
 use pvec_geometry::*;

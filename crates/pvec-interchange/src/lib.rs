@@ -7,15 +7,19 @@
 //! writer ([`gpkg`]) is the first export built on it; `docs/INTERCHANGE.md` chapter 4 says which curve
 //! becomes which geometry and with what claim.
 //!
+//! The GML export (P6.4) lives in [`gml`]: it maps PVec curves onto GML 3.2.1 constructs and writes one
+//! fidelity record per segment, see `docs/INTERCHANGE.md` chapter 3.
+//!
 //! The display-only vector tile export (P6.6) lives in [`mvt`]; it is the one place that tessellates
 //! for display, through the exact evaluator of `pvec-geometry`.
 //!
-//! The crate has no dependencies beyond the curve model, the capability registry and the entity id,
-//! no I/O and no `unsafe`. The serialized form of a ledger is a small versioned text format written by
-//! hand, and the GeoPackage is a SQLite file written by hand too, so no serialization crate and no
-//! SQLite library (and so no C source) ever shows up in a public signature or in the build.
+//! The crate has no I/O and no `unsafe`; it depends on the capability registry, the entity id and the
+//! curve model. The serialized form of a ledger is a small versioned text format written by hand, and
+//! the GeoPackage is a SQLite file written by hand too, so no serialization crate and no SQLite library
+//! (and so no C source) ever shows up in a public signature or in the build.
 
 mod fidelity;
+pub mod gml;
 pub mod gpkg;
 pub mod mvt;
 
