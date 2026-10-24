@@ -15,6 +15,7 @@ pvec-container = { path = "../pvec-container" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-entity = { path = "../pvec-entity" }
 pvec-geometry = { path = "../pvec-geometry" }
+pvec-numeric = { path = "../pvec-numeric" }
 
 [lints]
 workspace = true

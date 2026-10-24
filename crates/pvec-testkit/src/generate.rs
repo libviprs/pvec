@@ -75,6 +75,10 @@ pub const PRODUCER_PREFIX: &str = "pvec-gen:";
 
 const GENERATOR_PREFIX: &str = "pvec-gen/";
 
+/// 2^-52, the unit the stated bounds on derived numbers are counted in (one rounding of a value near 1).
+/// It is a unit of error analysis, not a tolerance: nothing is compared with it.
+const UNIT: f64 = f64::from_bits(0x3cb0_0000_0000_0000);
+
 /// One generated artifact.
 #[derive(Clone, Debug)]
 pub struct Artifact {
@@ -496,7 +500,7 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<Mapped, Refusal> {
                     entity: e.id.clone(),
                     what: "the rotation of the ellipse: the angle of the authored major axis, by detmath::atan2 (within one ulp)"
                         .to_string(),
-                    bound: f64::EPSILON * r.abs(),
+                    bound: UNIT * r.abs(),
                 });
                 r
             };
@@ -604,7 +608,7 @@ fn bulge_arc(cx: &Ctx<'_>, e: &Entity, bulge: &[f64]) -> Result<Mapped, Refusal>
     // their sum is generous. The angles carry that, seen from the radius, and the roundings of the
     // arctangents.
     let scale = p0.iter().chain(p1.iter()).fold(0.0_f64, |m, v| m.max(v.abs())) + radius;
-    let place = 64.0 * f64::EPSILON * scale;
+    let place = 64.0 * UNIT * scale;
     let said = |what: &str, bound: f64| Derived { entity: e.id.clone(), what: what.to_string(), bound };
     Ok((
         Shape::Arc { centre, radius, start_sweep: [start, sweep] },
@@ -616,9 +620,9 @@ fn bulge_arc(cx: &Ctx<'_>, e: &Entity, bulge: &[f64]) -> Result<Mapped, Refusal>
             ),
             said(
                 "the start angle: the angle of the first vertex from the centre, by detmath::atan2",
-                place / radius + 4.0 * f64::EPSILON * TAU,
+                place / radius + 4.0 * UNIT * TAU,
             ),
-            said("the sweep: 4 atan |bulge|, by detmath::atan", 2.0 * f64::EPSILON * span),
+            said("the sweep: 4 atan |bulge|, by detmath::atan", 2.0 * UNIT * span),
         ],
     ))
 }

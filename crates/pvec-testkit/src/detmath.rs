@@ -13,36 +13,46 @@
 //!
 //! The functions take finite arguments. A NaN comes back as a NaN, and an infinity as the limit.
 
+// The fdlibm constants as the bit patterns of the doubles they denote, with the published decimal
+// beside each one. A bit pattern cannot be rounded differently by a compiler or a lint.
+
+/// atan(0.5), atan(1), atan(1.5) and atan(inf), high parts.
 const ATAN_HI: [f64; 4] = [
-    4.636_476_090_008_060_935_15e-01,
-    7.853_981_633_974_482_789_99e-01,
-    9.827_937_232_473_290_540_82e-01,
-    1.570_796_326_794_896_558_00e+00,
+    f64::from_bits(0x3fdd_ac67_0561_bb4f), // 4.63647609000806093515e-01
+    f64::from_bits(0x3fe9_21fb_5444_2d18), // 7.85398163397448278999e-01
+    f64::from_bits(0x3fef_730b_d281_f69b), // 9.82793723247329054082e-01
+    f64::from_bits(0x3ff9_21fb_5444_2d18), // 1.57079632679489655800e+00
 ];
 
+/// The matching low parts.
 const ATAN_LO: [f64; 4] = [
-    2.269_877_745_296_168_709_24e-17,
-    3.061_616_997_868_383_017_93e-17,
-    1.390_331_103_123_099_845_16e-17,
-    6.123_233_995_736_766_035_87e-17,
+    f64::from_bits(0x3c7a_2b7f_222f_65e2), // 2.26987774529616870924e-17
+    f64::from_bits(0x3c81_a626_3314_5c07), // 3.06161699786838301793e-17
+    f64::from_bits(0x3c70_0788_7af0_cbbd), // 1.39033110312309984516e-17
+    f64::from_bits(0x3c91_a626_3314_5c07), // 6.12323399573676603587e-17
 ];
 
+/// The coefficients of the polynomial for atan on the reduced argument.
 const AT: [f64; 11] = [
-    3.333_333_333_333_293_180_27e-01,
-    -1.999_999_999_987_648_324_76e-01,
-    1.428_571_427_250_346_637_11e-01,
-    -1.111_111_040_546_235_578_80e-01,
-    9.090_887_133_436_506_561_96e-02,
-    -7.691_876_205_044_829_994_95e-02,
-    6.661_073_137_387_531_206_69e-02,
-    -5.833_570_133_790_573_486_45e-02,
-    4.976_877_994_615_932_360_17e-02,
-    -3.653_157_274_421_691_552_70e-02,
-    1.628_582_011_536_578_236_23e-02,
+    f64::from_bits(0x3fd5_5555_5555_550d), // 3.33333333333329318027e-01
+    f64::from_bits(0xbfc9_9999_9998_ebc4), // -1.99999999998764832476e-01
+    f64::from_bits(0x3fc2_4924_9200_83ff), // 1.42857142725034663711e-01
+    f64::from_bits(0xbfbc_71c6_fe23_1671), // -1.11111104054623557880e-01
+    f64::from_bits(0x3fb7_45cd_c54c_206e), // 9.09088713343650656196e-02
+    f64::from_bits(0xbfb3_b0f2_af74_9a6d), // -7.69187620504482999495e-02
+    f64::from_bits(0x3fb1_0d66_a0d0_3d51), // 6.66107313738753120669e-02
+    f64::from_bits(0xbfad_de2d_52de_fd9a), // -5.83357013379057348645e-02
+    f64::from_bits(0x3fa9_7b4b_2476_0deb), // 4.97687799461593236017e-02
+    f64::from_bits(0xbfa2_b444_2c6a_6c2f), // -3.65315727442169155270e-02
+    f64::from_bits(0x3f90_ad3a_e322_da11), // 1.62858201153657823623e-02
 ];
 
-const PI: f64 = 3.141_592_653_589_793_116_00;
-const PI_LO: f64 = 1.224_646_799_147_353_177_2e-16;
+const PI: f64 = f64::from_bits(0x4009_21fb_5444_2d18); // 3.1415926535897931160E+00
+const PI_LO: f64 = f64::from_bits(0x3ca1_a626_3314_5c07); // 1.2246467991473531772E-16
+/// 2^66: from here atan is pi/2 to the last bit.
+const HUGE: f64 = f64::from_bits(0x4410000000000000);
+/// 2^-28: below this atan(x) is x to the last bit.
+const TINY: f64 = f64::from_bits(0x3e30000000000000);
 
 /// The arctangent of `x`, in `(-pi/2, pi/2)`, within one ulp.
 pub fn atan(x: f64) -> f64 {
@@ -51,13 +61,13 @@ pub fn atan(x: f64) -> f64 {
     }
     let negative = x.is_sign_negative();
     let ax = x.abs();
-    if ax >= 7.378_697_629_483_820_6e19 {
-        // 2^66 and beyond, an infinity included: pi/2 to the last bit
+    if ax >= HUGE {
+        // an infinity included: pi/2 to the last bit
         let r = ATAN_HI[3] + ATAN_LO[3];
         return if negative { -r } else { r };
     }
     let (id, t) = if ax < 0.4375 {
-        if ax < 3.725_290_298_461_914e-9 {
+        if ax < TINY {
             // 2^-28: atan(x) is x to the last bit
             return x;
         }

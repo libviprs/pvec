@@ -6,11 +6,15 @@ mod common;
 use common::*;
 use pvec_corpus::FixtureRegistry;
 use pvec_geometry::{BSpline, Curve, Point2, Trimmed};
+use pvec_numeric::Policy;
 use pvec_testkit::detmath::{atan, atan2};
 use pvec_testkit::generate::{Artifact, Cause, generate_all};
 use pvec_testkit::reference::{ReadEntity, read};
 use std::collections::BTreeMap;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+const ABS: f64 = Policy::V1.abs;
+const REL: f64 = Policy::V1.rel;
 
 fn all() -> BTreeMap<String, Artifact> {
     generate_all(&bundle())
@@ -44,11 +48,26 @@ fn ulps(a: f64, b: f64) -> u64 {
 fn atan_is_within_one_ulp_of_the_c_library_over_every_branch() {
     // every branch of the reduction: tiny, below 7/16, 7/16..11/16, 11/16..19/16, 19/16..39/16, beyond
     let mut xs = vec![
-        1e-300, 1e-10, 0.1, 0.4, 0.4375, 0.5, 0.6875, 0.9, 1.0, 1.1875, 1.5, 2.0, 2.4375, 3.0, 10.0, 1e5,
-        1e20,
+        f64::MIN_POSITIVE * 4.0,
+        0.000_000_000_1,
+        0.1,
+        0.4,
+        0.4375,
+        0.5,
+        0.6875,
+        0.9,
+        1.0,
+        1.1875,
+        1.5,
+        2.0,
+        2.4375,
+        3.0,
+        10.0,
+        100_000.0,
+        100_000_000_000_000_000_000.0,
     ];
     let mut v = 0.001;
-    while v < 1e6 {
+    while v < 1_000_000.0 {
         xs.push(v);
         v *= 1.37;
     }
@@ -65,7 +84,7 @@ fn atan_is_within_one_ulp_of_the_c_library_over_every_branch() {
 
 #[test]
 fn atan2_is_within_one_ulp_of_the_c_library_in_every_quadrant() {
-    let vs = [0.28, 0.96, 1.0, 1.75, 3.5, 0.0003, 120.0, 1e-5, 7e9];
+    let vs = [0.28, 0.96, 1.0, 1.75, 3.5, 0.0003, 120.0, 0.000_01, 7_000_000_000.0];
     for y in vs {
         for x in vs {
             for (sy, sx) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
@@ -143,11 +162,11 @@ fn a_bulge_is_stored_as_the_arc_between_its_vertices_with_the_sweep_four_atan_of
         let at = |t: f64| [c[0] + r * t.cos(), c[1] + r * t.sin()];
         for (got_pt, want) in [(at(start), p0), (at(start + sweep), p1)] {
             let d = (got_pt[0] - want[0]).hypot(got_pt[1] - want[1]);
-            assert!(d < 1e-13, "{id}: the arc ends {d} from its vertex");
+            assert!(d < ABS, "{id}: the arc ends {d} from its vertex");
         }
         let chord = (p1[0] - p0[0]).hypot(p1[1] - p0[1]);
         let want_r = chord * (1.0 + bulge * bulge) / (4.0 * bulge.abs());
-        assert!(((r - want_r) / want_r).abs() < 1e-14, "{id}: radius {r} against {want_r}");
+        assert!(((r - want_r) / want_r).abs() < REL, "{id}: radius {r} against {want_r}");
     }
 }
 
@@ -166,7 +185,7 @@ fn the_derived_arc_is_the_arc_the_corpus_authored_beside_it_to_the_last_few_bits
         assert_eq!(astart.to_bits(), real("start_angle").to_bits());
         assert_eq!(asweep.to_bits(), real("sweep_angle").to_bits());
         let bound: f64 = got[id].derived.iter().map(|d| d.bound).fold(0.0, f64::max);
-        assert!(bound > 0.0 && bound < 1e-12, "{id}: bound {bound}");
+        assert!(bound > 0.0 && bound < ABS, "{id}: bound {bound}");
         assert!((c[0] - ac[0]).abs() <= bound && (c[1] - ac[1]).abs() <= bound, "{id}: centre");
         assert!((r - ar).abs() <= bound, "{id}: radius {r} against {ar}");
         assert!((sweep.abs() - asweep).abs() <= bound, "{id}: sweep {sweep} against {asweep}");
@@ -185,13 +204,13 @@ fn a_bulge_arc_agrees_with_the_semantic_models_own_constructor() {
         let t = Trimmed::from_bulge(Point2::new(p0[0], p0[1]), Point2::new(p1[0], p1[1]), bulge).unwrap();
         let Curve::Circle(circle) = t.basis() else { panic!("a circle basis") };
         let o = circle.placement().origin();
-        assert!((o.x - c[0]).abs() < 1e-12 && (o.y - c[1]).abs() < 1e-12, "{id}: centre");
-        assert!((circle.radius() - r).abs() < 1e-12, "{id}: radius");
+        assert!((o.x - c[0]).abs() < ABS && (o.y - c[1]).abs() < ABS, "{id}: centre");
+        assert!((circle.radius() - r).abs() < ABS, "{id}: radius");
         let trim = t.trim();
         let (s, w) =
             if trim.reversed { (trim.start + trim.span, -trim.span) } else { (trim.start, trim.span) };
-        assert!((s - start).rem_euclid(TAU).min(TAU - (s - start).rem_euclid(TAU)) < 1e-12, "{id}: start");
-        assert!((w - sweep).abs() < 1e-12, "{id}: sweep");
+        assert!((s - start).rem_euclid(TAU).min(TAU - (s - start).rem_euclid(TAU)) < ABS, "{id}: start");
+        assert!((w - sweep).abs() < ABS, "{id}: sweep");
     }
 }
 
