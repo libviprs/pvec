@@ -215,7 +215,12 @@ fn judge(
         Err(f) => return fail(f),
     };
     match (&case.expect, verdict) {
-        (Expect::Refuse(_), Verdict::Accepted) => return fail(Failure::Accepted),
+        (Expect::Refuse(_) | Expect::RefuseAny, Verdict::Accepted) => return fail(Failure::Accepted),
+        (Expect::RefuseAny, Verdict::Refused(r)) => {
+            if r.rule.is_empty() {
+                return fail(Failure::WrongRule { got: r.rule, want: vec!["any named rule".to_string()] });
+            }
+        }
         (Expect::Refuse(rules), Verdict::Refused(r)) => {
             if !rules.contains(&r.rule.as_str()) {
                 return fail(Failure::WrongRule {

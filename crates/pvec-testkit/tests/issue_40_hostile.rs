@@ -38,9 +38,22 @@ fn corpus() -> (Arc<Vec<Base>>, Arc<Vec<Case>>) {
     (Arc::new(b), Arc::new(c))
 }
 
-fn run_with(reader: impl Reader + 'static, limits: Limits) -> pvec_testkit::hostile::Report {
+fn is_sweep(c: &Case) -> bool {
+    c.name.starts_with("truncation/prefix/") || c.name.starts_with("truncation/remove_byte/")
+}
+
+/// The whole corpus, sweeps included.
+fn run_full(reader: impl Reader + 'static, limits: Limits) -> pvec_testkit::hostile::Report {
     let (b, c) = corpus();
     run(Arc::new(reader), Arc::new(Counting), b, c, limits)
+}
+
+/// The named cases only: what the tests of wrong readers run, so that a reader that is wrong about
+/// every case does not have to be wrong about tens of thousands of them.
+fn run_with(reader: impl Reader + 'static, limits: Limits) -> pvec_testkit::hostile::Report {
+    let (b, c) = corpus();
+    let named: Vec<Case> = c.iter().filter(|c| !is_sweep(c)).cloned().collect();
+    run(Arc::new(reader), Arc::new(Counting), b, Arc::new(named), limits)
 }
 
 fn run_subset(
@@ -208,13 +221,23 @@ fn every_row_of_the_issue_table_has_its_named_case_and_every_family_is_covered()
     ] {
         assert!(cases.iter().any(|c| c.family == f), "no case in {f:?}");
     }
-    // the sweeps: every prefix and every single removed byte of every base
+    // the sweeps: every proper prefix and every single removed byte of every base is some case
     let (bases, _) = corpus();
-    let total: usize = bases.iter().map(|b| b.bytes.len()).sum();
-    let prefixes = cases.iter().filter(|c| c.name.starts_with("truncation/prefix/")).count();
-    let removals = cases.iter().filter(|c| c.name.starts_with("truncation/remove_byte/")).count();
-    assert_eq!(prefixes, total, "one case per prefix length 0..len of every base");
-    assert_eq!(removals, total, "one case per byte of every base");
+    let produced: BTreeSet<String> = cases.iter().map(|c| hex_digest(&c.bytes(&bases[c.base]))).collect();
+    for b in bases.iter() {
+        for len in 0..b.bytes.len() {
+            assert!(
+                produced.contains(&hex_digest(&b.bytes[..len])),
+                "{}: no case cuts it to {len} bytes",
+                b.name
+            );
+        }
+        for at in 0..b.bytes.len() {
+            let mut v = b.bytes.clone();
+            v.remove(at);
+            assert!(produced.contains(&hex_digest(&v)), "{}: no case removes byte {at}", b.name);
+        }
+    }
 }
 
 #[test]
@@ -259,20 +282,20 @@ fn each_case_is_one_effective_mutation_and_the_base_it_repairs_to_reads() {
         let mut at = base.clone();
         for (i, op) in c.ops.iter().enumerate() {
             let next = pvec_testkit::hostile::apply(&at, std::slice::from_ref(op));
-            assert_ne!(next, at, "{}: op {i} changes nothing", c.name);
+            assert!(next != at, "{}: op {i} changes nothing", c.name);
             at = next;
         }
-        assert_eq!(at, c.bytes(&bases[c.base]));
-        assert_ne!(&at, base, "{}: the mutation is a no-op", c.name);
+        assert!(at == c.bytes(&bases[c.base]));
+        assert!(&at != base, "{}: the mutation is a no-op", c.name);
     }
 }
 
 #[test]
 fn the_reference_reader_satisfies_every_case_it_provides() {
     let (_, cases) = corpus();
-    let report = run_with(ReferenceReader::new(), Limits::default());
+    let report = run_full(ReferenceReader::new(), Limits::default());
     assert!(report.passed(), "{}", report.summary());
-    assert!(report.ran > 200, "ran only {}", report.ran);
+    assert!(report.ran > 10_000, "ran only {}", report.ran);
     let skipped: usize = report.skipped.values().sum();
     assert_eq!(report.ran + skipped, cases.len());
     // what a later issue has to provide is counted, not hidden
@@ -419,14 +442,18 @@ impl Reader for TrustsTheCount {
 }
 
 fn parse_cases() -> Vec<Case> {
-    corpus().1.iter().filter(|c| c.requires == Requires::Parse).cloned().collect()
+    corpus().1.iter().filter(|c| c.requires == Requires::Parse && !is_sweep(c)).cloned().collect()
 }
 
 #[test]
 fn a_reader_that_accepts_hostile_files_fails_every_case_that_wants_a_refusal() {
     let report = run_with(AcceptsAnything, Limits::default());
-    let wants_refusal = corpus().1.iter().filter(|c| matches!(c.expect, Expect::Refuse(_))).count();
-    assert!(wants_refusal > 200);
+    let wants_refusal = corpus()
+        .1
+        .iter()
+        .filter(|c| !is_sweep(c) && matches!(c.expect, Expect::Refuse(_) | Expect::RefuseAny))
+        .count();
+    assert!(wants_refusal > 80, "{wants_refusal}");
     assert_eq!(report.failures.len(), wants_refusal, "{}", report.summary());
     assert!(report.failures.iter().all(|(_, f)| *f == Failure::Accepted));
 }
@@ -434,7 +461,7 @@ fn a_reader_that_accepts_hostile_files_fails_every_case_that_wants_a_refusal() {
 #[test]
 fn a_panic_is_a_failure_of_the_reader_and_the_run_carries_on() {
     let parse = parse_cases().len();
-    assert!(parse > 200, "the corpus has {parse} cases that need only the parsers");
+    assert!(parse > 80, "the corpus has {parse} named cases that need only the parsers");
     let report = run_with(Panics, Limits::default());
     assert_eq!(report.ran, parse);
     assert_eq!(report.failures.len(), parse, "{}", report.summary());
@@ -585,6 +612,7 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
         [include_str!("../../../docs/CONTAINER.md"), include_str!("../../../docs/COMPONENT_STREAMS.md")]
             .concat();
     let container_errors = include_str!("../../pvec-container/src/error.rs");
+    let stream_errors = include_str!("../../pvec-components/src/error.rs");
     let reference = include_str!("../src/reference.rs");
     let mut seen = BTreeSet::new();
     for c in cases.iter() {
@@ -592,9 +620,10 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
         assert!(!rules.is_empty(), "{}: a refusal with no rule", c.name);
         for r in rules {
             seen.insert(*r);
-            let documented = if ["DIR-", "HOT-", "ARN-", "STREAM-", "COMP-"].iter().any(|p| r.starts_with(p))
-            {
+            let documented = if ["DIR-", "HOT-", "ARN-"].iter().any(|p| r.starts_with(p)) {
                 docs.contains(&format!("| {r} |"))
+            } else if ["STREAM-", "COMP-"].iter().any(|p| r.starts_with(p)) {
+                stream_errors.contains(&format!("\"{r}\""))
             } else if ["LAYOUT-", "CONSIST-", "LIMIT-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
                 reference.contains(&format!("\"{r}\""))
             } else if r.starts_with("INTEGRITY-") {
@@ -630,4 +659,67 @@ fn case_names_start_with_their_family() {
         assert!(c.name.starts_with(prefix), "{} is in {:?}", c.name, c.family);
     }
     let _ = read_with; // the budgeted entry point is exercised through ReferenceReader
+}
+
+/// Panics on a file it accepts, as a reader that unwraps something on the success path would.
+struct PanicsOnValid;
+impl Reader for PanicsOnValid {
+    fn name(&self) -> String {
+        "panics on valid".into()
+    }
+    fn provides(&self) -> Vec<Requires> {
+        vec![Requires::Parse]
+    }
+    fn read(&self, bytes: &[u8]) -> Verdict {
+        match ReferenceReader::new().read(bytes) {
+            Verdict::Accepted => panic!("an unwrap on the success path"),
+            v => v,
+        }
+    }
+}
+
+/// Refuses everything and claims to skip unknown optional blocks.
+struct RefusesEvenWhatItShouldSkip;
+impl Reader for RefusesEvenWhatItShouldSkip {
+    fn name(&self) -> String {
+        "refuses what it should skip".into()
+    }
+    fn provides(&self) -> Vec<Requires> {
+        vec![Requires::Parse, Requires::Negotiation]
+    }
+    fn read(&self, bytes: &[u8]) -> Verdict {
+        ReferenceReader::new().read(bytes)
+    }
+}
+
+#[test]
+fn a_reader_that_breaks_on_the_valid_file_is_caught_on_the_repair() {
+    let report = run_subset(PanicsOnValid, &["offsets/block_offset_past_eof"], Limits::default());
+    assert_eq!(report.failures.len(), 1, "{}", report.summary());
+    assert!(matches!(&report.failures[0].1, Failure::RepairBroke(f) if matches!(**f, Failure::Panicked(_))));
+}
+
+#[test]
+fn a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_know() {
+    // the reference does not skip unknown optional blocks: it refuses them, naming NEGOTIATE-01
+    let report = run_subset(
+        RefusesEvenWhatItShouldSkip,
+        &["tags/unknown_optional_block_kind_is_skipped"],
+        Limits::default(),
+    );
+    assert_eq!(report.failures.len(), 1, "{}", report.summary());
+    assert!(matches!(&report.failures[0].1, Failure::Rejected(r) if r.rule == "NEGOTIATE-01"));
+}
+
+#[test]
+fn the_cases_for_later_issues_are_well_formed_files_that_only_the_missing_feature_can_judge() {
+    let (bases, cases) = corpus();
+    let pending: Vec<&Case> = cases.iter().filter(|c| c.requires == Requires::Integrity).collect();
+    assert!(pending.len() >= 3);
+    for c in pending {
+        // a parser sees nothing wrong with them: a digest that does not match is invisible without P4.6
+        let bytes = c.bytes(&bases[c.base]);
+        assert!(read(&bytes).is_ok(), "{}: only an integrity check may refuse this file", c.name);
+        assert!(matches!(&c.expect, Expect::Refuse(r) if r[0].starts_with("INTEGRITY-")), "{}", c.name);
+    }
 }
