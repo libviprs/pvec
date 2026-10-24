@@ -8,11 +8,15 @@
 //! The GML export (P6.4) lives in [`gml`]: it maps PVec curves onto GML 3.2.1 constructs and writes one
 //! fidelity record per segment, see `docs/INTERCHANGE.md` chapter 3.
 //!
+//! The display-only vector tile export (P6.6) lives in [`mvt`]; it is the one place that reads curves,
+//! through the exact evaluator of `pvec-geometry`.
+//!
 //! The crate has no I/O and no `unsafe`; it depends on the capability registry, the entity id and the
 //! curve model. The serialized form of a ledger is a small versioned text format written by hand, so
 //! no serialization crate ever shows up in a public signature.
 
 mod fidelity;
 pub mod gml;
+pub mod mvt;
 
 pub use fidelity::*;
