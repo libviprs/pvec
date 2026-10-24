@@ -7,5 +7,7 @@
 //! `pvec_container::ContainerReader`.
 
 mod directory;
+mod viewport;
 
 pub use directory::*;
+pub use viewport::*;
