@@ -50,6 +50,28 @@ pub enum CorpusError {
         /// The recorded bit pattern.
         hex: String,
     },
+    /// A scalar's decimal text carries more significant digits than the precision it declares.
+    PrecisionExceeded {
+        /// Where in the record.
+        at: String,
+        /// The decimal text.
+        decimal: String,
+        /// Significant digits as written.
+        digits: u32,
+        /// The declared precision.
+        declared: u32,
+    },
+    /// A scalar declares fewer significant digits than its bit pattern needs to round-trip.
+    PrecisionTooLow {
+        /// Where in the record.
+        at: String,
+        /// The recorded bit pattern.
+        hex: String,
+        /// Digits the shortest round-trip decimal has.
+        needed: u32,
+        /// The declared precision.
+        declared: u32,
+    },
     /// A fixture carries no evidence class, or one outside the four of EPIC O.
     Unclassified {
         /// The fixture id.
@@ -109,6 +131,14 @@ impl fmt::Display for CorpusError {
                 f,
                 "{at}: decimal `{decimal}` does not parse to the recorded bits {hex}; \
                  a shortened decimal has replaced the f64"
+            ),
+            CorpusError::PrecisionExceeded { at, decimal, digits, declared } => write!(
+                f,
+                "{at}: decimal `{decimal}` carries {digits} significant digits but declares a precision of {declared}"
+            ),
+            CorpusError::PrecisionTooLow { at, hex, needed, declared } => write!(
+                f,
+                "{at}: {hex} needs {needed} significant digits to round-trip but declares a precision of {declared}"
             ),
             CorpusError::Unclassified { fixture, found } => match found {
                 Some(c) => write!(

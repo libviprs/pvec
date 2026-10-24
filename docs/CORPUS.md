@@ -54,6 +54,11 @@ Reading an `expected.math.json`:
   decimal has to parse, under round to nearest, to exactly those bits. A value routed through a 15 digit decimal
   fails the load and names the place it came from. The corpus has 886 scalars; the tests count how many of them
   need more than 15 digits, so a corpus of round numbers could not pass this check by accident.
+- A scalar may add `"precision": N` (1 to 17), the significant decimal digits it declares (issue #95). Digits are
+  counted as written: leading zeros never count, trailing zeros count after a decimal point (`1.50` is three,
+  `1500` is two). A decimal with more digits than declared fails the load, and so does a declaration below the
+  digits the hex needs to round-trip. `r0-open` declares none, which is accepted; the check starts to bite when a
+  vendor revision carries declarations.
 - Non-finite values are refused (NP-01).
 - The entity class has to be one of the nine curve classes of the record and carry the geometry fields its class
   needs.
@@ -125,3 +130,21 @@ ACadSharp) decode the files to the authored mathematics. The readers share a DWG
 misreading would not show. Nothing in this corpus says how CAD Exchanger, ODA or a STEP path treats these
 drawings, and nothing in this repository may cite it for that. The dual-oracle corpus is the vendor revision
 tracked in `libviprs/pvec-gold-fixtures#42`, consumed by P2.2.
+
+## Containers: `pvec-hermetic`
+
+`pvec-corpus` stays process-free on purpose. A corpus revision that needs a converter or oracle container reaches it
+through `crates/pvec-hermetic`, which is the one crate here that starts a process (the `docker` client). `r0-open`
+needs none, so nothing uses it yet; it exists so the rules are written and tested before the first container.
+
+- `Container::start` refuses an image that is not pinned `name@sha256:<64 hex>`, then runs it with no network, a
+  read-only root, the corpus mounted read-only at `/corpus`, no `-e`, no socket and no privilege. The docker client
+  itself sees `PATH` and the daemon-selection variables (`DOCKER_HOST`, `DOCKER_CONFIG`, `DOCKER_CONTEXT`) and nothing
+  else, so no token is forwarded. No image and no credential lives in this repository.
+- The container is removed by `stop()` or by `Drop`, so a pass, an early return and a panic all clean up. A start that
+  failed half way is removed by name once.
+- Docker missing or its daemon not answering can be skipped only when `PVEC_DEV_RUN` is `1` or `true`, and a `CI`
+  that is set (anything but empty, `0` or `false`) overrides it, so CI fails. With neither variable the run is strict
+  and fails. A container Docker refused to start, or an unpinned image, is never skipped, in any kind of run.
+- The tests drive a fake `docker` found through an explicit search path, so they need no Docker and do not touch the
+  process environment.
