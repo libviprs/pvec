@@ -92,6 +92,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-interchange"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-entity",
+]
+
+[[package]]
 name = "pvec-numeric"
 version = "0.0.0"
 
