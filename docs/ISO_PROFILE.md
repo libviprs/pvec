@@ -169,6 +169,12 @@ placement that fails section 3.
 A decoder rejects: either semi-axis degenerate under `NP-07`; an axis ratio larger than the
 conditioning bound in `NP-07`; a placement that fails section 3.
 
+A producer that holds a centre, a major-axis vector and a minor/major ratio (a DWG `ELLIPSE`) builds the
+ellipse with `Ellipse::from_major_axis`: the placement is the vector normalised (`NP-10`), `semi_axis_1`
+is the vector's length and `semi_axis_2` is that length times the ratio, so the major axis is first. The
+ratio must lie in `(0, 1]` and give an axis ratio inside `NP-07`; the source numbers are passed as they
+are, and the one product stays inside PVec.
+
 ## 8. Trimmed curve
 
 | Field | Value |

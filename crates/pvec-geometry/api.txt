@@ -17,6 +17,7 @@ conic.rs: Circle::radius(&self) -> f64
 conic.rs: impl Curve2d for Circle
 conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Ellipse
 conic.rs: Ellipse::new(placement: Placement2, semi_axis_1: f64, semi_axis_2: f64) -> Result<Ellipse>
+conic.rs: Ellipse::from_major_axis(centre: Point2, major_axis: Vector2, ratio: f64) -> Result<Ellipse>
 conic.rs: Ellipse::placement(&self) -> &Placement2
 conic.rs: Ellipse::semi_axis_1(&self) -> f64
 conic.rs: Ellipse::semi_axis_2(&self) -> f64
