@@ -887,7 +887,7 @@ checked, because checking it needs the segments evaluated, which is not this lay
 The periodic flag is defined and refused. ISO_PROFILE section 12 and ADR 0011 say the profile has no \
 wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to \
 apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. \
-A later minor version can give the bit a meaning by lifting that refusal.\n\n\
+A periodic spline is unwrapped before it is stored (`BSpline::from_periodic`, ADR 0011), so the writer never has a reason to set the bit. A later minor version can give the bit a meaning by lifting that refusal.\n\n\
 ### 3.5 Counts, weights and composites\n\n\
 For a spline of degree `p` with `n` control points the knot vector has `n + p + 1` entries and a rational \
 curve has exactly `n` weights. A weight array that is shorter is refused, not padded with ones, and so is \

@@ -61,3 +61,123 @@ written with an unclamped knot vector and wrapped control points is an ordinary 
 The counts are the only numbers that size an allocation, and every one is compared with the bytes left
 before the arrays are read. The evaluator is not touched: the codec has none, and a repository check fails
 if any crate but `pvec-geometry` defines one.
+
+## Amendment for the periodic B-spline (issue 93)
+
+The DWG mapping spike (libviprs PR 1251, `docs/spikes/dwg-mapping.md`, row M17) found that a periodic cubic,
+`closed-periodic-001` of the `corpus-r0-open` corpus, is refused by `BSpline::new` under NP-14, so every
+periodic DWG spline came out as `RequiresPVecCapability`. The probe has 6 unique control points and 7 knots,
+and the spike asked two things: wrapped form or exact unwrap, and whether a vendor writer stores the same.
+
+### What the 7 knots are
+
+Seven knots for six points reads as a mistake until you read it as one period: `n + 1` knots delimit the `n`
+spans of a periodic curve, with the first and the last naming the same knot one period apart (`0 .. 1`, period
+1). That is the layout a periodic B-spline has when it is stored as its unique points, and it is the only
+reading under which the probe is a well-formed curve. I could not check it against a vendor writer: the
+corpus is acadrust-written and only cross-read by ACadSharp (`READER_MAPPING_ONLY`), and I found no
+vendor-written periodic sample anywhere in the workspace. So what AutoCAD or ODA store stays an open fact, and
+the decision below is built so that it does not have to be settled first (see "The layouts a producer can
+hand over").
+
+### Options
+
+| question | options | evidence |
+|---|---|---|
+| how a periodic spline reaches PVec | A. exact unwrap in the producer (libviprs). B. an exact unwrap in `pvec-geometry`, a conversion that returns the clamped `BSpline` and a bound. C. a wrapped periodic representation in the profile, the codec and the container (an extension under ADR 0008). D. keep refusing and report the row as unsupported | see below |
+
+* A is excluded by NG-B3 of the N1.2 ADR before the numbers come into it: knot insertion in libviprs is the
+  second spline library the epic is trying not to grow, and the one evaluator rule (a repository check fails if
+  a crate other than `pvec-geometry` defines one) is the same argument from this side.
+* C (a wrapped form) costs a profile section, a Part 42 mapping, a codec section, the container flag bit
+  (`ARN-16`, today refused), a minimum reader version and a conformance class, and it buys nothing a clamped
+  curve does not give: ISO 10303-42 has no periodic attribute on `b_spline_curve_with_knots`, so the exact Part
+  21 form of a periodic spline is already an ordinary B-spline, and the profile's own sentence ("a closed curve
+  written with an unclamped knot vector and wrapped control points is an ordinary B-spline here") says so. The
+  issue asks for C only "if the conversion changes the parameterisation in a way that matters to the conformance
+  classes". It does not: the unwrap keeps the domain `[knots[0], knots[n]]` and the locus. What it changes is the
+  knot multiplicity at the two ends, which the structural class compares as data and the geometric class (the
+  locus) does not see.
+* D keeps a drawing's normal closed outline out of PVec for no measured reason, which is the cost the issue
+  already names.
+
+B wins. Measured, on the probe and on 300 seeded random periodic splines (degree 1 to 6, from degree + 1 to
+degree + 8 unique points, interior knots of multiplicity up to 2), against an oracle that never calls the unwrap (the
+wrapped, unclamped form built by hand and evaluated by the one evaluator), 401 parameters per curve:
+
+| result | native x64 (MARS, rustc 1.99.1) | arm64 (Apple Silicon, docker) |
+|---|---|---|
+| probe, worst distance to the wrapped form | 9.155e-16 (largest coordinate 3) | 9.155e-16 |
+| stated bound for the probe | 2.998e-14 | 2.998e-14 |
+| random suite, worst distance over the largest coordinate | 6.451e-16 | 6.451e-16 |
+| NP-04 relative tolerance | 1e-10 | 1e-10 |
+
+The worst case is about 1.5e5 times inside the relative tolerance. The two machines agree to every digit
+printed, which is what I expected from arithmetic that is only multiplications, additions and one division.
+
+### Decision
+
+`BSpline::from_periodic(degree, control_points, knots) -> Result<Unwrapped>` in `pvec-geometry`, where
+`Unwrapped` is the clamped, closed `BSpline` and a `deviation_bound`. The input is the decoder's report: the
+degree, the `n` unique control points and the `n + 1` knots of one period. The curve it describes repeats the
+points and shifts the knots by the period `T = knots[n] - knots[0]`, a span `[k[j], k[j + 1]]` is shaped by
+`P[j] ..= P[j + degree]` (indices modulo `n`), and the domain is `[knots[0], knots[n]]`.
+
+How: the wrapped, unclamped form (`n + degree` points, `n + 2 degree + 1` knots, a legal `BSpline` already) is
+built and validated as such, then the two ends of the domain are inserted by Boehm's algorithm up to
+multiplicity `degree + 1`, and the points and knots outside the domain are dropped. Knot insertion changes the
+representation and not the curve, so the result is exact in the mathematical sense. Every knot of the result is
+a knot of the input (or the input plus a period), never recomputed, and the seam knot is carried bit for bit. In
+the numeric policy's terms the claim is: same locus and same domain as the wrapped curve, closed flag declared
+and therefore checked under NP-20, every number through NP-01, NP-02, NP-14 and NP-18 like any other spline.
+
+The bound. Each insertion forms every new point as `(1 - a) P + a Q` with `a` in `[0, 1]`. The weight `a`
+carries at most three roundoffs, the two products and the sum three more, so one insertion moves a coordinate
+by at most `10 u m` (`u` is 2^-53 and `m` the largest absolute coordinate), and a convex combination does not
+amplify an earlier error. The Euclidean norm adds a factor of `sqrt 2`, hence `deviation_bound = 15 r u m`
+with `r` the number of insertions (at most `2 degree`). Because the basis functions sum to one, a control point
+error of `d` moves the curve by at most `d`. The bound is about the data the unwrap computes. The evaluator's
+own rounding is separate, and the tests allow for it explicitly rather than folding it in. The bound is
+relative to the curve defined by the extended knot vector as formed in f64 (`k[j] + T`), which is the
+definition of the input, and it holds because that rounding is the same in the oracle.
+
+Refused, with the rule named: a degree outside 1 to 16 or fewer than `degree + 1` points (NP-18), a knot count
+other than `n + 1`, a decreasing or ambiguous knot vector, an empty period, or a seam knot of multiplicity
+above the degree where the first and the last knot count once (NP-14), and any non-finite or out of range
+number (NP-01, NP-02).
+
+### The layouts a producer can hand over
+
+| layout | knots | what libviprs does |
+|---|---|---|
+| unique points, one period of knots (the probe) | `n + 1` | `BSpline::from_periodic` |
+| wrapped points and extended knots, unclamped | `m + p + 1` over `m = n + p` points, the first `p` points repeated at the end | `BSpline::new`, then `declare_closed`. Accepted today: profile section 11 defines the domain as `[knots[p], knots[n]]` for the unclamped form, and `pvec-codec` already round trips one |
+| already clamped, closed by its end points | `m + p + 1` over `m` points | `BSpline::new`, then `declare_closed` if the source says closed |
+
+So whichever of these a vendor writer stores, libviprs hands over what the decoder says and gets a curve or a
+typed refusal. It does no arithmetic of its own, which is what NG-B1, NG-B3 and NG-B5 ask. Telling the first layout from the other two needs only the counts: it has one knot more than points, the others
+have `degree + 1` more, and those differ for every degree of at least 1.
+
+### Consequences
+
+* The container stays as it is: the periodic bit and `ARN-16` are unchanged, because the writer never needs
+  them. A periodic spline is unwrapped before it is stored, so no stored curve is periodic.
+* The capability registry keeps its ids and versions. Only the restriction text of `b_spline_curve` changes (a
+  periodic spline is unwrapped to it, never stored wrapped), and `docs/CAPABILITIES.md` is regenerated.
+* libviprs's row M17 becomes an `exact` row for the layouts above, with the domain of the source. It is not an
+  `Unsupported` any more.
+* Rational periodic splines (a periodic NURBS) are not covered. The same insertion works on the homogeneous
+  coordinates, but the bound needs its own derivation (the division by the weight amplifies the error by the
+  weight ratio, which NP-15 limits to `1e8`), and the spike has no such fixture. They stay refused, with
+  `BadKnots`-class errors of `RationalBSpline::new`, until a case turns up.
+* The decision does not depend on what a vendor writer stores. If a vendor sample shows a layout that is none
+  of the three above, a fourth row joins the table and, if the arithmetic is not a convex combination of the
+  input, the bound is derived again.
+
+### Reversal threshold
+
+Move to a wrapped representation (option C, as an extension under ADR 0008) if the first vendor-written periodic
+sample shows a layout the unwrap cannot take without changing the parameterisation, or if the conformance
+classes grow a check that compares knot multiplicities at the ends of a closed curve. Revisit the bound if a
+fixture's measured deviation exceeds 1e-12 of the largest coordinate, which is 1e-2 of the NP-04 tolerance,
+or a degree above 6 turns up in a real drawing (the random suite stops there).

@@ -24,14 +24,7 @@ fn rule_of<T>(r: Result<T, GeometryError>) -> &'static str {
 /// The corpus probe `closed-periodic-001` (tag `corpus-r0-open`, params in pvec-gold-fixtures):
 /// a periodic cubic, six unique control points, seven knots.
 fn probe() -> (usize, Vec<Point2>, Vec<f64>) {
-    let cps = vec![
-        pt(3., 0.),
-        pt(1.5, 2.6),
-        pt(-1.5, 2.6),
-        pt(-3., 0.),
-        pt(-1.5, -2.6),
-        pt(1.5, -2.6),
-    ];
+    let cps = vec![pt(3., 0.), pt(1.5, 2.6), pt(-1.5, 2.6), pt(-3., 0.), pt(-1.5, -2.6), pt(1.5, -2.6)];
     (3, cps, vec![0., 0.1, 0.25, 0.4, 0.6, 0.8, 1.])
 }
 
@@ -98,8 +91,9 @@ fn the_probe_locus_equals_the_wrapped_form_inside_the_stated_bound() {
     let (w, bound) = worst(p, &cps, &k, 2000);
     let m = max_abs(&cps);
     // The bound is a few roundoffs of the largest coordinate, far inside the NP-04 tolerance.
-    assert!(bound > 0.0 && bound < 1e3 * U * m, "bound {bound}");
+    assert!(bound > 0.0 && bound < 1000.0 * U * m, "bound {bound}");
     // The two evaluations carry their own de Boor rounding; the slack is that, not the unwrap.
+    println!("probe: measured {w:.3e}, bound {bound:.3e}, largest coordinate {m}");
     assert!(w <= bound + 200.0 * U * m, "deviation {w} bound {bound}");
 }
 
@@ -140,6 +134,7 @@ fn a_cubic_with_c0_breaks_on_the_seam_and_inside_matches_the_wrapped_form() {
 fn many_random_periodic_splines_agree_with_the_wrapped_form() {
     let mut r = Rng(0x0093_5eed);
     let mut worst_ratio = 0.0f64;
+    let mut worst_rel = 0.0f64;
     for case in 0..300 {
         let p = 1 + r.below(6);
         let n = p + 1 + r.below(8);
@@ -149,7 +144,8 @@ fn many_random_periodic_splines_agree_with_the_wrapped_form() {
         let mut k = vec![r.range(-5., 5.)];
         for i in 0..n {
             let last = *k.last().unwrap();
-            let repeat = p >= 2 && i > 0 && i + 1 < n && r.below(5) == 0;
+            let fresh = k.len() < 2 || k[k.len() - 1] > k[k.len() - 2]; // multiplicity stays at two
+            let repeat = p >= 2 && i > 0 && i + 1 < n && fresh && r.below(5) == 0;
             k.push(last + if repeat { 0.0 } else { r.range(0.01, 1.0) });
         }
         let un = BSpline::from_periodic(p, cps.clone(), k.clone())
@@ -160,10 +156,12 @@ fn many_random_periodic_splines_agree_with_the_wrapped_form() {
         for i in 0..=400 {
             let t = d.lo() + (d.hi() - d.lo()) * (i as f64 / 400.0);
             let e = dist(un.curve.eval(t).unwrap(), wrapped.eval(t).unwrap());
+            worst_rel = worst_rel.max(e / m);
             worst_ratio = worst_ratio.max(e / (un.deviation_bound + 200.0 * U * m));
             assert!(e <= un.deviation_bound + 200.0 * U * m, "case {case} p={p} n={n} t={t} e={e}");
         }
     }
+    println!("worst measured deviation relative to the largest coordinate: {worst_rel:.3e}");
     println!("worst measured deviation over the stated bound plus evaluator slack: {worst_ratio:.3e}");
     assert!(worst_ratio <= 1.0);
 }
@@ -195,7 +193,7 @@ fn refusals_name_the_rule() {
     assert_eq!(rule_of(ok(cps.clone(), vec![0., 0.2, 0.1, 0.4, 0.6, 0.8, 1.], p)), "NP-14");
     assert!(ok(cps.clone(), vec![1.; 7], p).is_err());
     let mut amb = k.clone();
-    amb[3] = amb[2] + 1e-14;
+    amb[3] = amb[2] + 100.0 * U;
     assert_eq!(rule_of(ok(cps.clone(), amb, p)), "NP-14");
     // the seam knot at multiplicity degree + 1 is a break in the curve itself
     assert_eq!(rule_of(ok(cps.clone(), vec![0., 0., 0., 0.5, 0.8, 1., 1.], 3)), "NP-14");

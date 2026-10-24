@@ -248,10 +248,27 @@ impl BSpline {
         Core::new(degree, control_points, knots, None).map(BSpline)
     }
 
-    /// STUB (red): the exact unwrap of a periodic B-spline, see issue 93.
+    /// Unwraps a periodic B-spline into the clamped form, exactly, and declares it closed (NP-20).
+    ///
+    /// The input is what a decoder reports for a periodic spline: the degree `p`, the `n` unique
+    /// control points and the `n + 1` knots of one period, non-decreasing, where the first and the
+    /// last knot name the same knot one period `T = knots[n] - knots[0]` apart. The curve it
+    /// describes repeats the control points (`P[i + n] = P[i]`) and the knots (`k[j + n] = k[j] + T`),
+    /// and a span `[k[j], k[j + 1]]` is shaped by `P[j] ..= P[j + p]` (indices modulo `n`). Its
+    /// domain is `[knots[0], knots[n]]`, which the result keeps.
+    ///
+    /// The result is the same locus as that wrapped curve: the wrapped, unclamped form is built
+    /// (`n + p` points, `n + 2p + 1` knots, a legal [`BSpline`] by itself), then the knots at the two
+    /// ends of the domain are inserted up to multiplicity `p + 1` (Boehm) and what lies outside the
+    /// domain is dropped. Knot insertion changes the representation and not the curve, and the knots
+    /// of the result are values of the input (or the input plus a period), never recomputed. The only
+    /// inexact step is the arithmetic, bounded by [`Unwrapped::deviation_bound`].
+    ///
+    /// Refused: a degree outside `1..=16` or fewer than `degree + 1` points (NP-18), a knot count
+    /// other than `n + 1`, a decreasing or ambiguous knot vector, or a knot whose multiplicity (first
+    /// and last counted once) exceeds the degree (NP-14), any non-finite value (NP-01).
     pub fn from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped> {
-        let _ = (degree, control_points, knots);
-        Err(GeometryError::Numeric(NumericError::BadKnots))
+        unwrap_periodic(degree, control_points, knots)
     }
 
     /// The degree.
@@ -563,4 +580,93 @@ fn quadratic_roots_in_unit(d: &[f64]) -> Vec<f64> {
     }
     out.retain(|t| *t > 0.0 && *t < 1.0);
     out
+}
+
+/// The unit roundoff of f64, 2^-53.
+const UNIT_ROUNDOFF: f64 = 1.0 / 9007199254740992.0;
+
+/// One Boehm insertion of `t` into the clamped-or-not B-spline `(pts, u)` of degree `p` (Piegl and
+/// Tiller, A5.1 with r = 1). `t` is inside the domain and `u[i] <= t < u[i + 1]` for the returned
+/// span, and every new point is a convex combination of two old ones.
+fn insert_knot(p: usize, pts: &mut Vec<[f64; 2]>, u: &mut Vec<f64>, t: f64) {
+    // the last index with u[i] <= t
+    let i = u.partition_point(|&k| k <= t) - 1;
+    let s = u.iter().filter(|&&k| k == t).count();
+    let mut q = Vec::with_capacity(pts.len() + 1);
+    q.extend_from_slice(&pts[..=(i - p)]);
+    for j in (i - p + 1)..=(i - s) {
+        let a = (t - u[j]) / (u[j + p] - u[j]);
+        q.push([(1.0 - a) * pts[j - 1][0] + a * pts[j][0], (1.0 - a) * pts[j - 1][1] + a * pts[j][1]]);
+    }
+    q.extend_from_slice(&pts[(i - s)..]);
+    u.insert(i + 1, t);
+    *pts = q;
+}
+
+fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped> {
+    let n = cps.len();
+    check_count(n, MAX_CONTROL_POINTS)?;
+    if !(1..=MAX_DEGREE).contains(&p) || n < p + 1 {
+        return Err(NumericError::Limit.into());
+    }
+    if k.len() != n + 1 {
+        return Err(NumericError::BadKnots.into());
+    }
+    let mut pts = Vec::with_capacity(n + p);
+    for q in &cps {
+        pts.push(Point2::checked(q.x, q.y)?.arr());
+    }
+    let m = pts.iter().fold(0.0f64, |m, q| m.max(q[0].abs()).max(q[1].abs()));
+    for &v in &k {
+        check_value(v)?;
+    }
+    if k.windows(2).any(|w| w[1] < w[0]) {
+        return Err(NumericError::BadKnots.into());
+    }
+    let period = k[n] - k[0];
+    if period <= POLICY.tol(period, k[0].abs().max(k[n].abs())) {
+        return Err(NumericError::EmptyDomain.into());
+    }
+    // The seam knot is one knot listed twice, so a run at the start and a run at the end add up.
+    let lead = k.iter().take_while(|&&v| v == k[0]).count();
+    let trail = k.iter().rev().take_while(|&&v| v == k[n]).count();
+    if lead + trail - 1 > p {
+        return Err(NumericError::BadKnots.into());
+    }
+    // Wrap: control points repeat, knots shift by the period, with the seam knot kept bit for bit.
+    for i in 0..p {
+        pts.push(pts[i]);
+    }
+    let mut u = Vec::with_capacity(n + 2 * p + 1);
+    for i in (1..=p).rev() {
+        u.push(if k[n - i] == k[n] { k[0] } else { k[n - i] - period });
+    }
+    u.extend_from_slice(&k);
+    for i in 1..=p {
+        u.push(if k[i] == k[0] { k[n] } else { k[i] + period });
+    }
+    // Validate the wrapped form as the curve it is before touching it.
+    Core::new(p, pts.iter().map(|q| Point2::new(q[0], q[1])).collect(), u.clone(), None)?;
+    // Clamp: insert the two ends of the domain up to multiplicity p + 1, then cut.
+    let (lo, hi) = (k[0], k[n]);
+    let mut inserted = 0usize;
+    for t in [lo, hi] {
+        let have = u.iter().filter(|&&v| v == t).count();
+        for _ in have..=p {
+            insert_knot(p, &mut pts, &mut u, t);
+            inserted += 1;
+        }
+    }
+    let a = u.partition_point(|&v| v < lo);
+    let b = u.partition_point(|&v| v <= lo) - 1; // last index of the start knots
+    debug_assert_eq!(b - a, p);
+    let first_hi = u.partition_point(|&v| v < hi);
+    let cut: Vec<f64> = u[a..first_hi + p + 1].to_vec();
+    let kept: Vec<Point2> = pts[a..first_hi].iter().map(|q| Point2::new(q[0], q[1])).collect();
+    let curve = BSpline::new(p, kept, cut)?.declare_closed()?;
+    // Each insertion is a convex combination of two points: the weight a carries three roundoffs, the
+    // two products and the sum three more, so at most 10 u m per level in each coordinate, and a
+    // convex combination does not amplify an earlier error. 15 covers the Euclidean norm.
+    let deviation_bound = 15.0 * inserted as f64 * UNIT_ROUNDOFF * m;
+    Ok(Unwrapped { curve, deviation_bound })
 }
