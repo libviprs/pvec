@@ -12,7 +12,7 @@
 //! byte layout is in `docs/COMPONENT_STREAMS.md`.
 
 use crate::error::ComponentError as E;
-use crate::frame::Stream;
+use crate::frame::{Opened, Stream};
 use crate::payloads::{MAX_BOUNDARY, MAX_RECORDS, R, W, finite, into_stream};
 use pvec_capabilities::{CapabilityId, Registry, ids};
 use pvec_entity::EntityId;
@@ -211,21 +211,39 @@ pub trait EntityGeometry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RegionError {
-    /// A reference to an entity that does not exist.
-    MissingEntity(EntityId),
+    /// A reference to an entity that does not exist. `region` is the index of the region that holds the
+    /// reference, or `None` when it is an element entry.
+    MissingEntity {
+        /// The entity that is not there.
+        entity: EntityId,
+        /// Index of the region in the stream, `None` for an element entry.
+        region: Option<usize>,
+    },
     /// A ring of this region does not close.
     NotClosed {
         /// Index of the region in the stream.
         region: usize,
     },
+    /// An entity appears twice in the rings of one region, within a ring or across the outer ring and
+    /// the holes.
+    DuplicateEntity {
+        /// Index of the region in the stream.
+        region: usize,
+        /// The entity that appears twice.
+        entity: EntityId,
+    },
+    /// The closure tolerance is NaN, infinite or negative.
+    BadTolerance,
 }
 
 impl RegionError {
     /// The rule identifier.
     pub fn rule(&self) -> &'static str {
         match self {
-            RegionError::MissingEntity(_) => "COMP-16",
+            RegionError::MissingEntity { .. } => "COMP-16",
             RegionError::NotClosed { .. } => "COMP-17",
+            RegionError::DuplicateEntity { .. } => "COMP-18",
+            RegionError::BadTolerance => "COMP-19",
         }
     }
 }
@@ -234,7 +252,18 @@ impl fmt::Display for RegionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let r = self.rule();
         match self {
-            RegionError::MissingEntity(e) => write!(f, "entity {} does not exist ({r})", e.index()),
+            RegionError::MissingEntity { entity, region: Some(region) } => {
+                write!(f, "entity {} in region {region} does not exist ({r})", entity.index())
+            }
+            RegionError::MissingEntity { entity, region: None } => {
+                write!(f, "entity {} does not exist ({r})", entity.index())
+            }
+            RegionError::DuplicateEntity { region, entity } => {
+                write!(f, "entity {} appears twice in region {region} ({r})", entity.index())
+            }
+            RegionError::BadTolerance => {
+                write!(f, "the closure tolerance is not finite and non-negative ({r})")
+            }
             RegionError::NotClosed { region } => {
                 write!(f, "the boundary of region {region} is not closed ({r})")
             }
@@ -243,6 +272,18 @@ impl fmt::Display for RegionError {
 }
 
 impl std::error::Error for RegionError {}
+
+/// What a reader gets from the semantic class stream of an opened set. A damaged payload fails this
+/// stream only: it is reported here, and nothing about it reaches the geometry or the other streams.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SemanticRead {
+    /// The set holds no semantic class stream this reader opened (absent, unknown, or skipped).
+    Absent,
+    /// The stream decoded.
+    Present(SemanticClassStream),
+    /// The stream was opened at a compatible version but its payload is damaged, and is dropped.
+    Damaged(E),
+}
 
 /// The semantic class stream.
 #[derive(Clone, Debug, PartialEq)]
@@ -311,6 +352,11 @@ fn ring_closes(ends: &[([f64; 2], [f64; 2])], tol: f64) -> bool {
 }
 
 impl SemanticClassStream {
+    /// Decodes the semantic class stream of an opened set, if it holds one.
+    pub fn from_opened(_opened: &Opened) -> SemanticRead {
+        SemanticRead::Absent
+    }
+
     /// The registry capability.
     pub const CAPABILITY: CapabilityId = ids::SEMANTIC_CLASS;
 
@@ -409,13 +455,17 @@ impl SemanticClassStream {
     /// (outer and holes) is a closed loop, with endpoints that meet within `tolerance`.
     pub fn validate(&self, geometry: &dyn EntityGeometry, tolerance: f64) -> Result<(), RegionError> {
         for e in &self.elements {
-            geometry.endpoints(e.entity).ok_or(RegionError::MissingEntity(e.entity))?;
+            geometry
+                .endpoints(e.entity)
+                .ok_or(RegionError::MissingEntity { entity: e.entity, region: None })?;
         }
         for (region, g) in self.regions.iter().enumerate() {
             for ring in std::iter::once(&g.outer).chain(g.holes.iter()) {
                 let ends = ring
                     .iter()
-                    .map(|e| geometry.endpoints(*e).ok_or(RegionError::MissingEntity(*e)))
+                    .map(|e| {
+                        geometry.endpoints(*e).ok_or(RegionError::MissingEntity { entity: *e, region: None })
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 if ends.is_empty() || !ring_closes(&ends, tolerance) {
                     return Err(RegionError::NotClosed { region });

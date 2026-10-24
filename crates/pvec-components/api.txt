@@ -146,14 +146,21 @@ semantic.rs: RegionRecord.holes: Vec<Vec<EntityId>>
 semantic.rs: pub trait EntityGeometry
 semantic.rs: EntityGeometry::endpoints(&self, entity: EntityId) -> Option<([f64; 2], [f64; 2])>
 semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RegionError
-semantic.rs: RegionError::MissingEntity(EntityId)
+semantic.rs: RegionError::MissingEntity { entity: EntityId, region: Option<usize> }
 semantic.rs: RegionError::NotClosed { region: usize }
+semantic.rs: RegionError::DuplicateEntity { region: usize, entity: EntityId }
+semantic.rs: RegionError::BadTolerance
 semantic.rs: RegionError::rule(&self) -> &'static str
 semantic.rs: impl fmt::Display for RegionError
 semantic.rs: impl std::error::Error for RegionError {}
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub enum SemanticRead
+semantic.rs: SemanticRead::Absent
+semantic.rs: SemanticRead::Present(SemanticClassStream)
+semantic.rs: SemanticRead::Damaged(E)
 semantic.rs: #[derive(Clone, Debug, PartialEq)] pub struct SemanticClassStream
 semantic.rs: SemanticClassStream.elements: Vec<ElementEntry>
 semantic.rs: SemanticClassStream.regions: Vec<RegionRecord>
+semantic.rs: SemanticClassStream::from_opened(_opened: &Opened) -> SemanticRead
 semantic.rs: SemanticClassStream::const CAPABILITY: CapabilityId
 semantic.rs: SemanticClassStream::encode(&self) -> Res<Vec<u8>>
 semantic.rs: SemanticClassStream::decode(bytes: &[u8]) -> Res<SemanticClassStream>

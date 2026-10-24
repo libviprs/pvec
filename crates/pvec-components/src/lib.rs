@@ -25,5 +25,5 @@ pub use payloads::{
 };
 pub use semantic::{
     ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord,
-    SemanticClassStream, SourceTag,
+    SemanticClassStream, SemanticRead, SourceTag,
 };

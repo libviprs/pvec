@@ -183,9 +183,27 @@ fn the_same_stream_always_encodes_to_the_same_bytes() {
 }
 
 // ---------------------------------------------------------------- criterion 1: stripping it changes nothing
+//
+// PLACEHOLDER until P2.5 and P2.6 exist (pvec#41 carries the follow-up). The geometry gates are not
+// there yet, so `verdict` is a stand-in: it decodes the codec block and takes every number a gate would
+// look at. It cannot see the stream set, so on its own it would make "with", "without" and "damaged"
+// compare a function of the same bytes with itself. What these tests really prove is narrower, and is
+// asserted explicitly below:
+//
+// * the block bytes are never touched by opening, stripping or damaging a stream set (they are
+//   compared byte for byte before and after, and the set shares no storage with them),
+// * the stream set opens, or is refused, on its own terms,
+// * a stream cannot declare a geometry capability id.
+//
+// When the gates exist, replace `verdict` with a real run that takes the set as input.
 
-/// Every number a geometry gate looks at, as bits.
-fn verdict(block: &[u8]) -> Vec<u64> {
+/// Every number a geometry gate looks at, as bits. It is handed the stream set so that the placeholder
+/// has the shape of the real check (the set goes in) even though a codec block cannot be influenced by it.
+fn verdict(block: &[u8], set: &[u8], reader: &Reader) -> Vec<u64> {
+    let r = Registry::v1();
+    // the set is opened first and may be refused or skipped; either way the geometry below is read from
+    // the block alone
+    let _ = read_streams(set, &r, reader);
     let mut out = Vec::new();
     for (eid, c) in decode(block).unwrap() {
         out.push(u64::from(eid.index()));
@@ -201,30 +219,42 @@ fn verdict(block: &[u8]) -> Vec<u64> {
     out
 }
 
+/// A copy of the payload of a framed stream, for finding it inside a set or a block.
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    needle.len() >= 8 && haystack.windows(needle.len()).any(|w| w == needle)
+}
+
 #[test]
-fn stripping_the_stream_leaves_the_geometry_verdict_identical() {
+fn placeholder_stripping_the_stream_leaves_the_geometry_verdict_identical() {
     let r = Registry::v1();
     let block = encode(&geometry()).unwrap().bytes;
-    let baseline = verdict(&block);
-    assert!(baseline.len() > 500);
+    let block_before = block.clone();
+    let reader = knows(&[ids::LAYER, ids::SEMANTIC_CLASS]);
 
     let framed = fixture_stream().into_stream(&r).unwrap();
-    let reader = knows(&[ids::SEMANTIC_CLASS]);
-    let with = read_streams(&encode_streams(std::slice::from_ref(&framed)).unwrap(), &r, &reader).unwrap();
-    assert_eq!(with.streams.len(), 1, "present");
-    assert_eq!(verdict(&block), baseline, "with the stream");
-
-    // the other streams alongside it make no difference either, and removing only this one is clean
+    let with_set = encode_streams(std::slice::from_ref(&framed)).unwrap();
     let other = Stream {
         capability: ids::LAYER,
         version: Version::new(1, 0, 0),
         payload: vec![0, 0, 0, 0, 0, 0, 0, 0],
     };
-    let without =
-        read_streams(&encode_streams(&[other]).unwrap(), &r, &knows(&[ids::LAYER, ids::SEMANTIC_CLASS]))
-            .unwrap();
-    assert!(without.streams.iter().all(|s| s.capability != ids::SEMANTIC_CLASS));
-    assert_eq!(verdict(&block), baseline, "with the stream stripped");
+    let without_set = encode_streams(&[other]).unwrap();
+    let empty_set = encode_streams(&[]).unwrap();
+
+    let with = verdict(&block, &with_set, &reader);
+    assert!(with.len() > 500);
+    assert_eq!(verdict(&block, &without_set, &reader), with, "with the stream stripped");
+    assert_eq!(verdict(&block, &empty_set, &reader), with, "with every stream stripped");
+
+    // the parts that are real: the stream is carried apart from the geometry, in both directions
+    assert!(contains(&with_set, &framed.payload), "the set carries the payload");
+    assert!(!contains(&block, &framed.payload), "the geometry block does not carry the payload");
+    assert!(!contains(&without_set, &framed.payload), "the stripped set does not");
+    assert_eq!(block, block_before, "opening and stripping streams never rewrite the block");
+    let opened = read_streams(&with_set, &r, &reader).unwrap();
+    assert_eq!(opened.streams.len(), 1, "present");
+    let stripped = read_streams(&without_set, &r, &reader).unwrap();
+    assert!(stripped.streams.iter().all(|s| s.capability != ids::SEMANTIC_CLASS));
 
     // the stream cannot reach a curve: it is not a geometry capability and a frame cannot say it is
     assert_eq!(
@@ -239,19 +269,94 @@ fn stripping_the_stream_leaves_the_geometry_verdict_identical() {
 }
 
 #[test]
-fn a_damaged_semantic_class_payload_cannot_move_the_geometry_verdict_or_stop_the_set_opening() {
+fn placeholder_a_damaged_semantic_class_payload_cannot_move_the_geometry_verdict() {
     let r = Registry::v1();
     let block = encode(&geometry()).unwrap().bytes;
-    let baseline = verdict(&block);
+    let block_before = block.clone();
+    let reader = knows(&[ids::SEMANTIC_CLASS]);
+    let good = encode_streams(&[fixture_stream().into_stream(&r).unwrap()]).unwrap();
+    let baseline = verdict(&block, &good, &reader);
     let mut framed = fixture_stream().into_stream(&r).unwrap();
     framed.payload = vec![0xff; 41];
-    let set = encode_streams(&[framed]).unwrap();
-    let nobody = knows(&[]);
-    let opened = read_streams(&set, &r, &nobody).unwrap();
+    let damaged = encode_streams(&[framed]).unwrap();
+    assert_eq!(verdict(&block, &damaged, &reader), baseline);
+    assert_eq!(block, block_before);
+    // a reader that knows nothing steps over it, reported, and the set still opens
+    let opened = read_streams(&damaged, &r, &knows(&[])).unwrap();
     assert_eq!(opened.skipped.len(), 1);
     assert_eq!(opened.skipped[0].capability, ids::SEMANTIC_CLASS);
     assert_eq!(opened.skipped[0].reason, SkipReason::NotImplemented);
-    assert_eq!(verdict(&block), baseline);
+}
+
+// ---------------------------------------------------------------- a damaged payload at a version the reader knows
+//
+// The rule (P3.9, docs/COMPONENT_STREAMS.md): the frame hands a known, compatible payload over undecoded,
+// so a damaged one is found when the semantic reader decodes it. That error fails this stream only. It is
+// reported (`SemanticRead::Damaged`), the set still opened, the other streams are intact, and the geometry
+// is never involved. It does not fail the artifact and it is not silently dropped.
+
+fn damaged_set(payload: Vec<u8>, with_layer: bool) -> Vec<u8> {
+    let mut streams =
+        vec![Stream { capability: ids::SEMANTIC_CLASS, version: Version::new(1, 0, 0), payload }];
+    if with_layer {
+        streams.push(Stream {
+            capability: ids::LAYER,
+            version: Version::new(1, 0, 0),
+            payload: LayerStream { names: vec![], assignments: vec![] }.encode().unwrap(),
+        });
+    }
+    encode_streams(&streams).unwrap()
+}
+
+#[test]
+fn a_reader_that_knows_the_semantic_class_stream_reports_a_damaged_v1_payload_and_fails_only_that_stream() {
+    let r = Registry::v1();
+    let reader = knows(&[ids::SEMANTIC_CLASS, ids::LAYER]);
+    let block = encode(&geometry()).unwrap().bytes;
+    let good = fixture_stream().encode().unwrap();
+    let cut = good[..good.len() - 3].to_vec();
+    let mut trailing = good.clone();
+    trailing.push(0);
+    let mut bad_tag = good.clone();
+    bad_tag[12..16].copy_from_slice(&9u32.to_le_bytes()); // the first element's class, undefined
+    let cases: Vec<(Vec<u8>, ComponentError)> = vec![
+        (cut, ComponentError::Truncated),
+        (trailing, ComponentError::Trailing),
+        (bad_tag, ComponentError::BadTag(9)),
+        (vec![0xff; 41], ComponentError::TooMany),
+    ];
+    for (payload, expected) in cases {
+        let set = damaged_set(payload, true);
+        // the set opens: the damaged payload is handed over undecoded, it is not a framing error
+        let opened = read_streams(&set, &r, &reader).expect("a damaged payload does not fail the set");
+        assert_eq!(opened.streams.len(), 2);
+        assert!(opened.skipped.is_empty());
+        // decoding reports it, for this stream only
+        assert_eq!(SemanticClassStream::from_opened(&opened), SemanticRead::Damaged(expected));
+        // the sibling stream and the geometry are untouched
+        let layer = opened.streams.iter().find(|s| s.capability == ids::LAYER).unwrap();
+        assert!(LayerStream::decode(&layer.payload).is_ok());
+        assert_eq!(decode(&block).unwrap().len(), 9);
+    }
+}
+
+#[test]
+fn from_opened_reads_a_good_stream_and_reports_absence_for_a_skipped_or_missing_one() {
+    let r = Registry::v1();
+    let reader = knows(&[ids::SEMANTIC_CLASS]);
+    let set = encode_streams(&[fixture_stream().into_stream(&r).unwrap()]).unwrap();
+    let opened = read_streams(&set, &r, &reader).unwrap();
+    assert_eq!(SemanticClassStream::from_opened(&opened), SemanticRead::Present(fixture_stream()));
+    // a reader without support, and a set without the stream, are both just absent
+    let opened = read_streams(&set, &r, &knows(&[])).unwrap();
+    assert_eq!(SemanticClassStream::from_opened(&opened), SemanticRead::Absent);
+    let none = read_streams(&encode_streams(&[]).unwrap(), &r, &reader).unwrap();
+    assert_eq!(SemanticClassStream::from_opened(&none), SemanticRead::Absent);
+    // a newer major is skipped, so it is absent and never decoded (garbage in it is not looked at)
+    let newer =
+        Stream { capability: ids::SEMANTIC_CLASS, version: Version::new(2, 0, 0), payload: vec![0xa5; 97] };
+    let opened = read_streams(&encode_streams(&[newer]).unwrap(), &r, &reader).unwrap();
+    assert_eq!(SemanticClassStream::from_opened(&opened), SemanticRead::Absent);
 }
 
 // ---------------------------------------------------------------- criterion 2: a newer version still opens
@@ -323,8 +428,76 @@ fn a_region_whose_boundary_is_not_closed_fails_validation() {
     s.regions[0].outer = vec![id(0)];
     assert_eq!(s.validate(&plan, TOL), Err(RegionError::NotClosed { region: 0 }));
     let mut s = fixture_stream();
-    s.regions[0].holes = vec![vec![id(0)]];
+    s.regions[0].holes = vec![vec![id(5)]]; // an open segment, and not one the outer ring already uses
     assert_eq!(s.validate(&plan, TOL), Err(RegionError::NotClosed { region: 0 }));
+}
+
+#[test]
+fn a_ring_cannot_walk_the_same_entity_twice_even_when_it_closes_on_itself() {
+    let plan = Plan::new(&encode(&geometry()).unwrap().bytes);
+    // [A, A] with A an open segment: out along A and back along A ends where it began, which is a
+    // zero-area back and forth and not a boundary
+    let mut s = fixture_stream();
+    s.regions[0].outer = vec![id(0), id(0)];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(0) }));
+    // a repeat that is not adjacent is a repeat too
+    let mut s = fixture_stream();
+    s.regions[0].outer = vec![id(0), id(1), id(0), id(1), id(2), id(3)];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(0) }));
+    // a closed circle as a ring of one is still fine
+    let mut s = fixture_stream();
+    s.regions[0].outer = vec![id(4)];
+    s.regions[0].holes = vec![];
+    assert_eq!(s.validate(&plan, TOL), Ok(()));
+    // and the same circle twice is not
+    s.regions[0].outer = vec![id(4), id(4)];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(4) }));
+    // within a hole
+    let mut s = fixture_stream();
+    s.regions[0].holes = vec![vec![id(4), id(4)]];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(4) }));
+    // the region index is the region's
+    let mut s = fixture_stream();
+    s.regions[1].outer = vec![id(5), id(5)];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 1, entity: id(5) }));
+}
+
+#[test]
+fn an_entity_cannot_be_shared_between_the_outer_ring_and_a_hole_or_between_two_holes() {
+    let plan = Plan::new(&encode(&geometry()).unwrap().bytes);
+    let mut s = fixture_stream();
+    s.regions[0].holes = vec![vec![id(4)], vec![id(4)]];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(4) }));
+    // outer and hole: the room's own wall used as a hole boundary
+    let mut s = fixture_stream();
+    s.regions[0].holes = vec![vec![id(0), id(1), id(2), id(3)]];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(0) }));
+    // the circle as both the outer ring and its own hole
+    let mut s = fixture_stream();
+    s.regions[0].outer = vec![id(4)];
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::DuplicateEntity { region: 0, entity: id(4) }));
+    // two different regions may share an entity: a wall between a room and a corridor serves both
+    let mut s = fixture_stream();
+    s.regions[1].outer = vec![id(5), id(6), id(7), id(1)];
+    assert_eq!(s.validate(&plan, TOL), Ok(()));
+}
+
+#[test]
+fn a_tolerance_that_is_not_finite_and_non_negative_is_refused() {
+    let plan = Plan::new(&encode(&geometry()).unwrap().bytes);
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -TOL, -f64::MIN_POSITIVE] {
+        assert_eq!(fixture_stream().validate(&plan, bad), Err(RegionError::BadTolerance), "{bad}");
+    }
+    // infinity must not switch the closure rule off
+    let mut open = fixture_stream();
+    open.regions[0].outer = vec![id(0), id(1), id(2)];
+    assert_eq!(open.validate(&plan, f64::INFINITY), Err(RegionError::BadTolerance));
+    // zero is a legal, exact tolerance (the corridor's coordinates are exact; the circle's end is not)
+    let mut corridor = fixture_stream();
+    corridor.regions.remove(0);
+    assert_eq!(corridor.validate(&plan, 0.0), Ok(()));
+    assert_eq!(RegionError::BadTolerance.rule(), "COMP-19");
+    assert_eq!(RegionError::DuplicateEntity { region: 0, entity: id(0) }.rule(), "COMP-18");
 }
 
 #[test]
@@ -332,14 +505,18 @@ fn a_region_that_references_a_missing_entity_fails_validation() {
     let plan = Plan::new(&encode(&geometry()).unwrap().bytes);
     let mut s = fixture_stream();
     s.regions[0].outer[2] = id(900);
-    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity(id(900))));
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity { entity: id(900), region: Some(0) }));
     let mut s = fixture_stream();
     s.regions[0].holes = vec![vec![id(901)]];
-    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity(id(901))));
-    // an element class on an entity that is not there is refused too
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity { entity: id(901), region: Some(0) }));
+    // the region index is the region's, not a constant: the same failure in region 1 says 1
+    let mut s = fixture_stream();
+    s.regions[1].outer[0] = id(903);
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity { entity: id(903), region: Some(1) }));
+    // an element class on an entity that is not there is refused too, and it belongs to no region
     let mut s = fixture_stream();
     s.elements[0].entity = id(902);
-    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity(id(902))));
+    assert_eq!(s.validate(&plan, TOL), Err(RegionError::MissingEntity { entity: id(902), region: None }));
 }
 
 #[test]
@@ -509,18 +686,32 @@ fn random_corruption_never_panics() {
         x ^= x << 17;
         x
     };
-    let mut refused = 0;
+    let (mut refused, mut changed) = (0, 0);
     for _ in 0..3000 {
         let mut b = bytes.clone();
         for _ in 0..(1 + next() % 4) {
             let at = (next() as usize) % b.len();
             b[at] = next() as u8;
         }
-        if SemanticClassStream::decode(&b).is_err() {
-            refused += 1;
+        match SemanticClassStream::decode(&b) {
+            Err(_) => refused += 1,
+            Ok(s) => {
+                // whatever gets through is a well-formed stream: it encodes back to exactly these bytes
+                assert_eq!(s.encode().unwrap(), b, "an accepted payload is canonical");
+            }
+        }
+        if b != bytes {
+            changed += 1;
         }
     }
-    assert!(refused > 100, "corruption is detected often enough to mean something ({refused})");
+    // a single changed byte lands in a count, a tag or an id table most of the time, so most mutants
+    // must be refused; the floor is set well below what is measured so it does not flake, and well above
+    // "a few"
+    assert!(changed > 2900, "the mutator changes the bytes ({changed})");
+    assert!(
+        refused * 100 > changed * 60,
+        "corruption is detected often enough to mean something ({refused} of {changed})"
+    );
 }
 
 // ---------------------------------------------------------------- criterion 6: a reader without support
