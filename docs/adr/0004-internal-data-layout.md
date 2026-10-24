@@ -61,4 +61,4 @@ reconciled with it by making the Part 21 writer (P6.2) expand references into on
 composite on disk can therefore be nested while one in a STEP file never is.
 
 The periodic flag exists in the record and is refused: the profile has no wrapped periodic form (ISO_PROFILE
-section 12, ADR 0011), so there is no periodic rule to check counts against.
+section 11, ADR 0011), so there is no periodic rule to check counts against.

@@ -771,7 +771,7 @@ impl Registry {
                 "b_spline_curve_with_knots",
                 S::ExactForm,
                 G::Densified,
-                "degree 1 to 16, explicit knots, non-rational, no wrapped periodic form",
+                "degree 1 to 16, explicit knots, non-rational; a periodic spline is unwrapped to this form, never stored wrapped",
             ),
             g(
                 ids::RATIONAL_B_SPLINE_CURVE,
