@@ -14,7 +14,7 @@ use pvec_container::{Bounds, Header, Manifest};
 use pvec_entity::EntityId;
 use support::*;
 
-const SUBNORMAL: f64 = 5e-324;
+const SUBNORMAL: f64 = f64::from_bits(1); // the smallest subnormal
 const PAST_2_40: f64 = 2199023255552.0; // 2^41
 
 fn id(n: u32) -> EntityId {
@@ -163,9 +163,8 @@ fn writer_stores_negative_zero_as_positive_zero_np03() {
     let hot: Vec<_> = entries.iter().filter(|e| e.kind == BlockKind::Hot.id()).collect();
     assert_eq!(hot.len(), 4);
     for e in hot {
-        let block = AlignedBytes::from_bytes(
-            &bytes[e.offset as usize..e.offset as usize + e.stored_length as usize],
-        );
+        let block =
+            AlignedBytes::from_bytes(&bytes[e.offset as usize..e.offset as usize + e.stored_length as usize]);
         let v = HotBlockView::parse(block.as_bytes()).unwrap();
         for col in v.f64_columns() {
             for x in *col {

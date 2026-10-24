@@ -198,12 +198,18 @@ blocks/hot.rs: HotError::RunOffsetsNotMonotonic { index: usize }
 blocks/hot.rs: HotError::RunOffsetsBadBounds
 blocks/hot.rs: HotError::BadRunLength { index: usize }
 blocks/hot.rs: HotError::NonFinite { column: &'static str, index: usize }
+blocks/hot.rs: HotError::Subnormal { column: &'static str, index: usize }
+blocks/hot.rs: HotError::OutOfRange { column: &'static str, index: usize }
+blocks/hot.rs: HotError::NegativeZero { column: &'static str, index: usize }
+blocks/hot.rs: HotError::DegenerateRadius { index: usize }
+blocks/hot.rs: HotError::DegenerateLength { index: usize }
 blocks/hot.rs: HotError::Misaligned
 blocks/hot.rs: HotError::HostEndianness
 blocks/hot.rs: HotError::WrongKind { block: HotKind, pushed: HotKind }
 blocks/hot.rs: HotError::DuplicateId { id: u32 }
 blocks/hot.rs: HotError::TooLarge
 blocks/hot.rs: HotError::rule(&self) -> &'static str
+blocks/hot.rs: HotError::np_rule(&self) -> Option<&'static str>
 blocks/hot.rs: impl core::fmt::Display for HotError
 blocks/hot.rs: impl std::error::Error for HotError {}
 blocks/hot.rs: pub const HOT_RULES: &[(&str, &str)]
