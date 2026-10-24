@@ -5,6 +5,7 @@ members = [
     "crates/pvec-checks",
     "crates/pvec-codec",
     "crates/pvec-components",
+    "crates/pvec-container",
     "crates/pvec-entity",
     "crates/pvec-geometry",
     "crates/pvec-numeric",
