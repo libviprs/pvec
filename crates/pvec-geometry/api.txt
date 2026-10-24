@@ -76,7 +76,7 @@ lib.rs: pub use curve::{Composite, Curve, Curve2d, Polyline, Trimmed}
 lib.rs: pub use error::GeometryError
 lib.rs: pub use primitives::{Bounds, CurveKind, Domain, Point2, Vector2}
 lib.rs: pub use pvec_numeric::{Side, Trim}
-lib.rs: pub use spline::{BSpline, Bezier, RationalBSpline}
+lib.rs: pub use spline::{BSpline, Bezier, RationalBSpline, Unwrapped}
 lib.rs: pub use transform::{ParamMap, Transform2}
 primitives.rs: #[derive(Clone, Copy, Debug, PartialEq, Default)] pub struct Point2
 primitives.rs: Point2.x: f64
@@ -116,11 +116,16 @@ primitives.rs: CurveKind::RationalBSpline
 primitives.rs: CurveKind::const ALL: [CurveKind; 9]
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct BSpline(Core)
 spline.rs: BSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<BSpline>
+spline.rs: BSpline::from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped>
 spline.rs: BSpline::degree(&self) -> usize
 spline.rs: BSpline::control_points(&self) -> &[Point2]
 spline.rs: BSpline::knots(&self) -> &[f64]
 spline.rs: BSpline::is_declared_closed(&self) -> bool
 spline.rs: BSpline::declare_closed(self) -> Result<BSpline>
+spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct Unwrapped
+spline.rs: Unwrapped.curve: BSpline
+spline.rs: Unwrapped.deviation_bound: f64
+spline.rs: Unwrapped.periodic_deviation_bound: f64
 spline.rs: impl Curve2d for BSpline
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct RationalBSpline(Core)
 spline.rs: RationalBSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>, weights: Vec<f64>) -> Result<RationalBSpline>

@@ -143,7 +143,7 @@ The header is 32 bytes, little-endian, and the first byte of the block must be 8
 
 ### 2.2 Kinds and columns
 
-Coordinates are `f64` end to end: there is no quantisation or rounding in this layer, and a value comes back with the bits it went in with. They are finite (`NP-01`); a NaN or an infinity refuses the block. These are the immediate display forms (a line is its two end points); the exact curve parameters of ADR 0011 stay in the codec sections of P3.2.
+Coordinates are `f64` end to end: there is no quantisation or rounding in this layer, and a value comes back with the bits it went in with (negative zero goes in as positive zero). They obey the numeric policy: finite, normal or zero (`NP-01`), at most 2^40 in magnitude (`NP-02`), and negative zero is written as positive zero (`NP-03`), so a block that holds a NaN, an infinity, a subnormal, a larger value or a stored negative zero is refused whole. A radius or semi-axis is positive and not degenerate, and an ellipse is not thinner than the axis ratio bound (`NP-07`); a line has a length above the degenerate length and no two consecutive vertices of a polyline are closer than it (`NP-06`). The tolerances are the ones of `pvec-numeric`, none of them is repeated here. These are the immediate display forms (a line is its two end points); the exact curve parameters of ADR 0011 stay in the codec sections of P3.2.
 
 | id | kind | `f64` columns, in order | meaning |
 |---|---|---|---|
@@ -187,11 +187,16 @@ Each refusal is a typed `HotError` with a rule identifier. Every count is compar
 | HOT-13 | run offsets that decrease |
 | HOT-14 | run offsets that do not start at zero or do not end at the vertex count |
 | HOT-15 | a polyline run of fewer than 2 or more than 2^20 vertices |
-| HOT-16 | a NaN or infinite coordinate (NP-01) |
+| HOT-16 | a NaN or infinite value (NP-01) |
 | HOT-17 | the buffer does not start on an 8-byte boundary |
 | HOT-18 | the host is not little-endian, so columns cannot be borrowed in place |
 | HOT-19 | (builder) an entity of another kind than the block |
 | HOT-20 | (builder) the block would not fit 32-bit lengths |
+| HOT-21 | a subnormal value (NP-01) |
+| HOT-22 | a value of magnitude above 2^40 (NP-02) |
+| HOT-23 | a stored negative zero (NP-03); the builder writes positive zero instead of refusing |
+| HOT-24 | a radius or semi-axis that is not positive or is degenerate, or an ellipse whose axis ratio is above the bound (NP-07) |
+| HOT-25 | a line of degenerate length, or a polyline with two consecutive vertices closer than the degenerate length (NP-06) |
 
 ## 3. Advanced geometry arenas
 
@@ -261,7 +266,7 @@ The record:
 
 A spline (kind 1) needs knots and control points, and weights if and only if the rational flag is set; it has no segment list or trims. A composite (kind 2) has a degree of 0, a segment list, optionally trims, and no knots, weights or control points; it cannot be rational. The closed flag is a claim about the geometry that NP-20 checks for a spline (the end meets the start); for a composite it is carried and not checked, because checking it needs the segments evaluated, which is not this layer's job.
 
-The periodic flag is defined and refused. ISO_PROFILE section 12 and ADR 0011 say the profile has no wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. A later minor version can give the bit a meaning by lifting that refusal.
+The periodic flag is defined and refused. ISO_PROFILE section 11 and ADR 0011 say the profile has no wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. A periodic spline is unwrapped before it is stored (`BSpline::from_periodic`, ADR 0011), so the writer never has a reason to set the bit. A later minor version can give the bit a meaning by lifting that refusal.
 
 ### 3.5 Counts, weights and composites
 
