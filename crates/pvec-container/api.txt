@@ -1,8 +1,172 @@
+blocks/advanced.rs: pub const RECORD_MAGIC: [u8; 4]
+blocks/advanced.rs: pub const RECORD_VERSION: u16
+blocks/advanced.rs: pub const RECORD_HEADER_LEN: usize
+blocks/advanced.rs: pub const RECORD_LEN: usize
+blocks/advanced.rs: pub const FLAG_RATIONAL: u16
+blocks/advanced.rs: pub const FLAG_CLOSED: u16
+blocks/advanced.rs: pub const FLAG_PERIODIC: u16
+blocks/advanced.rs: pub const RECORD_HEADER_FIELDS: &[FieldSpec]
+blocks/advanced.rs: pub const RECORD_FIELDS: &[FieldSpec]
+blocks/advanced.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum RecordKind
+blocks/advanced.rs: RecordKind::Spline
+blocks/advanced.rs: RecordKind::Composite
+blocks/advanced.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct AdvancedCurveRecord
+blocks/advanced.rs: AdvancedCurveRecord.id: u32
+blocks/advanced.rs: AdvancedCurveRecord.style: u32
+blocks/advanced.rs: AdvancedCurveRecord.kind: RecordKind
+blocks/advanced.rs: AdvancedCurveRecord.degree: u8
+blocks/advanced.rs: AdvancedCurveRecord.flags: u16
+blocks/advanced.rs: AdvancedCurveRecord.knots: u32
+blocks/advanced.rs: AdvancedCurveRecord.weights: u32
+blocks/advanced.rs: AdvancedCurveRecord.control_points: u32
+blocks/advanced.rs: AdvancedCurveRecord.segments: u32
+blocks/advanced.rs: AdvancedCurveRecord.trims: u32
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct SplineSpec<'a>
+blocks/advanced.rs: SplineSpec.degree: usize
+blocks/advanced.rs: SplineSpec.knots: &'a [f64]
+blocks/advanced.rs: SplineSpec.x: &'a [f64]
+blocks/advanced.rs: SplineSpec.y: &'a [f64]
+blocks/advanced.rs: SplineSpec.weights: Option<&'a [f64]>
+blocks/advanced.rs: SplineSpec.closed: bool
+blocks/advanced.rs: SplineSpec.periodic: bool
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct SplineView<'a>
+blocks/advanced.rs: SplineView.id: u32
+blocks/advanced.rs: SplineView.style: u32
+blocks/advanced.rs: SplineView.degree: usize
+blocks/advanced.rs: SplineView.closed: bool
+blocks/advanced.rs: SplineView.knots: &'a [f64]
+blocks/advanced.rs: SplineView.weights: Option<&'a [f64]>
+blocks/advanced.rs: SplineView.x: &'a [f64]
+blocks/advanced.rs: SplineView.y: &'a [f64]
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct CompositeView<'a>
+blocks/advanced.rs: CompositeView.id: u32
+blocks/advanced.rs: CompositeView.style: u32
+blocks/advanced.rs: CompositeView.closed: bool
+blocks/advanced.rs: CompositeView.segments: &'a [u32]
+blocks/advanced.rs: CompositeView.trims: Option<&'a [f64]>
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub enum CurveView<'a>
+blocks/advanced.rs: CurveView::Spline(SplineView<'a>)
+blocks/advanced.rs: CurveView::Composite(CompositeView<'a>)
+blocks/advanced.rs: #[derive(Clone, Debug, Default)] pub struct AdvancedBlocks
+blocks/advanced.rs: AdvancedBlocks.records: AlignedBytes
+blocks/advanced.rs: AdvancedBlocks.knots: AlignedBytes
+blocks/advanced.rs: AdvancedBlocks.weights: AlignedBytes
+blocks/advanced.rs: AdvancedBlocks.control_points: AlignedBytes
+blocks/advanced.rs: AdvancedBlocks.segments: AlignedBytes
+blocks/advanced.rs: AdvancedBlocks.trims: AlignedBytes
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct BlockSlices<'a>
+blocks/advanced.rs: BlockSlices.records: &'a [u8]
+blocks/advanced.rs: BlockSlices.knots: &'a [u8]
+blocks/advanced.rs: BlockSlices.weights: &'a [u8]
+blocks/advanced.rs: BlockSlices.control_points: &'a [u8]
+blocks/advanced.rs: BlockSlices.segments: &'a [u8]
+blocks/advanced.rs: BlockSlices.trims: &'a [u8]
+blocks/advanced.rs: AdvancedBlocks::slices(&self) -> BlockSlices<'_>
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct RecordsView<'a>
+blocks/advanced.rs: RecordsView<'a>::parse(bytes: &'a [u8]) -> Result<RecordsView<'a>, ArenaError>
+blocks/advanced.rs: RecordsView<'a>::len(&self) -> usize
+blocks/advanced.rs: RecordsView<'a>::is_empty(&self) -> bool
+blocks/advanced.rs: RecordsView<'a>::get(&self, index: usize) -> Option<AdvancedCurveRecord>
+blocks/advanced.rs: #[derive(Clone, Debug, Default)] pub struct AdvancedBuilder
+blocks/advanced.rs: AdvancedBuilder::new() -> AdvancedBuilder
+blocks/advanced.rs: AdvancedBuilder::len(&self) -> usize
+blocks/advanced.rs: AdvancedBuilder::is_empty(&self) -> bool
+blocks/advanced.rs: AdvancedBuilder::push_spline(&mut self, id: EntityId, style: u32, spec: SplineSpec<'_>) -> Result<(), ArenaError>
+blocks/advanced.rs: AdvancedBuilder::push_composite(&mut self, id: EntityId, style: u32, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), ArenaError>
+blocks/advanced.rs: AdvancedBuilder::finish(self) -> Result<AdvancedBlocks, ArenaError>
+blocks/advanced.rs: #[derive(Clone, Copy, Debug)] pub struct AdvancedView<'a>
+blocks/advanced.rs: AdvancedView<'a>::parse(blocks: BlockSlices<'a>) -> Result<AdvancedView<'a>, ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::parse_probed(blocks: BlockSlices<'a>, probe: &'a dyn ReadProbe) -> Result<AdvancedView<'a>, ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::len(&self) -> usize
+blocks/advanced.rs: AdvancedView<'a>::is_empty(&self) -> bool
+blocks/advanced.rs: AdvancedView<'a>::record(&self, index: usize) -> Option<AdvancedCurveRecord>
+blocks/advanced.rs: AdvancedView<'a>::curve(&self, index: usize) -> Result<CurveView<'a>, ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::nesting_depth(&self, index: usize) -> Result<usize, ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::check_nesting(&self) -> Result<(), ArenaError>
+blocks/advanced.rs: pub fn render_chapter() -> String
 blocks/aligned.rs: #[derive(Clone, Debug, Default, PartialEq, Eq)] pub struct AlignedBytes
 blocks/aligned.rs: AlignedBytes::from_bytes(bytes: &[u8]) -> AlignedBytes
 blocks/aligned.rs: AlignedBytes::as_bytes(&self) -> &[u8]
 blocks/aligned.rs: AlignedBytes::len(&self) -> usize
 blocks/aligned.rs: AlignedBytes::is_empty(&self) -> bool
+blocks/arena.rs: pub const ARENA_MAGIC: [u8; 4]
+blocks/arena.rs: pub const ARENA_VERSION: u16
+blocks/arena.rs: pub const ARENA_HEADER_LEN: usize
+blocks/arena.rs: pub const OFFSET_ENTRY_LEN: usize
+blocks/arena.rs: pub const NO_ENTRY: u32
+blocks/arena.rs: pub const ARENA_HEADER_FIELDS: &[FieldSpec]
+blocks/arena.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum PayloadKind
+blocks/arena.rs: PayloadKind::Knots
+blocks/arena.rs: PayloadKind::Weights
+blocks/arena.rs: PayloadKind::ControlPoints
+blocks/arena.rs: PayloadKind::Segments
+blocks/arena.rs: PayloadKind::Trims
+blocks/arena.rs: PayloadKind::const ALL: [PayloadKind; 5]
+blocks/arena.rs: PayloadKind::id(self) -> u16
+blocks/arena.rs: PayloadKind::from_id(id: u16) -> Option<PayloadKind>
+blocks/arena.rs: PayloadKind::name(self) -> &'static str
+blocks/arena.rs: PayloadKind::columns(self) -> &'static [&'static str]
+blocks/arena.rs: PayloadKind::element(self) -> &'static str
+blocks/arena.rs: PayloadKind::meaning(self) -> &'static str
+blocks/arena.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ArenaError
+blocks/arena.rs: ArenaError::Truncated { needed: u64, got: u64 }
+blocks/arena.rs: ArenaError::BadMagic
+blocks/arena.rs: ArenaError::UnsupportedVersion { found: u16 }
+blocks/arena.rs: ArenaError::UnknownKind { id: u16 }
+blocks/arena.rs: ArenaError::NonZeroReserved
+blocks/arena.rs: ArenaError::NonZeroPadding
+blocks/arena.rs: ArenaError::LengthMismatch { declared: u32, actual: u64 }
+blocks/arena.rs: ArenaError::Misaligned
+blocks/arena.rs: ArenaError::HostEndianness
+blocks/arena.rs: ArenaError::EntryOutOfRange { index: u32, entries: u32 }
+blocks/arena.rs: ArenaError::RangeOutOfArena { start: u32, len: u32, arena_len: u32 }
+blocks/arena.rs: ArenaError::WrongPayload { held: PayloadKind }
+blocks/arena.rs: ArenaError::KnotCount { knots: usize, control_points: usize, degree: usize }
+blocks/arena.rs: ArenaError::WeightCount { weights: usize, control_points: usize }
+blocks/arena.rs: ArenaError::ControlPointColumns { x: usize, y: usize }
+blocks/arena.rs: ArenaError::PeriodicUnsupported
+blocks/arena.rs: ArenaError::InvalidFlags { bits: u16 }
+blocks/arena.rs: ArenaError::RecordFields { index: usize }
+blocks/arena.rs: ArenaError::IdsNotAscending { index: usize }
+blocks/arena.rs: ArenaError::SegmentOutOfRange { record: usize, segment: u32 }
+blocks/arena.rs: ArenaError::CompositeCycle { record: usize }
+blocks/arena.rs: ArenaError::NestingTooDeep { record: usize }
+blocks/arena.rs: ArenaError::TrimCount { values: usize, segments: usize }
+blocks/arena.rs: ArenaError::Numeric(NumericError)
+blocks/arena.rs: ArenaError::EmptyBlock
+blocks/arena.rs: ArenaError::DuplicateId { id: u32 }
+blocks/arena.rs: ArenaError::UnknownSegment { id: u32 }
+blocks/arena.rs: ArenaError::TooLarge
+blocks/arena.rs: ArenaError::rule(&self) -> &'static str
+blocks/arena.rs: impl core::fmt::Display for ArenaError
+blocks/arena.rs: impl std::error::Error for ArenaError {}
+blocks/arena.rs: pub const ARENA_RULES: &[(&str, &str)]
+blocks/arena.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct OffsetEntry
+blocks/arena.rs: OffsetEntry.start: u32
+blocks/arena.rs: OffsetEntry.len: u32
+blocks/arena.rs: OffsetEntry::range(self, arena_len: u32) -> Option<core::ops::Range<usize>>
+blocks/arena.rs: pub trait ReadProbe
+blocks/arena.rs: ReadProbe::table_read(&self, kind: PayloadKind)
+blocks/arena.rs: ReadProbe::payload_read(&self, kind: PayloadKind)
+blocks/arena.rs: #[derive(Clone, Debug)] pub struct ArenaBuilder
+blocks/arena.rs: ArenaBuilder::new(kind: PayloadKind) -> ArenaBuilder
+blocks/arena.rs: ArenaBuilder::kind(&self) -> PayloadKind
+blocks/arena.rs: ArenaBuilder::entries(&self) -> usize
+blocks/arena.rs: ArenaBuilder::push_f64(&mut self, values: &[f64]) -> Result<u32, ArenaError>
+blocks/arena.rs: ArenaBuilder::push_xy(&mut self, x: &[f64], y: &[f64]) -> Result<u32, ArenaError>
+blocks/arena.rs: ArenaBuilder::push_u32(&mut self, values: &[u32]) -> Result<u32, ArenaError>
+blocks/arena.rs: ArenaBuilder::finish(self) -> Result<AlignedBytes, ArenaError>
+blocks/arena.rs: #[derive(Clone, Copy)] pub struct ArenaView<'a>
+blocks/arena.rs: impl core::fmt::Debug for ArenaView<'_>
+blocks/arena.rs: ArenaView<'a>::parse(bytes: &'a [u8]) -> Result<ArenaView<'a>, ArenaError>
+blocks/arena.rs: ArenaView<'a>::parse_probed(bytes: &'a [u8], probe: Option<&'a dyn ReadProbe>) -> Result<ArenaView<'a>, ArenaError>
+blocks/arena.rs: ArenaView<'a>::kind(&self) -> PayloadKind
+blocks/arena.rs: ArenaView<'a>::entries(&self) -> usize
+blocks/arena.rs: ArenaView<'a>::arena_len(&self) -> usize
+blocks/arena.rs: ArenaView<'a>::entry(&self, index: u32) -> Result<OffsetEntry, ArenaError>
+blocks/arena.rs: ArenaView<'a>::slice(&self, index: u32) -> Result<&'a [f64], ArenaError>
+blocks/arena.rs: ArenaView<'a>::slice_xy(&self, index: u32) -> Result<(&'a [f64], &'a [f64]), ArenaError>
+blocks/arena.rs: ArenaView<'a>::slice_u32(&self, index: u32) -> Result<&'a [u32], ArenaError>
 blocks/hot.rs: pub const HOT_MAGIC: [u8; 4]
 blocks/hot.rs: pub const HOT_VERSION: u16
 blocks/hot.rs: pub const HOT_HEADER_LEN: usize
@@ -66,7 +230,9 @@ blocks/hot.rs: HotBlockView<'a>::f64_columns(&self) -> &[&'a [f64]]
 blocks/hot.rs: HotBlockView<'a>::column(&self, name: &str) -> Option<&'a [f64]>
 blocks/hot.rs: HotBlockView<'a>::polyline(&self, index: usize) -> Option<(&'a [f64], &'a [f64])>
 blocks/hot.rs: pub fn render_chapter() -> String
+blocks/mod.rs: pub mod advanced
 blocks/mod.rs: pub mod aligned
+blocks/mod.rs: pub mod arena
 blocks/mod.rs: pub mod hot
 blocks/mod.rs: pub use aligned::AlignedBytes
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError

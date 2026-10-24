@@ -175,3 +175,111 @@ fn every_hot_block_rule_is_documented_once_and_the_error_type_reports_them() {
         assert!(ids.contains(&e.rule()), "{e} reports a rule the document does not list");
     }
 }
+
+fn chapter_three_tables() -> [(&'static str, &'static [FieldSpec], usize); 3] {
+    use pvec_container::blocks::advanced::*;
+    use pvec_container::blocks::arena::*;
+    [
+        ("arena header", ARENA_HEADER_FIELDS, ARENA_HEADER_LEN),
+        ("record block header", RECORD_HEADER_FIELDS, RECORD_HEADER_LEN),
+        ("record", RECORD_FIELDS, RECORD_LEN),
+    ]
+}
+
+#[test]
+fn the_arena_and_record_tables_cover_their_structures_with_no_gaps() {
+    for (name, fields, len) in chapter_three_tables() {
+        assert!(!fields.is_empty(), "{name}: no fields");
+        contiguous(fields, len);
+    }
+}
+
+#[test]
+fn every_arena_and_record_field_appears_in_the_document_row_for_row() {
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for (name, fields, _) in chapter_three_tables() {
+        assert!(!fields.is_empty(), "{name}: no fields");
+        for f in fields {
+            let row = format!("| {} | {} | {} |", f.offset, f.size, f.name);
+            assert!(doc.contains(&row), "docs/CONTAINER.md has no {name} row {row:?}");
+        }
+    }
+}
+
+#[test]
+fn chapter_three_states_the_layout_the_invariants_and_every_payload_kind() {
+    use pvec_container::blocks::arena::PayloadKind;
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for needle in [
+        "## 3. Advanced geometry arenas",
+        "### 3.1",
+        "offset table",
+        "A reader may assume",
+        "A reader must verify",
+        "natural alignment",
+        "two integer reads",
+        "no nested per-entity byte blob",
+        "periodic",
+        "nesting",
+        "share",
+    ] {
+        assert!(doc.contains(needle), "docs/CONTAINER.md lacks {needle:?}");
+    }
+    for k in PayloadKind::ALL {
+        let row = format!("| {} | {} |", k.id(), k.name());
+        assert!(doc.contains(&row), "no row for payload kind {k:?}");
+        for c in k.columns() {
+            assert!(doc.contains(c), "kind {k:?}: no mention of column {c}");
+        }
+    }
+}
+
+#[test]
+fn every_arena_rule_is_documented_once_and_the_error_type_reports_them() {
+    use pvec_container::blocks::arena::{ARENA_RULES, ArenaError};
+    use pvec_numeric::NumericError;
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for (rule, meaning) in ARENA_RULES {
+        assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/CONTAINER.md lacks {rule}");
+    }
+    let mut ids: Vec<&str> = ARENA_RULES.iter().map(|r| r.0).collect();
+    let before = ids.len();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), before, "a rule id is listed twice");
+    assert!(before >= 20, "the rule table is suspiciously short: {before}");
+    // one value of every variant must report a listed rule
+    let all = [
+        ArenaError::Truncated { needed: 1, got: 0 },
+        ArenaError::BadMagic,
+        ArenaError::UnsupportedVersion { found: 2 },
+        ArenaError::UnknownKind { id: 9 },
+        ArenaError::NonZeroReserved,
+        ArenaError::NonZeroPadding,
+        ArenaError::LengthMismatch { declared: 1, actual: 2 },
+        ArenaError::Misaligned,
+        ArenaError::HostEndianness,
+        ArenaError::EntryOutOfRange { index: 1, entries: 0 },
+        ArenaError::RangeOutOfArena { start: 1, len: 1, arena_len: 1 },
+        ArenaError::WrongPayload { held: pvec_container::blocks::arena::PayloadKind::Knots },
+        ArenaError::KnotCount { knots: 1, control_points: 1, degree: 1 },
+        ArenaError::WeightCount { weights: 1, control_points: 2 },
+        ArenaError::ControlPointColumns { x: 1, y: 2 },
+        ArenaError::PeriodicUnsupported,
+        ArenaError::InvalidFlags { bits: 8 },
+        ArenaError::RecordFields { index: 0 },
+        ArenaError::IdsNotAscending { index: 1 },
+        ArenaError::SegmentOutOfRange { record: 0, segment: 9 },
+        ArenaError::CompositeCycle { record: 0 },
+        ArenaError::NestingTooDeep { record: 0 },
+        ArenaError::TrimCount { values: 1, segments: 1 },
+        ArenaError::Numeric(NumericError::BadKnots),
+        ArenaError::EmptyBlock,
+        ArenaError::DuplicateId { id: 1 },
+        ArenaError::UnknownSegment { id: 1 },
+        ArenaError::TooLarge,
+    ];
+    for e in all {
+        assert!(ids.contains(&e.rule()), "{e} reports a rule the document does not list");
+    }
+}

@@ -323,7 +323,7 @@ pub fn render_markdown() -> String {
     let mut s = String::new();
     s.push_str(
         "# The PVec container\n\n\
-This file is generated from `crates/pvec-container/src/spec.rs` and `crates/pvec-container/src/blocks/hot.rs`. I do not edit it by hand: a test \
+This file is generated from `crates/pvec-container/src/spec.rs` and the `hot.rs`, `arena.rs` and `advanced.rs` modules under `crates/pvec-container/src/blocks/`. I do not edit it by hand: a test \
 regenerates it and fails if the committed file differs by a single byte. To change it I change the \
 constants and run `PVEC_BLESS_CONTAINER=1 cargo test -p pvec-container --test container_doc`.\n\n\
 ## 1. The container prefix\n\n\
@@ -405,5 +405,7 @@ length, a pointer outside the artifact, a directory table length that is not a m
 a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.\n\n",
     );
     s.push_str(&crate::blocks::hot::render_chapter());
+    s.push('\n');
+    s.push_str(&crate::blocks::advanced::render_chapter());
     s
 }
