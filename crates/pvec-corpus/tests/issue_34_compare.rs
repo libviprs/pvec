@@ -156,3 +156,40 @@ fn issue_34_every_recorded_verdict_is_reproduced_by_the_rust_rules() {
     assert_eq!((exact, policy), (1936, 136));
     assert!(linked >= 80, "only {linked} comparison fields were tied back to expected.math.json");
 }
+
+#[test]
+fn issue_34_exact_mode_sees_every_single_bit_flip() {
+    // Odd and even mantissas, a power of two, a negative and a subnormal-free small value.
+    let bases = [1.0f64, 2.75, 0.5f64.sqrt(), -3.0, 3.0, 1048576.0, -0.1, 6.283185307179586];
+    for x in bases {
+        let want = scalar_of(x);
+        assert!(compare(Mode::Exact, &want, x, 1.0));
+        for bit in 0..64 {
+            let flipped = f64::from_bits(x.to_bits() ^ (1u64 << bit));
+            assert!(
+                !compare(Mode::Exact, &want, flipped, 1.0e6),
+                "{x} with bit {bit} flipped must not be exact"
+            );
+            assert!(
+                !compare(Mode::Exact, &want, flipped, 0.0),
+                "{x} with bit {bit} flipped must not be exact"
+            );
+        }
+    }
+}
+
+#[test]
+fn issue_34_exact_mode_refuses_nan_payloads_and_infinities() {
+    let want = scalar_of(1.0);
+    for bits in
+        [0x7ff8_0000_0000_0000u64, 0x7ff8_0000_0000_0001, 0xfff8_dead_beef_0000, 0x7ff0_0000_0000_0001]
+    {
+        assert!(!compare(Mode::Exact, &want, f64::from_bits(bits), 1.0));
+        assert!(!compare(Mode::Policy, &want, f64::from_bits(bits), 1.0));
+    }
+    assert!(!compare(Mode::Exact, &want, f64::NEG_INFINITY, 1.0));
+    // Zero against the smallest non-zero value is not exact either, nor is it the sign of zero alone.
+    let zero = scalar_of(0.0);
+    assert!(!compare(Mode::Exact, &zero, f64::from_bits(1), 1.0));
+    assert!(compare(Mode::Exact, &zero, -0.0, 1.0));
+}

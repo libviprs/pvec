@@ -169,3 +169,76 @@ fn issue_34_every_fixture_id_is_unique_and_matches_its_directory() {
         assert_eq!(f.1, &format!("fixtures/{}/source.dwg", f.0.id));
     }
 }
+
+fn entry(class: EvidenceClass, scope: &str, oracles: &str) -> pvec_corpus::Fixture {
+    pvec_corpus::Fixture {
+        id: "constructed".to_string(),
+        group: "curves".to_string(),
+        class,
+        scope: scope.to_string(),
+        oracles: oracles.to_string(),
+        corpus_capabilities: Vec::new(),
+        capabilities: Vec::new(),
+        dwg_path: None,
+        expected: None,
+        must_not_emit_curve: false,
+    }
+}
+
+fn claims(f: &pvec_corpus::Fixture) -> [bool; 3] {
+    [
+        f.supports(Claim::ReaderMapping),
+        f.supports(Claim::StepExactness),
+        f.supports(Claim::DualOracleAgreement),
+    ]
+}
+
+#[test]
+fn issue_34_supports_says_exactly_which_claims_each_class_carries() {
+    use EvidenceClass::*;
+    const SCOPE: &str = "READER_MAPPING_ONLY";
+    // [reader mapping, step exactness, dual oracle agreement]
+    let table: [(EvidenceClass, &str, &str, [bool; 3]); 12] = [
+        (KnownTruthExact, SCOPE, "none", [true, false, false]),
+        // The scope guard: an oracle recorded next to READER_MAPPING_ONLY does not buy STEP exactness.
+        (KnownTruthExact, SCOPE, "step-evaluator", [true, false, false]),
+        (KnownTruthExact, "STEP_ROUND_TRIP", "none", [true, false, false]),
+        (KnownTruthExact, "STEP_ROUND_TRIP", "step-evaluator", [true, true, false]),
+        (DualOracleEquivalent, "STEP_ROUND_TRIP", "step-evaluator", [false, false, true]),
+        (DualOracleEquivalent, "STEP_ROUND_TRIP", "none", [false, false, false]),
+        (DualOracleEquivalent, SCOPE, "step-evaluator", [false, false, true]),
+        (RealWorldDifferential, "STEP_ROUND_TRIP", "step-evaluator", [false, false, false]),
+        (RealWorldDifferential, SCOPE, "none", [false, false, false]),
+        (Quarantined, SCOPE, "none", [false, false, false]),
+        (Quarantined, "STEP_ROUND_TRIP", "step-evaluator", [false, false, false]),
+        (Quarantined, SCOPE, "step-evaluator", [false, false, false]),
+    ];
+    for (class, scope, oracles, want) in table {
+        assert_eq!(claims(&entry(class, scope, oracles)), want, "{class:?} scope={scope} oracles={oracles}");
+    }
+}
+
+#[test]
+fn issue_34_an_oracle_recorded_for_a_dual_oracle_class_passes_the_evidence_gate() {
+    // The gate that refuses DUAL_ORACLE_EQUIVALENT with no oracle must not refuse it once an oracle is
+    // recorded. The record is KNOWN_TRUTH_EXACT, so what stops it next is the class contradiction, not
+    // the missing evidence.
+    for class in ["DUAL_ORACLE_EQUIVALENT", "REAL_WORLD_DIFFERENTIAL"] {
+        let (tar, pin) = mutated(|f| {
+            edit_manifest_entry(f, "circle-001", "evidence_class", "KNOWN_TRUTH_EXACT", class);
+            edit_text(f, "manifest.json", |t| {
+                let id_at = t.find("\"id\": \"circle-001\"").unwrap();
+                let at = id_at + t[id_at..].find("\"oracles\": \"none\"").unwrap();
+                format!(
+                    "{}\"oracles\": \"step-evaluator\"{}",
+                    &t[..at],
+                    &t[at + "\"oracles\": \"none\"".len()..]
+                )
+            });
+        });
+        match register(&tar, &pin) {
+            Err(CorpusError::Invalid { what, .. }) => assert!(what.contains("circle-001"), "{what}"),
+            other => panic!("{class}: expected the class contradiction, got {other:?}"),
+        }
+    }
+}

@@ -261,3 +261,23 @@ fn issue_34_a_scalar_must_have_exactly_the_two_fields_in_canonical_form() {
         assert!(Scalar::from_json("t", &v).is_err(), "{text}");
     }
 }
+
+#[test]
+fn issue_34_a_non_finite_scalar_is_refused_under_np_01() {
+    for (decimal, hex) in [
+        ("1e999", "0x7ff0000000000000"),
+        ("-1e999", "0xfff0000000000000"),
+        ("1.7976931348623159e308", "0x7ff0000000000000"),
+        ("0.0", "0x7ff8000000000000"),
+        ("0.0", "0x7ff8000000000001"),
+        ("0.0", "0xfff8000000000000"),
+        ("0.0", "0x7ff0000000000001"),
+    ] {
+        match Scalar::from_json("t", &scalar_json(decimal, hex)) {
+            Err(CorpusError::Invalid { why, .. }) => {
+                assert!(why.contains("finite"), "{decimal} {hex}: {why}")
+            }
+            other => panic!("{decimal} {hex}: expected a finiteness refusal, got {other:?}"),
+        }
+    }
+}

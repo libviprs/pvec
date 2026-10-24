@@ -20,6 +20,165 @@ fn sources(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
     }
 }
 
+/// Tokens of Rust source with comments and string or char literals removed. Identifiers, `::`, braces,
+/// commas, semicolons, `*` and the rest as single characters.
+fn tokens(src: &str) -> Vec<String> {
+    let b: Vec<char> = src.chars().collect();
+    let (mut i, mut out) = (0, Vec::new());
+    while i < b.len() {
+        let c = b[i];
+        if c == '/' && b.get(i + 1) == Some(&'/') {
+            while i < b.len() && b[i] != '\n' {
+                i += 1;
+            }
+        } else if c == '/' && b.get(i + 1) == Some(&'*') {
+            let mut depth = 1;
+            i += 2;
+            while i < b.len() && depth > 0 {
+                if b[i] == '/' && b.get(i + 1) == Some(&'*') {
+                    depth += 1;
+                    i += 2;
+                } else if b[i] == '*' && b.get(i + 1) == Some(&'/') {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        } else if c == '\'' {
+            // A char literal (`'x'`, `'\\n'`) or a lifetime (`'a`).
+            if b.get(i + 1) == Some(&'\\') {
+                i += 2;
+                while i < b.len() && b[i] != '\'' {
+                    i += 1;
+                }
+                i += 1;
+            } else if b.get(i + 2) == Some(&'\'') {
+                i += 3;
+            } else {
+                i += 1;
+            }
+        } else if c == '"' {
+            i += 1;
+            while i < b.len() && b[i] != '"' {
+                i += if b[i] == '\\' { 2 } else { 1 };
+            }
+            i += 1;
+        } else if c.is_alphanumeric() || c == '_' {
+            let start = i;
+            while i < b.len() && (b[i].is_alphanumeric() || b[i] == '_') {
+                i += 1;
+            }
+            out.push(b[start..i].iter().collect());
+        } else if c == ':' && b.get(i + 1) == Some(&':') {
+            out.push("::".to_string());
+            i += 2;
+        } else {
+            if !c.is_whitespace() {
+                out.push(c.to_string());
+            }
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Expands one use tree starting at `t[*i]` into full paths.
+fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Vec<String>>) {
+    if t.get(*i).map(String::as_str) == Some("{") {
+        *i += 1;
+        while *i < t.len() && t[*i] != "}" {
+            use_tree(t, i, prefix, out);
+            if t.get(*i).map(String::as_str) == Some(",") {
+                *i += 1;
+            }
+        }
+        *i += 1;
+        return;
+    }
+    let mut path = prefix.to_vec();
+    while *i < t.len() {
+        match t[*i].as_str() {
+            "::" => *i += 1,
+            "{" => {
+                use_tree(t, i, &path, out);
+                return;
+            }
+            "," | "}" | ";" => break,
+            "as" => {
+                *i += 2;
+                break;
+            }
+            "*" | "self" => *i += 1,
+            seg => {
+                path.push(seg.to_string());
+                *i += 1;
+            }
+        }
+    }
+    out.push(path);
+}
+
+/// Every path a source file imports with `use`, plus every `std::...` path written inline.
+fn paths(src: &str) -> Vec<String> {
+    let t = tokens(src);
+    let mut out: Vec<Vec<String>> = Vec::new();
+    let mut i = 0;
+    while i < t.len() {
+        if t[i] == "use" {
+            i += 1;
+            use_tree(&t, &mut i, &[], &mut out);
+        } else if t[i] == "std" || t[i] == "core" {
+            let mut path = vec![t[i].clone()];
+            i += 1;
+            while t.get(i).map(String::as_str) == Some("::") && i + 1 < t.len() && t[i + 1] != "{" {
+                path.push(t[i + 1].clone());
+                i += 2;
+            }
+            out.push(path);
+        } else {
+            i += 1;
+        }
+    }
+    out.into_iter().map(|p| p.join("::")).collect()
+}
+
+/// The imports a hermetic loader must not have.
+fn banned_paths(src: &str) -> Vec<String> {
+    const BANNED: [&str; 5] = ["std::process", "std::net", "std::os", "core::net", "std::env"];
+    paths(src)
+        .into_iter()
+        .filter(|p| BANNED.iter().any(|b| p == b || p.starts_with(&format!("{b}::"))))
+        .collect()
+}
+
+#[test]
+fn issue_34_the_scanner_sees_grouped_nested_aliased_and_inline_paths() {
+    assert_eq!(banned_paths("use std::{net, process};"), ["std::net", "std::process"]);
+    assert_eq!(
+        banned_paths("use std::{io, process::{self, Command}};"),
+        ["std::process", "std::process::Command"]
+    );
+    assert_eq!(banned_paths("use std::net as n;"), ["std::net"]);
+    assert_eq!(banned_paths("use std::net::*;"), ["std::net"]);
+    assert_eq!(banned_paths("use ::std::process::Command;"), ["std::process::Command"]);
+    assert!(
+        banned_paths("let q = b'\"'; let a: &'static str = \"\";").is_empty(),
+        "quote chars do not open a string"
+    );
+    assert_eq!(
+        banned_paths("fn f() { let _ = std::net::TcpStream::connect(a); }"),
+        ["std::net::TcpStream::connect"]
+    );
+    assert_eq!(banned_paths("use std::{fs, env::var};"), ["std::env::var"]);
+    assert_eq!(
+        banned_paths("use std::os::unix::process::CommandExt;"),
+        ["std::os::unix::process::CommandExt"]
+    );
+    assert!(banned_paths("use std::{fs, io::{self, Read}, path::PathBuf};").is_empty());
+    assert!(banned_paths("// use std::net;\n/* use std::process; */ let s = \"use std::net;\";").is_empty());
+}
+
 #[test]
 fn issue_34_the_loader_starts_no_process_and_opens_no_socket() {
     let crate_dir = repo_root().join("crates/pvec-corpus");
@@ -39,6 +198,8 @@ fn issue_34_the_loader_starts_no_process_and_opens_no_socket() {
         ["https", "://"].concat(),
     ];
     for (name, text) in &files {
+        let found = banned_paths(text);
+        assert!(found.is_empty(), "{name} imports {found:?}");
         let code: String =
             text.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
         for b in &banned {

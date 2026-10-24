@@ -191,3 +191,47 @@ fn issue_34_a_record_for_another_schema_or_class_is_refused() {
     assert!(ExpectedMath::parse(doctored.as_bytes()).is_err());
     assert!(json::parse(original.as_bytes()).is_ok());
 }
+
+/// The geometry fields each class must carry, from the record's table.
+fn required(class: EntityClass) -> &'static [&'static str] {
+    match class {
+        EntityClass::Line => &["start", "end"],
+        EntityClass::Polyline => &["vertices", "bulges"],
+        EntityClass::Circle => &["center", "normal", "x_axis", "radius"],
+        EntityClass::CircularArc => &["center", "normal", "x_axis", "radius", "start_angle", "sweep_angle"],
+        EntityClass::Ellipse => &["center", "normal", "major_axis", "semi_major", "semi_minor"],
+        EntityClass::EllipticalArc => {
+            &["center", "normal", "major_axis", "semi_major", "semi_minor", "start_angle", "sweep_angle"]
+        }
+        EntityClass::Bezier => &["degree", "control_points"],
+        EntityClass::Bspline => &["degree", "control_points", "knots"],
+        EntityClass::Nurbs => &["degree", "control_points", "knots", "weights", "weights_all_unit"],
+    }
+}
+
+#[test]
+fn issue_34_a_record_missing_any_required_geometry_field_is_refused() {
+    let bundle = Bundle::vendored().unwrap();
+    let mut covered = std::collections::BTreeSet::new();
+    for (id, e) in load_all(&bundle) {
+        let class = e.entities[0].class;
+        let text =
+            String::from_utf8(bundle.file(&format!("fixtures/{id}/expected.math.json")).unwrap().to_vec())
+                .unwrap();
+        let geometry_at = text.find("\"geometry\"").expect("a geometry block");
+        for field in required(class) {
+            let key = format!("\"{field}\":");
+            let at = geometry_at
+                + text[geometry_at..].find(&key).unwrap_or_else(|| panic!("{id}: {field} is in the record"));
+            let doctored = format!("{}\"{field}_removed\":{}", &text[..at], &text[at + key.len()..]);
+            match ExpectedMath::parse(doctored.as_bytes()) {
+                Err(CorpusError::Invalid { what, why }) => {
+                    assert!(what.contains("geometry") && why.contains(field), "{id} {field}: {what} {why}");
+                }
+                other => panic!("{id}: a record without `{field}` must be refused, got {other:?}"),
+            }
+        }
+        covered.insert(format!("{class:?}"));
+    }
+    assert_eq!(covered.len(), 9, "every class is exercised by some fixture: {covered:?}");
+}

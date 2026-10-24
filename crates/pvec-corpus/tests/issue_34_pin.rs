@@ -125,3 +125,46 @@ fn issue_34_a_malformed_pin_file_is_refused() {
         assert!(Pin::parse(text.as_bytes()).is_err(), "{text}");
     }
 }
+
+fn sums_with(files: &mut Files, f: impl FnOnce(String) -> String) {
+    // Rewrites SHA256SUMS by hand, then pins the result, so SHA256SUMS is the only thing wrong.
+    edit_text(files, "SHA256SUMS", f);
+}
+
+fn open_unsealed(files: &Files) -> pvec_corpus::Result<Bundle> {
+    Bundle::open(&build_tar(files), &pin_for(files))
+}
+
+#[test]
+fn issue_34_a_file_missing_from_sha256sums_is_refused() {
+    let mut files = vendored_files();
+    files.insert("extra.txt".to_string(), b"not listed".to_vec());
+    assert!(matches!(open_unsealed(&files), Err(CorpusError::Invalid { .. })));
+}
+
+#[test]
+fn issue_34_a_duplicated_line_cannot_stand_in_for_a_missing_one() {
+    // One file added and one line duplicated: the counts agree, the sets do not.
+    let mut files = vendored_files();
+    files.insert("extra.txt".to_string(), b"not listed".to_vec());
+    sums_with(&mut files, |t| {
+        let first = t.lines().next().unwrap().to_string();
+        format!("{t}{first}\n")
+    });
+    match open_unsealed(&files) {
+        Err(e) => {
+            assert!(e.to_string().contains("extra.txt") || matches!(e, CorpusError::Invalid { .. }), "{e}")
+        }
+        Ok(_) => panic!("a SHA256SUMS that lists one file twice and misses another must be refused"),
+    }
+}
+
+#[test]
+fn issue_34_a_line_listed_twice_is_refused_even_when_every_file_is_covered() {
+    let mut files = vendored_files();
+    sums_with(&mut files, |t| {
+        let first = t.lines().next().unwrap().to_string();
+        format!("{t}{first}\n")
+    });
+    assert!(open_unsealed(&files).is_err());
+}
