@@ -319,7 +319,7 @@ fn the_factor_is_a_named_constant_and_an_entity_is_long_by_it() {
     assert_eq!(scale.level_of(40.001), Some(1));
     assert_eq!(scale.level_of(400.0), Some(1));
     assert_eq!(scale.level_of(400.001), Some(2));
-    assert_eq!(scale.level_of(1e9), Some(2), "the coarsest level there is");
+    assert_eq!(scale.level_of(1_000_000_000.0), Some(2), "the coarsest level there is");
     // never a finer level than the coarsest that applies: the level only grows with the extent
     let mut last = None;
     for k in 0..2000 {
@@ -842,7 +842,7 @@ fn every_rule_refuses_the_block_it_names() {
     put64(&mut m, base, f64::INFINITY);
     check("entry bound not finite", "STR-04", m);
     let mut m = bytes.clone();
-    put64(&mut m, base, 1e9);
+    put64(&mut m, base, 1_000_000_000.0);
     check("entry bound out of order", "STR-04", m);
     let mut m = bytes.clone();
     put64(&mut m, STRADDLER_HEADER_LEN + 8, f64::NAN);
@@ -899,7 +899,7 @@ fn every_rule_refuses_the_block_it_names() {
 fn hostile_bytes_are_refused_without_a_panic() {
     let (bytes, _) = three_levels();
     let mut rng = Rng(5);
-    let everything = bx(-1e9, -1e9, 1e9, 1e9);
+    let everything = bx(-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0);
     for round in 0..4000 {
         let mut m = bytes.clone();
         for _ in 0..=(round % 4) {
