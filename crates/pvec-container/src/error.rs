@@ -44,6 +44,15 @@ pub enum ContainerError {
         /// The artifact length it was checked against.
         artifact_len: u64,
     },
+    /// A directory or the block checksum table overlaps the manifest's own bytes.
+    PointerIntoManifest {
+        /// Which pair.
+        field: &'static str,
+        /// The offset in the file.
+        offset: u64,
+        /// The length in the file.
+        length: u64,
+    },
     /// The manifest is longer than the bounded prefix a reader is willing to fetch.
     ManifestTooLarge {
         /// The length in the file.
