@@ -248,6 +248,12 @@ impl BSpline {
         Core::new(degree, control_points, knots, None).map(BSpline)
     }
 
+    /// STUB (red): the exact unwrap of a periodic B-spline, see issue 93.
+    pub fn from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped> {
+        let _ = (degree, control_points, knots);
+        Err(GeometryError::Numeric(NumericError::BadKnots))
+    }
+
     /// The degree.
     pub fn degree(&self) -> usize {
         self.0.degree
@@ -273,6 +279,16 @@ impl BSpline {
     pub fn declare_closed(self) -> Result<BSpline> {
         self.0.declare_closed().map(BSpline)
     }
+}
+
+/// A periodic B-spline unwrapped into the clamped form (issue 93).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unwrapped {
+    /// The clamped, closed curve.
+    pub curve: BSpline,
+    /// Bound on the distance between the control points of `curve` and the exact ones, which bounds
+    /// the locus deviation from the periodic curve.
+    pub deviation_bound: f64,
 }
 
 impl crate::Sealed for BSpline {}
