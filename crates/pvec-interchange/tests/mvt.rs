@@ -4,7 +4,10 @@
 //! encoder in `src/mvt.rs`: it is the independent reader the acceptance criteria ask for.
 
 use pvec_entity::EntityId;
-use pvec_geometry::{Bezier, Circle, Composite, Curve, Curve2d, Line, Placement2, Point2, Polyline, Transform2, Trimmed, Vector2};
+use pvec_geometry::{
+    Bezier, Circle, Composite, Curve, Curve2d, Line, Placement2, Point2, Polyline, Transform2, Trimmed,
+    Vector2,
+};
 use pvec_interchange::mvt::*;
 use pvec_interchange::{Fidelity, FidelityKind, FidelityRecord, Representation, TargetConstruct};
 use std::collections::BTreeMap;
@@ -129,7 +132,10 @@ fn decode_geometry(cmds: &[u32], extent: u64, buffer: i64) -> Vec<Vec<(i64, i64)
         for &(px, py) in l {
             let lo = -buffer;
             let hi = extent as i64 + buffer;
-            assert!((lo..=hi).contains(&px) && (lo..=hi).contains(&py), "vertex ({px},{py}) outside the buffered tile");
+            assert!(
+                (lo..=hi).contains(&px) && (lo..=hi).contains(&py),
+                "vertex ({px},{py}) outside the buffered tile"
+            );
         }
     }
     lines
@@ -197,7 +203,12 @@ fn decode_layer(b: &[u8], buffer: i64) -> DLayer {
             assert!(pair[0] < keys.len() && pair[1] < values.len(), "tag index out of range");
             map.insert(keys[pair[0]].clone(), values[pair[1]].clone());
         }
-        features.push(DFeature { id, tags: map, geom_type: gt, lines: decode_geometry(&geom, extent, buffer) });
+        features.push(DFeature {
+            id,
+            tags: map,
+            geom_type: gt,
+            lines: decode_geometry(&geom, extent, buffer),
+        });
     }
     DLayer { name, version, extent, features }
 }
@@ -230,8 +241,12 @@ fn fixture_projection() -> Projection {
 
 fn fixture() -> Vec<MvtEntity> {
     let arc = Curve::Trimmed(Trimmed::from_bulge(p(20.0, 150.0), p(180.0, 160.0), 0.8).unwrap());
-    let bez = Curve::Bezier(Bezier::new(vec![p(0.0, 0.0), p(60.0, 190.0), p(140.0, -30.0), p(200.0, 120.0)]).unwrap());
-    let poly = Curve::Polyline(Polyline::new(vec![p(0.0, 100.0), p(70.0, 30.0), p(130.0, 170.0), p(200.0, 90.0)]).unwrap());
+    let bez = Curve::Bezier(
+        Bezier::new(vec![p(0.0, 0.0), p(60.0, 190.0), p(140.0, -30.0), p(200.0, 120.0)]).unwrap(),
+    );
+    let poly = Curve::Polyline(
+        Polyline::new(vec![p(0.0, 100.0), p(70.0, 30.0), p(130.0, 170.0), p(200.0, 90.0)]).unwrap(),
+    );
     let comp = Curve::Composite(
         Composite::new(vec![
             Curve::Polyline(Polyline::new(vec![p(10.0, 10.0), p(60.0, 20.0)]).unwrap()),
@@ -249,7 +264,7 @@ fn fixture() -> Vec<MvtEntity> {
 }
 
 fn curves() -> Vec<Curve> {
-    fixture().iter().map(|e| e_curve(e)).collect()
+    fixture().iter().map(e_curve).collect()
 }
 
 fn e_curve(e: &MvtEntity) -> Curve {
@@ -261,7 +276,11 @@ fn dist_to_polyline(q: Point2, pts: &[Point2]) -> f64 {
         .map(|w| {
             let (dx, dy) = (w[1].x - w[0].x, w[1].y - w[0].y);
             let l2 = dx * dx + dy * dy;
-            let t = if l2 == 0.0 { 0.0 } else { (((q.x - w[0].x) * dx + (q.y - w[0].y) * dy) / l2).clamp(0.0, 1.0) };
+            let t = if l2 == 0.0 {
+                0.0
+            } else {
+                (((q.x - w[0].x) * dx + (q.y - w[0].y) * dy) / l2).clamp(0.0, 1.0)
+            };
             q.distance(p(w[0].x + t * dx, w[0].y + t * dy))
         })
         .fold(f64::INFINITY, f64::min)
@@ -296,16 +315,23 @@ fn issue_23_exact_claims_fail_at_construction() {
 #[test]
 fn issue_23_every_exported_record_is_bounded_or_unsupported() {
     let mut ents = fixture();
-    ents.push(MvtEntity::new(eid(9), "lines", Curve::Line(Line::new(p(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap())).unwrap());
+    ents.push(
+        MvtEntity::new(eid(9), "lines", Curve::Line(Line::new(p(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap()))
+            .unwrap(),
+    );
     let pr = fixture_projection();
     let mut seen = 0;
     for z in 0..=4u8 {
         for x in 0..(1u32 << z) {
             for y in 0..(1u32 << z) {
-                let t = export_tile(&ents, &pr, TileId::new(z, x, y).unwrap(), &MvtOptions::default()).unwrap();
+                let t =
+                    export_tile(&ents, &pr, TileId::new(z, x, y).unwrap(), &MvtOptions::default()).unwrap();
                 for r in t.ledger.ledger().records() {
                     seen += 1;
-                    assert!(matches!(r.fidelity().kind(), FidelityKind::BoundedApproximation | FidelityKind::Unsupported));
+                    assert!(matches!(
+                        r.fidelity().kind(),
+                        FidelityKind::BoundedApproximation | FidelityKind::Unsupported
+                    ));
                     assert_eq!(r.target_construct().representation(), Representation::Tessellated);
                 }
             }
@@ -318,7 +344,8 @@ fn issue_23_every_exported_record_is_bounded_or_unsupported() {
 fn issue_23_unbounded_line_is_unsupported_with_a_reason() {
     let line = Curve::Line(Line::new(p(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap());
     let ents = [MvtEntity::new(eid(7), "l", line).unwrap()];
-    let t = export_tile(&ents, &fixture_projection(), TileId::new(0, 0, 0).unwrap(), &MvtOptions::default()).unwrap();
+    let t = export_tile(&ents, &fixture_projection(), TileId::new(0, 0, 0).unwrap(), &MvtOptions::default())
+        .unwrap();
     let recs = t.ledger.ledger().records();
     assert_eq!(recs.len(), 1);
     match recs[0].fidelity() {
@@ -368,9 +395,19 @@ fn issue_23_ledger_bound_covers_what_the_tile_actually_holds() {
             let layers = decode_tile(&t.bytes, opts.buffer as i64);
             for l in &layers {
                 for f in &l.features {
-                    let rec = t.ledger.ledger().records().iter().find(|r| r.entity_id().index() as u64 == f.id).unwrap();
+                    let rec = t
+                        .ledger
+                        .ledger()
+                        .records()
+                        .iter()
+                        .find(|r| r.entity_id().index() as u64 == f.id)
+                        .unwrap();
                     let bound = rec.error_bound().unwrap().get();
-                    assert!(bound <= t.world_budget * 1.0000001, "bound {bound} above the screen budget {}", t.world_budget);
+                    assert!(
+                        bound <= t.world_budget * 1.0000001,
+                        "bound {bound} above the screen budget {}",
+                        t.world_budget
+                    );
                     let curve = ents.iter().find(|e| e.id().index() as u64 == f.id).unwrap().curve().clone();
                     let exact = dense(&curve, 20000);
                     // every decoded vertex, mapped back to the drawing, lies within the recorded bound of the exact curve
@@ -415,13 +452,15 @@ fn issue_23_quantization_error_at_the_maximum_zoom_is_measured() {
         worst = worst.max(back.distance(w));
     }
     assert!(worst <= bound, "measured {worst:e} above the stated bound {bound:e}");
-    assert!(worst > bound * 0.5, "the measurement should come close to the bound, got {worst:e} of {bound:e}");
+    assert!(
+        worst > bound * 0.5,
+        "the measurement should come close to the bound, got {worst:e} of {bound:e}"
+    );
     println!("quantization at zoom {z}, extent {extent}: bound {bound:e} world units, measured {worst:e}");
 }
 
 fn map_of(pr: &Projection, w: Point2) -> (f64, f64) {
-    let t = pr.to_tile(TileId::new(0, 0, 0).unwrap(), 1024, w);
-    t
+    pr.to_tile(TileId::new(0, 0, 0).unwrap(), 1024, w)
 }
 
 // ---- valid MVT, boundaries ------------------------------------------------------------------------
@@ -448,9 +487,17 @@ fn issue_23_tiles_decode_and_features_carry_their_entity_id() {
                     assert_eq!(f.geom_type, 2);
                     assert_eq!(f.tags["entity_id"], DVal::Uint(f.id));
                     assert_eq!(f.tags["display_only"], DVal::Bool(true));
-                    let rec = t.ledger.ledger().records().iter().find(|r| r.entity_id().index() as u64 == f.id).unwrap();
+                    let rec = t
+                        .ledger
+                        .ledger()
+                        .records()
+                        .iter()
+                        .find(|r| r.entity_id().index() as u64 == f.id)
+                        .unwrap();
                     match &f.tags["world_deviation"] {
-                        DVal::Double(d) => assert_eq!(d.to_bits(), rec.error_bound().unwrap().get().to_bits()),
+                        DVal::Double(d) => {
+                            assert_eq!(d.to_bits(), rec.error_bound().unwrap().get().to_bits())
+                        }
                         other => panic!("{other:?}"),
                     }
                 }
@@ -474,7 +521,10 @@ fn issue_23_clipped_geometry_ends_on_the_tile_boundary() {
                 for f in l.features {
                     for line in f.lines {
                         // with no buffer every vertex is inside 0..=extent (decode_tile asserts it); count the ones on an edge
-                        on_edge += line.iter().filter(|v| v.0 == 0 || v.0 == 4096 || v.1 == 0 || v.1 == 4096).count();
+                        on_edge += line
+                            .iter()
+                            .filter(|v| v.0 == 0 || v.0 == 4096 || v.1 == 0 || v.1 == 4096)
+                            .count();
                     }
                 }
             }
@@ -507,8 +557,10 @@ fn issue_23_adjacent_tiles_reconstruct_the_source_with_no_seam_or_gap() {
                     for f in l.features {
                         for line in f.lines {
                             for w in line.windows(2) {
-                                let a = pr.from_tile(tile, opts.extent, (w[0].0 as f64, w[0].1 as f64)).unwrap();
-                                let b = pr.from_tile(tile, opts.extent, (w[1].0 as f64, w[1].1 as f64)).unwrap();
+                                let a =
+                                    pr.from_tile(tile, opts.extent, (w[0].0 as f64, w[0].1 as f64)).unwrap();
+                                let b =
+                                    pr.from_tile(tile, opts.extent, (w[1].0 as f64, w[1].1 as f64)).unwrap();
                                 recovered.entry(f.id).or_default().push((a, b));
                             }
                         }
@@ -522,8 +574,12 @@ fn issue_23_adjacent_tiles_reconstruct_the_source_with_no_seam_or_gap() {
             let bound = bounds[&id];
             // no gap: every point of the exact curve is within the bound of some recovered segment
             for q in dense(e.curve(), 3000) {
-                let d = segs.iter().map(|(a, b)| dist_to_polyline(q, &[*a, *b])).fold(f64::INFINITY, f64::min);
-                assert!(d <= bound * 1.0000001, "entity {id}, buffer {buffer}: gap of {d} against a bound of {bound}");
+                let d =
+                    segs.iter().map(|(a, b)| dist_to_polyline(q, &[*a, *b])).fold(f64::INFINITY, f64::min);
+                assert!(
+                    d <= bound * 1.0000001,
+                    "entity {id}, buffer {buffer}: gap of {d} against a bound of {bound}"
+                );
             }
         }
     }
@@ -553,7 +609,7 @@ fn issue_23_geometry_commands_match_the_specification_example() {
     assert_eq!(cmds, [9, 4, 4, 18, 0, 16, 16, 0]);
     // two linestrings: the cursor carries over, so the second MoveTo is relative to the last LineTo
     let cmds = encode_geometry(&[vec![(2, 2), (2, 10)], vec![(1, 1), (3, 5)]]);
-    assert_eq!(cmds, [9, 4, 4, 10, 0, 16, 9, 3, 19, 10, 4, 8]);
+    assert_eq!(cmds, [9, 4, 4, 10, 0, 16, 9, 1, 17, 10, 4, 8]);
 }
 
 #[test]
@@ -614,8 +670,11 @@ fn issue_23_setup_errors() {
     let aniso = Transform2::scale(1.0, 2.0).unwrap();
     assert_eq!(Projection::new(aniso, 1024.0, 512.0).unwrap_err(), MvtError::NotSimilarity);
     assert!(Projection::new(Transform2::mirror_x().unwrap(), 1024.0, 512.0).is_ok());
-    let coarse = MvtOptions { extent: 16, ..MvtOptions::default() };
-    assert_eq!(fixture_projection().tessellation_tolerance(0, &coarse).unwrap_err(), MvtError::BudgetBelowQuantization);
+    let coarse = MvtOptions { extent: 16, buffer: 0, ..MvtOptions::default() };
+    assert_eq!(
+        fixture_projection().tessellation_tolerance(0, &coarse).unwrap_err(),
+        MvtError::BudgetBelowQuantization
+    );
     assert_eq!(MvtEntity::new(eid(1), "", circle(0.0, 0.0, 1.0)).unwrap_err(), MvtError::EmptyLayerName);
     assert!(TileId::new(MAX_ZOOM, 1, 1).is_ok());
 }

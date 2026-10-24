@@ -18,7 +18,8 @@
 //! neighbouring tiles clip the very same polyline and their union has no seam.
 
 use crate::fidelity::{
-    ErrorBound, Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation, TargetConstruct,
+    ErrorBound, Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation,
+    TargetConstruct,
 };
 use core::fmt;
 use pvec_capabilities::{CapabilityId, ids};
@@ -168,7 +169,7 @@ impl Projection {
     /// The largest error, in world units, that rounding a point to a whole tile unit can cause: half
     /// the diagonal of one tile unit.
     pub fn quantization_error(&self, z: u8, extent: u32) -> f64 {
-        todo!("P6.6: red tests first")
+        self.world_per_tile_unit(z, extent) * core::f64::consts::FRAC_1_SQRT_2
     }
 
     /// The same, in screen pixels (it does not depend on the zoom).
@@ -178,25 +179,38 @@ impl Projection {
 
     /// The whole screen budget in world units: `px` pixels at zoom `z`.
     pub fn screen_to_world(&self, z: u8, px: f64) -> f64 {
-        todo!("P6.6: red tests first")
+        px * self.map_units_per_pixel(z) / self.scale
     }
 
     /// Stage 1: the chord tolerance, in world units, that leaves room for the quantization error
     /// inside the screen budget. Tessellating to this and then quantizing keeps the total world
     /// deviation at or below `screen_to_world(z, screen_px)`.
     pub fn tessellation_tolerance(&self, z: u8, opts: &MvtOptions) -> Result<f64, MvtError> {
-        todo!("P6.6: red tests first")
+        opts.validate()?;
+        let budget = self.screen_to_world(z, opts.screen_tolerance_px);
+        let left = budget - self.quantization_error(z, opts.extent);
+        if left <= 0.0 || !left.is_finite() {
+            return Err(MvtError::BudgetBelowQuantization);
+        }
+        Ok(left)
     }
 
     /// Stage 3: a world point in tile units of `tile` (`0..extent` inside the tile, y down).
     pub fn to_tile(&self, tile: TileId, extent: u32, p: Point2) -> (f64, f64) {
-        todo!("P6.6: red tests first")
+        let q = self.source_to_map.apply_point(p);
+        let size = self.map_size / (1u64 << tile.z) as f64;
+        let e = extent as f64;
+        ((q.x / size - tile.x as f64) * e, (q.y / size - tile.y as f64) * e)
     }
 
     /// The inverse of [`Projection::to_tile`] followed by [`quantize`]'s rounding, for measuring:
     /// an integer tile coordinate back to the world plane.
     pub fn from_tile(&self, tile: TileId, extent: u32, t: (f64, f64)) -> Option<Point2> {
-        todo!("P6.6: red tests first")
+        let size = self.map_size / (1u64 << tile.z) as f64;
+        let e = extent as f64;
+        let map = Point2::new((t.0 / e + tile.x as f64) * size, (t.1 / e + tile.y as f64) * size);
+        let inv = self.source_to_map.inverse().ok()?;
+        Some(inv.apply_point(map))
     }
 }
 
@@ -331,8 +345,54 @@ impl Refine<'_> {
 /// ends, a composite is its segments joined, everything else is subdivided adaptively from
 /// eight equal parameter spans (so a closed curve cannot collapse to a point).
 pub fn tessellate(curve: &Curve, tolerance: f64) -> Result<Tessellation, TessError> {
-        todo!("P6.6: red tests first")
+    if !(tolerance.is_finite() && tolerance > 0.0) {
+        return Err(TessError::BadTolerance);
     }
+    match curve {
+        Curve::Line(_) => Err(TessError::Unbounded),
+        Curve::Polyline(p) => Ok(Tessellation { points: p.vertices().to_vec(), deviation: 0.0 }),
+        Curve::Trimmed(t) if matches!(t.basis(), Curve::Line(_)) => {
+            let d = curve.domain();
+            let a = curve.eval(d.lo()).map_err(geom)?;
+            let b = curve.eval(d.hi()).map_err(geom)?;
+            Ok(Tessellation { points: vec![a, b], deviation: 0.0 })
+        }
+        Curve::Composite(c) => {
+            let mut points: Vec<Point2> = Vec::new();
+            let mut deviation = 0.0f64;
+            for seg in c.segments() {
+                let t = tessellate(seg, tolerance)?;
+                deviation = deviation.max(t.deviation);
+                let skip = usize::from(!points.is_empty());
+                points.extend(t.points.into_iter().skip(skip));
+            }
+            Ok(Tessellation { points, deviation })
+        }
+        other => {
+            let d = other.domain();
+            let (lo, hi) = (d.lo(), d.hi());
+            let first = other.eval(lo).map_err(geom)?;
+            let mut r = Refine { curve: other, tol: tolerance, out: vec![first], worst: 0.0, failed: None };
+            let mut prev_t = lo;
+            let mut prev_p = first;
+            for k in 1..=INITIAL_SPLITS {
+                let t = if k == INITIAL_SPLITS {
+                    hi
+                } else {
+                    lo + (hi - lo) * (k as f64 / INITIAL_SPLITS as f64)
+                };
+                let p = other.eval(t).map_err(geom)?;
+                r.go(prev_t, prev_p, t, p, 0)?;
+                prev_t = t;
+                prev_p = p;
+            }
+            if let Some(achieved) = r.failed {
+                return Err(TessError::ToleranceNotMet { achieved });
+            }
+            Ok(Tessellation { points: r.out, deviation: r.worst })
+        }
+    }
+}
 
 /// The clip rectangle in tile units.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -385,14 +445,64 @@ fn clip_segment(a: (f64, f64), b: (f64, f64), r: ClipRect) -> Option<(f64, f64)>
 /// at least two points. Consecutive segments that stay inside stay in one piece; a piece ends where
 /// the polyline leaves and a new one starts where it comes back.
 pub fn clip_polyline(points: &[(f64, f64)], rect: ClipRect) -> Vec<Vec<(f64, f64)>> {
-        todo!("P6.6: red tests first")
+    let mut out: Vec<Vec<(f64, f64)>> = Vec::new();
+    let mut cur: Vec<(f64, f64)> = Vec::new();
+    let flush = |cur: &mut Vec<(f64, f64)>, out: &mut Vec<Vec<(f64, f64)>>| {
+        if cur.len() >= 2 {
+            out.push(std::mem::take(cur));
+        } else {
+            cur.clear();
+        }
+    };
+    for w in points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        match clip_segment(a, b, rect) {
+            None => flush(&mut cur, &mut out),
+            // a segment that only touches the rectangle at one point draws nothing
+            Some((t0, t1)) if t1 <= t0 => flush(&mut cur, &mut out),
+            Some((t0, t1)) => {
+                let at = |t: f64| {
+                    if t == 0.0 {
+                        a
+                    } else if t == 1.0 {
+                        b
+                    } else {
+                        (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+                    }
+                };
+                if cur.is_empty() || t0 > 0.0 {
+                    flush(&mut cur, &mut out);
+                    cur.push(at(t0));
+                }
+                cur.push(at(t1));
+                if t1 < 1.0 {
+                    flush(&mut cur, &mut out);
+                }
+            }
+        }
     }
+    flush(&mut cur, &mut out);
+    out
+}
 
 /// Stage 5a: round to the integer grid. Repeated points are dropped, and a piece that no longer has
 /// two distinct points is dropped with them.
 pub fn quantize(pieces: &[Vec<(f64, f64)>]) -> Vec<Vec<(i32, i32)>> {
-        todo!("P6.6: red tests first")
+    let mut out = Vec::new();
+    for piece in pieces {
+        let mut q: Vec<(i32, i32)> = Vec::with_capacity(piece.len());
+        for &(x, y) in piece {
+            let p = (x.round() as i32, y.round() as i32);
+            if q.last() != Some(&p) {
+                q.push(p);
+            }
+        }
+        if q.len() >= 2 {
+            out.push(q);
+        }
     }
+    out
+}
 
 fn zigzag(v: i32) -> u32 {
     ((v << 1) ^ (v >> 31)) as u32
@@ -401,8 +511,26 @@ fn zigzag(v: i32) -> u32 {
 /// Stage 5b: the MVT geometry commands for a multi-linestring: `MoveTo(1)`, `LineTo(n)` per piece,
 /// with zigzag deltas from the cursor, which carries over between pieces.
 pub fn encode_geometry(pieces: &[Vec<(i32, i32)>]) -> Vec<u32> {
-        todo!("P6.6: red tests first")
+    let mut out = Vec::new();
+    let (mut cx, mut cy) = (0i32, 0i32);
+    for piece in pieces {
+        let (first, rest) = match piece.split_first() {
+            Some(s) if !s.1.is_empty() => s,
+            _ => continue,
+        };
+        out.push(1 | (1 << 3));
+        out.push(zigzag(first.0 - cx));
+        out.push(zigzag(first.1 - cy));
+        (cx, cy) = *first;
+        out.push(2 | ((rest.len() as u32) << 3));
+        for &(x, y) in rest {
+            out.push(zigzag(x - cx));
+            out.push(zigzag(y - cy));
+            (cx, cy) = (x, y);
+        }
     }
+    out
+}
 
 /// An entity to export: its id, the layer (component grouping) it goes to, and its exact curve.
 #[derive(Clone, Debug, PartialEq)]
@@ -472,7 +600,16 @@ impl MvtLedger {
         fidelity: Fidelity,
         note: &str,
     ) -> Result<(), MvtError> {
-        todo!("P6.6: red tests first")
+        match fidelity.kind() {
+            FidelityKind::BoundedApproximation | FidelityKind::Unsupported => {}
+            k => return Err(MvtError::NotDisplayOnly(k)),
+        }
+        let target = TargetConstruct::new(TARGET, Representation::Tessellated)
+            .map_err(|_| MvtError::Record("blank target".into()))?;
+        let rec = FidelityRecord::new(entity, capability, target, fidelity, note)
+            .map_err(|e| MvtError::Record(e.to_string()))?;
+        self.inner.record(rec);
+        Ok(())
     }
 
     /// The accumulated ledger.
@@ -622,8 +759,62 @@ pub fn export_tile(
     tile: TileId,
     opts: &MvtOptions,
 ) -> Result<MvtTile, MvtError> {
-        todo!("P6.6: red tests first")
+    let tol = projection.tessellation_tolerance(tile.z, opts)?;
+    let world_budget = projection.screen_to_world(tile.z, opts.screen_tolerance_px);
+    let q_world = projection.quantization_error(tile.z, opts.extent);
+    let rect = ClipRect::buffered(opts.extent, opts.buffer);
+    let mut ledger = MvtLedger::new();
+    let mut layers: BTreeMap<&str, LayerBuilder> = BTreeMap::new();
+
+    for e in entities {
+        if !may_reach(e, projection, tile, opts) {
+            continue;
+        }
+        let cap = e.capability();
+        let tess = match tessellate(&e.curve, tol) {
+            Ok(t) => t,
+            Err(err) => {
+                ledger.record(e.id, cap, Fidelity::Unsupported(reason(&err.to_string())), "not drawn")?;
+                continue;
+            }
+        };
+        let tile_pts: Vec<(f64, f64)> =
+            tess.points.iter().map(|p| projection.to_tile(tile, opts.extent, *p)).collect();
+        let clipped = clip_polyline(&tile_pts, rect);
+        if clipped.is_empty() {
+            continue;
+        }
+        let pieces = quantize(&clipped);
+        if pieces.is_empty() {
+            ledger.record(
+                e.id,
+                cap,
+                Fidelity::Unsupported(reason("collapsed to less than one tile unit at this zoom")),
+                "not drawn",
+            )?;
+            continue;
+        }
+        let total = tess.deviation + q_world;
+        let bound = ErrorBound::new(total).map_err(|_| MvtError::Record("non-positive deviation".into()))?;
+        ledger.record(
+            e.id,
+            cap,
+            Fidelity::BoundedApproximation(bound),
+            "display-only tile geometry: tessellated, clipped and quantized",
+        )?;
+        layers.entry(e.layer.as_str()).or_default().features.push(Feature {
+            id: e.id.index(),
+            deviation: total,
+            geometry: encode_geometry(&pieces),
+        });
     }
+
+    let mut bytes = Vec::new();
+    for (name, layer) in &layers {
+        put_bytes(&mut bytes, 3, &layer.encode(name, opts.extent));
+    }
+    Ok(MvtTile { tile, bytes, ledger, tessellation_tolerance: tol, world_budget })
+}
 
 /// A cheap reject: whether the entity's bounds, mapped into the tile, touch the buffered tile. When
 /// the bounds are unavailable the entity is kept.
@@ -631,8 +822,9 @@ fn may_reach(e: &MvtEntity, projection: &Projection, tile: TileId, opts: &MvtOpt
     let Ok(b) = e.curve.bounds() else { return true };
     let (lo, hi) = (b.min(), b.max());
     let rect = ClipRect::buffered(opts.extent, opts.buffer);
-    let pts = [Point2::new(lo.x, lo.y), Point2::new(hi.x, lo.y), Point2::new(lo.x, hi.y), Point2::new(hi.x, hi.y)]
-        .map(|p| projection.to_tile(tile, opts.extent, p));
+    let pts =
+        [Point2::new(lo.x, lo.y), Point2::new(hi.x, lo.y), Point2::new(lo.x, hi.y), Point2::new(hi.x, hi.y)]
+            .map(|p| projection.to_tile(tile, opts.extent, p));
     let minx = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
     let maxx = pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
     let miny = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
