@@ -41,5 +41,5 @@ pub use curve::{Composite, Curve, Curve2d, Polyline, Trimmed};
 pub use error::GeometryError;
 pub use primitives::{Bounds, CurveKind, Domain, Point2, Vector2};
 pub use pvec_numeric::{Side, Trim};
-pub use spline::{BSpline, Bezier, RationalBSpline};
+pub use spline::{BSpline, Bezier, RationalBSpline, Unwrapped};
 pub use transform::{ParamMap, Transform2};

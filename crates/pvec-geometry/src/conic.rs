@@ -5,7 +5,7 @@ use crate::error::{GeometryError, Result};
 use crate::primitives::*;
 use crate::transform::{ParamMap, Transform2};
 use core::f64::consts::{FRAC_PI_2, TAU};
-use pvec_numeric::{MAX_ABS_COORD, Policy, Side, check_value};
+use pvec_numeric::{MAX_ABS_COORD, NumericError, Policy, Side, check_value};
 
 const POLICY: Policy = Policy::V1;
 
@@ -213,6 +213,26 @@ impl Ellipse {
     pub fn new(placement: Placement2, semi_axis_1: f64, semi_axis_2: f64) -> Result<Ellipse> {
         POLICY.check_semi_axes(semi_axis_1, semi_axis_2, placement.mag())?;
         Ok(Ellipse { placement, a: semi_axis_1, b: semi_axis_2 })
+    }
+
+    /// Builds an ellipse from a centre, a major-axis vector (the end of the major axis relative to
+    /// the centre) and the ratio of the minor to the major semi-axis: the three numbers a DWG
+    /// `ELLIPSE` stores.
+    ///
+    /// The frame is the vector normalised (NP-10), the first semi-axis is its length and the second
+    /// is that length times `ratio`, so the major axis stays first. A reader hands over the source
+    /// numbers as they are and does no arithmetic on them. Refused: a zero vector (NP-10), a
+    /// non-finite or subnormal ratio (NP-01), a ratio outside `(0, 1]` or one whose axis ratio is
+    /// past the conditioning bound (NP-07), and any value NP-01, NP-02 or NP-07 refuse in
+    /// [`Ellipse::new`]. A ratio of one is still an ellipse; PVec does not convert it to a circle.
+    pub fn from_major_axis(centre: Point2, major_axis: Vector2, ratio: f64) -> Result<Ellipse> {
+        let placement = Placement2::new(centre, major_axis)?;
+        check_value(ratio)?;
+        if !(ratio > 0.0 && ratio <= 1.0) {
+            return Err(NumericError::DegenerateRadius.into());
+        }
+        let major = major_axis.length();
+        Ellipse::new(placement, major, ratio * major)
     }
 
     /// The frame.

@@ -248,6 +248,36 @@ impl BSpline {
         Core::new(degree, control_points, knots, None).map(BSpline)
     }
 
+    /// Unwraps a periodic B-spline into the clamped form, exactly, and declares it closed (NP-20).
+    ///
+    /// The input is what a decoder reports for a periodic spline: the degree `p`, the `n` unique
+    /// control points and the `n + 1` knots of one period, non-decreasing, where the first and the
+    /// last knot name the same knot one period `T = knots[n] - knots[0]` apart. The curve it
+    /// describes repeats the control points (`P[i + n] = P[i]`) and the knots (`k[j + n] = k[j] + T`),
+    /// and a span `[k[j], k[j + 1]]` is shaped by `P[j] ..= P[j + p]` (indices modulo `n`). Its
+    /// domain is `[knots[0], knots[n]]`, which the result keeps.
+    ///
+    /// The result is the same locus as the wrapped curve formed in f64, up to the rounding of the
+    /// insertions: the wrapped, unclamped form is built (`n + p` points, `n + 2p + 1` knots, a legal
+    /// [`BSpline`] by itself), then the knots at the two ends of the domain are inserted up to
+    /// multiplicity `p + 1` (Boehm) and what lies outside the domain is dropped. Knot insertion changes
+    /// the representation and not the curve. Every knot of the result is a value of the input, never
+    /// recomputed.
+    ///
+    /// Two things are inexact and they are bounded separately. The insertions round their arithmetic,
+    /// which [`Unwrapped::deviation_bound`] bounds against the f64-formed wrapped curve. And the
+    /// extended knots `k[j] +- T` are rounded to f64 when they are formed, so the f64-formed wrapped
+    /// curve is not quite the mathematically periodic one: [`Unwrapped::periodic_deviation_bound`]
+    /// bounds the distance to that exact periodic curve, and refuses (NP-14) an input whose knots f64
+    /// cannot keep apart after the shift, where no such bound exists.
+    ///
+    /// Refused: a degree outside `1..=16` or fewer than `degree + 1` points (NP-18), a knot count
+    /// other than `n + 1`, a decreasing or ambiguous knot vector, or a knot whose multiplicity (first
+    /// and last counted once) exceeds the degree (NP-14), any non-finite value (NP-01).
+    pub fn from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped> {
+        unwrap_periodic(degree, control_points, knots)
+    }
+
     /// The degree.
     pub fn degree(&self) -> usize {
         self.0.degree
@@ -273,6 +303,27 @@ impl BSpline {
     pub fn declare_closed(self) -> Result<BSpline> {
         self.0.declare_closed().map(BSpline)
     }
+}
+
+/// A periodic B-spline unwrapped into the clamped form (issue 93).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unwrapped {
+    /// The clamped, closed curve.
+    pub curve: BSpline,
+    /// Bound on the distance between the locus of `curve` and the locus of the f64-formed wrapped
+    /// curve (the wrapped, unclamped form built with the extended knots `k[j] +- T` rounded to f64, the
+    /// curve `BSpline::new` would evaluate on that input). It covers the rounding of the knot
+    /// insertions only, and it is not a bound against the mathematically periodic curve: see
+    /// [`Unwrapped::periodic_deviation_bound`].
+    pub deviation_bound: f64,
+    /// Bound on the distance between the locus of `curve` and the exact periodic curve, the one with
+    /// the real-number knots `k[j] + m T`. It is `deviation_bound` plus the effect of rounding the
+    /// extended knots: each is off by at most `delta = 2 u (2 T + S)` (`T` the period, `S` the larger
+    /// of `|k[0]|` and `|k[n]|`), so a blending weight of the evaluation is off by at most
+    /// `4 delta / (g - 2 delta)` (`g` the smallest gap between distinct knots), `p` weights are blended
+    /// along any evaluation path and each moves a point by at most the control hull diameter, which is
+    /// below `3 m`.
+    pub periodic_deviation_bound: f64,
 }
 
 impl crate::Sealed for BSpline {}
@@ -547,4 +598,107 @@ fn quadratic_roots_in_unit(d: &[f64]) -> Vec<f64> {
     }
     out.retain(|t| *t > 0.0 && *t < 1.0);
     out
+}
+
+/// The unit roundoff of f64, 2^-53.
+const UNIT_ROUNDOFF: f64 = 1.0 / 9007199254740992.0;
+
+/// One Boehm insertion of `t` into the clamped-or-not B-spline `(pts, u)` of degree `p` (Piegl and
+/// Tiller, A5.1 with r = 1). `t` is inside the domain and `u[i] <= t < u[i + 1]` for the returned
+/// span, and every new point is a convex combination of two old ones.
+fn insert_knot(p: usize, pts: &mut Vec<[f64; 2]>, u: &mut Vec<f64>, t: f64) {
+    // the last index with u[i] <= t
+    let i = u.partition_point(|&k| k <= t) - 1;
+    let s = u.iter().filter(|&&k| k == t).count();
+    let mut q = Vec::with_capacity(pts.len() + 1);
+    q.extend_from_slice(&pts[..=(i - p)]);
+    for j in (i - p + 1)..=(i - s) {
+        let a = (t - u[j]) / (u[j + p] - u[j]);
+        q.push([(1.0 - a) * pts[j - 1][0] + a * pts[j][0], (1.0 - a) * pts[j - 1][1] + a * pts[j][1]]);
+    }
+    q.extend_from_slice(&pts[(i - s)..]);
+    u.insert(i + 1, t);
+    *pts = q;
+}
+
+fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped> {
+    let n = cps.len();
+    // The wrapped form has n + p points: refuse a count over the limit before any work is done.
+    check_count(n, MAX_CONTROL_POINTS)?;
+    if !(1..=MAX_DEGREE).contains(&p) || n < p + 1 {
+        return Err(NumericError::Limit.into());
+    }
+    check_count(n + p, MAX_CONTROL_POINTS)?;
+    if k.len() != n + 1 {
+        return Err(NumericError::BadKnots.into());
+    }
+    let mut pts = Vec::with_capacity(n + p);
+    for q in &cps {
+        pts.push(Point2::checked(q.x, q.y)?.arr());
+    }
+    let m = pts.iter().fold(0.0f64, |m, q| m.max(q[0].abs()).max(q[1].abs()));
+    for &v in &k {
+        check_value(v)?;
+    }
+    if k.windows(2).any(|w| w[1] < w[0]) {
+        return Err(NumericError::BadKnots.into());
+    }
+    let period = k[n] - k[0];
+    if period <= POLICY.tol(period, k[0].abs().max(k[n].abs())) {
+        return Err(NumericError::EmptyDomain.into());
+    }
+    // The seam knot is one knot listed twice, so a run at the start and a run at the end add up.
+    let lead = k.iter().take_while(|&&v| v == k[0]).count();
+    let trail = k.iter().rev().take_while(|&&v| v == k[n]).count();
+    if lead + trail - 1 > p {
+        return Err(NumericError::BadKnots.into());
+    }
+    // The extended knots are rounded when they are formed. The bound against the periodic curve needs the
+    // rounding to stay well below the smallest gap, otherwise f64 cannot tell the knots apart after the shift.
+    let big = k[0].abs().max(k[n].abs());
+    let delta = 2.0 * UNIT_ROUNDOFF * (2.0 * period + big);
+    let gap = k.windows(2).map(|w| w[1] - w[0]).filter(|&d| d > 0.0).fold(f64::INFINITY, f64::min);
+    if gap <= 4.0 * delta {
+        return Err(NumericError::AmbiguousKnots.into());
+    }
+    // Wrap: control points repeat, knots shift by the period, with the seam knot kept bit for bit.
+    for i in 0..p {
+        pts.push(pts[i]);
+    }
+    let mut u = Vec::with_capacity(n + 2 * p + 1);
+    for i in (1..=p).rev() {
+        u.push(if k[n - i] == k[n] { k[0] } else { k[n - i] - period });
+    }
+    u.extend_from_slice(&k);
+    for i in 1..=p {
+        u.push(if k[i] == k[0] { k[n] } else { k[i] + period });
+    }
+    // Validate the wrapped form as the curve it is before touching it.
+    Core::new(p, pts.iter().map(|q| Point2::new(q[0], q[1])).collect(), u.clone(), None)?;
+    // Clamp: insert the two ends of the domain up to multiplicity p + 1, then cut.
+    let (lo, hi) = (k[0], k[n]);
+    let mut inserted = 0usize;
+    for t in [lo, hi] {
+        let have = u.iter().filter(|&&v| v == t).count();
+        for _ in have..=p {
+            insert_knot(p, &mut pts, &mut u, t);
+            inserted += 1;
+        }
+    }
+    let a = u.partition_point(|&v| v < lo);
+    let b = u.partition_point(|&v| v <= lo) - 1; // last index of the start knots
+    debug_assert_eq!(b - a, p);
+    let first_hi = u.partition_point(|&v| v < hi);
+    let cut: Vec<f64> = u[a..first_hi + p + 1].to_vec();
+    let kept: Vec<Point2> = pts[a..first_hi].iter().map(|q| Point2::new(q[0], q[1])).collect();
+    let curve = BSpline::new(p, kept, cut)?.declare_closed()?;
+    // Each insertion is a convex combination of two points: the weight a carries three roundoffs, the
+    // two products and the sum three more, so at most 10 u m per level in each coordinate, and a
+    // convex combination does not amplify an earlier error. 15 covers the Euclidean norm.
+    let deviation_bound = 15.0 * inserted as f64 * UNIT_ROUNDOFF * m;
+    // A blending weight (t - u) / d moves by at most 4 delta / (gap - 2 delta) when every knot moves by
+    // delta; p of them are blended along an evaluation path, each moving a point by the hull diameter.
+    let alpha = 4.0 * delta / (gap - 2.0 * delta);
+    let periodic_deviation_bound = deviation_bound + p as f64 * alpha * 3.0 * m;
+    Ok(Unwrapped { curve, deviation_bound, periodic_deviation_bound })
 }

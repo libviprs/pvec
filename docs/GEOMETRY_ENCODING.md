@@ -130,7 +130,9 @@ claims 2^28 entities in a 40 byte block is refused as truncated without allocati
 ## What is not here
 
 Periodic (wrapped) B-splines have no form of their own, as the profile says; a closed curve written with
-an unclamped knot vector and wrapped control points is an ordinary B-spline here. Component references per
+an unclamped knot vector and wrapped control points is an ordinary B-spline here, and a periodic spline given
+as its unique points and one period of knots is unwrapped to the clamped form by `BSpline::from_periodic`
+before it reaches the codec (ADR 0011, amendment for issue 93). Component references per
 entity, which the issue text mentions, are deliberately not written: the component streams (P3.7)
 refer to entities by `EntityId`, so the entity side carries no reference, and a reserved column would
 cost four bytes per entity against the 36.7 bytes per line that ADR 0004 measured.

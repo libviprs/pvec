@@ -17,6 +17,7 @@ conic.rs: Circle::radius(&self) -> f64
 conic.rs: impl Curve2d for Circle
 conic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Ellipse
 conic.rs: Ellipse::new(placement: Placement2, semi_axis_1: f64, semi_axis_2: f64) -> Result<Ellipse>
+conic.rs: Ellipse::from_major_axis(centre: Point2, major_axis: Vector2, ratio: f64) -> Result<Ellipse>
 conic.rs: Ellipse::placement(&self) -> &Placement2
 conic.rs: Ellipse::semi_axis_1(&self) -> f64
 conic.rs: Ellipse::semi_axis_2(&self) -> f64
@@ -47,6 +48,7 @@ curve.rs: Polyline::vertices(&self) -> &[Point2]
 curve.rs: impl Curve2d for Polyline
 curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Trimmed
 curve.rs: Trimmed::new(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Trimmed>
+curve.rs: Trimmed::from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed>
 curve.rs: Trimmed::from_normalised(basis: Curve, trim: Trim) -> Result<Trimmed>
 curve.rs: Trimmed::is_full_period(&self) -> bool
 curve.rs: Trimmed::basis(&self) -> &Curve
@@ -68,6 +70,7 @@ error.rs: GeometryError::BadSegment
 error.rs: GeometryError::WeightCount
 error.rs: GeometryError::InvertedBounds
 error.rs: GeometryError::NotUnitDirection
+error.rs: GeometryError::ZeroBulge
 error.rs: GeometryError::rule(&self) -> &'static str
 error.rs: GeometryError::as_numeric(&self) -> Option<NumericError>
 error.rs: impl From<NumericError> for GeometryError
@@ -78,7 +81,7 @@ lib.rs: pub use curve::{Composite, Curve, Curve2d, Polyline, Trimmed}
 lib.rs: pub use error::GeometryError
 lib.rs: pub use primitives::{Bounds, CurveKind, Domain, Point2, Vector2}
 lib.rs: pub use pvec_numeric::{Side, Trim}
-lib.rs: pub use spline::{BSpline, Bezier, RationalBSpline}
+lib.rs: pub use spline::{BSpline, Bezier, RationalBSpline, Unwrapped}
 lib.rs: pub use transform::{ParamMap, Transform2}
 primitives.rs: #[derive(Clone, Copy, Debug, PartialEq, Default)] pub struct Point2
 primitives.rs: Point2.x: f64
@@ -118,11 +121,16 @@ primitives.rs: CurveKind::RationalBSpline
 primitives.rs: CurveKind::const ALL: [CurveKind; 9]
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct BSpline(Core)
 spline.rs: BSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<BSpline>
+spline.rs: BSpline::from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped>
 spline.rs: BSpline::degree(&self) -> usize
 spline.rs: BSpline::control_points(&self) -> &[Point2]
 spline.rs: BSpline::knots(&self) -> &[f64]
 spline.rs: BSpline::is_declared_closed(&self) -> bool
 spline.rs: BSpline::declare_closed(self) -> Result<BSpline>
+spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct Unwrapped
+spline.rs: Unwrapped.curve: BSpline
+spline.rs: Unwrapped.deviation_bound: f64
+spline.rs: Unwrapped.periodic_deviation_bound: f64
 spline.rs: impl Curve2d for BSpline
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct RationalBSpline(Core)
 spline.rs: RationalBSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>, weights: Vec<f64>) -> Result<RationalBSpline>

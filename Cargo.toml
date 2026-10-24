@@ -6,9 +6,11 @@ members = [
     "crates/pvec-codec",
     "crates/pvec-components",
     "crates/pvec-container",
+    "crates/pvec-corpus",
     "crates/pvec-entity",
     "crates/pvec-geometry",
     "crates/pvec-numeric",
+    "crates/pvec-testkit",
 ]
 # Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),
 # so they are separate workspaces and never enter this lockfile.

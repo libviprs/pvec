@@ -1,14 +1,16 @@
 [package]
 name = "pvec-container"
 version = "0.0.0"
-description = "The PVec container prefix: the fixed header and the artifact manifest, parsed from a bounded range"
+description = "The PVec container: header, manifest, blocks, block directory and the deterministic writer"
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-components = { path = "../pvec-components" }
 pvec-entity = { path = "../pvec-entity" }
+pvec-geometry = { path = "../pvec-geometry" }
 pvec-numeric = { path = "../pvec-numeric" }
 
 [lints]

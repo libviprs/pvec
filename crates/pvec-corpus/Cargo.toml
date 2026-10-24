@@ -1,0 +1,16 @@
+[package]
+name = "pvec-corpus"
+version = "0.0.0"
+description = "Loader for the pinned known-truth fixture bundle: pin check, expected.math.json ingestion, fixture registry"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# Test support. No dependency outside this workspace: the bundle is a vendored tar, so the JSON reader,
+# the tar reader and SHA-256 are in this crate and nothing here opens a socket or starts a process.
+[dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-numeric = { path = "../pvec-numeric" }
+
+[lints]
+workspace = true
