@@ -116,6 +116,9 @@ version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
  "pvec-entity",
+ "pvec-geometry",
+ "pvec-hermetic",
+ "pvec-numeric",
 ]
 
 [[package]]
