@@ -353,20 +353,33 @@ fn the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_bud
     let w = written();
     let r = reader(w.bytes.clone());
     let dir = SpatialDirectory::open(&r).unwrap().unwrap();
-    let index = StraddlerIndex::open(&r).unwrap().unwrap();
     let screen = viewport(5000.0, 5000.0, 500.0);
+    // every byte counted below is a range the recording source was asked for, from the moment the
+    // directory is open: the lists' index, the pages, the cells' blocks and the payload blocks
+    let before = r.source().bytes_requested();
+    let index = StraddlerIndex::open(&r).unwrap().unwrap();
     let hits = index.query(&r, &screen).unwrap();
+    let list_bytes = r.source().bytes_requested() - before;
     let cells = query_viewport(&dir, None, &screen).cells;
-    let stored = |b: u32| u64::from(r.entries()[b as usize].stored_length);
-    let cell_bytes: u64 =
-        cells.iter().flat_map(|c| (c.blocks.first.0..c.blocks.first.0 + c.blocks.count).map(&stored)).sum();
+    let after_list = r.source().bytes_requested();
+    for c in &cells {
+        for b in c.blocks.first.0..c.blocks.first.0 + c.blocks.count {
+            r.read_block(BlockId(b)).unwrap();
+        }
+    }
+    let cell_bytes = r.source().bytes_requested() - after_list;
     let payload_blocks: BTreeSet<u32> = hits.iter().map(|h| h.payload.block_id.0).collect();
-    let payload_bytes: u64 = payload_blocks.iter().map(|b| stored(*b)).sum();
-    let list_bytes = index.read_bytes(&screen);
-    let total = cell_bytes + list_bytes + payload_bytes;
+    let after_cells = r.source().bytes_requested();
+    for b in &payload_blocks {
+        r.read_block(BlockId(*b)).unwrap();
+    }
+    let payload_bytes = r.source().bytes_requested() - after_cells;
+    let total = r.source().bytes_requested() - before;
+    assert_eq!(total, list_bytes + cell_bytes + payload_bytes);
+    assert_eq!(list_bytes, index.read_bytes(&screen), "the model of the reads agrees with the source");
     let (_, entry) = straddler_entry(&r);
     eprintln!(
-        "3.6 written file: {} B; block {} B (index {} B, {} pages); screen: {} cells {} B, list {} B, {} straddlers in {} payload blocks {} B; total {} B = {:.2} %",
+        "3.6 written file: {} B; block {} B (index {} B, {} pages); screen, counted by the recording source: {} cells {} B, list {} B, {} straddlers in {} payload blocks {} B; total {} B = {:.2} %",
         w.bytes.len(),
         entry.stored_length,
         index.index_bytes(),
@@ -382,6 +395,41 @@ fn the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_bud
     );
     assert!(total < VIEWPORT_BYTE_BUDGET, "{total} bytes");
     assert!((total as f64) < VIEWPORT_ARTIFACT_FRACTION * w.bytes.len() as f64);
+}
+
+/// What a reader from before this change does with the file. It cannot be run (the code is gone), so
+/// this models its one relevant rule, SPD-10 of `docs/STREAMING.md`: every hot block must sit in a cell
+/// of the directory. The container layer is real: kind 6 is optional and skipped.
+#[test]
+fn a_reader_older_than_this_change_skips_the_lists_but_refuses_the_payload_cells_at_spd_10() {
+    let w = written();
+    let r = reader(w.bytes.clone());
+    let dir = SpatialDirectory::open(&r).unwrap().unwrap();
+    let leaves: BTreeSet<u32> = dir.query(&everything()).map(|c| c.id.get()).collect();
+    let first_orphan = r
+        .entries()
+        .iter()
+        .filter(|e| e.block_kind() == Some(BlockKind::Hot))
+        .map(|e| e.cell)
+        .find(|c| !leaves.contains(c));
+    assert_eq!(
+        first_orphan,
+        Some(STRADDLER_CELL_FIRST),
+        "the old rule would refuse at the first payload cell"
+    );
+    let (_, e) = straddler_entry(&r);
+    assert_eq!(e.flags & FLAG_MUST_UNDERSTAND, 0, "at the container layer the block is skipped");
+
+    let docs =
+        |name: &str| fs::read_to_string(format!("{}/../../docs/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+    for (name, needle) in
+        [("STREAMING.md", "older than this change"), ("CONTAINER.md", "older than this change")]
+    {
+        assert!(
+            docs(name).contains(needle),
+            "{name} does not say that an older reader refuses the payload cells"
+        );
+    }
 }
 
 fn everything() -> Aabb {
