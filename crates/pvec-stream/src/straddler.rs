@@ -21,15 +21,16 @@
 //!
 //! The lists are their own block of bytes, laid out in section 3.2 of that document and validated by
 //! [`StraddlerLists::parse`] under the rules in [`STRADDLER_RULES`] before anything is searched. The
-//! block carries references, not geometry: each entry is the entity's id, its bounds and the shape of
-//! the reference P5.2 gives every payload (`PayloadLoc`), so the payload is stored exactly once wherever
+//! block carries references, not geometry: each entry is the entity's id, its bounds and the
+//! reference P5.2 gives every payload (`PayloadRef`), so the payload is stored exactly once wherever
 //! the writer put it.
 
 use crate::directory::{
     Aabb, BuiltDirectory, CELL_CAPACITY, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN,
     SpatialDirectory, hilbert,
 };
-use pvec_container::{LimitExceeded, LimitKind, Limits};
+use crate::ownership::{PayloadRef, PlacedEntity};
+use pvec_container::{BlockId, LimitExceeded, LimitKind, Limits};
 use pvec_entity::EntityId;
 use pvec_numeric::check_value;
 use std::collections::BTreeSet;
@@ -191,19 +192,6 @@ impl core::fmt::Display for StraddlerError {
 
 impl std::error::Error for StraddlerError {}
 
-/// Where a payload is: the shape of P5.2's `PayloadRef { block_id, slot }`, eight bytes, kept as two
-/// opaque numbers here because the placement pass that assigns them is P5.2's. A straddler's payload is
-/// stored once, wherever the writer put it, and this says where.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PayloadLoc {
-    /// The block the payload is in.
-    pub block: u32,
-    /// The slot inside it.
-    pub slot: u32,
-}
-
-const _: () = assert!(core::mem::size_of::<PayloadLoc>() == 8);
-
 /// A long entity to list: its id, its source-space bounds and where its payload is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LongEntity {
@@ -212,7 +200,14 @@ pub struct LongEntity {
     /// Its bounds.
     pub bounds: Aabb,
     /// Where its payload is.
-    pub payload: PayloadLoc,
+    pub payload: PayloadRef,
+}
+
+impl From<PlacedEntity> for LongEntity {
+    /// An entity as P5.2's placement pass sees it, listed as a straddler.
+    fn from(e: PlacedEntity) -> LongEntity {
+        LongEntity { id: e.id, bounds: e.bounds, payload: e.payload }
+    }
 }
 
 /// The longer side of a box, which is what an entity's reach is measured by.
@@ -478,7 +473,7 @@ pub fn build_straddlers(scale: &LevelScale, long: &[LongEntity]) -> Result<Built
     for (_, page) in &pages {
         for e in page {
             put_box(&mut bytes, &e.bounds);
-            for v in [e.id.index(), e.payload.block, e.payload.slot] {
+            for v in [e.id.index(), e.payload.block_id.0, e.payload.slot] {
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
         }
@@ -494,7 +489,7 @@ pub struct StraddlerRef {
     /// Its bounds.
     pub bounds: Aabb,
     /// Where its payload is.
-    pub payload: PayloadLoc,
+    pub payload: PayloadRef,
     /// The level it is listed at.
     pub level: u16,
 }
@@ -622,7 +617,10 @@ impl StraddlerLists {
                 out.push(StraddlerRef {
                     id: eid,
                     bounds: b,
-                    payload: PayloadLoc { block: u32_at(bytes, at + 36), slot: u32_at(bytes, at + 40) },
+                    payload: PayloadRef {
+                        block_id: BlockId(u32_at(bytes, at + 36)),
+                        slot: u32_at(bytes, at + 40),
+                    },
                     level: page.level,
                 });
             }

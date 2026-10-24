@@ -8,7 +8,11 @@
 //! it reads through `pvec_container::ContainerReader`.
 
 mod directory;
+mod ownership;
 mod straddler;
+mod viewport;
 
 pub use directory::*;
+pub use ownership::*;
 pub use straddler::*;
+pub use viewport::*;

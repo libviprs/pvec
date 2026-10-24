@@ -13,10 +13,11 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Limits, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    Aabb, BuiltDirectory, CELL_CAPACITY, CellId, EntityBox, HEADER_LEN, LevelScale, LongEntity, NODE_LEN,
-    PAGE_LEN, PayloadLoc, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR, STRADDLER_HEADER_LEN, STRADDLER_PAGE,
-    STRADDLER_RULES, SpatialDirectory, StraddlerError, StraddlerLists, ViewportHits, ancestor_placement,
-    build_directory, build_straddlers, classify, congestion, extent, query_viewport, unique_entities,
+    Aabb, BuiltDirectory, CELL_CAPACITY, CellId, DuplicationPolicy, EntityBox, HEADER_LEN, LevelScale,
+    LongEntity, NODE_LEN, PAGE_LEN, PayloadRef, PlacedEntity, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR,
+    STRADDLER_HEADER_LEN, STRADDLER_PAGE, STRADDLER_RULES, SpatialDirectory, StraddlerError, StraddlerLists,
+    ViewportHits, ancestor_placement, build_directory, build_straddlers, classify, congestion, extent,
+    query_viewport, unique_entities,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -167,8 +168,8 @@ fn tied() -> Fixture {
     Fixture { name: "tied", all, world: 20.0 }
 }
 
-fn payload(id: EntityId) -> PayloadLoc {
-    PayloadLoc { block: 1 + id.index() % 7, slot: id.index() }
+fn payload(id: EntityId) -> PayloadRef {
+    PayloadRef { block_id: BlockId(1 + id.index() / 4096), slot: id.index() % 4096 }
 }
 
 fn long_entities(c: &[EntityBox]) -> Vec<LongEntity> {
@@ -681,6 +682,45 @@ fn each_entity_is_yielded_once_even_when_it_is_in_a_cell_and_a_list() {
     // and the straddler list alone never repeats an entity either
     let ids: Vec<EntityId> = s.lists.query(&q).map(|e| e.id).collect();
     assert_eq!(ids.iter().collect::<BTreeSet<_>>().len(), ids.len());
+}
+
+#[test]
+fn the_cell_ceiling_of_p5_2_hands_over_the_same_entities_and_has_nothing_left_once_they_are_listed() {
+    let f = drawing_100k();
+    let s = split(&f.all);
+    let placed = |entities: &[EntityBox]| -> Vec<PlacedEntity> {
+        entities.iter().map(|e| PlacedEntity { id: e.id, bounds: e.bounds, payload: payload(e.id) }).collect()
+    };
+    // P5.2 alone, with every entity in the directory: each spanning line is over its cell ceiling
+    let (bytes, built_all) = split_status_quo(&f.all);
+    let all_dir = SpatialDirectory::open(&reader(bytes)).unwrap().unwrap();
+    let all = placed(&f.all);
+    let alone = pvec_stream::place(&all_dir, &all, DuplicationPolicy::default(), 1).unwrap();
+    let _ = built_all;
+    let handed: BTreeSet<EntityId> = alone.straddlers.iter().map(|x| x.id).collect();
+    let mine: BTreeSet<EntityId> = s.long.iter().map(|e| e.id).collect();
+    assert!(mine.is_subset(&handed), "the ceiling must hand over every entity the factor lists");
+    // the entities it hands over, with their bounds, are the input of the lists: the same block
+    let by_id: BTreeMap<EntityId, &PlacedEntity> = all.iter().map(|p| (p.id, p)).collect();
+    let scale = s.lists.scale();
+    let from_ceiling: Vec<LongEntity> = alone
+        .straddlers
+        .iter()
+        .map(|x| LongEntity::from(*by_id[&x.id]))
+        .filter(|l| scale.level_of(extent(&l.bounds)).is_some())
+        .collect();
+    assert_eq!(from_ceiling.len(), 1000);
+    let rebuilt = build_straddlers(scale, &from_ceiling).unwrap();
+    assert_eq!(rebuilt.bytes, s.block, "the lists do not depend on which pass found the entities");
+    // over the local directory nothing is left to hand over, so no reference is withheld from a cell
+    let local_dir = SpatialDirectory::open(&reader(artifact(&s.local, &s.built))).unwrap().unwrap();
+    let after = pvec_stream::place(&local_dir, &placed(&s.local), DuplicationPolicy::default(), 1).unwrap();
+    eprintln!(
+        "P5.2 over everything hands over {}; over the local entities {}",
+        alone.straddlers.len(),
+        after.straddlers.len()
+    );
+    assert!(after.straddlers.is_empty(), "{} entities are still over the ceiling", after.straddlers.len());
 }
 
 // ---------------------------------------------------------------- the block
