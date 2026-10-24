@@ -6,9 +6,9 @@
 //! a file returns is untrusted like any other bytes: the reader holds it to the same checks, and a file
 //! that is shorter than it was when it was opened is a `SourceError::Short`, not a short decode.
 //!
-//! There is no memory-mapped source, because mapping needs `unsafe` and this workspace allows none
-//! outside `pvec-container`'s `aligned.rs`. A caller that maps a file hands the mapped slice to
-//! `pvec_container::source::MemorySource`.
+//! There is no memory-mapped source here, because mapping needs `unsafe` and this crate forbids it. It is
+//! the `pvec-mmap` crate (ADR 0016), which holds the one `unsafe` block the workspace allows outside
+//! `pvec-container`'s `aligned.rs`.
 #![forbid(unsafe_code)]
 
 use pvec_container::source::{BlockSource, Bytes, ReadAt, SourceError};

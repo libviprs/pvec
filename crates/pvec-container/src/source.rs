@@ -16,9 +16,10 @@
 //! (`crates/pvec-checks/tests/crate_boundaries.rs`), so the sources that touch `std::fs` (a local file,
 //! and a `ReadAt` over one) are in the `pvec-sources` crate, which depends on this one.
 //!
-//! There is no `MmapSource`: mapping a file needs `unsafe`, and the only `unsafe` this crate allows is
-//! the confined casts in `blocks/aligned.rs`. A caller that maps a file passes the mapped slice to
-//! [`MemorySource`] and gets the same checks.
+//! There is no `MmapSource` here: mapping a file needs `unsafe`, and the only `unsafe` this crate allows is
+//! the confined casts in `blocks/aligned.rs`. The mapped source is the `pvec-mmap` crate (ADR 0016), which
+//! holds the one other `unsafe` block of the workspace. A caller who maps a file themselves passes the
+//! mapped slice to [`MemorySource`] and gets the same checks.
 
 use std::fmt;
 use std::ops::Deref;
