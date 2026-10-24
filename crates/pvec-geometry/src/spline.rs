@@ -306,6 +306,8 @@ pub struct Unwrapped {
     /// Bound on the distance between the control points of `curve` and the exact ones, which bounds
     /// the locus deviation from the periodic curve.
     pub deviation_bound: f64,
+    /// STUB (red): bound against the exact periodic curve.
+    pub periodic_deviation_bound: f64,
 }
 
 impl crate::Sealed for BSpline {}
@@ -668,5 +670,5 @@ fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped>
     // two products and the sum three more, so at most 10 u m per level in each coordinate, and a
     // convex combination does not amplify an earlier error. 15 covers the Euclidean norm.
     let deviation_bound = 15.0 * inserted as f64 * UNIT_ROUNDOFF * m;
-    Ok(Unwrapped { curve, deviation_bound })
+    Ok(Unwrapped { curve, deviation_bound, periodic_deviation_bound: 0.0 })
 }

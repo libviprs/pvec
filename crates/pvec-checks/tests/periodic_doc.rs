@@ -43,3 +43,40 @@ fn the_geometry_api_listing_carries_the_entry_point() {
     assert!(api.contains("BSpline::from_periodic("), "api.txt lists from_periodic");
     assert!(api.contains("Unwrapped"), "api.txt lists the result type");
 }
+
+#[test]
+fn the_amendment_scopes_the_bound_and_names_what_the_unwrap_loses() {
+    let a = amendment();
+    for needle in [
+        "f64-formed",
+        "exact periodic curve",
+        "periodic flag",
+        "control polygon",
+        "smooth closure",
+        "n >= p + 1",
+        "unresolvable",
+        "closed_curve",
+    ] {
+        assert!(a.contains(needle), "amendment does not mention {needle}");
+    }
+}
+
+#[test]
+fn the_rustdoc_does_not_claim_a_bound_against_the_mathematical_curve_it_does_not_have() {
+    let s = read("crates/pvec-geometry/src/spline.rs");
+    assert!(!s.contains("the only inexact step is the arithmetic"), "stale claim in from_periodic");
+    assert!(!s.contains("bounds the locus deviation from the periodic curve"), "stale claim on the field");
+    assert!(s.contains("f64-formed wrapped curve"), "the first bound says what it is against");
+    assert!(s.contains("periodic_deviation_bound"), "the second bound exists");
+}
+
+#[test]
+fn the_profile_section_of_the_b_spline_is_eleven_in_every_text() {
+    for rel in ["docs/CONTAINER.md", "docs/adr/0004-internal-data-layout.md", "crates/pvec-container/src/blocks/advanced.rs"] {
+        let t = read(rel);
+        assert!(!t.contains("ISO_PROFILE section 12 and ADR 0011"), "{rel}: wrong section");
+        assert!(!t.contains("(ISO_PROFILE\nsection 12, ADR 0011)"), "{rel}: wrong section");
+    }
+    assert!(read("docs/CONTAINER.md").contains("ISO_PROFILE section 11 and ADR 0011"));
+    assert!(read("docs/adr/0004-internal-data-layout.md").contains("ISO_PROFILE\nsection 11, ADR 0011"));
+}
