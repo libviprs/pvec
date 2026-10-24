@@ -250,7 +250,7 @@ fn an_arc_keeps_its_end_points_and_direction() {
 fn a_reversed_arc_runs_the_other_way() {
     let basis = circle(0.0, 0.0, 10.0);
     let fwd = Curve::Trimmed(Trimmed::new(basis.clone(), 0.5, 2.0, true).unwrap());
-    let rev = Curve::Trimmed(Trimmed::new(basis, 0.5, 2.0, false).unwrap());
+    let rev = Curve::Trimmed(Trimmed::new(basis, 2.0, 0.5, false).unwrap());
     let x = run(&[(eid(1), fwd), (eid(2), rev)], Transform2::IDENTITY, 0.01);
     let a = pos_lists(segments_of(&x.xml, 1, "Arc")[0]).remove(0);
     let b = pos_lists(segments_of(&x.xml, 2, "Arc")[0]).remove(0);

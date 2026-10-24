@@ -429,7 +429,6 @@ pub fn export(
             Ok((moved, _)) => map_curve(&moved, budget),
             Err(e) => Err(Unmapped::new(
                 capability_of(curve),
-                None,
                 format!("the CRS transform is refused: {}", e.rule()),
             )),
         };
@@ -485,17 +484,15 @@ impl Segment {
 /// A curve the export left out, and why.
 struct Unmapped {
     capability: &'static str,
-    case: Option<Case>,
     reason: String,
 }
 
 impl Unmapped {
-    fn new(capability: &'static str, case: Option<Case>, reason: String) -> Unmapped {
-        Unmapped { capability, case, reason }
+    fn new(capability: &'static str, reason: String) -> Unmapped {
+        Unmapped { capability, reason }
     }
 
     fn record(self, id: EntityId, registry: &Registry) -> FidelityRecord {
-        let _ = self.case;
         let target = TargetConstruct::new("none", Representation::Native).expect("not blank");
         let reason = Reason::new(&self.reason).expect("every reason says something");
         FidelityRecord::new(
@@ -530,11 +527,7 @@ fn capability_of(c: &Curve) -> &'static str {
 
 fn map_curve(c: &Curve, budget: Budget) -> Result<Vec<Segment>, Unmapped> {
     match c {
-        Curve::Line(_) => Err(Unmapped::new(
-            "line",
-            Some(Case::LineUnbounded),
-            row_of(Case::LineUnbounded).note.to_string(),
-        )),
+        Curve::Line(_) => Err(Unmapped::new("line", row_of(Case::LineUnbounded).note.to_string())),
         Curve::Polyline(p) => Ok(vec![Segment {
             xml: line_string(p.vertices()),
             capability: "polyline",
@@ -564,7 +557,6 @@ fn map_curve(c: &Curve, budget: Budget) -> Result<Vec<Segment>, Unmapped> {
                     Err(u) => {
                         return Err(Unmapped::new(
                             "composite_curve",
-                            Some(Case::Composite),
                             format!("a member ({}) cannot be written: {}", u.capability, u.reason),
                         ));
                     }
@@ -577,7 +569,7 @@ fn map_curve(c: &Curve, budget: Budget) -> Result<Vec<Segment>, Unmapped> {
             Ok(vec![b_spline(b, "b_spline_curve", Case::BSpline, "polynomial spline".to_string())])
         }
         Curve::RationalBSpline(r) => rational(c, r, budget),
-        _ => Err(Unmapped::new("composite_curve", None, "a curve kind newer than this export".to_string())),
+        _ => Err(Unmapped::new("composite_curve", "a curve kind newer than this export".to_string())),
     }
 }
 
@@ -737,8 +729,7 @@ fn tessellate_segment(
     case: Case,
     budget: Budget,
 ) -> Result<Vec<Segment>, Unmapped> {
-    let (pts, bound) =
-        tessellate(c, budget.get()).map_err(|why| Unmapped::new(capability, Some(case), why))?;
+    let (pts, bound) = tessellate(c, budget.get()).map_err(|why| Unmapped::new(capability, why))?;
     Ok(vec![Segment {
         xml: line_string(&pts),
         capability,
@@ -860,7 +851,7 @@ fn point(
     r: Result<Point2, pvec_geometry::GeometryError>,
     capability: &'static str,
 ) -> Result<Point2, Unmapped> {
-    r.map_err(|e| Unmapped::new(capability, None, format!("evaluation failed: {}", e.rule())))
+    r.map_err(|e| Unmapped::new(capability, format!("evaluation failed: {}", e.rule())))
 }
 
 // ---- writing -----------------------------------------------------------------------------------------

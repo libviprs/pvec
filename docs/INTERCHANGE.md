@@ -62,6 +62,33 @@ generated from `gml::MAPPING` and a test fails if this copy drifts
 (`PVEC_BLESS_INTERCHANGE=1 cargo test -p pvec-interchange --test gml_21` rewrites it).
 
 <!-- mapping-table:start -->
+| capability | case | GML construct | fidelity | how |
+|---|---|---|---|---|
+| `cartesian_point` | Point | `gml:pos` | `Exact` | both coordinates are written as the shortest decimal that reads back to the same f64 |
+| `direction_vector` | Direction | `none` | `Unsupported` | a direction is not a curve and GML has no direction construct; it is consumed by the circle and line mappings |
+| `axis_placement_2d` | Placement | `none` | `Unsupported` | a placement is not a curve and GML has no placement construct; it is consumed by the circle mapping |
+| `line` | LineUnbounded | `none` | `Unsupported` | an unbounded line has no GML construct; a bounded one is a trimmed curve |
+| `polyline` | Polyline | `gml:LineStringSegment` | `Exact` | every vertex is carried unchanged |
+| `circle` | CircleFull | `gml:Circle` | `EquivalentCompound` | three points on the circle; the circle through them is checked against the source under NP-04 and the start point is the first one |
+| `circle` | CircleTessellated | `gml:LineStringSegment` | `BoundedApproximation` | taken only when the three points cannot reproduce the circle under NP-04 |
+| `ellipse` | EllipseTessellated | `gml:LineStringSegment` | `BoundedApproximation` | GML 3.2.1 has no ellipse; a sampled polyline with a measured bound |
+| `trimmed_curve` | TrimmedLine | `gml:LineStringSegment` | `ExactReparameterized` | the two end points, evaluated by the shared evaluator; origin and direction become the end points |
+| `trimmed_curve` | TrimmedArc | `gml:Arc` | `EquivalentCompound` | start, middle and end point of the arc; checked against the source under NP-04 |
+| `trimmed_curve` | TrimmedFullCircle | `gml:Circle` | `EquivalentCompound` | as a circle; the start point and direction are kept |
+| `trimmed_curve` | TrimmedTessellated | `gml:LineStringSegment` | `BoundedApproximation` | an ellipse or spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound |
+| `composite_curve` | Composite | `gml:Curve` | `Exact` | the segment list keeps the order and the joins; each member has its own record |
+| `bezier_curve` | Bezier | `gml:Bezier` | `Exact` | degree and control points carried; the two knots are the fixed domain 0 to 1 |
+| `b_spline_curve` | BSpline | `gml:BSpline` | `Exact` | degree, control points and knots (value and multiplicity) carried |
+| `rational_b_spline_curve` | RationalEqualWeights | `gml:BSpline` | `EquivalentCompound` | equal weights cancel, so the polynomial spline has the same locus |
+| `rational_b_spline_curve` | RationalTessellated | `gml:LineStringSegment` | `BoundedApproximation` | GML 3.2.1 cannot carry control point weights; a sampled polyline with a measured bound |
+| `affine_transform_2d` | Transform | `none` | `Unsupported` | GML has no transform construct; the matrix is applied to the geometry and written into the description |
+| `layer` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `line_style` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `text` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `hatch` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `source_provenance` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `dwg_semantics` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `semantic_class` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 <!-- mapping-table:end -->
 
 The registry's GIS column (`docs/CAPABILITIES.md`) says "densified, error reported" for a circle, a
