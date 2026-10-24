@@ -7,5 +7,7 @@
 //! `pvec_container::ContainerReader`.
 
 mod directory;
+mod ownership;
 
 pub use directory::*;
+pub use ownership::*;
