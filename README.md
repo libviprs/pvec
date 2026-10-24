@@ -11,12 +11,26 @@ data, optional non-geometric components, and deterministic interoperability repo
 
 ## Status
 
-**Specification stage. There is no implementation in this repository yet.**
+**Phases 1 and 3 are in; the container, the streaming runtime and the interchange are not.**
 
 The work is planned as eight phases and 64 issues under [#1](https://github.com/libviprs/pvec/issues/1).
-Phase 1 is deliberately a spike: no binary layout is frozen until ISO/TS 10303-26 STEP-HDF and the
-candidate custom layouts have been benchmarked on identical fixtures, and until the numerical
-policy is approved.
+Phase 1 was a spike: the semantic profile, the numeric policy and eight ADRs, decided after the
+candidate layouts and STEP-HDF had been benchmarked on identical fixtures. Phase 3 is the geometry API,
+the capability ABI and the component model, as crates:
+
+| crate | what it is |
+|---|---|
+| `pvec-numeric` | the one numeric policy: tolerances, degeneracy rules, limits |
+| `pvec-geometry` | the source-neutral curve model with the one exact evaluator, bounds and affine transforms |
+| `pvec-capabilities` | the capability registry as data, reader negotiation and extension governance |
+| `pvec-entity` | the file-local `EntityId` and the table that resolves it to bounds |
+| `pvec-codec` | the geometry codecs: curves to the type-batched block payload of ADR 0004 and back |
+| `pvec-components` | independent component streams (layer, line style, text, hatch, provenance) |
+| `pvec-checks` | repository checks, including the public-API snapshots and the crate boundaries |
+
+The container itself, spatial indexing and streaming, interchange and the public API freeze are later
+phases. Phase 2 (the dual-oracle conformance suite) is not done, so nothing here has been measured
+against the converters yet: the exactness claims are those of the tests in this repository.
 
 ## The rule that decides the design
 
