@@ -412,7 +412,9 @@ fn the_writer_source_exists_and_is_where_the_checklist_says() {
 fn the_writer_path_never_calls_a_transcendental_or_the_models_bounds() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     for file in ["writer.rs", "directory.rs", "header.rs", "manifest.rs"] {
-        let code = code_of(&fs::read_to_string(src.join(file)).unwrap());
+        // the one arctangent the writer may name is the deterministic one, written with basic arithmetic
+        let code =
+            code_of(&fs::read_to_string(src.join(file)).unwrap()).replace("pvec_numeric::detmath::atan2", "");
         for banned in [
             ".bounds()",
             "sin_cos",

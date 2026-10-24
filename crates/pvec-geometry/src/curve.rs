@@ -7,6 +7,7 @@ use crate::primitives::*;
 use crate::spline::{BSpline, Bezier, RationalBSpline};
 use crate::transform::{ParamMap, Transform2};
 use core::f64::consts::TAU;
+use pvec_numeric::detmath;
 use pvec_numeric::{
     MAX_COMPOSITE_SEGMENTS, MAX_POLYLINE_VERTICES, NumericError, Policy, Side, Trim, check_count,
     check_derivative_request, check_value,
@@ -283,8 +284,8 @@ impl Trimmed {
     /// not finite, as a bulge of a few units of `1e-308` on a long chord makes it (NP-07). Nothing is
     /// approximated.
     ///
-    /// The arithmetic is `hypot`, `atan`, `atan2` and the basic operations, all of which the
-    /// evaluator already uses; the formulas are written so a large bulge cannot overflow before
+    /// The angles come from `pvec_numeric::detmath` (within one ulp, the same bits on every machine); the
+    /// rest is `hypot` and the basic operations; the formulas are written so a large bulge cannot overflow before
     /// the radius itself does.
     pub fn from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed> {
         let (p0, p1) = (Point2::checked(p0.x, p0.y)?, Point2::checked(p1.x, p1.y)?);
@@ -309,9 +310,9 @@ impl Trimmed {
         let mid = Point2::new(0.5 * (p0.x + p1.x), 0.5 * (p0.y + p1.y));
         let centre = Point2::checked(mid.x + offset * nx, mid.y + offset * ny)?;
         let circle = Circle::new(Placement2::new(centre, Vector2::new(1.0, 0.0))?, radius)?;
-        let a0 = (p0.y - centre.y).atan2(p0.x - centre.x);
-        let a1 = (p1.y - centre.y).atan2(p1.x - centre.x);
-        let sweep = 4.0 * b.abs().atan();
+        let a0 = detmath::atan2(p0.y - centre.y, p0.x - centre.x);
+        let a1 = detmath::atan2(p1.y - centre.y, p1.x - centre.x);
+        let sweep = 4.0 * detmath::atan(b.abs());
         // The interval always starts at the smaller angle: p0 when counter-clockwise, p1 when not.
         let (t1, t2) = if ccw {
             let s = a0.rem_euclid(TAU);

@@ -4,6 +4,7 @@
 //! when a shape is degenerate, which values are refused at parse time and how big anything may be.
 //! It does not evaluate curves.
 
+pub mod detmath;
 pub mod error;
 pub mod policy;
 pub mod predicates;

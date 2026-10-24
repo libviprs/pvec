@@ -5,7 +5,7 @@
 //! through `pvec-corpus` and writes through the real `pvec-container` writer. It has no dependency
 //! on `libviprs`, on a CAD reader, or on a PDF reader.
 
-pub mod detmath;
+pub use pvec_numeric::detmath;
 pub mod generate;
 pub mod hostile;
 pub mod records;

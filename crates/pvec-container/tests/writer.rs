@@ -475,9 +475,6 @@ fn a_circle_and_a_trimmed_circle_with_an_axis_aligned_frame_are_arcs() {
 
 #[test]
 fn what_the_hot_forms_cannot_say_exactly_is_refused_and_not_approximated() {
-    // a rotated frame needs atan2, whose last bit is a property of the C library and not of the format
-    let rotated = Placement2::new(pt(0.0, 0.0), Vector2::new(1.0, 1.0)).unwrap();
-    let c = Curve::Circle(Circle::new(rotated, 1.0).unwrap());
     let unbounded = Curve::Line(Line::new(pt(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap());
     let nested = Curve::Composite(
         pvec_geometry::Composite::new(vec![Curve::Polyline(
@@ -485,9 +482,7 @@ fn what_the_hot_forms_cannot_say_exactly_is_refused_and_not_approximated() {
         )])
         .unwrap(),
     );
-    for (curve, what) in
-        [(c, "rotated placement"), (unbounded, "unbounded line"), (nested, "composite curve")]
-    {
+    for (curve, what) in [(unbounded, "unbounded line"), (nested, "composite curve")] {
         let mut w = writer(&minimal());
         assert_eq!(w.push_curve(eid(0), 0, 0, &curve), Err(WriteError::Unsupported { what }));
     }
