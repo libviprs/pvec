@@ -1,5 +1,6 @@
 //! The block directory (issue P4.4): one fixed 64 byte entry per block, ADR 0003 and ADR 0006.
 
+use crate::compress::Codec;
 use crate::manifest::{Bounds, ByteRange};
 use crate::spec::FieldSpec;
 use core::fmt;
@@ -52,8 +53,14 @@ pub const BLOCK_ENTRY_FIELDS: &[FieldSpec] = &[
     field("kind", 56, 2, "u16", "block kind from the table in section 4.2"),
     field("subtype", 58, 2, "u16", "geometry type of a hot block, payload kind of an arena, otherwise 0"),
     field("flags", 60, 1, "u8", "bit 0 must-understand, bit 1 has-bounds; the rest zero"),
-    field("codec", 61, 1, "u8", "0 stored as it is; later ids belong to P4.6"),
-    field("reserved", 62, 2, "u16", "zero"),
+    field("codec", 61, 1, "u8", "codec id from the table in section 4.2; 0 stored as it is"),
+    field(
+        "capability",
+        62,
+        2,
+        "u16",
+        "the registry id of the capability the block belongs to; zero for a block of a kind the format defines",
+    ),
 ];
 
 /// What a block holds.
@@ -123,6 +130,8 @@ pub struct BlockEntry {
     pub flags: u8,
     /// Codec id.
     pub codec: u8,
+    /// The capability the block belongs to, or 0.
+    pub capability: u16,
 }
 
 impl BlockEntry {
@@ -150,6 +159,7 @@ impl BlockEntry {
         put(e::SUBTYPE, &self.subtype.to_le_bytes());
         put(e::FLAGS, &[self.flags]);
         put(e::CODEC, &[self.codec]);
+        put(e::CAPABILITY, &self.capability.to_le_bytes());
         b
     }
 }
@@ -169,7 +179,7 @@ mod e {
     pub const SUBTYPE: usize = 58;
     pub const FLAGS: usize = 60;
     pub const CODEC: usize = 61;
-    pub const RESERVED: usize = 62;
+    pub const CAPABILITY: usize = 62;
 }
 
 /// Why a directory was refused.
@@ -320,7 +330,10 @@ impl std::error::Error for DirectoryError {}
 /// The refusals, rule by rule.
 pub const DIRECTORY_RULES: &[(&str, &str)] = &[
     ("DIR-01", "the table is not a whole number of 64 byte entries"),
-    ("DIR-02", "a reserved field is not zero"),
+    (
+        "DIR-02",
+        "a reserved field is not zero, or a capability id is set on a block of a kind the format defines (the kind fixes it)",
+    ),
     ("DIR-03", "a flag bit other than must-understand and has-bounds is set"),
     (
         "DIR-04",
@@ -379,7 +392,11 @@ pub fn parse_directory(
     let mut out = Vec::with_capacity(table.len() / ENTRY_LEN);
     let mut previous_end = header_len;
     for (index, b) in table.chunks_exact(ENTRY_LEN).enumerate() {
-        if u16_at(b, e::RESERVED) != 0 {
+        // the capability of a block of a kind the format defines is fixed by the kind, so the field is zero;
+        // a block of a kind this reader does not know may name the capability it belongs to, and which one
+        // is checked against the manifest when the file is opened
+        let capability = u16_at(b, e::CAPABILITY);
+        if capability != 0 && BlockKind::from_id(u16_at(b, e::KIND)).is_some() {
             return Err(DirectoryError::NonZeroReserved { index });
         }
         let flags = b[e::FLAGS];
@@ -393,7 +410,7 @@ pub fn parse_directory(
         // codec ids follow the kind rule (ADR 0008): one this reader does not know refuses a block it
         // must understand and is kept, to be skipped, on a block it need not
         let codec = b[e::CODEC];
-        if codec != CODEC_NONE && flags & FLAG_MUST_UNDERSTAND != 0 {
+        if Codec::from_id(codec).is_none() && flags & FLAG_MUST_UNDERSTAND != 0 {
             return Err(DirectoryError::UnknownCodec { index, id: codec });
         }
         let (offset, stored_length) = (u64_at(b, e::OFFSET), u32_at(b, e::STORED_LENGTH));
@@ -446,6 +463,7 @@ pub fn parse_directory(
             subtype: u16_at(b, e::SUBTYPE),
             flags,
             codec,
+            capability,
         });
     }
     Ok(out)

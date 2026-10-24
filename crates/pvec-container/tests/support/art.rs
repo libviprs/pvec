@@ -5,10 +5,35 @@
 
 use super::fixtures::{Input, config, eid};
 use pvec_container::blocks::advanced::SplineSpec;
+use pvec_container::compress::CodecPolicy;
 use pvec_container::directory::{BLOCK_ENTRY_FIELDS, BlockEntry, ENTRY_LEN, parse_directory};
+use pvec_container::integrity::Integrity;
 use pvec_container::spec::dir;
-use pvec_container::writer::{ContainerWriter, EntityMeta};
+use pvec_container::writer::{ContainerWriter, EntityMeta, RawBlock, WriterOptions, assemble};
 use pvec_container::{Bounds, Header, Manifest};
+
+/// No checksums, no digest and no compression: the artifact the P4.5 and P4.8 tests make hostile one
+/// field at a time, since a checksum would refuse every edit to a block before the parser saw it.
+pub const UNSEALED: WriterOptions = WriterOptions { integrity: Integrity::None, codecs: CodecPolicy::NONE };
+/// The writer's own default: the checksum table and the artifact digest, nothing compressed.
+pub const SEALED: WriterOptions = WriterOptions { integrity: Integrity::Full, codecs: CodecPolicy::NONE };
+
+/// Integrity of one kind and nothing compressed.
+pub fn with_integrity(integrity: Integrity) -> WriterOptions {
+    WriterOptions { integrity, codecs: CodecPolicy::NONE }
+}
+
+/// Compressed with one codec for every kind of block, and not sealed, so a test can corrupt a block and
+/// see what the decoder does with it.
+#[allow(non_snake_case)]
+pub fn UNSEALED_WITH_CODEC(codec: pvec_container::compress::Codec) -> WriterOptions {
+    WriterOptions { integrity: Integrity::None, codecs: CodecPolicy::uniform(codec) }
+}
+
+/// Sealed and compressed with one codec for every kind of block.
+pub fn sealed_with(codecs: CodecPolicy) -> WriterOptions {
+    WriterOptions { integrity: Integrity::Full, codecs }
+}
 
 /// An artifact and where the parts of it are.
 #[derive(Clone)]
@@ -91,9 +116,14 @@ fn unit_meta(id: u32, cell: u32) -> EntityMeta {
     EntityMeta { id: eid(id), style: 0, cell, bounds: Bounds { min: [0.0, 0.0], max: [8.0, 8.0] } }
 }
 
-/// `n` lines in each of `cells` cells: one hot block per cell.
+/// `n` lines in each of `cells` cells: one hot block per cell. Unsealed.
 pub fn lines(n: u32, cells: u32) -> Art {
-    let mut w = ContainerWriter::new(config(&[], None));
+    lines_with(n, cells, UNSEALED)
+}
+
+/// [`lines`] written with `options`.
+pub fn lines_with(n: u32, cells: u32, options: WriterOptions) -> Art {
+    let mut w = ContainerWriter::with_options(config(&[], None), options);
     let mut id = 0;
     for cell in 0..cells {
         for k in 0..n {
@@ -106,9 +136,14 @@ pub fn lines(n: u32, cells: u32) -> Art {
 }
 
 /// Splines of 10 control points and degree 3 (14 knots), so a ceiling of 8 control points or 12 knots
-/// refuses them, and the two arenas hold more than one entry.
+/// refuses them, and the two arenas hold more than one entry. Unsealed.
 pub fn splines() -> Art {
-    let mut w = ContainerWriter::new(config(&[], None));
+    splines_with(UNSEALED)
+}
+
+/// [`splines`] written with `options`.
+pub fn splines_with(options: WriterOptions) -> Art {
+    let mut w = ContainerWriter::with_options(config(&[], None), options);
     for id in 0..3u32 {
         let x: Vec<f64> = (0..10).map(|j| f64::from(j) + f64::from(id)).collect();
         let y: Vec<f64> = (0..10).map(|j| f64::from((j * 7) % 5)).collect();
@@ -132,7 +167,12 @@ pub fn splines() -> Art {
 /// Composites nested `depth` deep (1 is a spline alone, 4 is NP-18's maximum): a chain
 /// `10 <- 20 <- 21 <- ...` where each composite names the one before it.
 pub fn composites(depth: u32) -> Art {
-    let mut w = ContainerWriter::new(config(&[], None));
+    composites_with(depth, UNSEALED)
+}
+
+/// [`composites`] written with `options`.
+pub fn composites_with(depth: u32, options: WriterOptions) -> Art {
+    let mut w = ContainerWriter::with_options(config(&[], None), options);
     let spec = SplineSpec {
         degree: 1,
         knots: &[0.0, 0.0, 1.0, 1.0],
@@ -152,9 +192,53 @@ pub fn composites(depth: u32) -> Art {
     Art::new(w.finish().expect("the composites write"))
 }
 
-/// A mixed fixture input as an artifact.
+/// A fixture input as an artifact. Unsealed.
 pub fn from_input(input: &Input) -> Art {
-    Art::new(input.write().expect("the fixture writes"))
+    from_input_with(input, UNSEALED)
+}
+
+/// A fixture input as an artifact, written with `options`.
+pub fn from_input_with(input: &Input, options: WriterOptions) -> Art {
+    Art::new(input.write_with(options).expect("the fixture writes"))
+}
+
+/// The blocks of an artifact as the assembler takes them: the descriptor fields and the stored bytes.
+pub fn raw_blocks(art: &Art) -> Vec<RawBlock> {
+    art.entries
+        .iter()
+        .map(|e| RawBlock {
+            kind: e.kind,
+            subtype: e.subtype,
+            cell: e.cell,
+            count: e.count,
+            bounds: e.bounds,
+            flags: e.flags,
+            codec: e.codec,
+            capability: e.capability,
+            uncompressed_length: e.uncompressed_length,
+            stored: art.bytes[e.offset as usize..e.offset as usize + e.stored_length as usize].to_vec(),
+        })
+        .collect()
+}
+
+/// `art` laid out again by the assembler after `edit` changed its manifest or its blocks, as bytes that
+/// are not parsed: a file that no reader should accept can be built this way. It comes out in the
+/// canonical layout, sealed as `integrity` says.
+pub fn rebuild_raw(
+    art: &Art,
+    integrity: Integrity,
+    edit: impl FnOnce(&mut Manifest, &mut Vec<RawBlock>),
+) -> Vec<u8> {
+    let mut manifest = art.manifest.clone();
+    let mut blocks = raw_blocks(art);
+    edit(&mut manifest, &mut blocks);
+    assemble(manifest, &blocks, integrity).expect("the assembler lays the file out")
+}
+
+/// [`rebuild_raw`] for a file the container's own parsers accept. This is how a file that no writer
+/// would make (a block of a kind nobody knows, a capability nobody has heard of) is built.
+pub fn rebuild(art: &Art, integrity: Integrity, edit: impl FnOnce(&mut Manifest, &mut Vec<RawBlock>)) -> Art {
+    Art::new(rebuild_raw(art, integrity, edit))
 }
 
 fn align8(n: usize) -> usize {

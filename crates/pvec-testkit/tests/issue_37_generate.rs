@@ -501,6 +501,11 @@ fn artifacts_are_reproducible_from_the_bundle_alone() {
 
 /// What is wrong with a dependency tree: a package that is not of this workspace, or one that reads
 /// CAD or PDF, or any `libviprs` crate.
+/// The crates outside this workspace the tree may hold, and why. Each is pure Rust (a test in
+/// `pvec-container` reads Cargo.lock to keep it so): the block codecs and the block checksum that ADR 0006
+/// chose, and the one checksum crate the deflate decoder needs.
+const EXTERNAL: [&str; 4] = ["lz4_flex", "miniz_oxide", "adler2", "xxhash-rust"];
+
 fn tree_problems(lock: &str, manifests: &[(&str, &str)], workspace_only: bool) -> Vec<String> {
     const BANNED: [&str; 14] = [
         "libviprs",
@@ -521,7 +526,7 @@ fn tree_problems(lock: &str, manifests: &[(&str, &str)], workspace_only: bool) -
     let mut out = Vec::new();
     for line in lock.lines() {
         if let Some(name) = line.strip_prefix("name = \"").and_then(|r| r.strip_suffix('"')) {
-            if workspace_only && !name.starts_with("pvec-") {
+            if workspace_only && !name.starts_with("pvec-") && !EXTERNAL.contains(&name) {
                 out.push(format!("Cargo.lock: {name} is not a crate of this workspace"));
             }
             for b in BANNED {

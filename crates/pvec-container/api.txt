@@ -245,6 +245,35 @@ blocks/mod.rs: pub mod aligned
 blocks/mod.rs: pub mod arena
 blocks/mod.rs: pub mod hot
 blocks/mod.rs: pub use aligned::AlignedBytes
+compress.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub enum Codec
+compress.rs: Codec::None
+compress.rs: Codec::Lz4
+compress.rs: Codec::Deflate
+compress.rs: Codec::const ALL: [Codec; 3]
+compress.rs: Codec::id(self) -> u8
+compress.rs: Codec::from_id(id: u8) -> Option<Codec>
+compress.rs: Codec::name(self) -> &'static str
+compress.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum CodecError
+compress.rs: CodecError::Overrun { declared: u64 }
+compress.rs: CodecError::Short { declared: u64, got: u64 }
+compress.rs: CodecError::Malformed
+compress.rs: CodecError::rule(&self) -> &'static str
+compress.rs: pub const CODEC_RULES: &[(&str, &str)]
+compress.rs: impl core::fmt::Display for CodecError
+compress.rs: impl std::error::Error for CodecError {}
+compress.rs: pub fn compress(codec: Codec, bytes: &[u8]) -> Vec<u8>
+compress.rs: pub fn decompress(codec: Codec, stored: &[u8], declared: usize) -> Result<Vec<u8>, CodecError>
+compress.rs: pub fn pack(codec: Codec, bytes: Vec<u8>) -> (Codec, Vec<u8>)
+compress.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct CodecPolicy
+compress.rs: CodecPolicy.hot: Codec
+compress.rs: CodecPolicy.records: Codec
+compress.rs: CodecPolicy.arena: Codec
+compress.rs: CodecPolicy.components: Codec
+compress.rs: CodecPolicy::const NONE: CodecPolicy
+compress.rs: CodecPolicy::const RECOMMENDED: CodecPolicy
+compress.rs: CodecPolicy::uniform(codec: Codec) -> CodecPolicy
+compress.rs: CodecPolicy::for_kind(&self, kind: BlockKind) -> Codec
+compress.rs: impl Default for CodecPolicy
 directory.rs: pub const ENTRY_LEN: usize
 directory.rs: pub const FLAG_MUST_UNDERSTAND: u8
 directory.rs: pub const FLAG_HAS_BOUNDS: u8
@@ -271,6 +300,7 @@ directory.rs: BlockEntry.kind: u16
 directory.rs: BlockEntry.subtype: u16
 directory.rs: BlockEntry.flags: u8
 directory.rs: BlockEntry.codec: u8
+directory.rs: BlockEntry.capability: u16
 directory.rs: BlockEntry::block_kind(&self) -> Option<BlockKind>
 directory.rs: BlockEntry::encode(&self) -> [u8; ENTRY_LEN]
 directory.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DirectoryError
@@ -291,15 +321,17 @@ directory.rs: impl std::error::Error for DirectoryError {}
 directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
 directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
 directory.rs: pub fn parse_directory_checked(table: &[u8], header_len: u64, artifact_len: u64, manifest: ByteRange, directory: ByteRange) -> Result<Vec<BlockEntry>, DirectoryError>
-engine.rs: Opening::new(artifact_len: u64, limits: &Limits, acct: &Accountant) -> Result<Opening, ReadError>
+engine.rs: Opening::new(artifact_len: u64, options: &OpenOptions<'_>, acct: &Accountant) -> Result<Opening, ReadError>
 engine.rs: Opening::request(&self) -> Option<(u64, u32)>
 engine.rs: Opening::feed(&mut self, bytes: &[u8]) -> Result<(), ReadError>
 engine.rs: Opening::finish(self) -> Result<Core, ReadError>
 engine.rs: Core::entry(&self, id: BlockId) -> Result<&BlockEntry, ReadError>
+engine.rs: Core::is_skipped(&self, id: BlockId) -> bool
+engine.rs: Core::check_readable(&self, id: BlockId) -> Result<&BlockEntry, ReadError>
 engine.rs: Core::range_of(&self, id: BlockId) -> Result<(u64, u32), ReadError>
 engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'a [u8]) -> Result<&'a [u8], ReadError>
 engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
-engine.rs: Core::check_decodable(&self, entry: &BlockEntry) -> Result<(), ReadError>
+engine.rs: Core::in_flight(&self, entry: &BlockEntry) -> u64
 engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
 engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
 engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
@@ -307,6 +339,10 @@ engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
 engine.rs: Validation<'a>::feed_gap(&mut self, offset: u64, bytes: &[u8]) -> Result<(), ReadError>
 engine.rs: Validation<'a>::feed_block(&mut self, block: Arc<DecodedBlock>) -> Result<(), ReadError>
 engine.rs: Validation<'a>::finish(mut self) -> Result<Validated, ReadError>
+engine.rs: DigestCheck::new(core: &Core) -> DigestCheck
+engine.rs: DigestCheck::request(&self) -> Option<(u64, u32)>
+engine.rs: DigestCheck::feed(&mut self, bytes: &[u8])
+engine.rs: DigestCheck::finish(self) -> Result<DigestStatus, ReadError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -356,12 +392,43 @@ header.rs: Header::const MAJOR: u16
 header.rs: Header::const MINOR: u16
 header.rs: Header::parse(prefix: &[u8], artifact_len: u64) -> Result<Header, ContainerError>
 header.rs: Header::encode(&self) -> [u8; Header::LEN]
+integrity.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)] pub enum Integrity
+integrity.rs: Integrity::None
+integrity.rs: Integrity::Checksums
+integrity.rs: Integrity::Full
+integrity.rs: pub fn block_checksum(bytes: &[u8]) -> u64
+integrity.rs: #[derive(Clone, Debug)] pub struct Sha256
+integrity.rs: impl Default for Sha256
+integrity.rs: Sha256::new() -> Sha256
+integrity.rs: Sha256::update(&mut self, mut data: &[u8])
+integrity.rs: Sha256::finalize(mut self) -> [u8; 32]
+integrity.rs: pub fn sha256(bytes: &[u8]) -> [u8; 32]
+integrity.rs: #[derive(Clone, Debug)] pub struct DigestStream
+integrity.rs: DigestStream::new(digest_at: u64) -> DigestStream
+integrity.rs: DigestStream::update(&mut self, chunk: &[u8])
+integrity.rs: DigestStream::finalize(self) -> [u8; 32]
+integrity.rs: pub fn artifact_digest(artifact: &[u8], digest_at: usize) -> [u8; 32]
+integrity.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum IntegrityError
+integrity.rs: IntegrityError::ArtifactDigest { expected: [u8; 32], found: [u8; 32] }
+integrity.rs: IntegrityError::BadTable { reason: &'static str }
+integrity.rs: IntegrityError::BlockChecksum { block: u32, expected: u64, found: u64 }
+integrity.rs: IntegrityError::NotWritten
+integrity.rs: IntegrityError::rule(&self) -> &'static str
+integrity.rs: pub const INTEGRITY_RULES: &[(&str, &str)]
+integrity.rs: impl fmt::Display for IntegrityError
+integrity.rs: impl std::error::Error for IntegrityError {}
+integrity.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum DigestStatus
+integrity.rs: DigestStatus::Verified
+integrity.rs: DigestStatus::NotWritten
 lib.rs: pub mod blocks
+lib.rs: pub mod compress
 lib.rs: pub mod directory
 lib.rs: pub mod error
 lib.rs: pub mod header
+lib.rs: pub mod integrity
 lib.rs: pub mod limits
 lib.rs: pub mod manifest
+lib.rs: pub mod negotiate
 lib.rs: pub mod reader
 lib.rs: pub mod source
 lib.rs: pub mod spec
@@ -477,16 +544,76 @@ manifest.rs: Manifest::const MAX_LEN: u64
 manifest.rs: Manifest::parse(bytes: &[u8], header: &Header, artifact_len: u64) -> Result<Manifest, ContainerError>
 manifest.rs: Manifest::encode(&self) -> Result<Vec<u8>, ContainerError>
 manifest.rs: Manifest::declaration(&self) -> Declaration
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ReaderCapabilities
+negotiate.rs: ReaderCapabilities.version: Version
+negotiate.rs: ReaderCapabilities::v1() -> ReaderCapabilities
+negotiate.rs: ReaderCapabilities::none(version: Version) -> ReaderCapabilities
+negotiate.rs: ReaderCapabilities::with(mut self, id: CapabilityId, major: u16, minor: u16) -> ReaderCapabilities
+negotiate.rs: ReaderCapabilities::without(mut self, id: CapabilityId) -> ReaderCapabilities
+negotiate.rs: ReaderCapabilities::supports(&self, id: CapabilityId) -> Option<(u16, u16)>
+negotiate.rs: impl Default for ReaderCapabilities
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Refusal
+negotiate.rs: Refusal::ReaderTooOld { file_requires: Version, reader: Version }
+negotiate.rs: Refusal::MissingRequired { id: CapabilityId, version: Version, name: Option<&'static str> }
+negotiate.rs: Refusal::IncompatibleMajor { id: CapabilityId, file: Version, supported_major: u16 }
+negotiate.rs: Refusal::ComponentDeclaredRequired(CapabilityId)
+negotiate.rs: Refusal::ExtensionDeclaredRequired(CapabilityId)
+negotiate.rs: Refusal::UndeclaredBlockCapability { block: BlockId, capability: u16 }
+negotiate.rs: Refusal::rule(&self) -> &'static str
+negotiate.rs: pub const NEGOTIATE_RULES: &[(&str, &str)]
+negotiate.rs: impl fmt::Display for Refusal
+negotiate.rs: impl std::error::Error for Refusal {}
+negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SkipReason
+negotiate.rs: SkipReason::NotImplemented
+negotiate.rs: SkipReason::NewerMajor
+negotiate.rs: SkipReason::UnknownBlockKind
+negotiate.rs: SkipReason::UnknownCodec
+negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Effect
+negotiate.rs: Effect::Unstyled
+negotiate.rs: Effect::Uncomponented
+negotiate.rs: Effect::Unknown
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct SkippedCapability
+negotiate.rs: SkippedCapability.id: CapabilityId
+negotiate.rs: SkippedCapability.version: Option<Version>
+negotiate.rs: SkippedCapability.name: Option<&'static str>
+negotiate.rs: SkippedCapability.reason: SkipReason
+negotiate.rs: SkippedCapability.effect: Effect
+negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct SkippedBlock
+negotiate.rs: SkippedBlock.block: BlockId
+negotiate.rs: SkippedBlock.kind: u16
+negotiate.rs: SkippedBlock.capability: Option<CapabilityId>
+negotiate.rs: SkippedBlock.codec: u8
+negotiate.rs: SkippedBlock.stored_length: u32
+negotiate.rs: SkippedBlock.reason: SkipReason
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq, Default)] pub struct PartialOpen
+negotiate.rs: PartialOpen.capabilities: Vec<SkippedCapability>
+negotiate.rs: PartialOpen.blocks: Vec<SkippedBlock>
+negotiate.rs: PartialOpen.entities: u64
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RewriteRefused
+negotiate.rs: RewriteRefused.skipped: Vec<u32>
+negotiate.rs: impl fmt::Display for RewriteRefused
+negotiate.rs: impl std::error::Error for RewriteRefused {}
+negotiate.rs: PartialOpen::skipped_ids(&self) -> Vec<u32>
+negotiate.rs: PartialOpen::is_empty(&self) -> bool
+negotiate.rs: PartialOpen::ensure_lossless_rewrite(&self) -> Result<(), RewriteRefused>
+negotiate.rs: PartialOpen::describe(&self) -> String
+negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub enum Outcome
+negotiate.rs: Outcome::Open
+negotiate.rs: Outcome::OpenDegraded(PartialOpen)
+negotiate.rs: Outcome::Refuse(Refusal)
+negotiate.rs: pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCapabilities) -> Outcome
 reader.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct BlockId(pub u32)
 reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RangeRequest
 reader.rs: RangeRequest.offset: u64
 reader.rs: RangeRequest.len: u32
 reader.rs: RangeRequest.blocks: Vec<BlockId>
-reader.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct ReaderConfig
+reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ReaderConfig
 reader.rs: ReaderConfig.limits: Limits
 reader.rs: ReaderConfig.cache_bytes: u64
 reader.rs: ReaderConfig.gap_threshold: u32
 reader.rs: ReaderConfig.max_request_bytes: u32
+reader.rs: ReaderConfig.capabilities: ReaderCapabilities
+reader.rs: ReaderConfig.require_integrity: bool
 reader.rs: impl Default for ReaderConfig
 reader.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum ReadError
 reader.rs: ReadError::Source(SourceError)
@@ -498,6 +625,10 @@ reader.rs: ReadError::Hot(HotError)
 reader.rs: ReadError::Arena(ArenaError)
 reader.rs: ReadError::Stream(StreamError)
 reader.rs: ReadError::Layout { rule: &'static str, detail: String }
+reader.rs: ReadError::Codec(CodecError)
+reader.rs: ReadError::Integrity(IntegrityError)
+reader.rs: ReadError::Negotiation(Refusal)
+reader.rs: ReadError::Skipped { id: u32 }
 reader.rs: ReadError::NoSuchBlock { id: u32, blocks: usize }
 reader.rs: ReadError::rule(&self) -> String
 reader.rs: ReadError::limit(&self) -> Option<&LimitExceeded>
@@ -528,17 +659,22 @@ reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Validated
 reader.rs: Validated.blocks: usize
 reader.rs: Validated.entities: u64
 reader.rs: Validated.stream_capabilities: Vec<u32>
+reader.rs: Validated.skipped: Vec<BlockId>
 reader.rs: pub struct ContainerReader<S: BlockSource>
 reader.rs: ContainerReader<S>::open(source: S, config: ReaderConfig) -> Result<ContainerReader<S>, ReadError>
 reader.rs: ContainerReader<S>::read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
 reader.rs: ContainerReader<S>::read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
 reader.rs: ContainerReader<S>::advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
+reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: ContainerReader<S>::validate(&self) -> Result<Validated, ReadError>
 reader.rs: pub struct AsyncContainerReader<S: AsyncBlockSource>
 reader.rs: AsyncContainerReader<S>::async fn open(source: S, config: ReaderConfig) -> Result<AsyncContainerReader<S>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate(&self) -> Result<Validated, ReadError>
 reader.rs: pub fn render_markdown() -> String
 reader.rs: pub const READER_RULES: &[(&str, &str)]
@@ -679,6 +815,21 @@ writer.rs: WriterConfig.unit: LengthUnit
 writer.rs: WriterConfig.metadata: Metadata
 writer.rs: WriterConfig.bounds: Option<Bounds>
 writer.rs: WriterConfig.capabilities: Vec<CapabilityId>
+writer.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)] pub struct WriterOptions
+writer.rs: WriterOptions.integrity: Integrity
+writer.rs: WriterOptions.codecs: CodecPolicy
+writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct RawBlock
+writer.rs: RawBlock.kind: u16
+writer.rs: RawBlock.subtype: u16
+writer.rs: RawBlock.cell: u32
+writer.rs: RawBlock.count: u32
+writer.rs: RawBlock.bounds: Option<Bounds>
+writer.rs: RawBlock.flags: u8
+writer.rs: RawBlock.codec: u8
+writer.rs: RawBlock.capability: u16
+writer.rs: RawBlock.uncompressed_length: u32
+writer.rs: RawBlock.stored: Vec<u8>
+writer.rs: pub fn assemble(mut manifest: Manifest, blocks: &[RawBlock], integrity: Integrity) -> Result<Vec<u8>, WriteError>
 writer.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct EntityMeta
 writer.rs: EntityMeta.id: EntityId
 writer.rs: EntityMeta.style: u32
@@ -709,6 +860,7 @@ writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: ContainerWriter::new(config: WriterConfig) -> ContainerWriter
+writer.rs: ContainerWriter::with_options(config: WriterConfig, options: WriterOptions) -> ContainerWriter
 writer.rs: ContainerWriter::skip_sort(&mut self, key: SortKey)
 writer.rs: ContainerWriter::push_line(&mut self, meta: EntityMeta, a: [f64; 2], b: [f64; 2]) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), WriteError>

@@ -13,6 +13,7 @@ use pvec_components::read_streams;
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use pvec_container::blocks::hot::{HotBlockView, HotKind};
+use pvec_container::compress::{Codec, decompress};
 use pvec_container::directory::{BlockEntry, BlockKind, parse_directory_checked};
 use pvec_container::{ByteRange, DirectoryPointer, Header, Manifest};
 use std::collections::BTreeSet;
@@ -35,6 +36,8 @@ pub enum Stage {
     Records,
     /// The component stream set.
     Components,
+    /// Decompressing a block.
+    Codec,
     /// What the blocks and the directory say about each other.
     Consistency,
 }
@@ -386,6 +389,23 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
         }
         at = end;
     }
+    // the block checksum table (P4.6) is the one thing between the last block and the directory, and the
+    // reference reader does not verify it: the integrity cases are another reader's to judge
+    if let Some(t) = manifest.block_checksums {
+        let end = t.offset.checked_add(t.length);
+        if t.offset < at || end.is_none_or(|e| e > ptr.offset) {
+            return refuse(
+                Stage::Layout,
+                "LAYOUT-07",
+                "the checksum table is not between the blocks and the directory",
+            );
+        }
+        let gap = slice(bytes, at, t.offset - at).ok_or_else(|| outside("the checksum table"))?;
+        if gap.iter().any(|b| *b != 0) {
+            return refuse(Stage::Layout, "LAYOUT-08", "non-zero padding before the checksum table");
+        }
+        at = t.offset + t.length;
+    }
     if at > ptr.offset {
         return refuse(Stage::Layout, "LAYOUT-07", "the blocks run into the directory");
     }
@@ -400,7 +420,22 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
     let mut stream_ids: Vec<u32> = Vec::new();
     for e in &entries {
         let raw = slice(bytes, e.offset, u64::from(e.stored_length)).ok_or_else(|| outside("a block"))?;
-        let aligned = AlignedBytes::from_bytes(raw);
+        let aligned = match Codec::from_id(e.codec) {
+            Some(Codec::None) => AlignedBytes::from_bytes(raw),
+            Some(codec) => {
+                let decoded = decompress(codec, raw, e.uncompressed_length as usize).map_err(|x| {
+                    ReadError { stage: Stage::Codec, rule: x.rule().to_string(), detail: x.to_string() }
+                })?;
+                AlignedBytes::from_bytes(&decoded)
+            }
+            None => {
+                return refuse(
+                    Stage::Directory,
+                    "NEGOTIATE-90",
+                    format!("cannot decode codec {} of an optional block", e.codec),
+                );
+            }
+        };
         match e.block_kind() {
             Some(BlockKind::Hot) => {
                 let v = HotBlockView::parse(aligned.as_bytes()).map_err(|x| ReadError {
@@ -439,7 +474,7 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
             None => {
                 return refuse(
                     Stage::Directory,
-                    "NEGOTIATE-01",
+                    "NEGOTIATE-90",
                     format!("cannot skip an optional block of kind {}", e.kind),
                 );
             }

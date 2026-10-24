@@ -11,7 +11,7 @@ use pvec_container::source::MemorySource;
 use std::sync::Arc;
 
 /// `pvec_container::reader::ContainerReader` over memory.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct SafeReader {
     /// How the reader is configured.
     pub config: ReaderConfig,
@@ -36,13 +36,19 @@ impl Reader for SafeReader {
     }
 
     fn provides(&self) -> Vec<Requires> {
-        vec![Requires::Parse, Requires::Limits]
+        vec![Requires::Parse, Requires::Limits, Requires::Integrity, Requires::Negotiation]
     }
 
     fn read(&self, bytes: &[u8]) -> Verdict {
         let source = MemorySource::new(Arc::<[u8]>::from(bytes));
-        match ContainerReader::open(source, self.config).and_then(|r| r.validate()) {
-            Ok(_) => Verdict::Accepted,
+        let read = |source| -> Result<(), pvec_container::reader::ReadError> {
+            let reader = ContainerReader::open(source, self.config.clone())?;
+            reader.validate()?;
+            reader.verify_artifact_digest()?;
+            Ok(())
+        };
+        match read(source) {
+            Ok(()) => Verdict::Accepted,
             Err(e) => Verdict::Refused(Refusal { rule: e.rule(), detail: e.to_string() }),
         }
     }

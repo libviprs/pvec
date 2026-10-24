@@ -15,6 +15,7 @@ fn entry() -> BlockEntry {
         subtype: 3,
         flags: FLAG_MUST_UNDERSTAND | FLAG_HAS_BOUNDS,
         codec: CODEC_NONE,
+        capability: 0,
     }
 }
 
@@ -33,7 +34,7 @@ const ENTRY_BYTES: [u8; 64] = [
     0x03, 0x00, // subtype = 3
     0x03, // flags
     0x00, // codec
-    0x00, 0x00, // reserved
+    0x00, 0x00, // capability = 0
 ];
 
 fn table(entries: &[[u8; 64]]) -> Vec<u8> {
@@ -98,6 +99,24 @@ fn dir_02_a_reserved_field_must_be_zero() {
     let mut b = ENTRY_BYTES;
     b[62] = 1;
     assert_eq!(parse_directory(&b, 64, 8192), Err(DirectoryError::NonZeroReserved { index: 0 }));
+}
+
+#[test]
+fn dir_02_a_capability_is_zero_on_a_block_of_a_kind_the_format_defines_and_kept_on_one_it_does_not() {
+    // a block of a kind this reader knows has its capability fixed by the kind, so the field is zero
+    let mut known = ENTRY_BYTES;
+    known[62] = 14;
+    assert_eq!(parse_directory(&known, 64, 8192), Err(DirectoryError::NonZeroReserved { index: 0 }));
+    // an optional block of a kind nobody knows may say which capability it belongs to, and it is kept
+    let mut unknown = ENTRY_BYTES;
+    unknown[56] = 9;
+    unknown[60] = 0x02;
+    unknown[62] = 99;
+    let parsed = parse_directory(&unknown, 64, 8192).expect("an optional block of an unknown kind is kept");
+    assert_eq!((parsed[0].kind, parsed[0].capability), (9, 99));
+    // and the field survives encoding
+    assert_eq!(&parsed[0].encode()[62..64], &[99, 0]);
+    assert_eq!(parse_directory(&parsed[0].encode(), 64, 8192).unwrap(), parsed);
 }
 
 #[test]

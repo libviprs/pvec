@@ -20,7 +20,17 @@ pub const API_CRATES: &[(&str, &[&str])] = &[
     ("pvec-components", &["pvec-capabilities", "pvec-entity"]),
     (
         "pvec-container",
-        &["pvec-capabilities", "pvec-components", "pvec-entity", "pvec-geometry", "pvec-numeric"],
+        &[
+            "pvec-capabilities",
+            "pvec-components",
+            "pvec-entity",
+            "pvec-geometry",
+            "pvec-numeric",
+            // P4.6: the codecs and the block checksum, all pure Rust (see `tests/issue_7_compression.rs`)
+            "lz4_flex",
+            "miniz_oxide",
+            "xxhash-rust",
+        ],
     ),
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),

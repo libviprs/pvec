@@ -92,6 +92,12 @@ fn u32_at(b: &[u8], at: usize) -> u32 {
     u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
 }
 
+fn u64_at(b: &[u8], at: usize) -> u64 {
+    let mut a = [0u8; 8];
+    a.copy_from_slice(&b[at..at + 8]);
+    u64::from_le_bytes(a)
+}
+
 /// An arena block: where its table and its columns are.
 #[derive(Clone, Copy)]
 struct Arena {
@@ -276,18 +282,21 @@ pub fn catalog(bases: &[Base]) -> Vec<Case> {
     let splines = get("splines");
     let composites = get("composites");
     let streams = get("streams");
+    let (sealed, sums) = (get("line-001+sealed"), get("line-001+checksums"));
+    let (lz4, deflate) = (get("drawing+lz4"), get("drawing+deflate"));
 
     offsets(&mut b, &drawing, &line);
     counts(&mut b, &drawing, &splines, &composites, &streams, &line);
-    decompression(&mut b, &drawing);
+    decompression(&mut b, &drawing, &lz4, &deflate);
     nesting(&mut b, &composites);
     knots(&mut b, &splines);
     weights(&mut b, &splines);
     domains(&mut b, &splines, &composites, &drawing);
-    integrity(&mut b, &line);
+    integrity(&mut b, &sealed, &sums);
     truncation(&mut b, &drawing);
     trailing(&mut b, &line);
     tags(&mut b, &drawing, &line, &splines, &streams);
+    negotiation(&mut b, &line, &streams);
     let gapped = get("gapped");
     corruption(&mut b, &drawing, &composites, &streams, &gapped);
     sweeps(&mut b);
@@ -526,7 +535,7 @@ fn counts(b: &mut Builder, d: &At, s: &At, c: &At, st: &At, line: &At) {
     b.refuse(F, "stream_count_above_file_size", "streams", vec![Op::u32(set + 8, 4_000)], &["STREAM-04"]);
 }
 
-fn decompression(b: &mut Builder, d: &At) {
+fn decompression(b: &mut Builder, d: &At, lz4: &At, deflate: &At) {
     use Family::Decompression as F;
     let entry = |i: usize, name: &str| d.layout.blocks[i].entry + entry_field(name);
     let stored = |i: usize| d.layout.blocks[i].len as u32;
@@ -546,6 +555,45 @@ fn decompression(b: &mut Builder, d: &At) {
     ];
     for (name, ops) in cases {
         b.add(F, Requires::Limits, &name, "drawing", ops, Expect::Refuse(vec!["LIMIT-01"]));
+    }
+    // The same attacks on a block that really is compressed, where the declared length is what the
+    // decoder will be held to, and the stream behind it is a valid one that says something else.
+    for (tag, base, name) in [("lz4", lz4, "drawing+lz4"), ("deflate", deflate, "drawing+deflate")] {
+        let first = base
+            .layout
+            .blocks
+            .iter()
+            .position(|l| base.bytes[l.entry + entry_field("codec")] != 0)
+            .unwrap_or_else(|| panic!("{name} has a compressed block"));
+        let field = base.layout.blocks[first].entry + entry_field("uncompressed_length");
+        let (stored, real) = (base.layout.blocks[first].len as u32, u32_at(base.bytes, field));
+        assert!(real > stored, "{name}: block {first} really is compressed");
+        b.add(
+            F,
+            Requires::Limits,
+            &format!("ratio_beyond_budget_on_a_compressed_block_{tag}"),
+            name,
+            vec![Op::u32(field, stored * 65)],
+            Expect::Refuse(vec!["LIMIT-01"]),
+        );
+        // a valid stream that expands to more than the descriptor declares is stopped at what it declares
+        b.add(
+            F,
+            Requires::Limits,
+            &format!("real_stream_expands_past_the_declared_length_{tag}"),
+            name,
+            vec![Op::u32(field, real / 2)],
+            Expect::Refuse(vec!["CODEC-01", "CODEC-03"]),
+        );
+        // and one that ends short of it is an error and not a short block
+        b.add(
+            F,
+            Requires::Limits,
+            &format!("real_stream_ends_short_of_the_declared_length_{tag}"),
+            name,
+            vec![Op::u32(field, real + 16)],
+            Expect::Refuse(vec!["CODEC-02", "CODEC-03"]),
+        );
     }
 }
 
@@ -717,30 +765,90 @@ fn domains(b: &mut Builder, s: &At, c: &At, d: &At) {
     );
 }
 
-fn integrity(b: &mut Builder, line: &At) {
+fn integrity(b: &mut Builder, sealed: &At, sums: &At) {
     use Family::Integrity as F;
-    let flags = line.manifest(m::FLAGS);
-    let digest = line.manifest(m::ARTIFACT_DIGEST);
-    let present =
-        Op::u16(flags, u16::from_le_bytes([line.bytes[flags], line.bytes[flags + 1]]) | m::FLAG_DIGEST);
-    let wrong = Op::Put { at: digest, bytes: vec![0xA5; 32] };
-    // Whatever P4.6 defines the digest to cover, 32 bytes of 0xA5 are not it, and a digest that is
-    // declared present has to be checked, not skipped.
-    let pending = |b: &mut Builder, name: &str, ops: Vec<Op>, rule: &'static str| {
-        b.add(F, Requires::Integrity, name, "line-001", ops, Expect::Refuse(vec![rule]));
+    let digest = sealed.manifest(m::ARTIFACT_DIGEST);
+    let flip = |at: &At, offset: usize| Op::u8(offset, at.bytes[offset] ^ 0x01);
+    let add = |b: &mut Builder, name: &str, base: &str, ops: Vec<Op>, rules: &[&'static str]| {
+        b.add(F, Requires::Integrity, name, base, ops, Expect::Refuse(rules.to_vec()));
     };
-    pending(b, "artifact_digest_mismatch", vec![present.clone(), wrong], "INTEGRITY-01");
-    pending(b, "artifact_digest_present_but_zero", vec![present], "INTEGRITY-01");
+    // the digest is declared present by the base; 32 bytes of 0xA5 and 32 zero bytes are not what it covers
+    add(
+        b,
+        "artifact_digest_mismatch",
+        "line-001+sealed",
+        vec![Op::Put { at: digest, bytes: vec![0xA5; 32] }],
+        &["INTEGRITY-01"],
+    );
+    add(
+        b,
+        "artifact_digest_present_but_zero",
+        "line-001+sealed",
+        vec![Op::Put { at: digest, bytes: vec![0; 32] }],
+        &["INTEGRITY-01"],
+    );
     // a checksum table declared over bytes that are a block's, not a table's
-    let block = line.layout.blocks[0];
-    pending(
+    let block = sealed.layout.blocks[0];
+    add(
         b,
         "block_checksum_table_declared_over_block_bytes",
+        "line-001+sealed",
         vec![
-            Op::u64(line.manifest(m::BLOCK_CHECKSUMS_OFFSET), block.offset as u64),
-            Op::u64(line.manifest(m::BLOCK_CHECKSUMS_LENGTH), 32),
+            Op::u64(sealed.manifest(m::BLOCK_CHECKSUMS_OFFSET), block.offset as u64),
+            Op::u64(sealed.manifest(m::BLOCK_CHECKSUMS_LENGTH), 32),
         ],
-        "INTEGRITY-02",
+        &["INTEGRITY-02"],
+    );
+    // a table of one entry more than there are blocks: it runs into the directory
+    add(
+        b,
+        "block_checksum_table_one_entry_too_long",
+        "line-001+sealed",
+        vec![Op::u64(sealed.manifest(m::BLOCK_CHECKSUMS_LENGTH), 16)],
+        &["INTEGRITY-02"],
+    );
+    // one bit of a block, with the table and no digest: only the block checksum can see it
+    add(
+        b,
+        "block_payload_bit_flip_with_only_checksums",
+        "line-001+checksums",
+        vec![flip(sums, sums.layout.blocks[0].offset + sums.layout.blocks[0].len / 2)],
+        &["INTEGRITY-03"],
+    );
+    // the same in a sealed file: the checksum and the digest both see it, whichever is asked first
+    add(
+        b,
+        "block_payload_bit_flip_in_a_sealed_file",
+        "line-001+sealed",
+        vec![flip(sealed, block.offset + block.len / 2)],
+        &["INTEGRITY-03", "INTEGRITY-01"],
+    );
+    // the table is part of what is checked: one flipped bit in its entry is a mismatch for that block
+    let table = u64_at(sums.bytes, sums.manifest(m::BLOCK_CHECKSUMS_OFFSET)) as usize;
+    add(
+        b,
+        "block_checksum_table_entry_bit_flip",
+        "line-001+checksums",
+        vec![flip(sums, table + 2)],
+        &["INTEGRITY-03"],
+    );
+    // what only the digest covers: the manifest and the directory, whose bytes no block checksum includes
+    let caps = u32_at(sealed.bytes, sealed.manifest(m::CAPABILITY_COUNT)) as usize;
+    let dirs = u32_at(sealed.bytes, sealed.manifest(m::DIRECTORY_COUNT)) as usize;
+    let producer = sealed.layout.manifest + 128 + cap::SIZE * caps + dir::SIZE * dirs;
+    add(
+        b,
+        "manifest_producer_bit_flip_that_only_the_digest_sees",
+        "line-001+sealed",
+        vec![flip(sealed, producer)],
+        &["INTEGRITY-01"],
+    );
+    add(
+        b,
+        "directory_cell_bit_flip_that_only_the_digest_sees",
+        "line-001+sealed",
+        vec![flip(sealed, block.entry + entry_field("cell"))],
+        &["INTEGRITY-01"],
     );
 }
 
@@ -888,6 +996,75 @@ fn tags(b: &mut Builder, d: &At, line: &At, s: &At, st: &At) {
     );
 }
 
+/// Capability negotiation (P4.7): what the manifest and the descriptors say about what a reader must have.
+fn negotiation(b: &mut Builder, line: &At, st: &At) {
+    use Family::UnknownTags as F;
+    let comp = st.block(4, 0);
+    let entry = |name: &str| comp.entry + entry_field(name);
+    // an optional block of an unknown kind that says which declared capability it belongs to is skipped
+    b.add(
+        F,
+        Requires::Negotiation,
+        "unknown_optional_block_kind_with_a_declared_capability_is_skipped",
+        "streams",
+        vec![Op::u16(entry("kind"), 9), Op::u16(entry("capability"), 14)],
+        Expect::Accept,
+    );
+    // so is an optional block whose codec is one nobody has heard of
+    b.add(
+        F,
+        Requires::Negotiation,
+        "unknown_optional_codec_is_skipped",
+        "streams",
+        vec![Op::u8(entry("codec"), 7)],
+        Expect::Accept,
+    );
+    // but a block cannot name a capability the manifest never declared
+    b.add(
+        F,
+        Requires::Negotiation,
+        "optional_block_names_an_undeclared_capability",
+        "streams",
+        vec![Op::u16(entry("kind"), 9), Op::u16(entry("capability"), 77)],
+        Expect::Refuse(vec!["NEGOTIATE-05"]),
+    );
+    // the last declared capability of the line fixture, as an entry of the manifest's capability table
+    let caps = u32_at(line.bytes, line.manifest(m::CAPABILITY_COUNT)) as usize;
+    let last = line.layout.manifest + 128 + cap::SIZE * (caps - 1);
+    b.add(
+        F,
+        Requires::Negotiation,
+        "required_capability_nobody_has_heard_of",
+        "line-001",
+        vec![Op::u32(last + cap::ID, 999)],
+        Expect::Refuse(vec!["NEGOTIATE-01"]),
+    );
+    b.add(
+        F,
+        Requires::Negotiation,
+        "required_capability_at_a_newer_major_version",
+        "line-001",
+        vec![Op::u16(last + cap::MAJOR, 2)],
+        Expect::Refuse(vec!["NEGOTIATE-02"]),
+    );
+    b.add(
+        F,
+        Requires::Negotiation,
+        "known_capability_at_a_newer_minor_version_opens",
+        "line-001",
+        vec![Op::u16(last + cap::MINOR, 9)],
+        Expect::Accept,
+    );
+    b.add(
+        F,
+        Requires::Negotiation,
+        "file_that_needs_a_newer_reader",
+        "line-001",
+        vec![Op::u16(line.manifest(m::MIN_READER_MAJOR), 2)],
+        Expect::Refuse(vec!["NEGOTIATE-03"]),
+    );
+}
+
 fn corruption(b: &mut Builder, d: &At, c: &At, st: &At, gapped: &At) {
     use Family::Corruption as F;
     let e = |i: usize, name: &str| d.layout.blocks[i].entry + entry_field(name);
@@ -922,7 +1099,7 @@ fn corruption(b: &mut Builder, d: &At, c: &At, st: &At, gapped: &At) {
         vec![Op::u8(d.hot_field(LINE, "reserved"), 1)],
         &["HOT-05"],
     );
-    b.refuse(F, "directory_reserved_nonzero", "drawing", vec![Op::u8(e(0, "reserved"), 1)], &["DIR-02"]);
+    b.refuse(F, "directory_reserved_nonzero", "drawing", vec![Op::u8(e(0, "capability"), 1)], &["DIR-02"]);
     b.refuse(F, "header_reserved_nonzero", "drawing", vec![Op::u8(h::RESERVED_C, 1)], &["NonZeroReserved"]);
     let (ids, _, _) = d.hot_parts(LINE);
     b.refuse(

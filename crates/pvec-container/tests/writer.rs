@@ -68,7 +68,15 @@ fn the_file_is_header_manifest_blocks_and_directory_with_nothing_else() {
         assert_eq!(dir.offset + dir.length, bytes.len() as u64, "{}: bytes after the directory", fx.name);
         let last = entries.last().unwrap();
         let end = last.offset + u64::from(last.stored_length);
-        assert!(dir.offset >= end && dir.offset - end < 8, "{}: a gap before the directory", fx.name);
+        // the checksum table (P4.6) sits between the last block and the directory, and nothing else does
+        let table = manifest.block_checksums.expect("the writer seals by default");
+        assert!(
+            table.offset >= end && table.offset - end < 8,
+            "{}: a gap before the checksum table",
+            fx.name
+        );
+        assert_eq!(table.length as usize, entries.len() * 8, "{}", fx.name);
+        assert_eq!(dir.offset, table.offset + table.length, "{}: the directory follows the table", fx.name);
         assert_eq!(dir.length as usize, entries.len() * 64);
         for w in entries.windows(2) {
             let end = w[0].offset + u64::from(w[0].stored_length);

@@ -35,7 +35,7 @@
 //! artifact ever claims to be a fixture it only partly is.
 
 use pvec_capabilities::{CapabilityId, Registry};
-use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig};
+use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, Header, LengthUnit, Manifest, Metadata};
 use pvec_corpus::expected::{Entity, EntityClass, Node};
 use pvec_corpus::sha256::hex_digest;
@@ -156,6 +156,7 @@ pub struct Plan {
     corpus_revision: String,
     capabilities: Vec<CapabilityId>,
     ops: Vec<Op>,
+    options: WriterOptions,
 }
 
 fn boxed(points: &[[f64; 2]]) -> Bounds {
@@ -167,6 +168,13 @@ fn boxed(points: &[[f64; 2]]) -> Bounds {
 }
 
 impl Plan {
+    /// The same plan, written with these options (compression and integrity). The default is the
+    /// writer's own.
+    pub fn with_options(mut self, options: WriterOptions) -> Plan {
+        self.options = options;
+        self
+    }
+
     /// How many entities.
     pub fn len(&self) -> usize {
         self.ops.len()
@@ -196,16 +204,19 @@ impl Plan {
                 Cause::Unsupported { what: "the order is not a permutation of the entities".to_string() },
             ));
         }
-        let mut w = ContainerWriter::new(WriterConfig {
-            unit: LengthUnit::Metre,
-            metadata: Metadata {
-                producer_id: format!("{PRODUCER_PREFIX}{}", self.fixture),
-                producer_version: GENERATOR_VERSION.to_string(),
-                corpus_revision: Some(self.corpus_revision.clone()),
+        let mut w = ContainerWriter::with_options(
+            WriterConfig {
+                unit: LengthUnit::Metre,
+                metadata: Metadata {
+                    producer_id: format!("{PRODUCER_PREFIX}{}", self.fixture),
+                    producer_version: GENERATOR_VERSION.to_string(),
+                    corpus_revision: Some(self.corpus_revision.clone()),
+                },
+                bounds: None,
+                capabilities: self.capabilities.clone(),
             },
-            bounds: None,
-            capabilities: self.capabilities.clone(),
-        });
+            self.options,
+        );
         if let Some(k) = skip {
             w.skip_sort(k);
         }
@@ -547,12 +558,22 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
         corpus_revision: corpus_revision.to_string(),
         capabilities: caps,
         ops,
+        options: WriterOptions::default(),
     })
 }
 
 /// Generates the artifact for one record.
 pub fn generate_record(math: &ExpectedMath, corpus_revision: &str) -> Result<Artifact, Refusal> {
-    let p = plan(math, corpus_revision)?;
+    generate_record_with(math, corpus_revision, WriterOptions::default())
+}
+
+/// [`generate_record`] with the writer set to compress and seal as `options` say.
+pub fn generate_record_with(
+    math: &ExpectedMath,
+    corpus_revision: &str,
+    options: WriterOptions,
+) -> Result<Artifact, Refusal> {
+    let p = plan(math, corpus_revision)?.with_options(options);
     let bytes = p.write()?;
     Ok(Artifact {
         fixture_id: math.fixture_id.clone(),
@@ -564,6 +585,15 @@ pub fn generate_record(math: &ExpectedMath, corpus_revision: &str) -> Result<Art
 
 /// Generates the artifact for one registered fixture.
 pub fn generate(fixture: &Fixture, corpus_revision: &str) -> Result<Artifact, Refusal> {
+    generate_with(fixture, corpus_revision, WriterOptions::default())
+}
+
+/// [`generate`] with the writer set to compress and seal as `options` say.
+pub fn generate_with(
+    fixture: &Fixture,
+    corpus_revision: &str,
+    options: WriterOptions,
+) -> Result<Artifact, Refusal> {
     let refuse = |cause| Refusal { fixture: fixture.id.clone(), entity: None, cause };
     let Some(math) = fixture.expected.as_ref() else {
         return Err(refuse(Cause::Quarantined));
@@ -571,7 +601,7 @@ pub fn generate(fixture: &Fixture, corpus_revision: &str) -> Result<Artifact, Re
     if fixture.must_not_emit_curve {
         return Err(refuse(Cause::NotEmitted));
     }
-    generate_record(math, corpus_revision)
+    generate_record_with(math, corpus_revision, options)
 }
 
 /// What happened to one fixture.
@@ -585,13 +615,18 @@ pub struct Outcome {
 
 /// Generates for every fixture of a bundle, in manifest order, quarantined entries last.
 pub fn generate_all(bundle: &Bundle) -> Result<Vec<Outcome>, CorpusError> {
+    generate_all_with(bundle, WriterOptions::default())
+}
+
+/// [`generate_all`] with the writer set to compress and seal as `options` say.
+pub fn generate_all_with(bundle: &Bundle, options: WriterOptions) -> Result<Vec<Outcome>, CorpusError> {
     let registry =
         FixtureRegistry::load(bundle, &Registry::v1(), include_str!("../../../docs/ISO_PROFILE.md"))?;
     let revision = bundle.pin().corpus_revision.as_str();
     Ok(registry
         .fixtures()
         .iter()
-        .map(|f| Outcome { fixture: f.id.clone(), result: generate(f, revision) })
+        .map(|f| Outcome { fixture: f.id.clone(), result: generate_with(f, revision, options) })
         .collect())
 }
 

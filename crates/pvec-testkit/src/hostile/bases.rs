@@ -1,15 +1,35 @@
 //! The valid artifacts every case is a mutation of.
 
 use super::mutate::Layout;
-use crate::generate::{GENERATOR_VERSION, PRODUCER_PREFIX, generate_all, generate_record};
+use crate::generate::{GENERATOR_VERSION, PRODUCER_PREFIX, generate_all_with, generate_record_with};
 use crate::records::*;
 use pvec_capabilities::Registry;
 use pvec_components::LayerStream;
 use pvec_container::blocks::advanced::SplineSpec;
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
+use pvec_container::compress::{Codec, CodecPolicy};
+use pvec_container::integrity::Integrity;
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_corpus::Bundle;
 use pvec_entity::EntityId;
+
+/// What the parse-tier bases are written with: no checksum table, no digest and no compression. A case
+/// that changes a byte of a block has to reach the parser that is meant to refuse it, and with a checksum
+/// in the file every such edit would be refused by the checksum first, which would hide a reader that
+/// forgot to call the parser. The integrity cases have their own sealed bases.
+pub const PARSE: WriterOptions = WriterOptions { integrity: Integrity::None, codecs: CodecPolicy::NONE };
+
+/// Checksums only: the per-block table and no artifact digest.
+pub const CHECKSUMS: WriterOptions =
+    WriterOptions { integrity: Integrity::Checksums, codecs: CodecPolicy::NONE };
+
+/// Both the table and the digest.
+pub const SEALED: WriterOptions = WriterOptions { integrity: Integrity::Full, codecs: CodecPolicy::NONE };
+
+/// One codec for every kind of block, nothing sealed.
+pub fn packed(codec: Codec) -> WriterOptions {
+    WriterOptions { integrity: Integrity::None, codecs: CodecPolicy::uniform(codec) }
+}
 
 /// A named valid artifact.
 #[derive(Clone, Debug)]
@@ -22,6 +42,10 @@ pub struct Base {
 
 fn id(i: u32) -> EntityId {
     EntityId::new(i).expect("a small id")
+}
+
+fn writer(config: WriterConfig) -> ContainerWriter {
+    ContainerWriter::with_options(config, PARSE)
 }
 
 fn config(name: &str) -> WriterConfig {
@@ -46,7 +70,7 @@ fn meta(i: u32) -> EntityMeta {
 /// with trims. No corpus record maps onto a composite yet (the bulge fixtures are refused, #101), so
 /// this one is written through the writer directly.
 fn composites() -> Vec<u8> {
-    let mut w = ContainerWriter::new(config("composites"));
+    let mut w = writer(config("composites"));
     let line = |a: f64| [0.0, 0.0 + a, 2.0, 1.0 + a];
     for (n, a) in [(10u32, 0.0), (11, 2.0)] {
         let p = line(a);
@@ -78,7 +102,7 @@ fn composites() -> Vec<u8> {
 
 /// A line and a layer stream, so there is a component block, which is optional.
 fn streams() -> Vec<u8> {
-    let mut w = ContainerWriter::new(config("streams"));
+    let mut w = writer(config("streams"));
     w.push_line(meta(0), [0.0, 0.0], [3.0, 4.0]).expect("a line");
     let layers =
         LayerStream { names: vec!["WALLS".to_string(), "DOORS".to_string()], assignments: vec![(id(0), 1)] };
@@ -87,13 +111,21 @@ fn streams() -> Vec<u8> {
 }
 
 fn from_record(name: &str, entities: &[String]) -> Base {
-    let math = record(name, entities);
-    let art = generate_record(&math, "hostile-r1").unwrap_or_else(|e| panic!("{name}: {e}"));
+    from_record_with(name, name, entities, PARSE)
+}
+
+fn from_record_with(name: &str, record_name: &str, entities: &[String], options: WriterOptions) -> Base {
+    let math = record(record_name, entities);
+    let art = generate_record_with(&math, "hostile-r1", options).unwrap_or_else(|e| panic!("{name}: {e}"));
     Base { name: name.to_string(), bytes: art.bytes }
 }
 
 /// Every hot block kind and both advanced kinds in one file.
 fn drawing() -> Base {
+    drawing_with("drawing", PARSE)
+}
+
+fn drawing_with(name: &str, options: WriterOptions) -> Base {
     let mut es = Vec::new();
     for i in 0..5 {
         let y = f64::from(i) * 1.5;
@@ -125,7 +157,7 @@ fn drawing() -> Base {
         Some(&[1.0, 0.5, 2.0, 1.0]),
         OPEN,
     ));
-    from_record("drawing", &es)
+    from_record_with(name, "drawing", &es, options)
 }
 
 /// Splines with distinct knot vectors: a degree 2 curve with five interior knots (so a case can
@@ -187,19 +219,37 @@ fn entry_offset() -> usize {
     super::mutate::entry_field("offset")
 }
 
-/// Every base: the emitted corpus fixtures by id, then `drawing`, `splines`, `composites`, `streams`
-/// and `gapped`.
+/// Every base: the emitted corpus fixtures by id (parse tier), then `drawing`, `splines`, `composites`,
+/// `streams` and `gapped`, then `line-001+checksums`, `line-001+sealed`, `drawing+lz4`, `drawing+deflate`
+/// and `drawing+lz4+sealed` for the integrity and decompression cases.
 pub fn bases(bundle: &Bundle) -> Vec<Base> {
-    let mut out: Vec<Base> = generate_all(bundle)
-        .expect("the bundle registers")
-        .into_iter()
-        .filter_map(|o| o.result.ok().map(|a| Base { name: a.fixture_id, bytes: a.bytes }))
-        .collect();
+    let emitted = |options: WriterOptions| -> Vec<Base> {
+        generate_all_with(bundle, options)
+            .expect("the bundle registers")
+            .into_iter()
+            .filter_map(|o| o.result.ok().map(|a| Base { name: a.fixture_id, bytes: a.bytes }))
+            .collect()
+    };
+    let mut out: Vec<Base> = emitted(PARSE);
+    let line = |all: Vec<Base>, suffix: &str| {
+        let b = all.into_iter().find(|b| b.name == "line-001").expect("line-001 is emitted");
+        Base { name: format!("line-001{suffix}"), bytes: b.bytes }
+    };
+    let (line_sums, line_sealed) = (line(emitted(CHECKSUMS), "+checksums"), line(emitted(SEALED), "+sealed"));
     out.push(drawing());
     out.push(splines());
     out.push(Base { name: "composites".to_string(), bytes: composites() });
     out.push(Base { name: "streams".to_string(), bytes: streams() });
     let gap = gapped(&out.iter().find(|b| b.name == "drawing").expect("drawing").bytes);
     out.push(Base { name: "gapped".to_string(), bytes: gap });
+    // the integrity and the compression bases: the same drawing and the same line, sealed, and packed
+    out.push(line_sums);
+    out.push(line_sealed);
+    out.push(drawing_with("drawing+lz4", packed(Codec::Lz4)));
+    out.push(drawing_with("drawing+deflate", packed(Codec::Deflate)));
+    out.push(drawing_with(
+        "drawing+lz4+sealed",
+        WriterOptions { integrity: Integrity::Full, codecs: CodecPolicy::uniform(Codec::Lz4) },
+    ));
     out
 }

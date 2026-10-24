@@ -89,12 +89,14 @@ pub struct Limits {
     pub case_timeout: Duration,
 }
 
-/// The defaults are calibrated, not guessed: the reference reader's largest single read over the whole
-/// corpus (22,620 reads, 20 bases) requested 6,522 bytes, so a floor of 16 KiB is 2.5 times that, and
-/// the per-byte allowance covers the copy a reader makes of each block it parses.
+/// The defaults are calibrated, not guessed: over the whole corpus (25,000 reads of 25 bases, the sealed
+/// and the compressed ones included) the reference reader's largest read requested 12,258 bytes and the
+/// safe reader's 17,912, so a floor of 32 KiB is 1.8 times the larger of the two (it was 16 KiB, 2.5 times
+/// the reference's 6,522, before the bases that carry a checksum table, a digest and compressed blocks
+/// were in the corpus). The per-byte allowance covers the copy a reader makes of each block it parses.
 impl Default for Limits {
     fn default() -> Limits {
-        Limits { alloc_per_byte: 8, alloc_floor: 16 << 10, case_timeout: Duration::from_secs(10) }
+        Limits { alloc_per_byte: 8, alloc_floor: 32 << 10, case_timeout: Duration::from_secs(10) }
     }
 }
 

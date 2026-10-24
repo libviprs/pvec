@@ -4,7 +4,7 @@
 use pvec_capabilities::{CapabilityId, Version};
 use pvec_components::Stream;
 use pvec_container::blocks::advanced::SplineSpec;
-use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig};
+use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_entity::EntityId;
 use pvec_geometry::{BSpline, Circle, Curve, Ellipse, Line, Placement2, Point2, Polyline, Trimmed, Vector2};
@@ -213,7 +213,12 @@ pub fn config(caps: &[u32], bounds: Option<Bounds>) -> WriterConfig {
 impl Input {
     /// Pushes everything in the order held, with the given sorts switched off.
     pub fn load(&self, skip: &[SortKey]) -> Result<ContainerWriter, WriteError> {
-        let mut w = ContainerWriter::new(self.config.clone());
+        self.load_with(skip, WriterOptions::default())
+    }
+
+    /// [`Input::load`] with the writer set to compress and seal as `options` say.
+    pub fn load_with(&self, skip: &[SortKey], options: WriterOptions) -> Result<ContainerWriter, WriteError> {
+        let mut w = ContainerWriter::with_options(self.config.clone(), options);
         for k in skip {
             w.skip_sort(*k);
         }
@@ -228,6 +233,10 @@ impl Input {
 
     pub fn write(&self) -> Result<Vec<u8>, WriteError> {
         self.load(&[])?.finish()
+    }
+
+    pub fn write_with(&self, options: WriterOptions) -> Result<Vec<u8>, WriteError> {
+        self.load_with(&[], options)?.finish()
     }
 
     pub fn write_skipping(&self, key: SortKey) -> Result<Vec<u8>, WriteError> {
