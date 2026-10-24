@@ -12,7 +12,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const IMAGE: &str = "registry.invalid/pvec/converter@sha256:0000000000000000000000000000000000000000000000000000000000000000";
+const IMAGE: &str =
+    "registry.invalid/pvec/converter@sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
 static N: AtomicUsize = AtomicUsize::new(0);
 
@@ -24,12 +25,16 @@ struct Fake {
 impl Fake {
     /// `version` and `run` are the shell exit codes of those subcommands, `rm` likewise.
     fn new(version: i32, run: i32, rm: i32) -> Fake {
-        let dir = std::env::temp_dir().join(format!("pvec-fake-docker-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+        let dir = std::env::temp_dir().join(format!(
+            "pvec-fake-docker-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::SeqCst)
+        ));
         fs::create_dir_all(&dir).unwrap();
         let script = format!(
             "#!/bin/sh\n\
              echo \"$@\" >> \"{log}\"\n\
-             env | sort > \"{envlog}\"\n\
+             /usr/bin/env > \"{envlog}\"\n\
              case \"$1\" in\n\
                version) exit {version};;\n\
                run) exit {run};;\n\
@@ -45,7 +50,11 @@ impl Fake {
         Fake { dir }
     }
     fn config(&self) -> Config {
-        Config { image: IMAGE.to_string(), mount: self.dir.clone(), search_path: Some(self.dir.clone().into()) }
+        Config {
+            image: IMAGE.to_string(),
+            mount: self.dir.clone(),
+            search_path: Some(self.dir.clone().into()),
+        }
     }
     fn calls(&self) -> Vec<String> {
         fs::read_to_string(self.dir.join("calls.log"))
@@ -168,7 +177,9 @@ fn issue_95_the_container_has_no_network_no_credentials_and_a_read_only_mount() 
     assert!(run.contains("--rm"), "{run}");
     assert!(run.contains("--platform"), "{run}");
     assert!(run.contains(":/corpus:ro"), "{run}");
-    for bad in ["-e ", "--env", "--env-file", "docker.sock", "--privileged", "--volumes-from", "--pid", "--cap-add"] {
+    for bad in
+        ["-e ", "--env", "--env-file", "docker.sock", "--privileged", "--volumes-from", "--pid", "--cap-add"]
+    {
         assert!(!run.contains(bad), "{bad} in {run}");
     }
     assert!(run.contains(IMAGE));
@@ -179,20 +190,22 @@ fn issue_95_the_docker_client_sees_no_token_from_the_environment() {
     let fake = Fake::new(0, 0, 0);
     let _c = Container::start(&fake.config()).unwrap();
     let env = fake.env();
-    for var in ["GH_TOKEN", "GITHUB_TOKEN", "AWS_", "ANTHROPIC", "SSH_AUTH_SOCK", "HOME="] {
-        assert!(!env.contains(var), "{var} reached docker: {env}");
+    assert!(env.contains("PATH="), "the probe saw an environment at all: {env:?}");
+    // Whatever the runner has set, docker sees PATH and the three daemon-selection variables only.
+    for line in env.lines() {
+        let name = line.split('=').next().unwrap();
+        assert!(
+            ["PATH", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "PWD", "SHLVL", "_", "OLDPWD"]
+                .contains(&name),
+            "{name} reached docker"
+        );
     }
-    assert!(env.contains("PATH="), "{env}");
 }
 
 // ---- unavailable docker, and the policy ------------------------------------------------------
 
 fn missing() -> Config {
-    Config {
-        image: IMAGE.to_string(),
-        mount: std::env::temp_dir(),
-        search_path: Some(empty_dir()),
-    }
+    Config { image: IMAGE.to_string(), mount: std::env::temp_dir(), search_path: Some(empty_dir()) }
 }
 
 #[test]
@@ -240,9 +253,12 @@ fn issue_95_ci_fails_even_when_the_dev_variable_is_also_set() {
 
 #[test]
 fn issue_95_only_an_explicit_dev_value_marks_a_developer_run() {
-    for (v, dev) in [("1", true), ("true", true), ("0", false), ("", false), ("false", false), ("no", false)] {
-        let leaked: &'static [(&'static str, &'static str)] =
-            Box::leak(Box::new([("PVEC_DEV_RUN", Box::leak(v.to_string().into_boxed_str()) as &'static str)]));
+    for (v, dev) in [("1", true), ("true", true), ("0", false), ("", false), ("false", false), ("no", false)]
+    {
+        let leaked: &'static [(&'static str, &'static str)] = Box::leak(Box::new([(
+            "PVEC_DEV_RUN",
+            Box::leak(v.to_string().into_boxed_str()) as &'static str,
+        )]));
         let p = Policy::from_lookup(&env_of(leaked));
         assert_eq!(p.kind() == RunKind::Developer, dev, "PVEC_DEV_RUN={v:?}");
     }

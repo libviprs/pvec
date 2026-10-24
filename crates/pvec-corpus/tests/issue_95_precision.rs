@@ -34,7 +34,9 @@ fn issue_95_a_declared_precision_is_kept() {
 fn issue_95_more_digits_than_declared_fails_the_load() {
     // 17 significant digits written, 15 declared.
     match scalar("0.30000000000000004", &hex(0.1 + 0.2), Some("15")) {
-        Err(CorpusError::PrecisionExceeded { digits, declared, .. }) => assert_eq!((digits, declared), (17, 15)),
+        Err(CorpusError::PrecisionExceeded { digits, declared, .. }) => {
+            assert_eq!((digits, declared), (17, 15))
+        }
         other => panic!("{other:?}"),
     }
     assert!(matches!(
@@ -47,15 +49,14 @@ fn issue_95_more_digits_than_declared_fails_the_load() {
 fn issue_95_a_declaration_below_what_the_hex_needs_fails_the_load() {
     // 0.1+0.2 needs 17 digits to round-trip; declaring 16 cannot be honest.
     match scalar("0.30000000000000004", &hex(0.1 + 0.2), Some("16")) {
-        Err(CorpusError::PrecisionTooLow { needed, declared, .. }) => assert_eq!((needed, declared), (17, 16)),
+        Err(CorpusError::PrecisionTooLow { needed, declared, .. }) => {
+            assert_eq!((needed, declared), (17, 16))
+        }
         Err(CorpusError::PrecisionExceeded { .. }) => {}
         other => panic!("{other:?}"),
     }
     // A short decimal that does not reach the hex fails whatever it declares.
-    assert!(matches!(
-        scalar("0.3", &hex(0.1 + 0.2), Some("17")),
-        Err(CorpusError::DecimalMismatch { .. })
-    ));
+    assert!(matches!(scalar("0.3", &hex(0.1 + 0.2), Some("17")), Err(CorpusError::DecimalMismatch { .. })));
 }
 
 #[test]
@@ -80,7 +81,11 @@ fn issue_95_significant_digits_are_counted_as_written() {
         // Declare exactly the count: it loads. One fewer: it does not.
         assert!(scalar(decimal, &hex(x), Some(&digits.to_string())).is_ok(), "{decimal} at {digits}");
         if digits > 1 {
-            assert!(scalar(decimal, &hex(x), Some(&(digits - 1).to_string())).is_err(), "{decimal} at {}", digits - 1);
+            assert!(
+                scalar(decimal, &hex(x), Some(&(digits - 1).to_string())).is_err(),
+                "{decimal} at {}",
+                digits - 1
+            );
         }
     }
 }
@@ -93,15 +98,23 @@ fn issue_95_the_error_names_the_place_and_both_counts() {
 
 #[test]
 fn issue_95_a_declared_precision_is_enforced_inside_a_record_too() {
-    let text = r#"{"center": {"decimal": "0.50", "f64_hex": "0x3fe0000000000000", "precision": 1}}"#;
-    let err = ExpectedMath::parse_record(text.as_bytes()).unwrap_err();
-    assert!(matches!(err, CorpusError::PrecisionExceeded { .. }), "{err:?}");
-    let ok = r#"{"center": {"decimal": "0.5", "f64_hex": "0x3fe0000000000000", "precision": 1}}"#;
-    assert!(ExpectedMath::parse_record(ok.as_bytes()).is_ok());
+    let bundle = pvec_corpus::Bundle::vendored().unwrap();
+    let original =
+        String::from_utf8(bundle.file("fixtures/circle-001/expected.math.json").unwrap().to_vec()).unwrap();
+    // The centre's x is `1.5`, two significant digits as written.
+    let marker = r#""f64_hex": "0x3ff8000000000000""#;
+    assert!(original.contains(marker));
+    let with = |p: u32| original.replacen(marker, &format!(r#"{marker}, "precision": {p}"#), 1);
+    let err = ExpectedMath::parse(with(1).as_bytes()).unwrap_err();
+    assert!(matches!(err, CorpusError::PrecisionExceeded { digits: 2, declared: 1, .. }), "{err:?}");
+    assert!(err.to_string().contains("entities[0].geometry.center[0]"), "{err}");
+    let ok = ExpectedMath::parse(with(2).as_bytes()).unwrap();
+    let declared: Vec<_> = ok.scalars().into_iter().filter_map(|(_, s)| s.precision()).collect();
+    assert_eq!(declared, [2]);
 }
 
 #[test]
 fn issue_95_the_vendored_bundle_still_loads_with_no_declarations() {
     let bundle = pvec_corpus::Bundle::vendored().unwrap();
-    assert!(bundle.paths().count() > 0);
+    assert!(!bundle.paths().is_empty());
 }
