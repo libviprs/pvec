@@ -201,6 +201,13 @@ const NAMED: &[(Family, &str)] = &[
     (Family::Corruption, "corruption/stream_length_lies"),
     (Family::Corruption, "corruption/stream_set_trailing_bytes"),
     (Family::Corruption, "corruption/stream_reserved_nonzero"),
+    (Family::Corruption, "corruption/manifest_not_after_header"),
+    (Family::Corruption, "corruption/capabilities_out_of_order"),
+    (Family::Corruption, "corruption/record_count_disagrees_with_directory"),
+    (Family::Corruption, "corruption/arena_block_missing"),
+    (Family::Corruption, "corruption/directory_empty"),
+    (Family::Corruption, "corruption/padding_nonzero_between_blocks"),
+    (Family::Corruption, "corruption/padding_nonzero_before_directory"),
 ];
 
 #[test]
@@ -753,4 +760,88 @@ fn the_cases_for_later_issues_are_well_formed_files_that_only_the_missing_featur
         assert!(read(&bytes).is_ok(), "{}: only an integrity check may refuse this file", c.name);
         assert!(matches!(&c.expect, Expect::Refuse(r) if r[0].starts_with("INTEGRITY-")), "{}", c.name);
     }
+}
+
+/// Reference rules no case can reach, and why. Everything else the reference defines is pinned by a case.
+const DEFENSIVE: &[(&str, &str)] = &[
+    (
+        "LAYOUT-05",
+        "a block or the directory outside the file: the header, the manifest pointer and parse_directory_checked refuse every such file first",
+    ),
+    (
+        "LAYOUT-07",
+        "a block that overlaps the one before it or runs into the directory: DIR-08 and DIR-11 refuse it first",
+    ),
+    (
+        "NEGOTIATE-01",
+        "pinned by a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_know",
+    ),
+];
+
+#[test]
+fn every_layout_consistency_and_limit_rule_of_the_reference_is_pinned_by_a_case_or_declared_unreachable() {
+    let (_, cases) = corpus();
+    let pinned: BTreeSet<&str> = cases
+        .iter()
+        .filter_map(|c| if let Expect::Refuse(r) = &c.expect { Some(r.iter().copied()) } else { None })
+        .flatten()
+        .collect();
+    let source = include_str!("../src/reference.rs");
+    let mut defined = BTreeSet::new();
+    for prefix in ["LAYOUT-", "CONSIST-", "LIMIT-", "NEGOTIATE-"] {
+        for (at, _) in source.match_indices(&format!("\"{prefix}")) {
+            defined.insert(source[at + 1..at + 1 + prefix.len() + 2].to_string());
+        }
+    }
+    assert!(defined.len() >= 14, "{defined:?}");
+    for rule in &defined {
+        let declared = DEFENSIVE.iter().any(|(r, _)| r == rule);
+        assert!(
+            pinned.contains(rule.as_str()) != declared,
+            "{rule}: pinned by a case = {}, declared unreachable = {declared}; it has to be exactly one",
+            pinned.contains(rule.as_str())
+        );
+    }
+}
+
+#[test]
+fn a_sweep_case_wants_a_rule_the_container_knows_not_just_any_refusal() {
+    let names = ["truncation/prefix/drawing/100", "truncation/remove_byte/drawing/100"];
+    let report = run_subset(WrongRule, &names, Limits::default());
+    assert_eq!(report.failures.len(), 2, "{}", report.summary());
+    assert!(
+        report.failures.iter().all(|(_, f)| matches!(f, Failure::WrongRule { got, .. } if got == "XX-00"))
+    );
+}
+
+/// Allocates 64 KiB on every read: little, but 60 times what the reference ever needs for a small file.
+struct AllocatesSixtyFourKiB;
+impl Reader for AllocatesSixtyFourKiB {
+    fn name(&self) -> String {
+        "allocates 64 KiB".into()
+    }
+    fn provides(&self) -> Vec<Requires> {
+        vec![Requires::Parse]
+    }
+    fn read(&self, bytes: &[u8]) -> Verdict {
+        let v = vec![1u8; 64 << 10];
+        std::hint::black_box(&v);
+        ReferenceReader::new().read(bytes)
+    }
+}
+
+#[test]
+fn the_allocation_floor_is_calibrated_to_the_reference_and_catches_a_small_waste() {
+    let limits = Limits::default();
+    assert!(limits.alloc_floor <= 16 << 10, "the floor is {}", limits.alloc_floor);
+    let ok = run_full(ReferenceReader::new(), limits);
+    assert!(ok.passed(), "{}", ok.summary());
+    assert!(
+        ok.peak_allocation < limits.alloc_floor,
+        "calibration: the reference peaked at {}",
+        ok.peak_allocation
+    );
+    let report = run_subset(AllocatesSixtyFourKiB, &["offsets/block_offset_past_eof"], limits);
+    assert_eq!(report.failures.len(), 1, "{}", report.summary());
+    assert!(matches!(report.failures[0].1, Failure::Allocated { .. }));
 }

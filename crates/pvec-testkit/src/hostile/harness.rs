@@ -19,7 +19,9 @@
 //!
 //! The counting allocator has to be a `#[global_allocator]` and so needs `unsafe`; this crate has
 //! none, so the allocator lives in the test binary (`tests/support/counting_alloc.rs`) and is handed in
-//! through [`Meter`].
+//! through [`Meter`]. It counts the thread that calls it: a reader that hands the work to another
+//! thread is not measured, so such a reader has to be given a meter that counts the process (and
+//! the tests that use it must not share the process with other work).
 
 use super::bases::Base;
 use super::catalog::{Case, Expect, Requires};
@@ -87,6 +89,9 @@ pub struct Limits {
     pub case_timeout: Duration,
 }
 
+/// The defaults are calibrated, not guessed: the reference reader's largest single read over the whole
+/// corpus (22,620 reads, 20 bases) requested 6,522 bytes, so a floor of 16 KiB is 2.5 times that, and
+/// the per-byte allowance covers the copy a reader makes of each block it parses.
 impl Default for Limits {
     fn default() -> Limits {
         Limits { alloc_per_byte: 16, alloc_floor: 1 << 20, case_timeout: Duration::from_secs(10) }
@@ -135,6 +140,9 @@ pub struct Report {
     pub failures: Vec<(String, Failure)>,
     /// The most any read requested.
     pub peak_allocation: usize,
+    /// The most any read requested per byte of its input, in thousandths (a read of a 64 byte input
+    /// that requested 6400 bytes is 100000).
+    pub peak_milli_per_byte: usize,
 }
 
 impl Report {
@@ -195,6 +203,7 @@ fn repaired_reads(reader: &dyn Reader, bases: &[Base], base: usize, cache: &Cach
 struct Judged {
     failure: Option<Failure>,
     allocated: usize,
+    len: usize,
 }
 
 fn judge(
@@ -209,7 +218,7 @@ fn judge(
     let mut verdict = None;
     let allocated = meter.measure(&mut || verdict = Some(guarded(reader, &bytes)));
     let verdict = verdict.expect("the closure ran");
-    let fail = |failure| Judged { failure: Some(failure), allocated };
+    let fail = |failure| Judged { failure: Some(failure), allocated, len: bytes.len() };
     let verdict = match verdict {
         Ok(v) => v,
         Err(f) => return fail(f),
@@ -236,7 +245,7 @@ fn judge(
     if allocated > allowed {
         return fail(Failure::Allocated { bytes: allocated, allowed });
     }
-    Judged { failure: repaired_reads(reader, bases, case.base, cache), allocated }
+    Judged { failure: repaired_reads(reader, bases, case.base, cache), allocated, len: bytes.len() }
 }
 
 /// Keeps the panic message of a reader under test off stderr: the harness reports it, and a run of a
@@ -278,12 +287,13 @@ pub fn run(
             .name(format!("hostile-{index}"))
             .spawn(move || {
                 let j = judge(&*r, &*m, &b, &c[index], &limits, &cc);
-                let _ = tx.send((j.failure, j.allocated));
+                let _ = tx.send((j.failure, j.allocated, j.len));
             })
             .expect("a thread");
         match rx.recv_timeout(limits.case_timeout) {
-            Ok((failure, allocated)) => {
+            Ok((failure, allocated, len)) => {
                 report.peak_allocation = report.peak_allocation.max(allocated);
+                report.peak_milli_per_byte = report.peak_milli_per_byte.max(allocated * 1000 / len.max(1));
                 if let Some(f) = failure {
                     report.failures.push((case.name.clone(), f));
                 }
