@@ -28,7 +28,7 @@
 //! # What is refused, and why that is the point
 //!
 //! Anything the capability set cannot hold exactly is refused with the missing capability named
-//! ([`Cause::MissingCapability`]), never approximated: a bulge (a composite of arcs), a periodic
+//! ([`Cause::MissingCapability`]), never approximated: a bulge (an arc whose angles need atan2), a periodic
 //! B-spline, an ellipse or circle whose frame is rotated (its angle needs `atan2`, whose last bit
 //! belongs to the C library and not to the format), geometry off the drawing plane, layer state, and
 //! an instance with a transform. One entity that cannot be held refuses the whole fixture, so no
@@ -387,8 +387,8 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
             for b in bulges {
                 if cx.real(Some(b), "bulges")? != 0.0 {
                     return Err(cx.missing(
-                        "composite_curve",
-                        "a bulge is an arc segment, which is a composite of lines and trimmed circles; the container's composite references splines only",
+                        "trimmed_curve",
+                        "a bulge is one circular arc between two vertices; storing it needs the arc's start angle and sweep, which come from atan2 (its last bit is the C library's, not the format's), so it stays refused until pvec-geometry has an exact constructor (#91, from_bulge)",
                     ));
                 }
             }
@@ -528,8 +528,8 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
         }
         if e.node.get("layer").is_some() {
             return Err(cx.missing(
-                "layer",
-                "the record carries layer on/frozen state, which the layer stream has no field for (it stores a name table and an index per entity)",
+                "layer (on/frozen state)",
+                "the `layer` capability exists, but its stream stores a name table and an index per entity and has no field for whether a layer is on or frozen, which this record carries",
             ));
         }
         let (shape, needs) = shape_of(fixture, e)?;
