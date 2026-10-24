@@ -83,6 +83,12 @@ macro_rules! dispatch {
 }
 
 impl Curve {
+    /// The canonical curve for a trim of a circle or an ellipse. Not implemented yet: it is the
+    /// trimmed curve of [`Trimmed::new`] in every case.
+    pub fn trimmed_conic(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Curve> {
+        Trimmed::new(basis, t1, t2, sense).map(Curve::Trimmed)
+    }
+
     /// How deeply curves are nested, counting the outermost as 1 (NP-18 allows at most 4). The
     /// structure of the profile keeps this at 3 or less.
     pub fn nesting_depth(&self) -> usize {
@@ -279,6 +285,11 @@ impl Trimmed {
             _ => return Err(GeometryError::BadBasis),
         }
         Ok(Trimmed { basis: Box::new(basis), trim: Trim { start, span, reversed: trim.reversed } })
+    }
+
+    /// Whether the trim covers the whole period of a circle or ellipse basis. Not implemented yet.
+    pub fn is_full_period(&self) -> bool {
+        false
     }
 
     /// The curve being trimmed.

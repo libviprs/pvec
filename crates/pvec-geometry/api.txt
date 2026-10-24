@@ -38,6 +38,7 @@ curve.rs: Curve::Composite(Composite)
 curve.rs: Curve::Bezier(Bezier)
 curve.rs: Curve::BSpline(BSpline)
 curve.rs: Curve::RationalBSpline(RationalBSpline)
+curve.rs: Curve::trimmed_conic(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Curve>
 curve.rs: Curve::nesting_depth(&self) -> usize
 curve.rs: impl Curve2d for Curve
 curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Polyline
@@ -48,6 +49,7 @@ curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Trimmed
 curve.rs: Trimmed::new(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Trimmed>
 curve.rs: Trimmed::from_normalised(basis: Curve, trim: Trim) -> Result<Trimmed>
 curve.rs: Trimmed::basis(&self) -> &Curve
+curve.rs: Trimmed::is_full_period(&self) -> bool
 curve.rs: Trimmed::trim(&self) -> Trim
 curve.rs: impl Curve2d for Trimmed
 curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Composite
