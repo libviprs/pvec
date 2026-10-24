@@ -5,6 +5,7 @@ use crate::spec::{MAX_STRING_LEN, cap, dir, m};
 use crate::{ContainerError, Header};
 use pvec_capabilities::{CapabilityId, Declaration, Declared, Requirement, Version};
 use pvec_numeric::check_value;
+use std::collections::HashSet;
 
 /// The unit of length of source space, with its ISO declaration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -236,21 +237,34 @@ impl Manifest {
         if end > b.len() as u64 {
             return Err(truncated(end));
         }
-        if header.directory_table_offset != header.manifest_offset + dir_start
+        if header.directory_table_offset != header.manifest_offset.saturating_add(dir_start)
             || header.directory_table_length != dir_count * dir::SIZE as u64
         {
             return Err(ContainerError::DirectoryTableMismatch);
         }
 
         let floor = header.header_len as u64;
+        let (man_start, man_end) = (header.manifest_offset, header.manifest_offset.saturating_add(declared));
+        // A directory or the checksum table that overlaps the manifest's own bytes can only be a
+        // corrupt or hostile pointer, so it is refused here rather than left for P4.2 and P4.6.
+        let outside_manifest = |field: &'static str, offset: u64, length: u64| {
+            if offset < man_end && offset + length > man_start {
+                Err(ContainerError::PointerIntoManifest { field, offset, length })
+            } else {
+                Ok(())
+            }
+        };
         let mut capabilities: Vec<Declared> = Vec::with_capacity(cap_count as usize);
+        // A set keeps the duplicate check linear: the count is bounded by the manifest's own length
+        // (checked above), but a quadratic scan over 65k entries is still billions of comparisons.
+        let mut seen: HashSet<u32> = HashSet::with_capacity(cap_count as usize);
         for i in 0..cap_count as usize {
             let e = &b[cap_start as usize + i * cap::SIZE..][..cap::SIZE];
             let id = u32_at(e, cap::ID);
             if id == 0 {
                 return Err(ContainerError::ZeroCapabilityId);
             }
-            if capabilities.iter().any(|c| c.id.get() == id) {
+            if !seen.insert(id) {
                 return Err(ContainerError::DuplicateCapability { id });
             }
             let requirement = match e[cap::REQUIREMENT] {
@@ -276,6 +290,7 @@ impl Manifest {
             }
             let (offset, length) = (u64_at(e, dir::OFFSET), u64_at(e, dir::LENGTH));
             check_range("directory", offset, length, floor, artifact_len)?;
+            outside_manifest("directory", offset, length)?;
             directories.push(DirectoryPointer { kind: u32_at(e, dir::KIND), offset, length });
         }
 
@@ -285,6 +300,7 @@ impl Manifest {
             None
         } else {
             check_range("block_checksums", cs_offset, cs_length, floor, artifact_len)?;
+            outside_manifest("block_checksums", cs_offset, cs_length)?;
             Some(ByteRange { offset: cs_offset, length: cs_length })
         };
 
@@ -333,7 +349,36 @@ impl Manifest {
     }
 
     /// The canonical encoding.
-    pub fn encode(&self) -> Vec<u8> {
+    ///
+    /// Fails for anything `Manifest::parse` would refuse on its own terms: an empty producer id, a
+    /// string over `MAX_STRING_LEN` bytes, or a manifest over `Manifest::MAX_LEN`. The checks run
+    /// before any length is narrowed to a `u32`, so an oversized string cannot wrap.
+    pub fn encode(&self) -> Result<Vec<u8>, ContainerError> {
+        let corpus = self.metadata.corpus_revision.as_deref().unwrap_or("");
+        let strings = [
+            ("producer_id", self.metadata.producer_id.as_str()),
+            ("producer_version", self.metadata.producer_version.as_str()),
+            ("corpus_revision", corpus),
+        ];
+        for (field, text) in strings {
+            if text.len() > MAX_STRING_LEN as usize {
+                let length = u32::try_from(text.len()).unwrap_or(u32::MAX);
+                return Err(ContainerError::StringTooLong { field, length });
+            }
+        }
+        if self.metadata.producer_id.is_empty() {
+            return Err(ContainerError::MissingProducer);
+        }
+        let padded = |n: u64| (n + 7) & !7;
+        let size = padded(
+            Manifest::FIXED_LEN as u64
+                + self.capabilities.len() as u64 * cap::SIZE as u64
+                + self.directories.len() as u64 * dir::SIZE as u64
+                + strings.iter().map(|(_, t)| t.len() as u64).sum::<u64>(),
+        );
+        if size > Manifest::MAX_LEN {
+            return Err(ContainerError::ManifestTooLarge { length: size });
+        }
         let mut b = vec![0u8; Manifest::FIXED_LEN];
         let put16 = |b: &mut Vec<u8>, at: usize, v: u16| b[at..at + 2].copy_from_slice(&v.to_le_bytes());
         let put32 = |b: &mut Vec<u8>, at: usize, v: u32| b[at..at + 4].copy_from_slice(&v.to_le_bytes());
@@ -361,7 +406,6 @@ impl Manifest {
         if let Some(d) = self.artifact_digest {
             b[m::ARTIFACT_DIGEST..m::ARTIFACT_DIGEST + 32].copy_from_slice(&d);
         }
-        let corpus = self.metadata.corpus_revision.as_deref().unwrap_or("");
         put32(&mut b, m::PRODUCER_ID_LEN, self.metadata.producer_id.len() as u32);
         put32(&mut b, m::PRODUCER_VERSION_LEN, self.metadata.producer_version.len() as u32);
         put32(&mut b, m::CORPUS_REVISION_LEN, corpus.len() as u32);
@@ -390,7 +434,7 @@ impl Manifest {
         while b.len() % 8 != 0 {
             b.push(0);
         }
-        b
+        Ok(b)
     }
 
     /// The capability declaration P4.7 negotiates against.

@@ -241,6 +241,7 @@ error.rs: ContainerError::UnsupportedByteOrder { found: u32 }
 error.rs: ContainerError::Truncated { needed: u64, got: u64 }
 error.rs: ContainerError::BadHeaderLength { found: u32 }
 error.rs: ContainerError::PointerOutOfRange { field: &'static str, offset: u64, length: u64, artifact_len: u64 }
+error.rs: ContainerError::PointerIntoManifest { field: &'static str, offset: u64, length: u64 }
 error.rs: ContainerError::ManifestTooLarge { length: u64 }
 error.rs: ContainerError::UnknownChecksumAlgorithm { id: u8 }
 error.rs: ContainerError::NonZeroReserved { field: &'static str }
@@ -253,6 +254,7 @@ error.rs: ContainerError::ZeroCapabilityId
 error.rs: ContainerError::DuplicateCapability { id: u32 }
 error.rs: ContainerError::InvalidRequirement { id: u32, value: u8 }
 error.rs: ContainerError::DirectoryTableMismatch
+error.rs: ContainerError::BadDirectoryTableLength { length: u64 }
 error.rs: ContainerError::MissingProducer
 error.rs: ContainerError::StringTooLong { field: &'static str, length: u32 }
 error.rs: ContainerError::InvalidUtf8 { field: &'static str }
@@ -329,7 +331,7 @@ manifest.rs: Manifest.metadata: Metadata
 manifest.rs: Manifest::const FIXED_LEN: usize
 manifest.rs: Manifest::const MAX_LEN: u64
 manifest.rs: Manifest::parse(bytes: &[u8], header: &Header, artifact_len: u64) -> Result<Manifest, ContainerError>
-manifest.rs: Manifest::encode(&self) -> Vec<u8>
+manifest.rs: Manifest::encode(&self) -> Result<Vec<u8>, ContainerError>
 manifest.rs: Manifest::declaration(&self) -> Declaration
 spec.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct FieldSpec
 spec.rs: FieldSpec.name: &'static str

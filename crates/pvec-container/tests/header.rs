@@ -260,3 +260,64 @@ fn no_input_makes_the_header_parser_panic() {
         let _ = parse(&vec![0u8; n]);
     }
 }
+
+#[test]
+fn a_future_major_with_a_header_shorter_than_the_fixed_one_is_unsupported_not_truncated() {
+    // The major is at offset 8, so ten bytes are enough to tell what the file is.
+    for major in [2u16, 3, u16::MAX] {
+        let full = with(&HEADER_BYTES, 8, &major.to_le_bytes());
+        for n in 10..Header::LEN {
+            assert_eq!(
+                parse(&full[..n]),
+                Err(ContainerError::UnsupportedVersion { found: major, supported: 1 }),
+                "major {major}, {n} bytes"
+            );
+        }
+    }
+}
+
+#[test]
+fn major_zero_with_a_short_prefix_is_unsupported_too() {
+    let full = with(&HEADER_BYTES, 8, &0u16.to_le_bytes());
+    assert_eq!(parse(&full[..10]), Err(ContainerError::UnsupportedVersion { found: 0, supported: 1 }));
+}
+
+#[test]
+fn a_supported_major_with_a_short_prefix_is_still_truncated() {
+    for n in 8..Header::LEN {
+        assert!(matches!(parse(&HEADER_BYTES[..n]), Err(ContainerError::Truncated { .. })), "{n} bytes");
+    }
+}
+
+#[test]
+fn a_prefix_too_short_to_hold_the_major_is_truncated() {
+    for n in 8..10 {
+        assert!(matches!(parse(&HEADER_BYTES[..n]), Err(ContainerError::Truncated { .. })), "{n} bytes");
+    }
+}
+
+#[test]
+fn a_directory_table_length_that_is_not_a_multiple_of_24_is_refused_by_the_header_alone() {
+    for length in [1u64, 23, 25, 47, 49, 100] {
+        assert_eq!(
+            parse(&with(&HEADER_BYTES, 48, &length.to_le_bytes())),
+            Err(ContainerError::BadDirectoryTableLength { length }),
+            "length {length}"
+        );
+    }
+}
+
+#[test]
+fn a_directory_table_length_that_is_a_multiple_of_24_is_accepted() {
+    for length in [0u64, 24, 48, 24 * 100] {
+        let h = parse(&with(&HEADER_BYTES, 48, &length.to_le_bytes())).unwrap();
+        assert_eq!(h.directory_table_length, length);
+    }
+}
+
+#[test]
+fn a_pointer_past_the_end_is_still_reported_as_a_pointer_before_the_multiple_rule() {
+    // 8192 is not a multiple of 24 either, but the range check names the real problem first.
+    let b = with(&HEADER_BYTES, 48, &(ARTIFACT_LEN).to_le_bytes());
+    assert!(matches!(parse(&b), Err(ContainerError::PointerOutOfRange { field: "directory_table", .. })));
+}

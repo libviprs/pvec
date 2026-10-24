@@ -3,7 +3,7 @@
 mod common;
 
 use common::*;
-use pvec_capabilities::{CapabilityId, Declaration, Requirement, Version};
+use pvec_capabilities::{CapabilityId, Declaration, Declared, Requirement, Version};
 use pvec_container::*;
 use pvec_numeric::NumericError;
 
@@ -24,13 +24,13 @@ fn the_fixture_manifest_parses_to_the_expected_fields() {
 
 #[test]
 fn the_encoding_of_the_expected_manifest_is_the_fixture_byte_for_byte() {
-    assert_eq!(expected_manifest().encode(), MANIFEST_BYTES.to_vec());
+    assert_eq!(expected_manifest().encode().unwrap(), MANIFEST_BYTES.to_vec());
 }
 
 #[test]
 fn a_manifest_round_trips() {
     let man = expected_manifest();
-    assert_eq!(m(&man.encode()).unwrap(), man);
+    assert_eq!(m(&man.encode().unwrap()).unwrap(), man);
 }
 
 #[test]
@@ -350,7 +350,7 @@ fn string_fields_are_bounded_and_utf8() {
 fn the_corpus_revision_is_optional_and_padding_must_be_zero() {
     let mut man = expected_manifest();
     man.metadata.corpus_revision = None;
-    let bytes = man.encode();
+    let bytes = man.encode().unwrap();
     let h = Header { manifest_length: bytes.len() as u64, directory_table_length: 48, ..expected_header() };
     assert_eq!(Manifest::parse(&bytes, &h, ARTIFACT_LEN).unwrap(), man);
     // the pad byte after "r1" is at 208 + 8 + 5 + 2
@@ -368,5 +368,194 @@ fn no_input_makes_the_manifest_parser_panic() {
     for n in 0..300 {
         let _ = m(&vec![0xff; n]);
         let _ = m(&vec![0u8; n]);
+    }
+}
+
+// Review findings on PR 85.
+
+/// A manifest of `ids` capabilities and nothing else, with a header that places it correctly.
+fn manifest_with_capabilities(ids: &[u32]) -> (Manifest, Vec<u8>, Header) {
+    let mut man = expected_manifest();
+    man.directories.clear();
+    man.block_checksums = None;
+    man.artifact_digest = None;
+    man.capabilities = ids
+        .iter()
+        .map(|id| Declared {
+            id: CapabilityId::new(*id),
+            requirement: Requirement::Optional,
+            version: Version::new(1, 0, 0),
+        })
+        .collect();
+    let bytes = man.encode().unwrap();
+    let header = Header {
+        manifest_length: bytes.len() as u64,
+        directory_table_offset: 64 + 128 + 16 * ids.len() as u64,
+        directory_table_length: 0,
+        ..expected_header()
+    };
+    (man, bytes, header)
+}
+
+fn timed<T>(f: impl FnOnce() -> T) -> (T, std::time::Duration) {
+    let start = std::time::Instant::now();
+    let out = f();
+    (out, start.elapsed())
+}
+
+const HOSTILE_COUNT: u32 = 60_000;
+const TIME_BOUND: std::time::Duration = std::time::Duration::from_secs(2);
+
+#[test]
+fn a_manifest_of_tens_of_thousands_of_distinct_capabilities_parses_in_bounded_time() {
+    let ids: Vec<u32> = (1..=HOSTILE_COUNT).collect();
+    let (man, bytes, header) = manifest_with_capabilities(&ids);
+    assert!(bytes.len() as u64 <= Manifest::MAX_LEN);
+    let (parsed, took) = timed(|| Manifest::parse(&bytes, &header, 1 << 22));
+    assert_eq!(parsed.unwrap(), man);
+    assert!(took < TIME_BOUND, "parsing {HOSTILE_COUNT} capabilities took {took:?}");
+}
+
+#[test]
+fn a_duplicate_hidden_behind_tens_of_thousands_of_capabilities_is_refused_in_bounded_time() {
+    let mut ids: Vec<u32> = (1..=HOSTILE_COUNT).collect();
+    *ids.last_mut().unwrap() = 1;
+    let (_, bytes, header) = manifest_with_capabilities(&ids);
+    let (parsed, took) = timed(|| Manifest::parse(&bytes, &header, 1 << 22));
+    assert_eq!(parsed, Err(ContainerError::DuplicateCapability { id: 1 }));
+    assert!(took < TIME_BOUND, "refusing {HOSTILE_COUNT} capabilities took {took:?}");
+}
+
+#[test]
+fn a_duplicate_is_still_refused_whichever_way_round_the_ids_are_listed() {
+    for ids in [[5u32, 9, 5], [9, 5, 5], [5, 5, 9], [7, 7, 7]] {
+        let (_, bytes, header) = manifest_with_capabilities(&ids);
+        let dup = ids.iter().copied().find(|i| ids.iter().filter(|j| *j == i).count() > 1).unwrap();
+        assert_eq!(
+            Manifest::parse(&bytes, &header, 1 << 22),
+            Err(ContainerError::DuplicateCapability { id: dup }),
+            "{ids:?}"
+        );
+    }
+}
+
+#[test]
+fn a_directory_pointer_into_the_manifest_is_refused() {
+    // The fixture manifest occupies 64..288. Directory 1's offset is at manifest byte 168.
+    for offset in [64u64, 100, 287] {
+        let b = with(&MANIFEST_BYTES, 168, &offset.to_le_bytes());
+        assert_eq!(
+            m(&b),
+            Err(ContainerError::PointerIntoManifest { field: "directory", offset, length: 2048 }),
+            "offset {offset}"
+        );
+    }
+    // A directory that starts before the manifest and runs into it is refused too (the floor is the
+    // header length, so 64 is the lowest legal offset and the manifest starts there).
+    let b = with(&with(&MANIFEST_BYTES, 168, &64u64.to_le_bytes()), 176, &8u64.to_le_bytes());
+    assert!(matches!(m(&b), Err(ContainerError::PointerIntoManifest { field: "directory", .. })));
+}
+
+#[test]
+fn a_directory_pointer_that_starts_where_the_manifest_ends_is_accepted() {
+    let b = with(&with(&MANIFEST_BYTES, 168, &288u64.to_le_bytes()), 176, &16u64.to_le_bytes());
+    assert_eq!(m(&b).unwrap().directories[0], DirectoryPointer { kind: 1, offset: 288, length: 16 });
+}
+
+#[test]
+fn a_block_checksum_table_inside_the_manifest_is_refused() {
+    for offset in [64u64, 200, 287] {
+        let b = with(&with(&MANIFEST_BYTES, 64, &offset.to_le_bytes()), 72, &8u64.to_le_bytes());
+        assert_eq!(
+            m(&b),
+            Err(ContainerError::PointerIntoManifest { field: "block_checksums", offset, length: 8 }),
+            "offset {offset}"
+        );
+    }
+}
+
+#[test]
+fn a_block_checksum_table_that_starts_where_the_manifest_ends_is_accepted() {
+    let b = with(&with(&MANIFEST_BYTES, 64, &288u64.to_le_bytes()), 72, &64u64.to_le_bytes());
+    assert_eq!(m(&b).unwrap().block_checksums, Some(ByteRange { offset: 288, length: 64 }));
+}
+
+fn with_metadata(f: impl FnOnce(&mut Metadata)) -> Manifest {
+    let mut man = expected_manifest();
+    f(&mut man.metadata);
+    man
+}
+
+#[test]
+fn encode_refuses_an_empty_producer_id() {
+    let man = with_metadata(|md| md.producer_id.clear());
+    assert_eq!(man.encode(), Err(ContainerError::MissingProducer));
+}
+
+#[test]
+fn encode_refuses_a_string_the_parser_would_refuse() {
+    let long = "a".repeat(1025);
+    assert_eq!(
+        with_metadata(|md| md.producer_id = long.clone()).encode(),
+        Err(ContainerError::StringTooLong { field: "producer_id", length: 1025 })
+    );
+    assert_eq!(
+        with_metadata(|md| md.producer_version = long.clone()).encode(),
+        Err(ContainerError::StringTooLong { field: "producer_version", length: 1025 })
+    );
+    assert_eq!(
+        with_metadata(|md| md.corpus_revision = Some(long.clone())).encode(),
+        Err(ContainerError::StringTooLong { field: "corpus_revision", length: 1025 })
+    );
+}
+
+#[test]
+fn encode_accepts_strings_at_the_bound_and_the_parser_reads_them_back() {
+    let full = "b".repeat(1024);
+    let man = with_metadata(|md| {
+        md.producer_id = full.clone();
+        md.producer_version = full.clone();
+        md.corpus_revision = Some(full.clone());
+    });
+    let bytes = man.encode().unwrap();
+    let header = Header {
+        manifest_length: bytes.len() as u64,
+        directory_table_length: 48,
+        directory_table_offset: 64 + 128 + 32,
+        ..expected_header()
+    };
+    assert_eq!(Manifest::parse(&bytes, &header, 1 << 22).unwrap(), man);
+}
+
+#[test]
+fn encode_refuses_a_manifest_the_parser_would_call_too_large() {
+    let mut man = expected_manifest();
+    man.capabilities = (1..=70_000u32)
+        .map(|id| Declared {
+            id: CapabilityId::new(id),
+            requirement: Requirement::Optional,
+            version: Version::new(1, 0, 0),
+        })
+        .collect();
+    assert!(matches!(man.encode(), Err(ContainerError::ManifestTooLarge { .. })));
+}
+
+#[test]
+fn every_manifest_encode_accepts_parses_back_to_itself() {
+    for producer in ["x", "acme-cad", "ünïcode"] {
+        for corpus in [None, Some("r1".to_string())] {
+            let man = with_metadata(|md| {
+                md.producer_id = producer.into();
+                md.corpus_revision = corpus.clone();
+            });
+            let bytes = man.encode().unwrap();
+            let header = Header {
+                manifest_length: bytes.len() as u64,
+                directory_table_length: 48,
+                directory_table_offset: 64 + 128 + 32,
+                ..expected_header()
+            };
+            assert_eq!(Manifest::parse(&bytes, &header, 1 << 22).unwrap(), man);
+        }
     }
 }
