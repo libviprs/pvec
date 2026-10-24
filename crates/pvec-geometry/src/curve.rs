@@ -242,6 +242,11 @@ impl Trimmed {
         Ok(Trimmed { basis: Box::new(basis), trim })
     }
 
+    /// Red-first stub of the bulge constructor (issue 91); the real one follows.
+    pub fn from_bulge(_p0: Point2, _p1: Point2, _bulge: f64) -> Result<Trimmed> {
+        unimplemented!("bulge constructor")
+    }
+
     /// Rebuilds a trimmed curve from an already normalised trim, keeping its numbers bit for bit.
     /// This is what a decoder uses; the trim is validated against the same rules as [`Trimmed::new`]
     /// but is not re-normalised, so a round trip cannot move a parameter.
