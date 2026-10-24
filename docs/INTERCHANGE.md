@@ -77,13 +77,14 @@ units. The export evaluates the curve only through `pvec-geometry`'s exact evalu
    the `error_bound` column of the feature.
 
 The bound is measured, not proven: a feature narrower than the sample spacing (a cusp inside one
-chord) could be missed. The tests compare it against an independent measurement at 6000 samples,
+chord) could be missed. The tests compare it against an independent measurement on its own grid of 1500 samples,
 which has to stay at or below the tolerance and not above the recorded value by more than one
 percent.
 
 A tolerance the coordinates cannot resolve is refused with `ToleranceUnreachable` rather than
-looped on: below eight times the spacing of the floating point numbers at the curve's magnitude, or
-when the subdivision would pass a million vertices or sixty levels. A tolerance that is zero,
+looped on: at or below four times the numeric policy's tolerance (NP-04) for the curve's magnitude, or when
+the subdivision would pass 250,000 vertices or sixty levels. An entity this happens to is recorded in
+the ledger as `Unsupported` with the reason, and the rest of the file is still written. A tolerance that is zero,
 negative or not finite is refused when the options are built.
 
 ### What is in the file

@@ -21,7 +21,7 @@ const REFERENCE_SEGMENTS: usize = 64;
 /// tolerance, so a recorded bound errs high.
 const SAFETY: f64 = 1.001;
 /// A bound on the vertices one curve may produce.
-const MAX_VERTICES: usize = 1_000_000;
+const MAX_VERTICES: usize = 250_000;
 /// Equal pieces every approximated curve starts from, so a closed or periodic curve is never one chord.
 const INITIAL_PIECES: usize = 8;
 
@@ -321,9 +321,9 @@ fn chord_deviation(curve: &Curve, a: f64, b: f64, pa: Pt, pb: Pt) -> Result<f64,
 
 fn approximate(curve: &Curve, tol: f64) -> Result<Done, GpkgError> {
     let mag = magnitude(curve)?;
-    // below the numeric policy's own tolerance for these coordinates (NP-04) a deviation cannot be told
-    // from rounding in the points
-    if tol < POLICY.tol(0.0, mag) {
+    // within a few times the numeric policy's own tolerance for these coordinates (NP-04) a deviation
+    // cannot be told from rounding in the points, and subdividing would only chase the noise
+    if tol <= 4.0 * POLICY.tol(0.0, mag) {
         return Err(GpkgError::ToleranceUnreachable { tolerance: tol });
     }
     let d = curve.domain();

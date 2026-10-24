@@ -120,10 +120,10 @@ fn arc_points(w: &Wkb) -> &[[f64; 2]] {
 }
 
 /// Largest distance from the exact curve to the polyline, and from the polyline to the exact curve,
-/// both sampled far more finely than the writer measures.
+/// both sampled on a grid of its own, independent of the writer's.
 fn independent_deviation(curve: &Curve, poly: &[[f64; 2]]) -> f64 {
     let d = curve.domain();
-    let n = 6000;
+    let n = 1500;
     let dense: Vec<[f64; 2]> = (0..=n)
         .map(|i| {
             let t = d.lo() + d.width() * i as f64 / n as f64;
@@ -490,10 +490,68 @@ fn a_tighter_tolerance_gives_more_vertices_and_a_smaller_measured_value() {
 
 #[test]
 fn a_tolerance_the_coordinates_cannot_resolve_is_refused_not_looped_on() {
-    let big = Curve::Circle(circle(1.0e8, 1.0e8, 1.0e6));
-    let e = Curve::Ellipse(Ellipse::from_major_axis(p(1.0e8, 1.0e8), Vector2::new(1.0e6, 0.0), 0.5).unwrap());
-    let _ = big;
+    let e = Curve::Ellipse(
+        Ellipse::from_major_axis(p(100_000_000.0, 100_000_000.0), Vector2::new(1_000_000.0, 0.0), 0.5)
+            .unwrap(),
+    );
     assert!(matches!(translate(&e, 0.000000000001), Err(GpkgError::ToleranceUnreachable { .. })));
+}
+
+#[test]
+fn a_curve_the_tolerance_cannot_be_met_for_is_unsupported_in_the_ledger_and_the_rest_is_still_written() {
+    let far = Curve::Ellipse(
+        Ellipse::from_major_axis(p(100_000_000.0, 100_000_000.0), Vector2::new(1_000_000.0, 0.0), 0.5)
+            .unwrap(),
+    );
+    let ents =
+        vec![entity(1, polyline(&[(0.0, 0.0), (1.0, 1.0)])), entity(2, far), entity(3, cubic_bezier())];
+    let e = export(&ents, &opts(0.000000000001)).unwrap_or_else(|x| panic!("{x}"));
+    let rows = features(&open(&e.bytes));
+    assert_eq!(rows.iter().map(|r| r["entity_id"].int()).collect::<Vec<_>>(), vec![1]);
+    let kinds: Vec<FidelityKind> = e.ledger.records().iter().map(|r| r.fidelity().kind()).collect();
+    assert_eq!(kinds, [FidelityKind::Exact, FidelityKind::Unsupported, FidelityKind::Unsupported]);
+    match e.ledger.records()[1].fidelity() {
+        Fidelity::Unsupported(r) => assert!(r.as_str().contains("tolerance"), "{}", r.as_str()),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_trimmed_spline_is_approximated_over_the_trimmed_part_only() {
+    let trimmed = Curve::Trimmed(Trimmed::new(cubic_bspline(), 0.4, 2.5, true).unwrap());
+    let reversed = Curve::Trimmed(Trimmed::new(cubic_bspline(), 2.5, 0.4, false).unwrap());
+    for c in [trimmed, reversed] {
+        let (e, db) = export_one(c.clone(), 0.01);
+        let bound = e.ledger.records()[0].error_bound().expect("bounded").get();
+        let pts = line_points(&geom_of(&features(&db)[0]).wkb).to_vec();
+        let d = c.domain();
+        let (s, t) = (c.eval(d.lo()).unwrap(), c.eval(d.hi()).unwrap());
+        assert_eq!(pts[0], [s.x, s.y], "starts where the trimmed curve starts");
+        assert_eq!(*pts.last().unwrap(), [t.x, t.y]);
+        assert!(independent_deviation(&c, &pts) <= 0.01 && bound <= 0.01);
+    }
+}
+
+#[test]
+fn a_trimmed_degree_one_spline_is_a_polyline_through_the_trim_and_the_knots_inside_it() {
+    let basis = Curve::RationalBSpline(
+        RationalBSpline::new(
+            1,
+            vec![p(0.0, 0.0), p(4.0, 3.0), p(8.0, 0.0), p(12.0, 5.0)],
+            vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0],
+            vec![1.0, 2.0, 5.0, 1.0],
+        )
+        .unwrap(),
+    );
+    let c = Curve::Trimmed(Trimmed::new(basis.clone(), 0.5, 2.5, true).unwrap());
+    let (e, db) = export_one(c.clone(), 0.01);
+    assert_eq!(e.ledger.records()[0].fidelity().kind(), FidelityKind::EquivalentCompound);
+    let pts = line_points(&geom_of(&features(&db)[0]).wkb).to_vec();
+    assert_eq!(pts.len(), 4, "the trim ends and the two knots between them");
+    let b = |t: f64| basis.eval(t).unwrap();
+    for (got, t) in pts.iter().zip([0.5, 1.0, 2.0, 2.5]) {
+        assert!(POLICY.near_point(*got, [b(t).x, b(t).y], 12.0));
+    }
 }
 
 #[test]

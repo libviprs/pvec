@@ -118,14 +118,25 @@ fn many(n: u32) -> Vec<GpkgEntity> {
         .collect()
 }
 
+/// A polyline of 5000 vertices and an ellipse at a tight tolerance, each a row bigger than a page, so the
+/// overflow chains are written and checked.
+fn big() -> Vec<GpkgEntity> {
+    let v = (0..5000).map(|i| p(f64::from(i), f64::from(i % 7))).collect();
+    vec![
+        ent(1, Curve::Polyline(Polyline::new(v).unwrap())),
+        ent(2, Curve::Ellipse(Ellipse::from_major_axis(p(0.0, 0.0), Vector2::new(500.0, 0.0), 0.3).unwrap())),
+    ]
+}
+
 fn main() {
     let dir = std::env::args().nth(1).expect("usage: gpkg_samples <existing directory>");
     let opts = GpkgOptions::new(0.001).unwrap().with_last_change("2026-10-24T00:00:00.000Z").unwrap();
-    let sets: [(&str, Vec<GpkgEntity>); 4] = [
+    let sets: [(&str, Vec<GpkgEntity>); 5] = [
         ("empty", Vec::new()),
         ("lines", mixed().into_iter().take(2).collect()),
         ("mixed", mixed()),
         ("many", many(1500)),
+        ("big", big()),
     ];
     for (name, entities) in sets {
         let e = export(&entities, &opts).expect("export");

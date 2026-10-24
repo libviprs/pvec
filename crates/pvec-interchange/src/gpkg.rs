@@ -432,7 +432,22 @@ pub fn export(entities: &[GpkgEntity], options: &GpkgOptions) -> Result<GpkgExpo
     let mut total: Option<[f64; 4]> = None;
     let (mut circular, mut compound) = (false, false);
     for e in entities {
-        let t = translate(&e.curve, options.tolerance())?;
+        // A curve this tolerance cannot be met for, or that the curve model refuses to evaluate, is
+        // accounted for in the ledger as unsupported, with the reason; it does not sink the export.
+        let t = match translate(&e.curve, options.tolerance()) {
+            Ok(t) => t,
+            Err(err @ (GpkgError::ToleranceUnreachable { .. } | GpkgError::Evaluation(_))) => Translation {
+                fidelity: Fidelity::Unsupported(
+                    Reason::new(&err.to_string())
+                        .map_err(|EmptyText| GpkgError::Internal("an empty reason"))?,
+                ),
+                source_capability: capability_of(&e.curve),
+                geometry: None,
+                measured_deviation: None,
+                note: String::new(),
+            },
+            Err(err) => return Err(err),
+        };
         let (name, repr) = match &t.geometry {
             Some(g) => (
                 g.kind.name(),
