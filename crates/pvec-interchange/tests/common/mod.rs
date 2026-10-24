@@ -272,11 +272,10 @@ impl Db {
                 let mut m = BTreeMap::new();
                 for (i, c) in cols.iter().enumerate() {
                     let v = r.values.get(i).cloned().unwrap_or(Value::Null);
-                    let v = if v.is_null() && sql.contains(&format!("\"{c}\" INTEGER PRIMARY KEY")) {
-                        Value::Int(r.rowid)
-                    } else {
-                        v
-                    };
+                    let alias = sql.contains(&format!("\"{c}\" INTEGER PRIMARY KEY"))
+                        || sql.contains(&format!("({c} INTEGER PRIMARY KEY"))
+                        || sql.contains(&format!(", {c} INTEGER PRIMARY KEY"));
+                    let v = if v.is_null() && alias { Value::Int(r.rowid) } else { v };
                     m.insert(c.clone(), v);
                 }
                 m
@@ -285,7 +284,8 @@ impl Db {
     }
 }
 
-/// Column names of a `CREATE TABLE` statement whose columns are quoted with `"` (the writer's style).
+/// Column names of a `CREATE TABLE` statement: the first word of each comma separated definition,
+/// quotes removed, constraints skipped.
 pub fn column_names(sql: &str) -> Vec<String> {
     let open = sql.find('(').unwrap();
     let body = &sql[open + 1..sql.rfind(')').unwrap()];
@@ -308,8 +308,8 @@ pub fn column_names(sql: &str) -> Vec<String> {
     parts
         .into_iter()
         .map(|p| p.trim().to_string())
-        .filter(|p| p.starts_with('"'))
-        .map(|p| p[1..].split('"').next().unwrap().to_string())
+        .filter(|p| !p.starts_with("CONSTRAINT"))
+        .map(|p| p.split_whitespace().next().unwrap().trim_matches('"').to_string())
         .collect()
 }
 

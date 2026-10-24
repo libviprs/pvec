@@ -209,7 +209,7 @@ fn the_core_tables_exist_with_the_required_rows() {
 fn the_indexes_behind_the_unique_constraints_exist_and_agree_with_the_tables() {
     let (_, db) = export_one(arc(0.0, 0.0, 5.0, 0.0, PI, true), 0.01);
     let master = db.master();
-    for (table, expect) in [("gpkg_contents", 1), ("gpkg_geometry_columns", 2), ("gpkg_extensions", 1)] {
+    for (table, expect) in [("gpkg_contents", 2), ("gpkg_geometry_columns", 2), ("gpkg_extensions", 1)] {
         let autos: Vec<&MasterRow> =
             master.iter().filter(|m| m.kind == "index" && m.table == table && m.sql.is_none()).collect();
         assert_eq!(autos.len(), expect, "{table}: autoindexes");
@@ -320,7 +320,7 @@ fn a_nonlinear_type_in_the_file_has_its_extension_row_and_an_unused_type_has_non
 fn a_compound_curve_registers_both_nonlinear_extensions_it_uses() {
     let comp = Composite::new(vec![
         segment(p(0.0, 0.0), p(4.0, 0.0)),
-        arc(4.0, 3.0, 3.0, 4.712388980384690, TAU, true),
+        arc(4.0, 3.0, 3.0, 3.0 * FRAC_PI_2, TAU, true),
     ]);
     let comp = Curve::Composite(comp.unwrap());
     let (_, db) = export_one(comp, 0.01);
@@ -364,7 +364,7 @@ fn an_arc_round_trips_through_circularstring_with_its_centre_radius_and_end_poin
     for (cx, cy, r, t1, t2, sense) in [
         (3.0, -2.0, 5.0, 0.3, 1.9, true),
         (-40.0, 17.5, 123.25, 4.0, 5.5, true),
-        (0.0, 0.0, 1.0, 0.1, 2.9, false),
+        (0.0, 0.0, 1.0, 2.9, 0.1, false),
         (10.0, 10.0, 2.5, 5.9, 0.4, true),
     ] {
         let curve = arc(cx, cy, r, t1, t2, sense);
@@ -392,7 +392,7 @@ fn an_arc_round_trips_through_circularstring_with_its_centre_radius_and_end_poin
 #[test]
 fn an_arc_keeps_its_direction() {
     let ccw = geom_of(&features(&export_one(arc(0.0, 0.0, 5.0, 0.2, 1.4, true), 0.01).1)[0]);
-    let cw = geom_of(&features(&export_one(arc(0.0, 0.0, 5.0, 0.2, 1.4, false), 0.01).1)[0]);
+    let cw = geom_of(&features(&export_one(arc(0.0, 0.0, 5.0, 1.4, 0.2, false), 0.01).1)[0]);
     let (a, b) = (arc_points(&ccw.wkb), arc_points(&cw.wkb));
     assert!(POLICY.near_point(a[0], b[2], 5.0) && POLICY.near_point(a[2], b[0], 5.0), "reversed ends");
     assert!(POLICY.near_point(a[1], b[1], 5.0));
@@ -798,11 +798,11 @@ fn the_spatial_index_is_populated_and_every_leaf_box_contains_its_feature() {
 }
 
 #[test]
-fn the_six_spatial_index_triggers_are_in_the_schema() {
+fn the_seven_spatial_index_triggers_of_geopackage_1_4_are_in_the_schema() {
     let (_, db) = export_one(cubic_bezier(), 0.1);
     let names: Vec<String> =
         db.master().into_iter().filter(|m| m.kind == "trigger").map(|m| m.name).collect();
-    for suffix in ["insert", "update1", "update2", "update3", "update4", "delete"] {
+    for suffix in ["insert", "update2", "update4", "update5", "update6", "update7", "delete"] {
         let n = format!("rtree_{TABLE_NAME}_{GEOMETRY_COLUMN}_{suffix}");
         assert!(names.contains(&n), "{n} in {names:?}");
     }
@@ -858,10 +858,10 @@ fn identical_input_gives_identical_files_blobs_and_row_order() {
 
 #[test]
 fn the_file_digest_of_a_straight_line_export_is_pinned() {
-    // Straight lines only: no sine or cosine in the path, so the digest is the same on every host.
+    // Straight lines only: no sine, cosine or hypot in the path, so the digest is the same on every host.
     let ents = vec![
         entity(1, polyline(&[(0.0, 0.0), (10.0, 0.0), (10.0, 5.0)])),
-        entity(2, segment(p(1.0, 1.0), p(4.0, 5.0))),
+        entity(2, polyline(&[(1.0, 1.0), (4.0, 5.0)])),
         entity(3, linear_rational()),
     ];
     let o = opts(0.01).with_last_change("2026-01-01T00:00:00.000Z").unwrap();
@@ -870,7 +870,7 @@ fn the_file_digest_of_a_straight_line_export_is_pinned() {
     assert_eq!(format!("{:016x}", fnv1a(&e.bytes)), PINNED_DIGEST, "{} bytes", e.bytes.len());
 }
 
-const PINNED_DIGEST: &str = "0000000000000000";
+const PINNED_DIGEST: &str = "237e944c2f4c4db2";
 
 #[test]
 fn the_input_order_is_the_row_order_even_when_ids_are_not_sorted() {
