@@ -18,7 +18,10 @@ pub const API_CRATES: &[(&str, &[&str])] = &[
     ("pvec-capabilities", &[]),
     ("pvec-codec", &["pvec-capabilities", "pvec-entity", "pvec-geometry", "pvec-numeric"]),
     ("pvec-components", &["pvec-capabilities", "pvec-entity"]),
-    ("pvec-container", &["pvec-capabilities", "pvec-entity", "pvec-numeric"]),
+    (
+        "pvec-container",
+        &["pvec-capabilities", "pvec-components", "pvec-entity", "pvec-geometry", "pvec-numeric"],
+    ),
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),
 ];

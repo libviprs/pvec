@@ -38,7 +38,17 @@ name = "pvec-container"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-components",
  "pvec-entity",
+ "pvec-geometry",
+ "pvec-numeric",
+]
+
+[[package]]
+name = "pvec-corpus"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
  "pvec-numeric",
 ]
 
@@ -60,3 +70,15 @@ dependencies = [
 [[package]]
 name = "pvec-numeric"
 version = "0.0.0"
+
+[[package]]
+name = "pvec-testkit"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-components",
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-geometry",
+]

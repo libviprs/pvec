@@ -1,0 +1,11 @@
+{
+  "bundle": "the corpus/r0-open directory as a deterministic tar (entries sorted, mtime 0, uid and gid 0, mode 0644, no compression, root r0-open/)",
+  "bundle_sha256": "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50",
+  "corpus_revision": "r0-open",
+  "how_to_verify": "python3 -m runner.r0_open bundle corpus/r0-open OUT.tar && sha256sum OUT.tar, then compare with bundle_sha256; python3 -m runner.r0_open check corpus/r0-open recomputes every verdict",
+  "manifest_sha256": "de3903df3e4d7bc0556a2d593298aaea34dcdbdcdec9015d753df14f1566bf21",
+  "numeric_policy_version": "PVec numeric policy v1",
+  "status": "CANDIDATE",
+  "tag": "corpus-r0-open",
+  "tag_note": "to be created on the commit that merges this revision; the content pin below does not depend on it"
+}
