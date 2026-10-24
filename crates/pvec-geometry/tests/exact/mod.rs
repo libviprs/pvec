@@ -48,8 +48,8 @@ fn add_mag(a: &[u32], b: &[u32]) -> Vec<u32> {
 fn sub_mag(a: &[u32], b: &[u32]) -> Vec<u32> {
     let mut out = Vec::with_capacity(a.len());
     let mut borrow = 0i64;
-    for i in 0..a.len() {
-        let mut d = a[i] as i64 - *b.get(i).unwrap_or(&0) as i64 - borrow;
+    for (i, &x) in a.iter().enumerate() {
+        let mut d = x as i64 - *b.get(i).unwrap_or(&0) as i64 - borrow;
         borrow = 0;
         if d < 0 {
             d += 1 << 32;
@@ -114,6 +114,28 @@ impl Int {
         trim(&mut mag);
         Int { neg: self.neg, mag }
     }
+    pub fn trailing_zeros(&self) -> usize {
+        let mut z = 0;
+        for &l in &self.mag {
+            if l == 0 {
+                z += 32;
+            } else {
+                return z + l.trailing_zeros() as usize;
+            }
+        }
+        z
+    }
+    pub fn shr(&self, bits: usize) -> Int {
+        let (limbs, s) = (bits / 32, bits % 32);
+        let mut mag: Vec<u32> = Vec::new();
+        for i in limbs..self.mag.len() {
+            let lo = self.mag[i] >> s;
+            let hi = if s == 0 { 0 } else { self.mag.get(i + 1).map_or(0, |&x| x << (32 - s)) };
+            mag.push(lo | hi);
+        }
+        trim(&mut mag);
+        Int { neg: self.neg && !mag.is_empty(), mag }
+    }
     pub fn add(&self, o: &Int) -> Int {
         if self.neg == o.neg {
             return Int { neg: self.neg, mag: add_mag(&self.mag, &o.mag) };
@@ -158,6 +180,14 @@ pub struct Rat {
 }
 
 impl Rat {
+    /// Divides out the common power of two. The inputs are binary fractions, so this is where the size goes.
+    fn norm(self) -> Rat {
+        if self.num.is_zero() {
+            return Rat { num: Int::zero(), den: Int::from_u64(1) };
+        }
+        let z = self.num.trailing_zeros().min(self.den.trailing_zeros());
+        if z == 0 { self } else { Rat { num: self.num.shr(z), den: self.den.shr(z) } }
+    }
     pub fn int(x: u64) -> Rat {
         Rat { num: Int::from_u64(x), den: Int::from_u64(1) }
     }
@@ -183,18 +213,18 @@ impl Rat {
         }
     }
     pub fn add(&self, o: &Rat) -> Rat {
-        Rat { num: self.num.mul(&o.den).add(&o.num.mul(&self.den)), den: self.den.mul(&o.den) }
+        Rat { num: self.num.mul(&o.den).add(&o.num.mul(&self.den)), den: self.den.mul(&o.den) }.norm()
     }
     pub fn sub(&self, o: &Rat) -> Rat {
-        Rat { num: self.num.mul(&o.den).sub(&o.num.mul(&self.den)), den: self.den.mul(&o.den) }
+        Rat { num: self.num.mul(&o.den).sub(&o.num.mul(&self.den)), den: self.den.mul(&o.den) }.norm()
     }
     pub fn mul(&self, o: &Rat) -> Rat {
-        Rat { num: self.num.mul(&o.num), den: self.den.mul(&o.den) }
+        Rat { num: self.num.mul(&o.num), den: self.den.mul(&o.den) }.norm()
     }
     pub fn div(&self, o: &Rat) -> Rat {
         assert!(!o.num.is_zero());
         let (n, d) = (self.num.mul(&o.den), self.den.mul(&o.num));
-        if d.sign() < 0 { Rat { num: n.neg(), den: d.neg() } } else { Rat { num: n, den: d } }
+        (if d.sign() < 0 { Rat { num: n.neg(), den: d.neg() } } else { Rat { num: n, den: d } }).norm()
     }
     pub fn is_zero(&self) -> bool {
         self.num.is_zero()

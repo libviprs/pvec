@@ -125,6 +125,7 @@ spline.rs: BSpline::declare_closed(self) -> Result<BSpline>
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct Unwrapped
 spline.rs: Unwrapped.curve: BSpline
 spline.rs: Unwrapped.deviation_bound: f64
+spline.rs: Unwrapped.periodic_deviation_bound: f64
 spline.rs: impl Curve2d for BSpline
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct RationalBSpline(Core)
 spline.rs: RationalBSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>, weights: Vec<f64>) -> Result<RationalBSpline>

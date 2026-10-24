@@ -257,12 +257,19 @@ impl BSpline {
     /// and a span `[k[j], k[j + 1]]` is shaped by `P[j] ..= P[j + p]` (indices modulo `n`). Its
     /// domain is `[knots[0], knots[n]]`, which the result keeps.
     ///
-    /// The result is the same locus as that wrapped curve: the wrapped, unclamped form is built
-    /// (`n + p` points, `n + 2p + 1` knots, a legal [`BSpline`] by itself), then the knots at the two
-    /// ends of the domain are inserted up to multiplicity `p + 1` (Boehm) and what lies outside the
-    /// domain is dropped. Knot insertion changes the representation and not the curve, and the knots
-    /// of the result are values of the input (or the input plus a period), never recomputed. The only
-    /// inexact step is the arithmetic, bounded by [`Unwrapped::deviation_bound`].
+    /// The result is the same locus as the wrapped curve formed in f64, up to the rounding of the
+    /// insertions: the wrapped, unclamped form is built (`n + p` points, `n + 2p + 1` knots, a legal
+    /// [`BSpline`] by itself), then the knots at the two ends of the domain are inserted up to
+    /// multiplicity `p + 1` (Boehm) and what lies outside the domain is dropped. Knot insertion changes
+    /// the representation and not the curve. Every knot of the result is a value of the input, never
+    /// recomputed.
+    ///
+    /// Two things are inexact and they are bounded separately. The insertions round their arithmetic,
+    /// which [`Unwrapped::deviation_bound`] bounds against the f64-formed wrapped curve. And the
+    /// extended knots `k[j] +- T` are rounded to f64 when they are formed, so the f64-formed wrapped
+    /// curve is not quite the mathematically periodic one: [`Unwrapped::periodic_deviation_bound`]
+    /// bounds the distance to that exact periodic curve, and refuses (NP-14) an input whose knots f64
+    /// cannot keep apart after the shift, where no such bound exists.
     ///
     /// Refused: a degree outside `1..=16` or fewer than `degree + 1` points (NP-18), a knot count
     /// other than `n + 1`, a decreasing or ambiguous knot vector, or a knot whose multiplicity (first
@@ -303,10 +310,19 @@ impl BSpline {
 pub struct Unwrapped {
     /// The clamped, closed curve.
     pub curve: BSpline,
-    /// Bound on the distance between the control points of `curve` and the exact ones, which bounds
-    /// the locus deviation from the periodic curve.
+    /// Bound on the distance between the locus of `curve` and the locus of the f64-formed wrapped
+    /// curve (the wrapped, unclamped form built with the extended knots `k[j] +- T` rounded to f64, the
+    /// curve `BSpline::new` would evaluate on that input). It covers the rounding of the knot
+    /// insertions only, and it is not a bound against the mathematically periodic curve: see
+    /// [`Unwrapped::periodic_deviation_bound`].
     pub deviation_bound: f64,
-    /// STUB (red): bound against the exact periodic curve.
+    /// Bound on the distance between the locus of `curve` and the exact periodic curve, the one with
+    /// the real-number knots `k[j] + m T`. It is `deviation_bound` plus the effect of rounding the
+    /// extended knots: each is off by at most `delta = 2 u (2 T + S)` (`T` the period, `S` the larger
+    /// of `|k[0]|` and `|k[n]|`), so a blending weight of the evaluation is off by at most
+    /// `4 delta / (g - 2 delta)` (`g` the smallest gap between distinct knots), `p` weights are blended
+    /// along any evaluation path and each moves a point by at most the control hull diameter, which is
+    /// below `3 m`.
     pub periodic_deviation_bound: f64,
 }
 
@@ -607,10 +623,12 @@ fn insert_knot(p: usize, pts: &mut Vec<[f64; 2]>, u: &mut Vec<f64>, t: f64) {
 
 fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped> {
     let n = cps.len();
+    // The wrapped form has n + p points: refuse a count over the limit before any work is done.
     check_count(n, MAX_CONTROL_POINTS)?;
     if !(1..=MAX_DEGREE).contains(&p) || n < p + 1 {
         return Err(NumericError::Limit.into());
     }
+    check_count(n + p, MAX_CONTROL_POINTS)?;
     if k.len() != n + 1 {
         return Err(NumericError::BadKnots.into());
     }
@@ -634,6 +652,14 @@ fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped>
     let trail = k.iter().rev().take_while(|&&v| v == k[n]).count();
     if lead + trail - 1 > p {
         return Err(NumericError::BadKnots.into());
+    }
+    // The extended knots are rounded when they are formed. The bound against the periodic curve needs the
+    // rounding to stay well below the smallest gap, otherwise f64 cannot tell the knots apart after the shift.
+    let big = k[0].abs().max(k[n].abs());
+    let delta = 2.0 * UNIT_ROUNDOFF * (2.0 * period + big);
+    let gap = k.windows(2).map(|w| w[1] - w[0]).filter(|&d| d > 0.0).fold(f64::INFINITY, f64::min);
+    if gap <= 4.0 * delta {
+        return Err(NumericError::AmbiguousKnots.into());
     }
     // Wrap: control points repeat, knots shift by the period, with the seam knot kept bit for bit.
     for i in 0..p {
@@ -670,5 +696,9 @@ fn unwrap_periodic(p: usize, cps: Vec<Point2>, k: Vec<f64>) -> Result<Unwrapped>
     // two products and the sum three more, so at most 10 u m per level in each coordinate, and a
     // convex combination does not amplify an earlier error. 15 covers the Euclidean norm.
     let deviation_bound = 15.0 * inserted as f64 * UNIT_ROUNDOFF * m;
-    Ok(Unwrapped { curve, deviation_bound, periodic_deviation_bound: 0.0 })
+    // A blending weight (t - u) / d moves by at most 4 delta / (gap - 2 delta) when every knot moves by
+    // delta; p of them are blended along an evaluation path, each moving a point by the hull diameter.
+    let alpha = 4.0 * delta / (gap - 2.0 * delta);
+    let periodic_deviation_bound = deviation_bound + p as f64 * alpha * 3.0 * m;
+    Ok(Unwrapped { curve, deviation_bound, periodic_deviation_bound })
 }

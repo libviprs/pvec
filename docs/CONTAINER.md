@@ -261,7 +261,7 @@ The record:
 
 A spline (kind 1) needs knots and control points, and weights if and only if the rational flag is set; it has no segment list or trims. A composite (kind 2) has a degree of 0, a segment list, optionally trims, and no knots, weights or control points; it cannot be rational. The closed flag is a claim about the geometry that NP-20 checks for a spline (the end meets the start); for a composite it is carried and not checked, because checking it needs the segments evaluated, which is not this layer's job.
 
-The periodic flag is defined and refused. ISO_PROFILE section 12 and ADR 0011 say the profile has no wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. A periodic spline is unwrapped before it is stored (`BSpline::from_periodic`, ADR 0011), so the writer never has a reason to set the bit. A later minor version can give the bit a meaning by lifting that refusal.
+The periodic flag is defined and refused. ISO_PROFILE section 11 and ADR 0011 say the profile has no wrapped periodic form (a closed curve is an ordinary clamped B-spline), so there is no periodic rule to apply, and a record that sets the bit makes the whole block unreadable rather than half-understood. A periodic spline is unwrapped before it is stored (`BSpline::from_periodic`, ADR 0011), so the writer never has a reason to set the bit. A later minor version can give the bit a meaning by lifting that refusal.
 
 ### 3.5 Counts, weights and composites
 

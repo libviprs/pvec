@@ -101,24 +101,36 @@ hand over").
 * D keeps a drawing's normal closed outline out of PVec for no measured reason, which is the cost the issue
   already names.
 
-B wins. Measured, on the probe and on 300 seeded random periodic splines (degree 1 to 6, from degree + 1 to
-degree + 8 unique points, interior knots of multiplicity up to 2), against an oracle that never calls the unwrap (the
-wrapped, unclamped form built by hand and evaluated by the one evaluator), 401 parameters per curve:
+B wins. The numbers below come from exact rational arithmetic, not from the f64 evaluator. The test tree has a
+small big-integer module, and the reference curves (the clamped result, the wrapped curve formed in f64, and the
+exact periodic curve with knots `k[j] + m T` computed with no rounding) are all evaluated by de Boor over the
+rationals at the same parameters, so no evaluator rounding sits in any assertion and no slack is added to a
+bound. The first review of this PR found that an earlier version of these tests added 200 roundoffs of slack,
+more than the bound itself, so a halved bound stayed green. It was right, and this replaces that.
+
+What is measured: the probe, a cubic with a seam of multiplicity 3 and an interior break, a seam repeated with an
+inexact period, knots at 1e9 spaced just above the NP-14 limit, and 48 seeded random splines (degree 1 to 6, from
+degree + 1 to degree + 8 unique points, interior knots of multiplicity up to 2, three quarters of them with
+coordinates up to 1e12 and knot offsets up to 1e6), at 7 to 25 parameters each. "Survives h halvings" means the
+exact deviation is still within the bound divided by 2^h.
 
 | result | native x64 (MARS, rustc 1.99.1) | arm64 (Apple Silicon, docker) |
 |---|---|---|
-| probe, worst distance to the wrapped form | 9.155e-16 (largest coordinate 3) | 9.155e-16 |
-| stated bound for the probe | 2.998e-14 | 2.998e-14 |
-| random suite, worst distance over the largest coordinate | 6.451e-16 | 6.451e-16 |
-| NP-04 relative tolerance | 1e-10 | 1e-10 |
+| probe, deviation from the f64-formed wrapped curve | within the bound, survives 6 halvings | same |
+| probe, deviation from the exact periodic curve | within its bound, survives 10 halvings | same |
+| random suite, closest approach to the first bound | 6 halvings (about 1/100) | same |
+| random suite, closest approach to the second bound | 10 halvings | same |
+| knots at 1e9, gap 1.2e-6 (just accepted), second bound | holds, survives 56 halvings (it is weak there, by construction) | same |
 
-The worst case is about 1.5e5 times inside the relative tolerance. The two machines agree to every digit
-printed, which is what I expected from arithmetic that is only multiplications, additions and one division.
+The first bound is not tight: the data gets within about a hundredth of it and no closer, so it cannot, by
+measurement alone, tell a bound that is halved from the real one. That is why its formula is pinned in a test of
+its own (`15 r u m` with `r = 2 (p + 1 - M)`, `M` the multiplicity of the seam knot), and why a test checks that
+the data comes within 2^9 of it. The two machines agree on every number.
 
 ### Decision
 
 `BSpline::from_periodic(degree, control_points, knots) -> Result<Unwrapped>` in `pvec-geometry`, where
-`Unwrapped` is the clamped, closed `BSpline` and a `deviation_bound`. The input is the decoder's report: the
+`Unwrapped` is the clamped, closed `BSpline` and two bounds (below). The input is the decoder's report: the
 degree, the `n` unique control points and the `n + 1` knots of one period. The curve it describes repeats the
 points and shifts the knots by the period `T = knots[n] - knots[0]`, a span `[k[j], k[j + 1]]` is shaped by
 `P[j] ..= P[j + degree]` (indices modulo `n`), and the domain is `[knots[0], knots[n]]`.
@@ -126,23 +138,41 @@ points and shifts the knots by the period `T = knots[n] - knots[0]`, a span `[k[
 How: the wrapped, unclamped form (`n + degree` points, `n + 2 degree + 1` knots, a legal `BSpline` already) is
 built and validated as such, then the two ends of the domain are inserted by Boehm's algorithm up to
 multiplicity `degree + 1`, and the points and knots outside the domain are dropped. Knot insertion changes the
-representation and not the curve, so the result is exact in the mathematical sense. Every knot of the result is
-a knot of the input (or the input plus a period), never recomputed, and the seam knot is carried bit for bit. In
-the numeric policy's terms the claim is: same locus and same domain as the wrapped curve, closed flag declared
+representation and not the curve, so the unwrap is exact in the mathematical sense, and what f64 does to it is
+the two bounds below. Every knot of the result is a value of the input, never recomputed, and the seam knot is
+carried bit for bit. In the numeric policy's terms the claim is: same locus and same domain as the wrapped curve, closed flag declared
 and therefore checked under NP-20, every number through NP-01, NP-02, NP-14 and NP-18 like any other spline.
 
-The bound. Each insertion forms every new point as `(1 - a) P + a Q` with `a` in `[0, 1]`. The weight `a`
-carries at most three roundoffs, the two products and the sum three more, so one insertion moves a coordinate
-by at most `10 u m` (`u` is 2^-53 and `m` the largest absolute coordinate), and a convex combination does not
-amplify an earlier error. The Euclidean norm adds a factor of `sqrt 2`, hence `deviation_bound = 15 r u m`
-with `r` the number of insertions (at most `2 degree`). Because the basis functions sum to one, a control point
-error of `d` moves the curve by at most `d`. The bound is about the data the unwrap computes. The evaluator's
-own rounding is separate, and the tests allow for it explicitly rather than folding it in. The bound is
-relative to the curve defined by the extended knot vector as formed in f64 (`k[j] + T`), which is the
-definition of the input, and it holds because that rounding is the same in the oracle.
+The bounds. There are two, because two different things are inexact, and the first version of this amendment
+(and the rustdoc) ran them together.
 
-Refused, with the rule named: a degree outside 1 to 16 or fewer than `degree + 1` points (NP-18), a knot count
-other than `n + 1`, a decreasing or ambiguous knot vector, an empty period, or a seam knot of multiplicity
+* `deviation_bound` is the rounding of the insertions, against the f64-formed wrapped curve: the unclamped
+  form that `BSpline::new` evaluates when the extended knots `k[j] +- T` are rounded to f64 as they are formed.
+  Each insertion forms every new point as `(1 - a) P + a Q` with `a` in `[0, 1]`. The weight `a` carries at most
+  three roundoffs, the two products and the sum three more, so one insertion moves a coordinate by at most
+  `10 u m` (`u` is 2^-53 and `m` the largest absolute coordinate), and a convex combination does not amplify an
+  earlier error. The Euclidean norm adds a factor of `sqrt 2`, hence `15 r u m` with `r = 2 (p + 1 - M)`
+  insertions (at most `2 p`). Because the basis functions sum to one, a control point error of `d` moves the
+  curve by at most `d`.
+* `periodic_deviation_bound` is the distance to the exact periodic curve, the one with real-number knots. It is
+  not the first bound: rounding the extended knots moves the curve, by an amount that grows as the gaps shrink.
+  The reviewer found the first bound exceeded in about 0.2% of random cases against the exact curve, by up to
+  8e4 times, and 1e-9 of the largest coordinate with gaps near the NP-14 limit, which is above NP-04. So the
+  second bound is the first plus the knot term: every extended knot is off by at most `delta = 2 u (2 T + S)`
+  (`S` the larger of `|k[0]|` and `|k[n]|`), a blending weight is off by at most `4 delta / (g - 2 delta)` (`g` the
+  smallest gap between distinct knots), `p` weights are blended along an evaluation path, and each moves a point by
+  at most the control hull diameter, below `3 m`. NP-14 refuses a gap under eight ulps of the knot magnitude,
+  which is more than `4 delta`, so every input that is accepted has this bound (and the code refuses, as NP-14,
+  an extension f64 cannot resolve, should that ever not hold). It is a worst case bound and it is weak when the
+  knots are within a few thousand ulps of each other, as the table shows.
+
+The bounds are about the unwrap, not about the evaluator, whose own rounding is separate. A consumer that wants
+the distance to the mathematical curve uses the second; one that compares with what `BSpline::new` gives for
+the wrapped layout uses the first.
+
+Refused, with the rule named: a degree outside 1 to 16 or fewer than `degree + 1` points, or `n + degree` over the point limit, checked before any work (NP-18), a knot count
+other than `n + 1`, a decreasing or ambiguous knot vector (including one f64 cannot keep apart after the shift, an unresolvable
+extension), an empty period, or a seam knot of multiplicity
 above the degree where the first and the last knot count once (NP-14), and any non-finite or out of range
 number (NP-01, NP-02).
 
@@ -153,10 +183,34 @@ number (NP-01, NP-02).
 | unique points, one period of knots (the probe) | `n + 1` | `BSpline::from_periodic` |
 | wrapped points and extended knots, unclamped | `m + p + 1` over `m = n + p` points, the first `p` points repeated at the end | `BSpline::new`, then `declare_closed`. Accepted today: profile section 11 defines the domain as `[knots[p], knots[n]]` for the unclamped form, and `pvec-codec` already round trips one |
 | already clamped, closed by its end points | `m + p + 1` over `m` points | `BSpline::new`, then `declare_closed` if the source says closed |
+| unique points with `n + p + 1` (for example uniform) knots and a periodic flag | `m + p + 1` over `m = n` points | not an unwrap input. The count is that of an open B-spline and `BSpline::new` takes it as one. The flag cannot be read from the counts, so the producer must not guess: if the source says closed, `declare_closed` refuses it under NP-20 when the ends do not meet (tested), and otherwise the curve is open. A producer that sees the flag with these counts quarantines the entity rather than calling `from_periodic` |
 
-So whichever of these a vendor writer stores, libviprs hands over what the decoder says and gets a curve or a
-typed refusal. It does no arithmetic of its own, which is what NG-B1, NG-B3 and NG-B5 ask. Telling the first layout from the other two needs only the counts: it has one knot more than points, the others
-have `degree + 1` more, and those differ for every degree of at least 1.
+So whichever of the first three a vendor writer stores, libviprs hands over what the decoder says and gets a
+curve or a typed refusal. It does no arithmetic of its own, which is what NG-B1, NG-B3 and NG-B5 ask. The fourth
+is the layout the counts cannot separate from an open curve, and the table says so rather than claiming
+every layout is caught. Telling the first layout from the others needs only the counts: it has one knot more than
+points, the others have `degree + 1` more, and those differ for every degree of at least 1.
+
+### What the unwrap throws away
+
+The result has `n + p + 1 - M` control points (`M` the multiplicity of the seam knot) and multiplicity `p + 1` at both
+ends of the domain, so to anything that walks the knots it looks like an open curve whose ends coincide, not a
+closed smooth one. Two things are lost: the smooth closure (the periodic curve is `C^(p - M)` across the seam,
+and the stored curve says nothing about that, only the declared closed flag and the geometry do) and the control
+polygon the author edited (the `n` unique points become the clamped polygon). Neither matters to the locus, and
+neither is a reason to store a wrapped form: the Part 21 exact form of this entity
+(`B_SPLINE_CURVE_WITH_KNOTS('',degree,(...),.UNSPECIFIED.,.F.,.U.,(multiplicities),(knots),.UNSPECIFIED.)`,
+ISO_PROFILE section 11) has `closed_curve` and `self_intersect` as its only flags and no periodic one, so a STEP
+file could not carry the information either. A consumer that must hand a periodic spline back to a CAD system
+as an editable periodic curve has lost what it needs, and that is the case the reversal threshold below names.
+
+### Why `n >= p + 1`
+
+The unwrap extends the knots by one period on each side, and `p` extra knots on a side need `p <= n`. For `n <= p`
+the wrapped form is still a legal curve but a basis function then sees the same control point twice, which is
+not a periodic B-spline in the usual sense and not something I found any writer produce. Supporting it means
+extending by several periods, with no evidence that it is wanted, so it is refused as NP-18 (`Limit`). Relaxing
+it later is additive.
 
 ### Consequences
 
@@ -168,16 +222,19 @@ have `degree + 1` more, and those differ for every degree of at least 1.
   `Unsupported` any more.
 * Rational periodic splines (a periodic NURBS) are not covered. The same insertion works on the homogeneous
   coordinates, but the bound needs its own derivation (the division by the weight amplifies the error by the
-  weight ratio, which NP-15 limits to `1e8`), and the spike has no such fixture. They stay refused, with
-  `BadKnots`-class errors of `RationalBSpline::new`, until a case turns up.
+  weight ratio, which NP-15 limits to `1e8`), and the spike has no such fixture. They stay refused: `from_periodic` has no weights
+  parameter and `RationalBSpline::new` fails the knot count. A caller that drops the weights before calling
+  would get a wrong curve without an error, so a producer must route a rational periodic spline to the
+  unsupported path itself.
 * The decision does not depend on what a vendor writer stores. If a vendor sample shows a layout that is none
   of the three above, a fourth row joins the table and, if the arithmetic is not a convex combination of the
   input, the bound is derived again.
 
 ### Reversal threshold
 
-Move to a wrapped representation (option C, as an extension under ADR 0008) if the first vendor-written periodic
-sample shows a layout the unwrap cannot take without changing the parameterisation, or if the conformance
+Move to a wrapped representation (option C, as an extension under ADR 0008) if a consumer has to hand a periodic
+spline back as an editable periodic curve (the smooth closure and the control polygon are gone after the unwrap),
+if the first vendor-written periodic sample shows a layout the unwrap cannot take without changing the parameterisation, or if the conformance
 classes grow a check that compares knot multiplicities at the ends of a closed curve. Revisit the bound if a
 fixture's measured deviation exceeds 1e-12 of the largest coordinate, which is 1e-2 of the NP-04 tolerance,
 or a degree above 6 turns up in a real drawing (the random suite stops there).

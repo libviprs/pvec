@@ -72,7 +72,11 @@ fn the_rustdoc_does_not_claim_a_bound_against_the_mathematical_curve_it_does_not
 
 #[test]
 fn the_profile_section_of_the_b_spline_is_eleven_in_every_text() {
-    for rel in ["docs/CONTAINER.md", "docs/adr/0004-internal-data-layout.md", "crates/pvec-container/src/blocks/advanced.rs"] {
+    for rel in [
+        "docs/CONTAINER.md",
+        "docs/adr/0004-internal-data-layout.md",
+        "crates/pvec-container/src/blocks/advanced.rs",
+    ] {
         let t = read(rel);
         assert!(!t.contains("ISO_PROFILE section 12 and ADR 0011"), "{rel}: wrong section");
         assert!(!t.contains("(ISO_PROFILE\nsection 12, ADR 0011)"), "{rel}: wrong section");
