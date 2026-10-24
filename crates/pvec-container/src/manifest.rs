@@ -5,6 +5,7 @@ use crate::spec::{MAX_STRING_LEN, cap, dir, m};
 use crate::{ContainerError, Header};
 use pvec_capabilities::{CapabilityId, Declaration, Declared, Requirement, Version};
 use pvec_numeric::check_value;
+use std::collections::HashSet;
 
 /// The unit of length of source space, with its ISO declaration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -236,7 +237,7 @@ impl Manifest {
         if end > b.len() as u64 {
             return Err(truncated(end));
         }
-        if header.directory_table_offset != header.manifest_offset + dir_start
+        if header.directory_table_offset != header.manifest_offset.saturating_add(dir_start)
             || header.directory_table_length != dir_count * dir::SIZE as u64
         {
             return Err(ContainerError::DirectoryTableMismatch);
@@ -244,13 +245,16 @@ impl Manifest {
 
         let floor = header.header_len as u64;
         let mut capabilities: Vec<Declared> = Vec::with_capacity(cap_count as usize);
+        // A set keeps the duplicate check linear: the count is bounded by the manifest's own length
+        // (checked above), but a quadratic scan over 65k entries is still billions of comparisons.
+        let mut seen: HashSet<u32> = HashSet::with_capacity(cap_count as usize);
         for i in 0..cap_count as usize {
             let e = &b[cap_start as usize + i * cap::SIZE..][..cap::SIZE];
             let id = u32_at(e, cap::ID);
             if id == 0 {
                 return Err(ContainerError::ZeroCapabilityId);
             }
-            if capabilities.iter().any(|c| c.id.get() == id) {
+            if !seen.insert(id) {
                 return Err(ContainerError::DuplicateCapability { id });
             }
             let requirement = match e[cap::REQUIREMENT] {
