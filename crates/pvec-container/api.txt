@@ -218,6 +218,7 @@ blocks/hot.rs: HotBlockBuilder::push_polyline(&mut self, id: EntityId, style: u3
 blocks/hot.rs: HotBlockBuilder::push_circle_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), HotError>
 blocks/hot.rs: HotBlockBuilder::push_ellipse_arc(&mut self, id: EntityId, style: u32, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), HotError>
 blocks/hot.rs: HotBlockBuilder::finish(self) -> Result<AlignedBytes, HotError>
+blocks/hot.rs: HotBlockBuilder::finish_unsorted(self) -> Result<AlignedBytes, HotError>
 blocks/hot.rs: #[derive(Clone, Copy, Debug)] pub struct HotBlockView<'a>
 blocks/hot.rs: HotBlockView<'a>::parse(bytes: &'a [u8]) -> Result<HotBlockView<'a>, HotError>
 blocks/hot.rs: HotBlockView<'a>::kind(&self) -> HotKind
@@ -235,6 +236,52 @@ blocks/mod.rs: pub mod aligned
 blocks/mod.rs: pub mod arena
 blocks/mod.rs: pub mod hot
 blocks/mod.rs: pub use aligned::AlignedBytes
+directory.rs: pub const ENTRY_LEN: usize
+directory.rs: pub const FLAG_MUST_UNDERSTAND: u8
+directory.rs: pub const FLAG_HAS_BOUNDS: u8
+directory.rs: pub const CODEC_NONE: u8
+directory.rs: pub const BLOCK_ALIGN: u64
+directory.rs: pub const BLOCK_ENTRY_FIELDS: &[FieldSpec]
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum BlockKind
+directory.rs: BlockKind::Hot
+directory.rs: BlockKind::Records
+directory.rs: BlockKind::Arena
+directory.rs: BlockKind::Components
+directory.rs: BlockKind::const ALL: [BlockKind; 4]
+directory.rs: BlockKind::id(self) -> u16
+directory.rs: BlockKind::from_id(id: u16) -> Option<BlockKind>
+directory.rs: BlockKind::name(self) -> &'static str
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct BlockEntry
+directory.rs: BlockEntry.offset: u64
+directory.rs: BlockEntry.stored_length: u32
+directory.rs: BlockEntry.uncompressed_length: u32
+directory.rs: BlockEntry.count: u32
+directory.rs: BlockEntry.cell: u32
+directory.rs: BlockEntry.bounds: Option<Bounds>
+directory.rs: BlockEntry.kind: u16
+directory.rs: BlockEntry.subtype: u16
+directory.rs: BlockEntry.flags: u8
+directory.rs: BlockEntry.codec: u8
+directory.rs: BlockEntry::block_kind(&self) -> Option<BlockKind>
+directory.rs: BlockEntry::encode(&self) -> [u8; ENTRY_LEN]
+directory.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DirectoryError
+directory.rs: DirectoryError::BadLength { length: u64 }
+directory.rs: DirectoryError::NonZeroReserved { index: usize }
+directory.rs: DirectoryError::BadFlags { index: usize, bits: u8 }
+directory.rs: DirectoryError::UnknownRequiredKind { index: usize, id: u16 }
+directory.rs: DirectoryError::UnknownCodec { index: usize, id: u8 }
+directory.rs: DirectoryError::OutOfRange { index: usize, offset: u64, length: u64, artifact_len: u64 }
+directory.rs: DirectoryError::Misaligned { index: usize, offset: u64 }
+directory.rs: DirectoryError::Overlap { index: usize }
+directory.rs: DirectoryError::LengthMismatch { index: usize }
+directory.rs: DirectoryError::BadBounds { index: usize }
+directory.rs: DirectoryError::OverlapsReserved { index: usize }
+directory.rs: DirectoryError::rule(&self) -> &'static str
+directory.rs: impl fmt::Display for DirectoryError
+directory.rs: impl std::error::Error for DirectoryError {}
+directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
+directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
+directory.rs: pub fn parse_directory_checked(table: &[u8], header_len: u64, artifact_len: u64, manifest: ByteRange, directory: ByteRange) -> Result<Vec<BlockEntry>, DirectoryError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -284,10 +331,12 @@ header.rs: Header::const MINOR: u16
 header.rs: Header::parse(prefix: &[u8], artifact_len: u64) -> Result<Header, ContainerError>
 header.rs: Header::encode(&self) -> [u8; Header::LEN]
 lib.rs: pub mod blocks
+lib.rs: pub mod directory
 lib.rs: pub mod error
 lib.rs: pub mod header
 lib.rs: pub mod manifest
 lib.rs: pub mod spec
+lib.rs: pub mod writer
 lib.rs: pub use error::ContainerError
 lib.rs: pub use header::{ChecksumAlgorithm, Header}
 lib.rs: pub use manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata}
@@ -403,3 +452,56 @@ spec.rs: pub const MANIFEST_FIELDS: &[FieldSpec]
 spec.rs: pub const CAPABILITY_ENTRY_FIELDS: &[FieldSpec]
 spec.rs: pub const DIRECTORY_ENTRY_FIELDS: &[FieldSpec]
 spec.rs: pub fn render_markdown() -> String
+writer.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SortKey
+writer.rs: SortKey::BlockKind
+writer.rs: SortKey::SpatialCell
+writer.rs: SortKey::GeometryType
+writer.rs: SortKey::EntityId
+writer.rs: SortKey::CapabilityId
+writer.rs: SortKey::StreamId
+writer.rs: SortKey::const ALL: [SortKey; 6]
+writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct WriterConfig
+writer.rs: WriterConfig.unit: LengthUnit
+writer.rs: WriterConfig.metadata: Metadata
+writer.rs: WriterConfig.bounds: Option<Bounds>
+writer.rs: WriterConfig.capabilities: Vec<CapabilityId>
+writer.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct EntityMeta
+writer.rs: EntityMeta.id: EntityId
+writer.rs: EntityMeta.style: u32
+writer.rs: EntityMeta.cell: u32
+writer.rs: EntityMeta.bounds: Bounds
+writer.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum WriteError
+writer.rs: WriteError::Empty
+writer.rs: WriteError::DuplicateId { id: u32 }
+writer.rs: WriteError::CellOnAdvanced { id: u32 }
+writer.rs: WriteError::UnknownCapability { id: u32 }
+writer.rs: WriteError::DuplicateStream { capability: u32 }
+writer.rs: WriteError::BadBounds { id: Option<u32> }
+writer.rs: WriteError::TooLarge
+writer.rs: WriteError::Unsupported { what: &'static str }
+writer.rs: WriteError::Hot(HotError)
+writer.rs: WriteError::Arena(ArenaError)
+writer.rs: WriteError::Stream(StreamError)
+writer.rs: WriteError::Container(ContainerError)
+writer.rs: WriteError::Geometry(GeometryError)
+writer.rs: WriteError::rule(&self) -> &'static str
+writer.rs: pub const WRITE_RULES: &[(&str, &str)]
+writer.rs: impl fmt::Display for WriteError
+writer.rs: impl std::error::Error for WriteError {}
+writer.rs: impl From<HotError> for WriteError
+writer.rs: impl From<ArenaError> for WriteError
+writer.rs: impl From<StreamError> for WriteError
+writer.rs: impl From<ContainerError> for WriteError
+writer.rs: impl From<GeometryError> for WriteError
+writer.rs: #[derive(Debug)] pub struct ContainerWriter
+writer.rs: ContainerWriter::new(config: WriterConfig) -> ContainerWriter
+writer.rs: ContainerWriter::skip_sort(&mut self, key: SortKey)
+writer.rs: ContainerWriter::push_line(&mut self, meta: EntityMeta, a: [f64; 2], b: [f64; 2]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_circle_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_ellipse_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
+writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
+writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>
