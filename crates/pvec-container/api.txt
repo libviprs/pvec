@@ -83,6 +83,8 @@ blocks/advanced.rs: AdvancedView<'a>::record(&self, index: usize) -> Option<Adva
 blocks/advanced.rs: AdvancedView<'a>::curve(&self, index: usize) -> Result<CurveView<'a>, ArenaError>
 blocks/advanced.rs: AdvancedView<'a>::nesting_depth(&self, index: usize) -> Result<usize, ArenaError>
 blocks/advanced.rs: AdvancedView<'a>::check_nesting(&self) -> Result<(), ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::check_nesting_within(&self, max_depth: usize) -> Result<(), ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::declared_counts(&self, index: usize) -> Result<Option<(u32, u32)>, ArenaError>
 blocks/advanced.rs: pub fn render_chapter() -> String
 blocks/aligned.rs: #[derive(Clone, Debug, Default, PartialEq, Eq)] pub struct AlignedBytes
 blocks/aligned.rs: AlignedBytes::from_bytes(bytes: &[u8]) -> AlignedBytes
@@ -163,6 +165,7 @@ blocks/arena.rs: ArenaView<'a>::parse_probed(bytes: &'a [u8], probe: Option<&'a 
 blocks/arena.rs: ArenaView<'a>::kind(&self) -> PayloadKind
 blocks/arena.rs: ArenaView<'a>::entries(&self) -> usize
 blocks/arena.rs: ArenaView<'a>::arena_len(&self) -> usize
+blocks/arena.rs: ArenaView<'a>::declared_len(&self, index: u32) -> Result<u32, ArenaError>
 blocks/arena.rs: ArenaView<'a>::entry(&self, index: u32) -> Result<OffsetEntry, ArenaError>
 blocks/arena.rs: ArenaView<'a>::slice(&self, index: u32) -> Result<&'a [f64], ArenaError>
 blocks/arena.rs: ArenaView<'a>::slice_xy(&self, index: u32) -> Result<(&'a [f64], &'a [f64]), ArenaError>
@@ -288,6 +291,21 @@ directory.rs: impl std::error::Error for DirectoryError {}
 directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
 directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
 directory.rs: pub fn parse_directory_checked(table: &[u8], header_len: u64, artifact_len: u64, manifest: ByteRange, directory: ByteRange) -> Result<Vec<BlockEntry>, DirectoryError>
+engine.rs: Core::entry(&self, _id: BlockId) -> Result<&BlockEntry, ReadError>
+engine.rs: Core::range_of(&self, _id: BlockId) -> Result<(u64, u32), ReadError>
+engine.rs: Core::slice_of<'a>(&self, _id: BlockId, _at: u64, _bytes: &'a [u8]) -> Result<&'a [u8], ReadError>
+engine.rs: Core::plan(&self, _ids: &[BlockId], _gap: u32, _max: u32) -> Result<Vec<RangeRequest>, ReadError>
+engine.rs: Core::decode(&self, _id: BlockId, _stored: &[u8], _r: Reservation) -> Result<DecodedBlock, ReadError>
+engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
+engine.rs: Opening::new(_artifact_len: u64, _limits: &Limits) -> Result<Opening, ReadError>
+engine.rs: Opening::request(&self) -> Option<(u64, u32)>
+engine.rs: Opening::feed(&mut self, _bytes: &[u8]) -> Result<(), ReadError>
+engine.rs: Opening::finish(self) -> Result<Core, ReadError>
+engine.rs: Validation<'a>::new(_core: &'a Core, _limits: &Limits, _acct: &Accountant) -> Result<Validation<'a>, ReadError>
+engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
+engine.rs: Validation<'a>::feed_gap(&mut self, _offset: u64, _bytes: &[u8]) -> Result<(), ReadError>
+engine.rs: Validation<'a>::feed_block(&mut self, _block: Arc<DecodedBlock>) -> Result<(), ReadError>
+engine.rs: Validation<'a>::finish(self) -> Result<Validated, ReadError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }
@@ -313,6 +331,7 @@ error.rs: ContainerError::MissingProducer
 error.rs: ContainerError::StringTooLong { field: &'static str, length: u32 }
 error.rs: ContainerError::InvalidUtf8 { field: &'static str }
 error.rs: ContainerError::TrailingBytes { extra: u64 }
+error.rs: ContainerError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ContainerError
 error.rs: impl std::error::Error for ContainerError {}
 header.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum ChecksumAlgorithm
@@ -340,12 +359,79 @@ lib.rs: pub mod blocks
 lib.rs: pub mod directory
 lib.rs: pub mod error
 lib.rs: pub mod header
+lib.rs: pub mod limits
 lib.rs: pub mod manifest
+lib.rs: pub mod reader
+lib.rs: pub mod source
 lib.rs: pub mod spec
 lib.rs: pub mod writer
 lib.rs: pub use error::ContainerError
 lib.rs: pub use header::{ChecksumAlgorithm, Header}
+lib.rs: pub use limits::{Accountant, LimitExceeded, LimitKind, Limits}
 lib.rs: pub use manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata}
+lib.rs: pub use reader::{AsyncContainerReader, BlockId, ContainerReader, ReadError, ReaderConfig}
+limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub enum LimitKind
+limits.rs: LimitKind::ExpansionRatio
+limits.rs: LimitKind::BlockBytes
+limits.rs: LimitKind::AllocationBudget
+limits.rs: LimitKind::DecodeWork
+limits.rs: LimitKind::ArtifactBytes
+limits.rs: LimitKind::Blocks
+limits.rs: LimitKind::EntitiesPerArtifact
+limits.rs: LimitKind::EntitiesPerBlock
+limits.rs: LimitKind::ControlPoints
+limits.rs: LimitKind::Knots
+limits.rs: LimitKind::NestingDepth
+limits.rs: LimitKind::Extent
+limits.rs: LimitKind::const ALL: [LimitKind; 12]
+limits.rs: LimitKind::rule(self) -> &'static str
+limits.rs: LimitKind::field(self) -> &'static str
+limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct LimitExceeded
+limits.rs: LimitExceeded.limit: LimitKind
+limits.rs: LimitExceeded.declared: u64
+limits.rs: LimitExceeded.ceiling: u64
+limits.rs: impl fmt::Display for LimitExceeded
+limits.rs: impl std::error::Error for LimitExceeded {}
+limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct LimitsError
+limits.rs: LimitsError.limit: LimitKind
+limits.rs: LimitsError.given: u64
+limits.rs: LimitsError.format_maximum: u64
+limits.rs: impl fmt::Display for LimitsError
+limits.rs: impl std::error::Error for LimitsError {}
+limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Limits
+limits.rs: Limits.max_artifact_bytes: u64
+limits.rs: Limits.max_block_bytes: u32
+limits.rs: Limits.max_blocks: u32
+limits.rs: Limits.max_expansion_ratio: u32
+limits.rs: Limits.max_entities_per_artifact: u64
+limits.rs: Limits.max_entities_per_block: u32
+limits.rs: Limits.max_control_points: u32
+limits.rs: Limits.max_knots: u32
+limits.rs: Limits.max_nesting_depth: u32
+limits.rs: Limits.max_alloc_bytes: u64
+limits.rs: Limits.max_decode_work: u64
+limits.rs: Limits::const DEFAULT: Limits
+limits.rs: Limits::const BROWSER: Limits
+limits.rs: Limits::get(&self, kind: LimitKind) -> u64
+limits.rs: Limits::validate(&self) -> Result<(), LimitsError>
+limits.rs: Limits::check(&self, kind: LimitKind, declared: u64) -> Result<(), LimitExceeded>
+limits.rs: impl Default for Limits
+limits.rs: #[derive(Clone, Copy, Debug)] pub struct LimitRow
+limits.rs: LimitRow.kind: LimitKind
+limits.rs: LimitRow.rationale: &'static str
+limits.rs: LimitRow.enforced: &'static str
+limits.rs: pub const LIMIT_TABLE: &[LimitRow]
+limits.rs: #[derive(Clone, Debug)] pub struct Accountant
+limits.rs: #[derive(Debug)] pub struct Reservation
+limits.rs: Reservation::bytes(&self) -> u64
+limits.rs: impl Drop for Reservation
+limits.rs: Accountant::new(limits: &Limits) -> Accountant
+limits.rs: Accountant::reserve(&self, bytes: u64) -> Result<Reservation, LimitExceeded>
+limits.rs: Accountant::charge_work(&self, units: u64) -> Result<(), LimitExceeded>
+limits.rs: Accountant::live(&self) -> u64
+limits.rs: Accountant::peak(&self) -> u64
+limits.rs: Accountant::work(&self) -> u64
+limits.rs: pub fn render_markdown(rejected_by_browser: &[String]) -> String
 manifest.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum LengthUnit
 manifest.rs: LengthUnit::Metre
 manifest.rs: LengthUnit::Millimetre
@@ -389,6 +475,121 @@ manifest.rs: Manifest::const MAX_LEN: u64
 manifest.rs: Manifest::parse(bytes: &[u8], header: &Header, artifact_len: u64) -> Result<Manifest, ContainerError>
 manifest.rs: Manifest::encode(&self) -> Result<Vec<u8>, ContainerError>
 manifest.rs: Manifest::declaration(&self) -> Declaration
+reader.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct BlockId(pub u32)
+reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RangeRequest
+reader.rs: RangeRequest.offset: u64
+reader.rs: RangeRequest.len: u32
+reader.rs: RangeRequest.blocks: Vec<BlockId>
+reader.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct ReaderConfig
+reader.rs: ReaderConfig.limits: Limits
+reader.rs: ReaderConfig.cache_bytes: u64
+reader.rs: ReaderConfig.gap_threshold: u32
+reader.rs: ReaderConfig.max_request_bytes: u32
+reader.rs: impl Default for ReaderConfig
+reader.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum ReadError
+reader.rs: ReadError::Source(SourceError)
+reader.rs: ReadError::Limit(LimitExceeded)
+reader.rs: ReadError::BadLimits(LimitsError)
+reader.rs: ReadError::Container(ContainerError)
+reader.rs: ReadError::Directory(DirectoryError)
+reader.rs: ReadError::Hot(HotError)
+reader.rs: ReadError::Arena(ArenaError)
+reader.rs: ReadError::Stream(StreamError)
+reader.rs: ReadError::Layout { rule: &'static str, detail: String }
+reader.rs: ReadError::NoSuchBlock { id: u32, blocks: usize }
+reader.rs: ReadError::rule(&self) -> String
+reader.rs: ReadError::limit(&self) -> Option<&LimitExceeded>
+reader.rs: impl fmt::Display for ReadError
+reader.rs: impl std::error::Error for ReadError {}
+reader.rs: impl From<SourceError> for ReadError
+reader.rs: impl From<LimitExceeded> for ReadError
+reader.rs: #[derive(Debug)] pub struct DecodedBlock
+reader.rs: DecodedBlock::id(&self) -> BlockId
+reader.rs: DecodedBlock::entry(&self) -> &BlockEntry
+reader.rs: DecodedBlock::as_bytes(&self) -> &[u8]
+reader.rs: DecodedBlock::hot(&self) -> Result<HotBlockView<'_>, ReadError>
+reader.rs: #[derive(Debug)] pub struct AdvancedSet
+reader.rs: AdvancedSet::view(&self) -> Result<AdvancedView<'_>, ReadError>
+reader.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct ReadStats
+reader.rs: ReadStats.requests: u64
+reader.rs: ReadStats.bytes: u64
+reader.rs: ReadStats.cache_hits: u64
+reader.rs: ReadStats.cache_misses: u64
+reader.rs: ReadStats.evictions: u64
+reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Validated
+reader.rs: Validated.blocks: usize
+reader.rs: Validated.entities: u64
+reader.rs: Validated.stream_capabilities: Vec<u32>
+reader.rs: pub struct ContainerReader<S: BlockSource>
+reader.rs: ContainerReader<S>::open(source: S, config: ReaderConfig) -> Result<ContainerReader<S>, ReadError>
+reader.rs: ContainerReader<S>::read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
+reader.rs: ContainerReader<S>::read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
+reader.rs: ContainerReader<S>::advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: ContainerReader<S>::validate(&self) -> Result<Validated, ReadError>
+reader.rs: pub struct AsyncContainerReader<S: AsyncBlockSource>
+reader.rs: AsyncContainerReader<S>::async fn open(source: S, config: ReaderConfig) -> Result<AsyncContainerReader<S>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn validate(&self) -> Result<Validated, ReadError>
+reader.rs: pub fn render_markdown() -> String
+reader.rs: pub const READER_RULES: &[(&str, &str)]
+source.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Bytes
+source.rs: Bytes::new(data: Vec<u8>) -> Bytes
+source.rs: Bytes::from_shared(data: Arc<[u8]>) -> Bytes
+source.rs: Bytes::slice(&self, start: usize, end: usize) -> Option<Bytes>
+source.rs: Bytes::as_slice(&self) -> &[u8]
+source.rs: impl Deref for Bytes
+source.rs: impl From<Vec<u8>> for Bytes
+source.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum SourceError
+source.rs: SourceError::OutOfRange { offset: u64, len: u64, source_len: u64 }
+source.rs: SourceError::Short { wanted: u64, got: u64 }
+source.rs: SourceError::RangeNotHonoured { detail: String }
+source.rs: SourceError::Io(String)
+source.rs: impl fmt::Display for SourceError
+source.rs: impl std::error::Error for SourceError {}
+source.rs: pub trait BlockSource
+source.rs: BlockSource::len(&self) -> u64
+source.rs: BlockSource::is_empty(&self) -> bool
+source.rs: BlockSource::read_range(&self, offset: u64, len: u32) -> Result<Bytes, SourceError>
+source.rs: pub trait AsyncBlockSource
+source.rs: AsyncBlockSource::len(&self) -> u64
+source.rs: AsyncBlockSource::is_empty(&self) -> bool
+source.rs: AsyncBlockSource::read_range(&self, offset: u64, len: u32) -> impl Future<Output = Result<Bytes, SourceError>>
+source.rs: #[derive(Clone, Debug)] pub struct MemorySource<T: AsRef<[u8]>>
+source.rs: MemorySource<T>::new(data: T) -> MemorySource<T>
+source.rs: impl<T: AsRef<[u8]>> BlockSource for MemorySource<T>
+source.rs: impl<T: AsRef<[u8]>> AsyncBlockSource for MemorySource<T>
+source.rs: pub trait ReadAt
+source.rs: ReadAt::read_at(&self, buf: &mut [u8], offset: u64) -> Result<usize, SourceError>
+source.rs: impl ReadAt for [u8]
+source.rs: impl<T: ReadAt + ?Sized> ReadAt for Arc<T>
+source.rs: #[derive(Debug)] pub struct ReadAtSource<R: ReadAt>
+source.rs: ReadAtSource<R>::new(inner: R, len: u64) -> ReadAtSource<R>
+source.rs: impl<R: ReadAt> BlockSource for ReadAtSource<R>
+source.rs: impl<R: ReadAt> AsyncBlockSource for ReadAtSource<R>
+source.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct HttpRange
+source.rs: HttpRange.start: u64
+source.rs: HttpRange.end: u64
+source.rs: #[derive(Clone, Debug)] pub struct HttpResponse
+source.rs: HttpResponse.status: u16
+source.rs: HttpResponse.content_range: Option<(u64, u64, Option<u64>)>
+source.rs: HttpResponse.body: Vec<u8>
+source.rs: pub trait HttpTransport
+source.rs: HttpTransport::fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>
+source.rs: #[derive(Debug)] pub struct HttpRangeSource<T: HttpTransport>
+source.rs: HttpRangeSource<T>::new(transport: T, len: u64) -> HttpRangeSource<T>
+source.rs: impl<T: HttpTransport> AsyncBlockSource for HttpRangeSource<T>
+source.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Request
+source.rs: Request.offset: u64
+source.rs: Request.len: u32
+source.rs: #[derive(Debug)] pub struct Recording<S>
+source.rs: Recording<S>::new(inner: S) -> Recording<S>
+source.rs: Recording<S>::requests(&self) -> Vec<Request>
+source.rs: Recording<S>::bytes_requested(&self) -> u64
+source.rs: Recording<S>::touched(&self, offset: u64, len: u64) -> bool
+source.rs: impl<S: BlockSource> BlockSource for Recording<S>
+source.rs: impl<S: AsyncBlockSource> AsyncBlockSource for Recording<S>
 spec.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct FieldSpec
 spec.rs: FieldSpec.name: &'static str
 spec.rs: FieldSpec.offset: usize

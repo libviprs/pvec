@@ -11,8 +11,8 @@ mod support;
 use common::bundle;
 use pvec_corpus::sha256::hex_digest;
 use pvec_testkit::hostile::{
-    Base, Case, Expect, Failure, Family, Limits, Meter, Reader, ReferenceReader, Refusal, Requires, Verdict,
-    bases, catalog, run,
+    Base, Case, Expect, Failure, Family, Limits, Meter, Reader, ReferenceReader, Refusal, Requires,
+    SafeReader, Verdict, bases, catalog, run,
 };
 use pvec_testkit::reference::{Budget, Options, read, read_with};
 use std::collections::{BTreeMap, BTreeSet};
@@ -328,6 +328,28 @@ fn the_reference_reader_satisfies_every_case_it_provides() {
     );
     assert!(report.skipped[&Requires::Integrity] >= 3);
     assert!(report.skipped[&Requires::Negotiation] >= 1);
+}
+
+#[test]
+fn the_safe_reader_satisfies_every_case_it_provides() {
+    let (_, cases) = corpus();
+    let report = run_full(SafeReader::new(), Limits::default());
+    assert!(report.passed(), "{}", report.summary());
+    assert!(report.ran > 10_000, "ran only {}", report.ran);
+    let skipped: usize = report.skipped.values().sum();
+    assert_eq!(report.ran + skipped, cases.len());
+    // what P4.6 and P4.7 provide is counted, not hidden
+    assert_eq!(
+        report.skipped.keys().copied().collect::<Vec<_>>(),
+        vec![Requires::Integrity, Requires::Negotiation]
+    );
+    // the floor was calibrated on the reference reader; say how the safe reader sits against it
+    let floor = Limits::default().alloc_floor;
+    assert!(
+        report.peak_allocation < floor,
+        "the safe reader peaked at {}, the floor is {floor}",
+        report.peak_allocation
+    );
 }
 
 #[test]

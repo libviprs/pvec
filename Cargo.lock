@@ -72,6 +72,15 @@ name = "pvec-numeric"
 version = "0.0.0"
 
 [[package]]
+name = "pvec-sources"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-container",
+ "pvec-entity",
+]
+
+[[package]]
 name = "pvec-testkit"
 version = "0.0.0"
 dependencies = [
