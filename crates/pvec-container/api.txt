@@ -860,6 +860,10 @@ writer.rs: impl From<StreamError> for WriteError
 writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
+writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct Derived
+writer.rs: Derived.entity: EntityId
+writer.rs: Derived.what: &'static str
+writer.rs: Derived.bound: f64
 writer.rs: ContainerWriter::new(config: WriterConfig) -> ContainerWriter
 writer.rs: ContainerWriter::with_options(config: WriterConfig, options: WriterOptions) -> ContainerWriter
 writer.rs: ContainerWriter::skip_sort(&mut self, key: SortKey)
@@ -870,6 +874,7 @@ writer.rs: ContainerWriter::push_ellipse_arc(&mut self, meta: EntityMeta, centre
 writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
+writer.rs: ContainerWriter::derived(&self) -> &[Derived]
 writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>

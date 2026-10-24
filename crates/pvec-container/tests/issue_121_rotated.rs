@@ -77,6 +77,9 @@ fn what_was_derived_is_reported_and_what_was_authored_is_not() {
     let d = w.derived();
     assert_eq!(d.len(), 1);
     assert_eq!(d[0].entity, eid(1));
-    assert!(d[0].bound >= f64::EPSILON / 2.0 * FRAC_PI_4, "the bound covers one ulp of the angle");
-    assert!(d[0].what.contains("atan2"));
+    assert!(
+        d[0].bound >= f64::from_bits(0x3ca0_0000_0000_0000) * FRAC_PI_4,
+        "the bound covers one ulp of the angle"
+    );
+    assert!(d[0].what.contains("arctangent"));
 }

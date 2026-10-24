@@ -26,6 +26,9 @@ fn a_bulge_arc_carries_the_detmath_angles_exactly() {
             atan2(p1.y - o.y, p1.x - o.x).rem_euclid(TAU)
         };
         assert_eq!(trim.start.to_bits(), want_start.to_bits(), "start of {b}");
-        assert!((trim.span - sweep).abs() <= 8.0 * f64::EPSILON * TAU, "span of {b}");
+        assert!(
+            (trim.span - sweep).abs() <= 16.0 * f64::from_bits(0x3ca0_0000_0000_0000) * TAU,
+            "span of {b}"
+        );
     }
 }

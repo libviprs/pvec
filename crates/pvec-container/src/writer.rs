@@ -446,6 +446,19 @@ pub struct ContainerWriter {
     advanced: Vec<AdvancedItem>,
     streams: Vec<(usize, Stream)>,
     spatial: Option<SpatialItem>,
+    derived: Vec<Derived>,
+}
+
+/// A stored number the caller did not hand over: the writer derived it, within `bound` of the exact
+/// value (radians), with the deterministic arctangent of `pvec_numeric::detmath`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Derived {
+    /// The entity the number belongs to.
+    pub entity: EntityId,
+    /// What was derived and how.
+    pub what: &'static str,
+    /// A bound on the distance from the exact value, in radians.
+    pub bound: f64,
 }
 
 /// The spatial directory block as the caller built it.
@@ -456,6 +469,9 @@ struct SpatialItem {
     bounds: Bounds,
     bytes: Vec<u8>,
 }
+
+/// Half the spacing of the doubles at one (2^-53): the relative size of one rounding.
+const UNIT: f64 = f64::from_bits(0x3ca0_0000_0000_0000);
 
 fn normal(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
@@ -521,6 +537,7 @@ impl ContainerWriter {
             advanced: Vec::new(),
             streams: Vec::new(),
             spatial: None,
+            derived: Vec::new(),
         }
     }
 
@@ -639,10 +656,11 @@ impl ContainerWriter {
     ///
     /// Polylines, B-splines, rational B-splines and Bezier curves are stored as they are; a trimmed
     /// line is the segment between its end points; a circle, an ellipse or an arc of either is stored
-    /// when its frame is the axis-aligned one. What cannot be stored exactly and the same on every
-    /// machine is refused, never approximated: an unbounded line, a composite (its segments need ids,
-    /// so push them with [`ContainerWriter::push_composite`]), a trimmed spline, and a rotated frame
-    /// (its angle needs `atan2`, whose last bit belongs to the C library and not to the format).
+    /// whatever its frame. A rotated frame is stored with the angle of its x axis by
+    /// `pvec_numeric::detmath::atan2` (within one ulp, the same on every machine) and listed by
+    /// [`ContainerWriter::derived`]. What cannot be stored exactly and the same on every machine is
+    /// refused, never approximated: an unbounded line, a composite (its segments need ids, so push
+    /// them with [`ContainerWriter::push_composite`]) and a trimmed spline.
     ///
     /// The bounds are computed here from basic arithmetic only and are conservative: the box of the
     /// vertices, the control points, the end points, or, for a circle, an ellipse or any arc of
@@ -656,7 +674,6 @@ impl ContainerWriter {
         curve: &Curve,
     ) -> Result<(), WriteError> {
         let unsupported = |what| Err(WriteError::Unsupported { what });
-        let axis_aligned = |x: pvec_geometry::Vector2| x.x == 1.0 && x.y == 0.0;
         let meta = |bounds| EntityMeta { id, style, cell, bounds };
         match curve {
             Curve::Line(_) => unsupported("unbounded line"),
@@ -708,28 +725,19 @@ impl ContainerWriter {
                 self.push_spline(meta(hull(&x, &y)), spec)
             }
             Curve::Circle(c) => {
-                if !axis_aligned(c.placement().x_axis()) {
-                    return unsupported("rotated placement");
-                }
-                let o = xy(c.placement().origin());
-                self.push_circle_arc(
-                    meta(around(o, c.radius(), c.radius())),
-                    o,
-                    c.radius(),
-                    [0.0, core::f64::consts::TAU],
-                )
+                let (o, rot) = self.frame(id, c.placement())?;
+                let (start, sweep) = shifted(rot, 0.0, core::f64::consts::TAU);
+                self.push_circle_arc(meta(around(o, c.radius(), c.radius())), o, c.radius(), [start, sweep])
             }
             Curve::Ellipse(e) => {
-                if !axis_aligned(e.placement().x_axis()) {
-                    return unsupported("rotated placement");
-                }
-                let o = xy(e.placement().origin());
+                let (o, rot) = self.frame(id, e.placement())?;
                 let radii = [e.semi_axis_1(), e.semi_axis_2()];
+                let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
                 self.push_ellipse_arc(
-                    meta(around(o, radii[0], radii[1])),
+                    meta(around(o, r[0], r[1])),
                     o,
                     radii,
-                    [0.0, 0.0, core::f64::consts::TAU],
+                    [rot, 0.0, core::f64::consts::TAU],
                 )
             }
             Curve::Trimmed(t) => {
@@ -746,10 +754,8 @@ impl ContainerWriter {
                         self.push_line(meta(boxed(&[a, b])), a, b)
                     }
                     Curve::Circle(c) => {
-                        if !axis_aligned(c.placement().x_axis()) {
-                            return unsupported("rotated placement");
-                        }
-                        let o = xy(c.placement().origin());
+                        let (o, rot) = self.frame(id, c.placement())?;
+                        let (start, sweep) = shifted(rot, start, sweep);
                         self.push_circle_arc(
                             meta(around(o, c.radius(), c.radius())),
                             o,
@@ -758,23 +764,40 @@ impl ContainerWriter {
                         )
                     }
                     Curve::Ellipse(e) => {
-                        if !axis_aligned(e.placement().x_axis()) {
-                            return unsupported("rotated placement");
-                        }
-                        let o = xy(e.placement().origin());
+                        let (o, rot) = self.frame(id, e.placement())?;
                         let radii = [e.semi_axis_1(), e.semi_axis_2()];
-                        self.push_ellipse_arc(
-                            meta(around(o, radii[0], radii[1])),
-                            o,
-                            radii,
-                            [0.0, start, sweep],
-                        )
+                        let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
+                        self.push_ellipse_arc(meta(around(o, r[0], r[1])), o, radii, [rot, start, sweep])
                     }
                     _ => unsupported("trimmed spline"),
                 }
             }
             _ => unsupported("curve of a kind this writer does not know"),
         }
+    }
+
+    /// What the writer derived instead of being handed it: the rotation of each rotated frame, in the
+    /// order the curves were pushed. A frame along x derives nothing.
+    pub fn derived(&self) -> &[Derived] {
+        &self.derived
+    }
+
+    /// The origin and the rotation of a frame. The rotation of a frame along x is exactly zero; any
+    /// other is the angle of its axis by `detmath::atan2` (within one ulp), and is recorded.
+    fn frame(&mut self, id: EntityId, p: &pvec_geometry::Placement2) -> Result<([f64; 2], f64), WriteError> {
+        let x = p.x_axis();
+        let rot = if x.x == 1.0 && x.y == 0.0 {
+            0.0
+        } else {
+            let r = pvec_numeric::detmath::atan2(x.y, x.x);
+            self.derived.push(Derived {
+                entity: id,
+                what: "the rotation of the frame: the angle of its x axis, by the deterministic arctangent (within one ulp)",
+                bound: UNIT * 2.0 * r.abs(),
+            });
+            r
+        };
+        Ok((xy(p.origin()), rot))
     }
 
     /// Adds a component stream. Its capability is declared in the manifest as the registry declares it.
@@ -1049,4 +1072,17 @@ impl ContainerWriter {
         };
         assemble(manifest, &raw, self.options.integrity)
     }
+}
+
+/// The start and sweep of an arc of a circle whose frame is turned by `rot`: the start moves by the
+/// rotation and is brought back into `[0, tau)`. A frame along x leaves both as they are.
+fn shifted(rot: f64, start: f64, sweep: f64) -> (f64, f64) {
+    if rot == 0.0 {
+        return (start, sweep);
+    }
+    let mut s = (rot + start).rem_euclid(core::f64::consts::TAU);
+    if s >= core::f64::consts::TAU {
+        s = 0.0;
+    }
+    (s, sweep)
 }
