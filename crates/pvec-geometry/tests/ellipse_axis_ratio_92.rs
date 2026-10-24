@@ -34,7 +34,7 @@ fn it_is_bit_identical_to_building_the_same_ellipse_by_hand() {
     for (c, axis, ratio) in [
         (pt(0.0, 0.0), v(2.0, 0.0), 0.25),
         (pt(-7.5, 3.25), v(-1.5, 6.0), 0.3),
-        (pt(1e6, -1e6), v(123.456, -789.012), 0.999),
+        (pt(1000000.0, -1000000.0), v(123.456, -789.012), 0.999),
         (pt(0.0, 0.0), v(0.0, 40.0), 1.0 / 3.0),
     ] {
         let a = axis.length();
@@ -64,21 +64,24 @@ fn a_ratio_of_one_is_an_ellipse_and_is_not_converted_to_a_circle() {
 #[test]
 fn a_zero_vector_is_refused_under_np10() {
     assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(0.0, 0.0), 0.5)), "NP-10");
-    assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(1e-13, -1e-13), 0.5)), "NP-10");
+    assert_eq!(
+        rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(0.0000000000001, -0.0000000000001), 0.5)),
+        "NP-10"
+    );
 }
 
 #[test]
 fn a_ratio_outside_zero_to_one_is_refused_under_np07() {
-    for ratio in [0.0, -0.0, -0.5, 1.0 + f64::EPSILON, 2.0, 1e9] {
+    for ratio in [0.0, -0.0, -0.5, f64::from_bits(1.0f64.to_bits() + 1), 2.0, 1000000000.0] {
         assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), ratio)), "NP-07", "{ratio}");
     }
 }
 
 #[test]
 fn a_ratio_past_the_conditioning_bound_is_refused_under_np07() {
-    assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), 1e-7)), "NP-07");
+    assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), 0.0000001)), "NP-07");
     // Well inside the bound of 1e6 is fine.
-    assert!(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), 2e-6).is_ok());
+    assert!(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), 0.000002).is_ok());
 }
 
 #[test]
@@ -93,12 +96,15 @@ fn a_non_finite_input_is_refused_under_np01() {
 #[test]
 fn a_ratio_that_makes_the_minor_axis_subnormal_or_a_vector_too_long_is_refused() {
     assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(3.0, 4.0), f64::from_bits(1))), "NP-01");
-    assert_eq!(rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(1e300, 1e300), 0.5)), "NP-02");
+    assert_eq!(
+        rule_of(Ellipse::from_major_axis(pt(0.0, 0.0), v(f64::MAX / 4.0, f64::MAX / 4.0), 0.5)),
+        "NP-02"
+    );
 }
 
 #[test]
 fn a_huge_vector_does_not_overflow_the_length() {
-    // The length is a hypot, so 1e11 in both components is fine (2^40 is about 1.1e12).
-    let e = Ellipse::from_major_axis(pt(0.0, 0.0), v(3e11, 4e11), 0.5).unwrap();
-    assert_eq!(e.semi_axis_1(), 5e11);
+    // The length is a hypot, so a 3-4-5 triangle scaled to hundreds of billions is fine (2^40 is about 1.1 trillion).
+    let e = Ellipse::from_major_axis(pt(0.0, 0.0), v(300000000000.0, 400000000000.0), 0.5).unwrap();
+    assert_eq!(e.semi_axis_1(), 500000000000.0);
 }
