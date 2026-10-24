@@ -244,6 +244,16 @@ impl Manifest {
         }
 
         let floor = header.header_len as u64;
+        let (man_start, man_end) = (header.manifest_offset, header.manifest_offset.saturating_add(declared));
+        // A directory or the checksum table that overlaps the manifest's own bytes can only be a
+        // corrupt or hostile pointer, so it is refused here rather than left for P4.2 and P4.6.
+        let outside_manifest = |field: &'static str, offset: u64, length: u64| {
+            if offset < man_end && offset + length > man_start {
+                Err(ContainerError::PointerIntoManifest { field, offset, length })
+            } else {
+                Ok(())
+            }
+        };
         let mut capabilities: Vec<Declared> = Vec::with_capacity(cap_count as usize);
         // A set keeps the duplicate check linear: the count is bounded by the manifest's own length
         // (checked above), but a quadratic scan over 65k entries is still billions of comparisons.
@@ -280,6 +290,7 @@ impl Manifest {
             }
             let (offset, length) = (u64_at(e, dir::OFFSET), u64_at(e, dir::LENGTH));
             check_range("directory", offset, length, floor, artifact_len)?;
+            outside_manifest("directory", offset, length)?;
             directories.push(DirectoryPointer { kind: u32_at(e, dir::KIND), offset, length });
         }
 
@@ -289,6 +300,7 @@ impl Manifest {
             None
         } else {
             check_range("block_checksums", cs_offset, cs_length, floor, artifact_len)?;
+            outside_manifest("block_checksums", cs_offset, cs_length)?;
             Some(ByteRange { offset: cs_offset, length: cs_length })
         };
 

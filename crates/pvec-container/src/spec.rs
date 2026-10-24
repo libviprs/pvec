@@ -352,7 +352,8 @@ first byte of the file. The reasoning for 64 rather than 32 bytes is in [ADR 000
 checks every pair against the artifact length before using it: the offset must be at least `header_len`, \
 the sum must not overflow, and the end must not pass the end of the file. A pointer that fails is refused, \
 never clamped. The directory-pointer table lies inside the manifest, at `manifest_offset + {} + 16 * \
-capability_count`, and the header and the manifest must agree on where.\n\n",
+capability_count`, and the header and the manifest must agree on where. A directory, or the block checksum table, that overlaps \
+the manifest's own bytes is refused, since the manifest is the one range every other pointer must stay clear of.\n\n",
         Manifest::FIXED_LEN
     ));
     s.push_str(&format!(
@@ -400,7 +401,7 @@ corruption.\n\
 * The header never grows past 4096 bytes and the manifest never past 1 MiB, so a reader's first fetch stays bounded.\n\n\
 ### 1.8 Refusals\n\n\
 `ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header \
-length, a pointer outside the artifact, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, \
+length, a pointer outside the artifact, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, \
 a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.\n",
     );
     s

@@ -33,7 +33,7 @@ The header is 64 bytes in version 1.0 and never more than 4096. Offsets are from
 | 48 | 8 | directory_table_length | u64 | table length, a multiple of 24 (zero when there are no directories) |
 | 56 | 8 | reserved_c | u64 | zero |
 
-The manifest and the directory-pointer table are located by absolute offsets and lengths. A reader checks every pair against the artifact length before using it: the offset must be at least `header_len`, the sum must not overflow, and the end must not pass the end of the file. A pointer that fails is refused, never clamped. The directory-pointer table lies inside the manifest, at `manifest_offset + 128 + 16 * capability_count`, and the header and the manifest must agree on where.
+The manifest and the directory-pointer table are located by absolute offsets and lengths. A reader checks every pair against the artifact length before using it: the offset must be at least `header_len`, the sum must not overflow, and the end must not pass the end of the file. A pointer that fails is refused, never clamped. The directory-pointer table lies inside the manifest, at `manifest_offset + 128 + 16 * capability_count`, and the header and the manifest must agree on where. A directory, or the block checksum table, that overlaps the manifest's own bytes is refused, since the manifest is the one range every other pointer must stay clear of.
 
 ### 1.3 The manifest
 
@@ -121,4 +121,4 @@ Every field named `reserved` is zero in version 1.0 and a reader refuses a file 
 
 ### 1.8 Refusals
 
-`ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header length, a pointer outside the artifact, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.
+`ContainerError` has one variant for each: bad magic, unsupported major version, unsupported byte order, a truncated prefix, a bad header length, a pointer outside the artifact, a directory or checksum table inside the manifest, an unknown checksum algorithm, a non-zero reserved field, a unit or factor that is not in the table, a bound that fails the numeric policy, a duplicate or malformed capability, a mismatched directory table and trailing bytes.
