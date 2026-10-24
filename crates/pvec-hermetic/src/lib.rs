@@ -7,5 +7,5 @@
 mod container;
 mod policy;
 
-pub use container::{Config, Container, ContainerError};
+pub use container::{Config, Container, ContainerError, Exec};
 pub use policy::{Decision, Policy, RunKind};

@@ -55,6 +55,17 @@ pub struct Container {
     armed: bool,
 }
 
+/// What a command run with [`Container::exec`] did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Exec {
+    /// Whether it exited with status zero.
+    pub success: bool,
+    /// Standard output, lossily decoded.
+    pub stdout: String,
+    /// Standard error, lossily decoded.
+    pub stderr: String,
+}
+
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// The only variables the docker client sees: where to find things and which daemon to talk to.
@@ -106,6 +117,12 @@ impl Container {
     /// Starts the container: no network, a read-only root, the corpus mounted read-only, no
     /// environment and no credential. Nothing else of the host is visible to it.
     pub fn start(config: &Config) -> Result<Container, ContainerError> {
+        Container::start_with_command(config, &[])
+    }
+
+    /// As [`Container::start`], but runs `command` in place of the image's own, for an image that
+    /// would otherwise exit at once (a validator that is driven by [`Container::exec`] afterwards).
+    pub fn start_with_command(config: &Config, command: &[&str]) -> Result<Container, ContainerError> {
         if !pinned(&config.image) {
             return Err(ContainerError::UnpinnedImage(config.image.clone()));
         }
@@ -126,7 +143,7 @@ impl Container {
         let name = format!("pvec-hermetic-{}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::SeqCst));
         let volume = format!("{}:/corpus:ro", mount.display());
         let mut c = Container { name: name.clone(), docker: bin, path, armed: true };
-        let args = [
+        let mut args = vec![
             "run",
             "-d",
             "--rm",
@@ -141,6 +158,7 @@ impl Container {
             &volume,
             &config.image,
         ];
+        args.extend_from_slice(command);
         let failure = match docker(&c.docker, &c.path, &args) {
             Ok(o) if o.status.success() => return Ok(c),
             Ok(o) => ContainerError::StartFailed(text(&o)),
@@ -155,6 +173,21 @@ impl Container {
     /// The container name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Runs `args` inside the running container and returns what it printed. A command that exits
+    /// non-zero is not an error here: the caller reads [`Exec::success`] and the output.
+    pub fn exec(&self, args: &[&str]) -> Result<Exec, ContainerError> {
+        let mut full = vec!["exec", self.name.as_str()];
+        full.extend_from_slice(args);
+        match docker(&self.docker, &self.path, &full) {
+            Ok(o) => Ok(Exec {
+                success: o.status.success(),
+                stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+                stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+            }),
+            Err(e) => Err(ContainerError::StartFailed(format!("exec: {e}"))),
+        }
     }
 
     /// Removes it now and reports a failure, which a drop can only print.

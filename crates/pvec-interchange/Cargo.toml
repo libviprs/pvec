@@ -1,7 +1,7 @@
 [package]
 name = "pvec-interchange"
 version = "0.0.0"
-description = "Translation fidelity vocabulary for PVec exports: the taxonomy, the record and the ledger"
+description = "Translation fidelity vocabulary for PVec exports (taxonomy, record, ledger) and the GML export"
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
@@ -9,6 +9,12 @@ publish.workspace = true
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-entity = { path = "../pvec-entity" }
+pvec-geometry = { path = "../pvec-geometry" }
+pvec-numeric = { path = "../pvec-numeric" }
+
+# The schema validation test runs a pinned validator in a hermetic container (pvec-hermetic).
+[dev-dependencies]
+pvec-hermetic = { path = "../pvec-hermetic" }
 
 [lints]
 workspace = true
