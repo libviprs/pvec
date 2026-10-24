@@ -267,10 +267,33 @@ fn table(rows: &[Row]) -> String {
             r.stored as f64 / r.raw as f64,
             mbps(r.raw, r.compress),
             mbps(r.raw, r.decompress),
-            100.0 * r.checksum.as_secs_f64() / r.decompress.as_secs_f64().max(f64::MIN_POSITIVE),
+            checksum_share(r),
         ));
     }
     s
+}
+
+/// ADR 0006's reversal threshold: a block checksum that costs more than this share of block decode time
+/// becomes opt-in per file.
+const REVERSAL_PERCENT: f64 = 25.0;
+
+fn checksum_share(r: &Row) -> f64 {
+    100.0 * r.checksum.as_secs_f64() / r.decompress.as_secs_f64().max(f64::MIN_POSITIVE)
+}
+
+/// The worst checksum share over the rows, against the threshold, in a line the document can quote.
+fn reversal_check(rows: &[Row]) -> String {
+    let Some(worst) = rows.iter().max_by(|a, b| checksum_share(a).total_cmp(&checksum_share(b))) else {
+        return "no rows".to_string();
+    };
+    let share = checksum_share(worst);
+    let verdict = if share > REVERSAL_PERCENT { "OVER" } else { "under" };
+    format!(
+        "{verdict}: the worst XXH3 share is {share:.1}% of decode time ({} {} {}), threshold {REVERSAL_PERCENT:.0}%",
+        worst.fixture,
+        worst.kind.name(),
+        worst.codec.name()
+    )
 }
 
 fn hash_rates(effort: Effort, artifact: &[u8]) -> String {
@@ -313,8 +336,11 @@ fn print_the_codec_measurement() {
     for (name, bytes) in &fixtures {
         rows.extend(measure(MEASURE, name, &blocks_by_kind(bytes)));
     }
+    let large = rows.len();
     rows.extend(measure(MEASURE, "corpus-r0-open (16 fixtures)", &corpus_blocks()));
     println!("{}", table(&rows));
+    println!("REVERSAL-CHECK (the three generated fixtures) {}", reversal_check(&rows[..large]));
+    println!("REVERSAL-CHECK (all rows, tiny corpus blocks too) {}", reversal_check(&rows));
     println!("| hash | MB/s over the largest fixture |\n|---|---|");
     println!("{}", hash_rates(MEASURE, &fixtures[0].1));
     println!("MEASUREMENT-END");

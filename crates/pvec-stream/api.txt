@@ -67,3 +67,124 @@ directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
 directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
 directory.rs: impl Iterator for CellCursor<'_>
 lib.rs: pub use directory::*
+lib.rs: pub use ownership::*
+lib.rs: pub use viewport::*
+ownership.rs: pub const REF_BUDGET: usize
+ownership.rs: pub const PAYLOAD_REF_LEN: usize
+ownership.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct PayloadRef
+ownership.rs: PayloadRef.block_id: BlockId
+ownership.rs: PayloadRef.slot: u32
+ownership.rs: PayloadRef::encode(self) -> [u8; PAYLOAD_REF_LEN]
+ownership.rs: PayloadRef::decode(bytes: [u8; PAYLOAD_REF_LEN]) -> PayloadRef
+ownership.rs: pub const DEFAULT_MAX_CELLS: u32
+ownership.rs: pub const OWNERSHIP_RULES: &[(&str, &str)]
+ownership.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum OwnershipError
+ownership.rs: OwnershipError::Length { length: u64, expected: u64 }
+ownership.rs: OwnershipError::Header { reason: &'static str }
+ownership.rs: OwnershipError::CellTable { reason: &'static str }
+ownership.rs: OwnershipError::Order { cell: u32 }
+ownership.rs: OwnershipError::Input { reason: &'static str, entity: u32 }
+ownership.rs: OwnershipError::Outside { entity: u32 }
+ownership.rs: OwnershipError::Ceiling
+ownership.rs: OwnershipError::TooManyRefs
+ownership.rs: OwnershipError::NoPayload { block: u32, slot: u32, reason: &'static str }
+ownership.rs: OwnershipError::Read(ReadError)
+ownership.rs: OwnershipError::Block { block: u32, reason: &'static str }
+ownership.rs: OwnershipError::rule(&self) -> &'static str
+ownership.rs: impl core::fmt::Display for OwnershipError
+ownership.rs: impl std::error::Error for OwnershipError {}
+ownership.rs: impl From<ReadError> for OwnershipError
+ownership.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct DuplicationPolicy
+ownership.rs: DuplicationPolicy::new(max_cells: u32) -> Result<DuplicationPolicy, OwnershipError>
+ownership.rs: DuplicationPolicy::max_cells(&self) -> u32
+ownership.rs: impl Default for DuplicationPolicy
+ownership.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct PlacedEntity
+ownership.rs: PlacedEntity.id: EntityId
+ownership.rs: PlacedEntity.bounds: Aabb
+ownership.rs: PlacedEntity.payload: PayloadRef
+ownership.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Straddler
+ownership.rs: Straddler.id: EntityId
+ownership.rs: Straddler.payload: PayloadRef
+ownership.rs: #[derive(Clone, Debug, PartialEq, Eq, Default)] pub struct CellRefs
+ownership.rs: CellRefs::cells(&self) -> usize
+ownership.rs: CellRefs::total_refs(&self) -> usize
+ownership.rs: CellRefs::refs_of(&self, cell: CellId) -> &[PayloadRef]
+ownership.rs: CellRefs::encode(&self) -> Vec<u8>
+ownership.rs: CellRefs::parse(bytes: &[u8]) -> Result<CellRefs, OwnershipError>
+ownership.rs: #[derive(Clone, Debug, PartialEq)] pub struct DuplicationReport
+ownership.rs: DuplicationReport.entities: u64
+ownership.rs: DuplicationReport.straddlers: u64
+ownership.rs: DuplicationReport.references: u64
+ownership.rs: DuplicationReport.mean: f64
+ownership.rs: DuplicationReport.p99: u32
+ownership.rs: DuplicationReport.max: u32
+ownership.rs: DuplicationReport.reference_bytes: u64
+ownership.rs: DuplicationReport.payload_bytes: u64
+ownership.rs: DuplicationReport::fraction(&self) -> f64
+ownership.rs: #[derive(Clone, Debug, PartialEq)] pub struct Placement
+ownership.rs: Placement.refs: CellRefs
+ownership.rs: Placement.straddlers: Vec<Straddler>
+ownership.rs: Placement.report: DuplicationReport
+ownership.rs: pub fn place(dir: &SpatialDirectory, entities: &[PlacedEntity], policy: DuplicationPolicy, payload_bytes: u64) -> Result<Placement, OwnershipError>
+ownership.rs: pub fn payload_bytes(entries: &[BlockEntry]) -> u64
+ownership.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct PayloadSlot
+ownership.rs: PayloadSlot.id: EntityId
+ownership.rs: PayloadSlot.payload: PayloadRef
+ownership.rs: PayloadSlot.cell: u32
+ownership.rs: pub fn scan_payloads<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Vec<PayloadSlot>, OwnershipError>
+ownership.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ViewportRefs
+ownership.rs: ViewportRefs.raw: usize
+ownership.rs: ViewportRefs.refs: Vec<PayloadRef>
+ownership.rs: pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> ViewportRefs
+ownership.rs: pub fn read_viewport<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs, mut visit: impl FnMut(EntityId, &HotBlockView<'_>, usize)) -> Result<usize, OwnershipError>
+viewport.rs: pub const DEFAULT_PREFETCH_MARGIN_PX: f64
+viewport.rs: pub trait PlanSource
+viewport.rs: PlanSource::entries(&self) -> &[BlockEntry]
+viewport.rs: PlanSource::plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError>
+viewport.rs: PlanSource::is_cached(&self, id: BlockId) -> bool
+viewport.rs: impl<S: BlockSource> PlanSource for ContainerReader<S>
+viewport.rs: impl<S: AsyncBlockSource> PlanSource for AsyncContainerReader<S>
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportQuery
+viewport.rs: ViewportQuery.bounds: Aabb
+viewport.rs: ViewportQuery.scale: f64
+viewport.rs: ViewportQuery.tier_budget: u64
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportConfig
+viewport.rs: ViewportConfig.prefetch_margin_px: f64
+viewport.rs: impl Default for ViewportConfig
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Priority
+viewport.rs: Priority::Visible
+viewport.rs: Priority::Prefetch
+viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct PlannedRequest
+viewport.rs: PlannedRequest.request: RangeRequest
+viewport.rs: PlannedRequest.priority: Priority
+viewport.rs: PlannedRequest.gain: f64
+viewport.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct ClassMetrics
+viewport.rs: ClassMetrics.ranges: u32
+viewport.rs: ClassMetrics.bytes_requested: u64
+viewport.rs: ClassMetrics.bytes_wasted: u64
+viewport.rs: ClassMetrics.blocks: u32
+viewport.rs: ClassMetrics.blocks_cached: u32
+viewport.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct PlanMetrics
+viewport.rs: PlanMetrics.visible: ClassMetrics
+viewport.rs: PlanMetrics.prefetch: ClassMetrics
+viewport.rs: PlanMetrics.deferred_ranges: u32
+viewport.rs: PlanMetrics.deferred_bytes: u64
+viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct ReadPlan
+viewport.rs: ReadPlan.requests: Vec<PlannedRequest>
+viewport.rs: ReadPlan.deferred: Vec<PlannedRequest>
+viewport.rs: ReadPlan.advanced_in_view: bool
+viewport.rs: ReadPlan.metrics: PlanMetrics
+viewport.rs: ReadPlan::block_ids(&self) -> Vec<BlockId>
+viewport.rs: ReadPlan::visible_block_ids(&self) -> Vec<BlockId>
+viewport.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum ViewportError
+viewport.rs: ViewportError::BadScale
+viewport.rs: ViewportError::BadMargin
+viewport.rs: ViewportError::Read(ReadError)
+viewport.rs: ViewportError::rule(&self) -> &'static str
+viewport.rs: impl core::fmt::Display for ViewportError
+viewport.rs: impl std::error::Error for ViewportError {}
+viewport.rs: impl From<ReadError> for ViewportError
+viewport.rs: impl From<DirectoryError> for ViewportError
+viewport.rs: pub const VIEWPORT_RULES: &[(&str, &str)]
+viewport.rs: ViewportQuery::new(bounds: Aabb, scale: f64) -> ViewportQuery
+viewport.rs: ViewportQuery::plan<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>

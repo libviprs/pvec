@@ -7,6 +7,9 @@
 //! writer ([`gpkg`]) is the first export built on it; `docs/INTERCHANGE.md` chapter 4 says which curve
 //! becomes which geometry and with what claim.
 //!
+//! The display-only vector tile export (P6.6) lives in [`mvt`]; it is the one place that tessellates
+//! for display, through the exact evaluator of `pvec-geometry`.
+//!
 //! The crate has no dependencies beyond the curve model, the capability registry and the entity id,
 //! no I/O and no `unsafe`. The serialized form of a ledger is a small versioned text format written by
 //! hand, and the GeoPackage is a SQLite file written by hand too, so no serialization crate and no
@@ -14,5 +17,6 @@
 
 mod fidelity;
 pub mod gpkg;
+pub mod mvt;
 
 pub use fidelity::*;
