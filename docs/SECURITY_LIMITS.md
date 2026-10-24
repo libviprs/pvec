@@ -27,13 +27,13 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 
 | rule | rationale | enforced |
 |---|---|---|
-| LIMIT-01 | A deflate stream can expand about 1000 times and an LZ4 block about 255 times, so an unbounded ratio is a decompression bomb. Real blocks of coordinates compress 2 to 4 times, so 64 leaves a wide margin. | the block directory, from the declared lengths, before anything is fetched or reserved; again on the decoder's own output |
+| LIMIT-01 | A deflate stream can expand about 1000 times and an LZ4 block about 255 times, so an unbounded ratio is a decompression bomb. Real blocks of coordinates compress 2 to 4 times, so 64 leaves a wide margin. | the block directory, from the declared lengths, before anything is fetched or reserved |
 | LIMIT-02 | A block is read and decoded whole, so its size is the largest single buffer. The directory carries 32-bit lengths; this is far below that. | the block directory, from the stored and the declared decoded length, before the block is fetched |
 | LIMIT-03 | The sum of the live decoded buffers, so many blocks that are each legal cannot add up to the machine's memory. | the allocation accountant, before every decoded buffer is created; unreferenced cache entries are evicted first |
-| LIMIT-04 | Time, not memory: a file that makes the reader decode the same large blocks over and over would stall a tab without allocating more than the budget. | the allocation accountant, before every block fetched, decoded or hashed |
+| LIMIT-04 | Time, not memory: a file that makes the reader decode the same large blocks over and over would stall a tab without allocating more than the budget. | the allocation accountant, before every block or stretch of padding is fetched |
 | LIMIT-05 | The length of the artifact as the source reports it. Offsets in the file are held to it, so this bounds every range the reader will ask for. | opening, before the first range is requested |
 | LIMIT-06 | The directory is fetched whole, at 64 bytes a block, so this bounds what a cold open transfers and allocates (ADR 0008 measured 0.17% of the file at 512 entities per block). | opening, from the directory pointer, before the directory is fetched |
-| LIMIT-07 | Cites NP-18's maximum of entities in one file (2^28). The identity checks of a full validation hold one id per entity. | opening, from the counts in the directory, and again when blocks are decoded |
+| LIMIT-07 | Cites NP-18's maximum of entities in one file (2^28). The identity checks of a full validation hold one id per entity. | opening, from the counts in the directory, and again when the whole file is validated |
 | LIMIT-08 | Cites NP-18's maximum of entities in one file, since one block may hold them all. | the directory count, and the count in the block's own header before the block is parsed |
 | LIMIT-09 | Cites NP-18's maximum of control points on one curve (2^16). | reading a curve, from the offset-table entry, before anything is copied |
 | LIMIT-10 | Cites NP-18's maximum of knots on one curve (control points plus degree plus one at the maxima). | reading a curve, from the offset-table entry, before anything is copied |

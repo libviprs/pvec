@@ -786,11 +786,12 @@ impl<'a> AdvancedView<'a> {
     /// Height of the record at `index` when it sits at `level` (the outermost curve is level 1).
     fn depth(&self, index: usize, level: usize, walk: &mut Walk) -> Result<usize, ArenaError> {
         let max = walk.max;
-        if level > max {
-            return Err(ArenaError::NestingTooDeep { record: index });
-        }
+        // a record that is already on the path is a cycle at any ceiling, so it is looked for first
         if walk.open.contains(&index) {
             return Err(ArenaError::CompositeCycle { record: index });
+        }
+        if level > max {
+            return Err(ArenaError::NestingTooDeep { record: index });
         }
         if let Some(&h) = walk.done.get(&index) {
             if level + h - 1 > max {

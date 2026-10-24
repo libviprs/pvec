@@ -142,19 +142,31 @@ pub struct LimitsError {
     pub limit: LimitKind,
     /// The value that was given.
     pub given: u64,
+    /// The lowest value that makes sense for it.
+    pub format_minimum: u64,
     /// The highest value the format allows for it.
     pub format_maximum: u64,
 }
 
 impl fmt::Display for LimitsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} is {}, above the {} the format allows, which the block parsers refuse whatever this says",
-            self.limit.field(),
-            self.given,
-            self.format_maximum
-        )
+        if self.given < self.format_minimum {
+            write!(
+                f,
+                "{} is {}, below {}: the outermost curve counts as a level, so a ceiling under it refuses every file",
+                self.limit.field(),
+                self.given,
+                self.format_minimum
+            )
+        } else {
+            write!(
+                f,
+                "{} is {}, above the {} the format allows, which the block parsers refuse whatever this says",
+                self.limit.field(),
+                self.given,
+                self.format_maximum
+            )
+        }
     }
 }
 
@@ -237,18 +249,19 @@ impl Limits {
         }
     }
 
-    /// Checks that no ceiling that cites NP-18 is above it. A ceiling above the format's maximum would
-    /// promise a file the parsers refuse, so it is an error and not a quiet clamp.
+    /// Checks that no ceiling that cites NP-18 is above it, and that the nesting ceiling is at least 1. A
+    /// ceiling above the format's maximum would promise a file the parsers refuse, so it is an error and
+    /// not a quiet clamp.
     pub fn validate(&self) -> Result<(), LimitsError> {
-        for (limit, given, format_maximum) in [
-            (LimitKind::EntitiesPerArtifact, self.max_entities_per_artifact, MAX_ENTITIES as u64),
-            (LimitKind::EntitiesPerBlock, u64::from(self.max_entities_per_block), MAX_ENTITIES as u64),
-            (LimitKind::ControlPoints, u64::from(self.max_control_points), MAX_CONTROL_POINTS as u64),
-            (LimitKind::Knots, u64::from(self.max_knots), MAX_KNOTS as u64),
-            (LimitKind::NestingDepth, u64::from(self.max_nesting_depth), MAX_NESTING_DEPTH as u64),
+        for (limit, given, format_minimum, format_maximum) in [
+            (LimitKind::EntitiesPerArtifact, self.max_entities_per_artifact, 0, MAX_ENTITIES as u64),
+            (LimitKind::EntitiesPerBlock, u64::from(self.max_entities_per_block), 0, MAX_ENTITIES as u64),
+            (LimitKind::ControlPoints, u64::from(self.max_control_points), 0, MAX_CONTROL_POINTS as u64),
+            (LimitKind::Knots, u64::from(self.max_knots), 0, MAX_KNOTS as u64),
+            (LimitKind::NestingDepth, u64::from(self.max_nesting_depth), 1, MAX_NESTING_DEPTH as u64),
         ] {
-            if given > format_maximum {
-                return Err(LimitsError { limit, given, format_maximum });
+            if given > format_maximum || given < format_minimum {
+                return Err(LimitsError { limit, given, format_minimum, format_maximum });
             }
         }
         Ok(())
@@ -283,7 +296,7 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
     LimitRow {
         kind: LimitKind::ExpansionRatio,
         rationale: "A deflate stream can expand about 1000 times and an LZ4 block about 255 times, so an unbounded ratio is a decompression bomb. Real blocks of coordinates compress 2 to 4 times, so 64 leaves a wide margin.",
-        enforced: "the block directory, from the declared lengths, before anything is fetched or reserved; again on the decoder's own output",
+        enforced: "the block directory, from the declared lengths, before anything is fetched or reserved",
     },
     LimitRow {
         kind: LimitKind::BlockBytes,
@@ -298,7 +311,7 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
     LimitRow {
         kind: LimitKind::DecodeWork,
         rationale: "Time, not memory: a file that makes the reader decode the same large blocks over and over would stall a tab without allocating more than the budget.",
-        enforced: "the allocation accountant, before every block fetched, decoded or hashed",
+        enforced: "the allocation accountant, before every block or stretch of padding is fetched",
     },
     LimitRow {
         kind: LimitKind::ArtifactBytes,
@@ -313,7 +326,7 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
     LimitRow {
         kind: LimitKind::EntitiesPerArtifact,
         rationale: "Cites NP-18's maximum of entities in one file (2^28). The identity checks of a full validation hold one id per entity.",
-        enforced: "opening, from the counts in the directory, and again when blocks are decoded",
+        enforced: "opening, from the counts in the directory, and again when the whole file is validated",
     },
     LimitRow {
         kind: LimitKind::EntitiesPerBlock,

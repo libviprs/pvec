@@ -225,8 +225,10 @@ fn internal() -> ReadError {
     ReadError::Layout { rule: "INTERNAL", detail: "the opening was driven out of order".into() }
 }
 
+/// A little-endian integer out of an entry. A field that is not there reads as the largest value, so a
+/// limit check that cannot see its field refuses and never passes.
 fn le(bytes: &[u8], at: usize, size: usize) -> u64 {
-    bytes.get(at..at + size).map_or(0, |b| b.iter().rev().fold(0u64, |a, x| (a << 8) | u64::from(*x)))
+    bytes.get(at..at + size).map_or(u64::MAX, |b| b.iter().rev().fold(0u64, |a, x| (a << 8) | u64::from(*x)))
 }
 
 /// The limits, applied to the raw entries before anything is parsed or sized from them. A refusal here
@@ -234,7 +236,8 @@ fn le(bytes: &[u8], at: usize, size: usize) -> u64 {
 fn check_table(table: &[u8], artifact_len: u64, limits: &Limits) -> Result<(), ReadError> {
     let at = |name: &str| {
         let f = BLOCK_ENTRY_FIELDS.iter().find(|f| f.name == name);
-        f.map_or((0, 0), |f| (f.offset, f.size))
+        // a field that is missing from the table puts its reads out of range, where they refuse
+        f.map_or((usize::MAX / 2, 8), |f| (f.offset, f.size))
     };
     let (offset, stored, decoded) = (at("offset"), at("stored_length"), at("uncompressed_length"));
     let (count, kind) = (at("count"), at("kind"));
@@ -349,6 +352,14 @@ impl Core {
         Ok(out)
     }
 
+    /// Refuses a block whose codec this reader cannot decode, before anything is charged or fetched.
+    pub fn check_decodable(&self, entry: &BlockEntry) -> Result<(), ReadError> {
+        if entry.codec != CODEC_NONE {
+            return layout("NEGOTIATE-01", format!("cannot decode codec {}", entry.codec));
+        }
+        Ok(())
+    }
+
     /// Decodes the stored bytes of block `id` into aligned memory held against `reservation`.
     pub fn decode(
         &self,
@@ -363,9 +374,7 @@ impl Core {
                 got: stored.len() as u64,
             }));
         }
-        if entry.codec != CODEC_NONE {
-            return layout("NEGOTIATE-01", format!("cannot decode codec {} of block {}", entry.codec, id.0));
-        }
+        self.check_decodable(&entry)?;
         let bytes = AlignedBytes::from_bytes(stored);
         precheck_counts(&entry, bytes.as_bytes(), &self.limits)?;
         Ok(DecodedBlock::new(id, entry, bytes, reservation))
@@ -469,6 +478,7 @@ pub(crate) struct Validation<'a> {
     next: usize,
     ids: Vec<u32>,
     _ids_reservation: Reservation,
+    _needs_reservation: Reservation,
     expected_entities: u64,
     entities: u64,
     advanced: Vec<Arc<DecodedBlock>>,
@@ -505,6 +515,7 @@ impl<'a> Validation<'a> {
         limits.check(LimitKind::EntitiesPerArtifact, expected_entities)?;
         // one id per entity, held until the identities have been compared
         let reservation = acct.reserve(4 * expected_entities)?;
+        let needs_reservation = acct.reserve((needs.len() * core::mem::size_of::<Need>()) as u64)?;
         Ok(Validation {
             core,
             limits: *limits,
@@ -512,6 +523,7 @@ impl<'a> Validation<'a> {
             next: 0,
             ids: Vec::new(),
             _ids_reservation: reservation,
+            _needs_reservation: needs_reservation,
             expected_entities,
             entities: 0,
             advanced: Vec::new(),
@@ -692,17 +704,20 @@ Decoded blocks are cached by `BlockId` under a byte budget the caller supplies (
 zero turns it off). The policy is least recently used first out, each entry costing its decoded length, and a block \
 larger than the whole budget is not kept. Dropping an entry drops the cache's reference only: the bytes go back to \
 the allocation accountant when the last holder of the block lets go. When a new block would pass the allocation \
-budget the cache is emptied oldest-first before the read is refused.\n\n\
+budget the cache gives up its least recently used blocks that nobody else holds, one at a time, until the block \
+fits, and the read is refused when there are none left to give: evicting a block a caller still holds frees nothing.\n\n\
 ## Memory\n\n\
 Every buffer is reserved with the accountant before it is made, the stored bytes of a block while it is fetched \
-and its decoded bytes for as long as it lives, so the allocation budget is the sum of what is live. The prefix \
-and the directory are charged too. The size a file *declares* is never what is requested: a block of a declared \
+and its decoded bytes for as long as it lives, so the allocation budget is the sum of what is live. The prefix, \
+the directory and the padding a validation reads are charged too, and so is the work: every byte fetched or decoded \
+counts against `max_decode_work`. The size a file *declares* is never what is requested: a block of a declared \
 4 GiB is refused from its directory entry, before a byte of it is fetched.\n\n\
 ## Validation\n\n\
 `validate()` reads everything and holds the file to the canonical layout the writer produces: the bytes between \
 blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites \
-are acyclic and shallow enough. It streams: blocks are decoded one at a time and the memory is bounded by the cache \
-and the budget, except the one id per entity it keeps to compare identities.\n\n\
+are acyclic and shallow enough. It streams: blocks are decoded one at a time, padding is read a megabyte at a time, \
+and everything it keeps (one id per entity to compare identities, the list of what to fetch, the advanced blocks until \
+the curves have been checked) is reserved with the accountant like the blocks are.\n\n\
 ## Rules\n\n\
 A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-nn`, `STREAM-nn`, or the name of the \
 `ContainerError` variant), the rule of a limit (`LIMIT-nn`, see SECURITY_LIMITS.md), or one of these:\n\n\
@@ -712,7 +727,8 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
         s.push_str(&format!("| {rule} | {meaning} |\n"));
     }
     s.push_str(
-        "\n## Not here\n\n\
+        "\nThe reference reader in `pvec-testkit` also has `LAYOUT-05`, a range that lies outside the file. This reader \
+never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).\n\n## Not here\n\n\
 There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the \
 confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same \
 checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. \

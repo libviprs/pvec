@@ -31,7 +31,7 @@ use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation}
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
 use pvec_components::StreamError;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -315,9 +315,12 @@ struct CacheEntry {
 
 /// The decoded-block cache: least recently used first out, each entry costing its decoded length, and
 /// an entry bigger than the whole budget is not kept. Dropping an entry drops the cache's reference
-/// only; the bytes go back to the accountant when the last caller lets go of the block.
+/// only; the bytes go back to the accountant when the last caller lets go of the block, which is why
+/// making room for the allocation budget only evicts entries nobody else holds.
 struct Cache {
     map: HashMap<BlockId, CacheEntry>,
+    /// Entries by the tick they were last used at, so the oldest is the first.
+    order: BTreeMap<u64, BlockId>,
     bytes: u64,
     budget: u64,
     tick: u64,
@@ -325,31 +328,52 @@ struct Cache {
 
 impl Cache {
     fn new(budget: u64) -> Cache {
-        Cache { map: HashMap::new(), bytes: 0, budget, tick: 0 }
+        Cache { map: HashMap::new(), order: BTreeMap::new(), bytes: 0, budget, tick: 0 }
     }
 
     fn get(&mut self, id: BlockId) -> Option<Arc<DecodedBlock>> {
         self.tick += 1;
         let tick = self.tick;
-        self.map.get_mut(&id).map(|e| {
-            e.tick = tick;
-            Arc::clone(&e.block)
-        })
+        let e = self.map.get_mut(&id)?;
+        self.order.remove(&e.tick);
+        e.tick = tick;
+        self.order.insert(tick, id);
+        Some(Arc::clone(&e.block))
     }
 
     fn cost(block: &DecodedBlock) -> u64 {
         block.as_bytes().len() as u64
     }
 
-    /// Drops the least recently used entry. False when there is none.
-    fn evict_one(&mut self) -> bool {
-        let Some(victim) = self.map.iter().min_by_key(|(_, e)| e.tick).map(|(id, _)| *id) else {
-            return false;
-        };
-        if let Some(e) = self.map.remove(&victim) {
+    fn remove(&mut self, id: BlockId) {
+        if let Some(e) = self.map.remove(&id) {
+            self.order.remove(&e.tick);
             self.bytes -= Cache::cost(&e.block);
         }
+    }
+
+    /// Drops the least recently used entry, whoever else holds the block. False when there is none.
+    fn evict_oldest(&mut self) -> bool {
+        let Some(victim) = self.order.values().next().copied() else { return false };
+        self.remove(victim);
         true
+    }
+
+    /// Drops the least recently used entry that only the cache holds, since dropping one a caller still
+    /// holds frees nothing. False when there is none.
+    fn evict_unreferenced(&mut self) -> bool {
+        let victim = self
+            .order
+            .values()
+            .find(|id| self.map.get(*id).is_some_and(|e| Arc::strong_count(&e.block) == 1))
+            .copied();
+        match victim {
+            Some(id) => {
+                self.remove(id);
+                true
+            }
+            None => false,
+        }
     }
 
     fn insert(&mut self, block: Arc<DecodedBlock>) -> u64 {
@@ -358,14 +382,13 @@ impl Cache {
             return 0;
         }
         let mut evicted = 0;
-        if let Some(old) = self.map.remove(&block.id()) {
-            self.bytes -= Cache::cost(&old.block);
-        }
-        while self.bytes + cost > self.budget && self.evict_one() {
+        self.remove(block.id());
+        while self.bytes + cost > self.budget && self.evict_oldest() {
             evicted += 1;
         }
         self.tick += 1;
         self.bytes += cost;
+        self.order.insert(self.tick, block.id());
         self.map.insert(block.id(), CacheEntry { block, tick: self.tick });
         evicted
     }
@@ -403,7 +426,7 @@ impl Shared {
             match self.acct.reserve(bytes) {
                 Ok(r) => return Ok(r),
                 Err(e) => {
-                    let evicted = self.cache.lock().map(|mut c| c.evict_one()).unwrap_or(false);
+                    let evicted = self.cache.lock().map(|mut c| c.evict_unreferenced()).unwrap_or(false);
                     if !evicted {
                         return Err(ReadError::Limit(e));
                     }
@@ -418,6 +441,7 @@ impl Shared {
     /// refused here, without a request.
     fn admit(&self, id: BlockId, in_flight: u64) -> Result<(Reservation, Reservation), ReadError> {
         let entry = self.core.entry(id)?;
+        self.core.check_decodable(entry)?;
         self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
         let decoded = self.reserve(u64::from(entry.uncompressed_length))?;
         let transient = self.reserve(in_flight)?;
@@ -458,11 +482,18 @@ impl Shared {
         Ok(AdvancedSet { blocks, limits: self.config.limits })
     }
 
+    /// The padding between blocks is fetched in chunks, and each chunk is charged like anything else.
+    fn admit_gap(&self, len: u32) -> Result<Reservation, ReadError> {
+        self.acct.charge_work(u64::from(len))?;
+        self.reserve(u64::from(len))
+    }
+
     /// For each request of a plan: the room for what it fetches, reserved before it is asked for.
     fn admit_request(&self, request: &RangeRequest) -> Result<(Vec<Reservation>, Reservation), ReadError> {
         let mut decoded = Vec::with_capacity(request.blocks.len());
         for id in &request.blocks {
             let entry = self.core.entry(*id)?;
+            self.core.check_decodable(entry)?;
             self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
             decoded.push(self.reserve(u64::from(entry.uncompressed_length))?);
         }
@@ -616,6 +647,7 @@ impl<S: BlockSource> ContainerReader<S> {
         while let Some(need) = v.next_need() {
             match need {
                 Need::Gap { offset, len } => {
+                    let _room = self.shared.admit_gap(len)?;
                     let bytes = self.fetch(offset, len)?;
                     v.feed_gap(offset, &bytes)?;
                 }
@@ -715,6 +747,7 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         while let Some(need) = v.next_need() {
             match need {
                 Need::Gap { offset, len } => {
+                    let _room = self.shared.admit_gap(len)?;
                     let bytes = self.fetch(offset, len).await?;
                     v.feed_gap(offset, &bytes)?;
                 }

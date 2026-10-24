@@ -20,15 +20,15 @@ A source that answers with another number of bytes than were asked for is an err
 
 ## The cache
 
-Decoded blocks are cached by `BlockId` under a byte budget the caller supplies (`cache_bytes`, 64 MiB by default; zero turns it off). The policy is least recently used first out, each entry costing its decoded length, and a block larger than the whole budget is not kept. Dropping an entry drops the cache's reference only: the bytes go back to the allocation accountant when the last holder of the block lets go. When a new block would pass the allocation budget the cache is emptied oldest-first before the read is refused.
+Decoded blocks are cached by `BlockId` under a byte budget the caller supplies (`cache_bytes`, 64 MiB by default; zero turns it off). The policy is least recently used first out, each entry costing its decoded length, and a block larger than the whole budget is not kept. Dropping an entry drops the cache's reference only: the bytes go back to the allocation accountant when the last holder of the block lets go. When a new block would pass the allocation budget the cache gives up its least recently used blocks that nobody else holds, one at a time, until the block fits, and the read is refused when there are none left to give: evicting a block a caller still holds frees nothing.
 
 ## Memory
 
-Every buffer is reserved with the accountant before it is made, the stored bytes of a block while it is fetched and its decoded bytes for as long as it lives, so the allocation budget is the sum of what is live. The prefix and the directory are charged too. The size a file *declares* is never what is requested: a block of a declared 4 GiB is refused from its directory entry, before a byte of it is fetched.
+Every buffer is reserved with the accountant before it is made, the stored bytes of a block while it is fetched and its decoded bytes for as long as it lives, so the allocation budget is the sum of what is live. The prefix, the directory and the padding a validation reads are charged too, and so is the work: every byte fetched or decoded counts against `max_decode_work`. The size a file *declares* is never what is requested: a block of a declared 4 GiB is refused from its directory entry, before a byte of it is fetched.
 
 ## Validation
 
-`validate()` reads everything and holds the file to the canonical layout the writer produces: the bytes between blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites are acyclic and shallow enough. It streams: blocks are decoded one at a time and the memory is bounded by the cache and the budget, except the one id per entity it keeps to compare identities.
+`validate()` reads everything and holds the file to the canonical layout the writer produces: the bytes between blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites are acyclic and shallow enough. It streams: blocks are decoded one at a time, padding is read a megabyte at a time, and everything it keeps (one id per entity to compare identities, the list of what to fetch, the advanced blocks until the curves have been checked) is reserved with the accountant like the blocks are.
 
 ## Rules
 
@@ -51,6 +51,8 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
 | SOURCE | the source failed, or answered with another number of bytes than were asked for |
 | BLOCK-ID | a block id that is not in the directory |
 | LIMITS | the configured limits ask for more than the format allows |
+
+The reference reader in `pvec-testkit` also has `LAYOUT-05`, a range that lies outside the file. This reader never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).
 
 ## Not here
 

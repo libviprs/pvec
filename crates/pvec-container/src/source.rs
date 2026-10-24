@@ -27,22 +27,16 @@ use std::sync::{Arc, Mutex};
 /// Bytes returned by a source: a shared buffer and the part of it that was asked for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Bytes {
-    data: Arc<[u8]>,
+    data: Arc<Vec<u8>>,
     start: usize,
     end: usize,
 }
 
 impl Bytes {
-    /// Wraps a buffer.
+    /// Wraps a buffer, without copying it.
     pub fn new(data: Vec<u8>) -> Bytes {
         let end = data.len();
-        Bytes { data: data.into(), start: 0, end }
-    }
-
-    /// Wraps a shared buffer.
-    pub fn from_shared(data: Arc<[u8]>) -> Bytes {
-        let end = data.len();
-        Bytes { data, start: 0, end }
+        Bytes { data: Arc::new(data), start: 0, end }
     }
 
     /// The sub-range `start..end` of these bytes, sharing the buffer, or `None` when it is not inside.
@@ -280,6 +274,10 @@ pub struct HttpResponse {
 }
 
 /// The one thing an HTTP client has to do for [`HttpRangeSource`]: fetch a range.
+///
+/// A transport must not read more of a response than the range it was asked for (`end - start + 1`
+/// bytes): the body it returns is allocated before this crate sees it, so a server that sends more than
+/// was asked for is the transport's to cut off, not the reader's.
 pub trait HttpTransport {
     /// Sends `GET` with the range header and returns the response.
     fn fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>;

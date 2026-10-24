@@ -43,8 +43,10 @@ fn limit_of(result: Result<Validated, ReadError>) -> LimitExceeded {
     }
 }
 
-/// Far less than any size these tests have a file declare (the smallest is 1 MiB).
-const SMALL: usize = 256 << 10;
+/// Far less than any size these tests have a file declare (the smallest is 1 MiB), and about what the
+/// reader needs for a file of a few KiB: the bound is tight enough that a reader which reserved even a
+/// 1 MiB buffer for what it was told fails it.
+const SMALL: usize = 64 << 10;
 
 fn hot_header(art: &Art, block: usize, name: &str) -> usize {
     let f = HOT_HEADER_FIELDS.iter().find(|f| f.name == name).expect("a hot header field");
@@ -126,6 +128,24 @@ fn nesting_depth_a_composite_chain_deeper_than_the_ceiling_is_a_limit() {
     assert!(used < SMALL);
     // at NP-18's own maximum the same chain is fine
     assert!(read(&art.bytes, Limits::DEFAULT).0.is_ok());
+    // the declared value is the first level over the ceiling, whatever the ceiling is
+    let l = limit_of(read(&art.bytes, Limits { max_nesting_depth: 2, ..Limits::DEFAULT }).0);
+    assert_eq!((l.declared, l.ceiling), (3, 2));
+}
+
+#[test]
+fn nesting_depth_a_ceiling_of_zero_is_refused_at_open_and_a_cycle_is_a_cycle_at_any_ceiling() {
+    let art = art::composites(2);
+    let zero = Limits { max_nesting_depth: 0, ..Limits::DEFAULT };
+    let err =
+        ContainerReader::open(MemorySource::new(art.bytes.clone()), config(zero)).err().expect("refused");
+    assert!(matches!(err, ReadError::BadLimits(e) if e.limit == LimitKind::NestingDepth), "{err:?}");
+    let segs = art.index_of(3, 4);
+    let block = art.entries[segs].offset as usize;
+    let first_element = block + 32 + 8 * art.u32_at(block + 8) as usize;
+    let cyclic = art.with_u32(first_element, 1);
+    let one = Limits { max_nesting_depth: 1, ..Limits::DEFAULT };
+    assert_eq!(read(&cyclic.bytes, one).0.expect_err("refused").rule(), "ARN-21");
 }
 
 #[test]
@@ -252,9 +272,59 @@ fn allocation_budget_many_legal_blocks_whose_live_total_crosses_the_budget_are_r
         used_by_refusal < one as usize / 2,
         "the refused block's {one} bytes were requested ({used_by_refusal} bytes)"
     );
+    // the stored bytes in flight are charged as well as the decoded block: a block that fits the
+    // budget three times over still peaks at twice its size
+    assert!(reader.accountant().peak() >= 2 * one, "the bytes in flight were not charged");
     // the reader is still usable: letting go makes room
     drop(held);
     assert!(reader.read_block(BlockId(0)).is_ok());
+}
+
+#[test]
+fn allocation_budget_a_block_a_caller_holds_is_not_evicted_to_make_room_that_it_would_not_free() {
+    let art = art::lines(500, 12);
+    let one = u64::from(art.entries[0].uncompressed_length);
+    let limits = Limits { max_alloc_bytes: 5 * one, ..Limits::DEFAULT };
+    let cfg = ReaderConfig { limits, cache_bytes: 1 << 30, ..ReaderConfig::default() };
+    let reader: Reader = ContainerReader::open(MemorySource::new(art.bytes.clone()), cfg).expect("opens");
+    let held: Vec<_> = (0..2).map(|i| reader.read_block(BlockId(i)).expect("room")).collect();
+    drop(reader.read_block(BlockId(2)).expect("room for a third, which only the cache holds"));
+    drop(reader.read_block(BlockId(3)).expect("room is made by evicting the one block nobody holds"));
+    assert_eq!(reader.stats().evictions, 1, "only the block nobody holds is worth evicting");
+    let hits = reader.stats().cache_hits;
+    reader.read_block(BlockId(0)).expect("still cached");
+    assert_eq!(reader.stats().cache_hits, hits + 1, "a block the caller holds stays cached");
+    drop(held);
+}
+
+#[test]
+fn allocation_budget_padding_is_charged_before_it_is_fetched() {
+    // a gap of 1 MiB between the blocks, and a budget that cannot hold the chunk the validation reads
+    let gapped = art::with_gaps(&art::lines(4, 2), &[0, 1 << 20]);
+    let limits = Limits { max_alloc_bytes: 512 << 10, ..Limits::DEFAULT };
+    let (result, used) = read(&gapped.bytes, limits);
+    let l = limit_of(result);
+    assert_eq!((l.limit, l.ceiling), (LimitKind::AllocationBudget, 512 << 10));
+    assert!(used < SMALL, "the gap was fetched ({used} bytes requested) before it was refused");
+    // with room, the same file validates
+    assert!(read(&gapped.bytes, Limits::DEFAULT).0.is_ok());
+}
+
+#[test]
+fn a_block_this_reader_cannot_decode_is_refused_before_a_byte_of_it_is_fetched() {
+    let mut art = art::from_input(&support::fixtures::mixed());
+    let comp = art.index_of(4, 0);
+    let at = art.entry_field(comp, "codec");
+    art.bytes[at] = 7;
+    let reader: Reader =
+        ContainerReader::open(MemorySource::new(art.bytes.clone()), ReaderConfig::default()).expect("opens");
+    let before = reader.stats();
+    let work = reader.accountant().work();
+    let e = reader.read_block(BlockId(comp as u32)).unwrap_err();
+    assert_eq!(e.rule(), "NEGOTIATE-01");
+    let after = reader.stats();
+    assert_eq!((after.requests, after.bytes), (before.requests, before.bytes), "nothing was fetched");
+    assert_eq!(reader.accountant().work(), work, "nothing was charged either");
 }
 
 #[test]

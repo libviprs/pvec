@@ -299,6 +299,7 @@ engine.rs: Core::entry(&self, id: BlockId) -> Result<&BlockEntry, ReadError>
 engine.rs: Core::range_of(&self, id: BlockId) -> Result<(u64, u32), ReadError>
 engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'a [u8]) -> Result<&'a [u8], ReadError>
 engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
+engine.rs: Core::check_decodable(&self, entry: &BlockEntry) -> Result<(), ReadError>
 engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
 engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
 engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
@@ -395,6 +396,7 @@ limits.rs: impl std::error::Error for LimitExceeded {}
 limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct LimitsError
 limits.rs: LimitsError.limit: LimitKind
 limits.rs: LimitsError.given: u64
+limits.rs: LimitsError.format_minimum: u64
 limits.rs: LimitsError.format_maximum: u64
 limits.rs: impl fmt::Display for LimitsError
 limits.rs: impl std::error::Error for LimitsError {}
@@ -542,7 +544,6 @@ reader.rs: pub fn render_markdown() -> String
 reader.rs: pub const READER_RULES: &[(&str, &str)]
 source.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Bytes
 source.rs: Bytes::new(data: Vec<u8>) -> Bytes
-source.rs: Bytes::from_shared(data: Arc<[u8]>) -> Bytes
 source.rs: Bytes::slice(&self, start: usize, end: usize) -> Option<Bytes>
 source.rs: Bytes::as_slice(&self) -> &[u8]
 source.rs: impl Deref for Bytes
