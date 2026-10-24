@@ -75,7 +75,7 @@ fn the_conformance_mapping_is_the_one_in_the_issue() {
 
 #[test]
 fn a_bounded_approximation_cannot_be_built_without_a_finite_positive_bound() {
-    for bad in [0.0, -0.0, -1.0, -1e-300, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+    for bad in [0.0, -0.0, -1.0, -f64::MIN_POSITIVE, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert!(ErrorBound::new(bad).is_err(), "{bad} must be refused");
     }
     assert_eq!(ErrorBound::new(f64::NAN), Err(ErrorBoundError::NotFinite));
@@ -120,7 +120,7 @@ fn a_tessellated_output_may_be_bounded_or_unsupported() {
 
 #[test]
 fn a_native_output_may_claim_any_value() {
-    for f in [Fidelity::Exact, Fidelity::ExactReparameterized, Fidelity::EquivalentCompound, bound(1e-6)] {
+    for f in [Fidelity::Exact, Fidelity::ExactReparameterized, Fidelity::EquivalentCompound, bound(0.0625)] {
         assert!(FidelityRecord::new(eid(1), ids::CIRCLE, native("CIRCLE"), f, "").is_ok());
     }
 }
