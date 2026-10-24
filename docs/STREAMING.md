@@ -43,7 +43,7 @@ Then `node_count` nodes of 48 bytes, level by level: all leaves, then level 1, u
 
 A cell's entities are in the hot blocks whose `cell` field is the leaf's id. The block directory sorts blocks by kind, then cell, then geometry type, so the blocks of one cell are adjacent and a cell names them as a range (`Cell::blocks`).
 
-**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf, and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and splitting it by cell stays open (see the scope note in chapter 2).
+**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf (nor an id from `STRADDLER_CELL_FIRST` up, which is where the straddlers' payloads live, section 3.2), and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and splitting it by cell stays open (see the scope note in chapter 2).
 
 Per-entity references with their own bounds inside a cell are not in this version: with every payload owned by one cell (ADR 0005) there is nothing to duplicate, and a per-entity list would not fit the 2 MiB open budget at a million entities. See the scope note on issue #10.
 
@@ -71,8 +71,8 @@ The constants are named in `crates/pvec-stream/src/directory.rs`, with P1.6's me
 | SPD-06 | a node that breaks the shape: a leaf with children, an internal node with none or more than the declared fanout, children that are not one level down or do not tile the level below, a root that is not alone on the top level, or a leaf count that differs from the header |
 | SPD-07 | an internal node whose bounds do not contain the bounds of a child |
 | SPD-08 | an entity count that is wrong: a leaf with none, an internal node that is not the sum of its children, or a root that is not the header's total |
-| SPD-09 | a leaf cell id that is 0 or does not ascend strictly from one leaf to the next |
-| SPD-10 | the cells and the hot blocks disagree: a hot block in cell 0 or in no leaf, a hot block without bounds or with bounds outside its leaf, a leaf with no block, blocks of one cell that are not contiguous, or a leaf whose entity count is not its blocks' total |
+| SPD-09 | a leaf cell id that is 0, is in the straddler payload cells or does not ascend strictly from one leaf to the next |
+| SPD-10 | the cells and the hot blocks disagree: a hot block in cell 0 or in no leaf (the straddler payload cells are left alone), a hot block without bounds or with bounds outside its leaf, a leaf with no block, blocks of one cell that are not contiguous, or a leaf whose entity count is not its blocks' total |
 | SPD-11 | more than one spatial directory block, or a block entry whose count is not the node count |
 | SPD-12 | a directory cannot be built from the input: no entity, a duplicate entity id, or more entities than NP-18 allows |
 | SPD-13 | the container refused the read (the error carries its own rule) |
@@ -198,7 +198,7 @@ What the model costs: an entity up to four cells long stays in a cell, and does 
 
 ### 3.2 Layout
 
-The straddler block is its own run of bytes with the magic `PVST`. It is not a block kind of the container yet, for the same reason P5.2's reference arrays are not (its scope note): a kind needs a CONTAINER.md entry and a decision on lazy reads, and one follow-up, #136, does it for the straddler block and #131 for the reference arrays. Until then it is built by `build_straddlers`, parsed by `StraddlerLists::parse`, and carried by whoever holds the bytes. All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
+The straddler block is its own run of bytes with the magic `PVST`. It is built by `build_straddlers` and parsed by `StraddlerLists::parse`, and it is block kind 6 of the container (`straddlers`, section 3.8; CONTAINER.md section 4.2). All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
 
 | offset | size | name | encoding | meaning |
 |---|---|---|---|---|
@@ -238,6 +238,9 @@ An entry is 44 bytes: the entity's bounds as four f64, then its entity id, the b
 | STR-07 | an entry at the wrong level: its longer side must exceed the factor times the cell size of its level and must not exceed it for any coarser level |
 | STR-08 | an entity id at or above the NP-18 ceiling, or an entity listed twice, in one page, in one level or in two |
 | STR-09 | a block cannot be built from the input: a duplicate entity id, an entity that is no straddler at any level, or more entities than NP-18 allows |
+| STR-10 | the block entry is wrong: more than one straddler block, a count that is not the entries the lists declare, or a block stored with a codec |
+| STR-11 | a payload that is not where the lists say: a block that does not exist or is not a hot block, a hot block outside the payload cell of the entry's page, or a slot past the end of the block |
+| STR-12 | the container refused the read (the error carries its own rule) |
 
 STR-07 and STR-08 together are the structural form of "a straddler listed at level 2 is not listed again at level 5": every entry's level is a function of its own bounds and the declared scale, and no entity appears twice, so a reader can check the placement without trusting the writer.
 
@@ -263,11 +266,11 @@ Native x64 on MARS, `rustc 1.99.1`, release, hot blocks written through the cont
 
 | one 500 x 500 screen at the centre | cells | bytes |
 |---|---|---|
-| straddler lists | 9 | 46,369: cells 23,328, list pages 20,448 (of the 44,736-byte block), 64 payloads 2,593 |
+| straddler lists | 9 | 54,144: cells 23,328, list index and pages 20,448 (of the 44,736-byte block), 64 payloads in 4 payload blocks 10,368 |
 | everything in cells (P5.1 alone) | 10 | 25,920 |
 | promote to the root (cells and every long payload) | 9 | 63,829 |
 
-The stated budget is 64 KiB and 2 per cent of the artifact, which is 4,325,685 bytes with the block and the straddlers' payloads: the straddler path is 1.07 per cent. The root's reference count is where the strategies differ most, and the stated ceiling is 64, one cell's capacity: promote-to-ancestor puts 1,000 references in the root, the lists put 0 there (1,000 at level 0).
+The stated budget is 64 KiB and 2 per cent of the artifact, which is 4,326,920 bytes for the written file, block and payload blocks included: the straddler path is 1.25 per cent. These two rows are read from that file (`the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_budget` in `issue_136_straddler_block.rs`), through a recording source, and replace the modelled 46,369 bytes (1.07 per cent) of the first version of this chapter: the difference is that a payload is fetched as the block of its page (2,592 bytes for 64 lines) and not as a row. The other rows of the table are still the model of `issue_12_straddlers.rs`, with the payload at the average hot bytes per entity. The byte counts do not depend on the architecture (the determinism goldens write the same file on x86_64 and arm64). The root's reference count is where the strategies differ most, and the stated ceiling is 64, one cell's capacity: promote-to-ancestor puts 1,000 references in the root, the lists put 0 there (1,000 at level 0).
 
 I should be straight about what the screen row says. For this fixture the status quo is cheaper by about 20 KB at the centre of the drawing. The spanning lines' centres all lie on the middle cross, so Hilbert order puts them in cells of their own, and those cells are the only stretched ones. The strategy pays where long entities are scattered among local ones, which is what real drawings do, and `stress-long` is that case: 20,000 room entities and 10,000 random axis-aligned lines of 1,000 to 5,000 over 5,000 x 5,000. 7,968 of them are classified long (estimated cell sizes 447, 2,530, 5,000). Over 60 random 250-unit viewports the lists read 15.4 MB in 1,973 cells, and the same entities all in cells read 22.6 MB in 8,725.
 
@@ -285,7 +288,17 @@ Congestion metrics for each fixture of the phase 5 set (`local`, `long`, root re
 
 ### 3.7 Out of scope here
 
-Writing the block into the container and the placement of straddler payloads (#136), previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry.
+Previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry. The reference arrays of P5.2 are not a block yet (#131).
+
+### 3.8 In the container (issue P5.3b)
+
+The lists are a block of their own kind, `straddlers` (id 6). It is optional, so a reader that does not know it skips it and still validates the file; it is never compressed whatever the codec policy says, because a reader fetches its index in one range and each page in a range of its own; its count is the number of entities listed; its bounds are the union of their bounds; its cell is 0. The container does not parse it: `StraddlerIndex::open` does, and checks it against the block directory with the rules STR-10 to STR-12 of section 3.3.
+
+**Where the payloads go.** A hot block has to sit in a cell of the directory (SPD-10), and a straddler is deliberately not in the directory. I gave the payloads cells the directory never traverses: cell `STRADDLER_CELL_FIRST` (0xF0000000) plus the index of the page the entity is listed in, so there is one cell, and so one hot block, for each page of the lists. The writer already orders blocks by cell, so the payload blocks are one run at the end of the hot blocks, in the order of the pages. The directory does not number a leaf that high (SPD-09) and leaves a hot block in such a cell alone (SPD-10), and nothing else about a cell of the directory changes. I rejected a single cell for all payloads: a block is the unit a reader fetches, and one block of 1,000 lines costs 52 KB to read for any one of them, where a block per page costs 2.6 KB. I also rejected a block range inside the existing cells, which would put the payloads where the cells' bounds have to grow to contain them, the very thing this chapter exists to avoid. `payload_cells` gives the cell of each entity before the file is laid out, because the pages depend on the bounds and the scale and not on where a payload ends up.
+
+**Writer order.** Classify, build the directory over the local entities, write the local entities in their cells and each straddler in the cell `payload_cells` names, lay the file out once to learn the block ids (`scan_payloads`; hot blocks sort before the lists, so their ids do not move when the lists are added), build the lists over those ids, and write the file again with `set_straddler_lists`. P5.2's `place` over the directory of the local entities hands nothing over (section 3.4), and the test asserts it on the written file.
+
+**Reading.** `StraddlerIndex::open` reads the 96 byte header and the page descriptors, which is all a viewport needs to choose pages, and `StraddlerIndex::query` reads the entries of the pages the box touches, neighbouring pages in one range, and checks each payload it returns against the block directory (STR-11: a hot block, in the payload cell of its page, with the slot inside it). A range read is not covered by a whole-block checksum; `validate` and `StraddlerLists::parse` over the whole block are the full check.
 
 ## 5. Viewport queries and read plans
 

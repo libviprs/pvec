@@ -462,6 +462,8 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
             }
             // the spatial directory is `pvec-stream`'s to validate; here it is a block that decoded
             Some(BlockKind::SpatialDirectory) => {}
+            // the straddler lists are `pvec-stream`'s to validate, like the directory
+            Some(BlockKind::Straddlers) => {}
             Some(BlockKind::Components) => {
                 let reader = Reader { version: Version::new(1, 0, 0), implemented: Vec::new() };
                 let opened =

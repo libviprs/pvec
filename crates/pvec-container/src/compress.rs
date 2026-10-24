@@ -223,6 +223,8 @@ impl CodecPolicy {
             // the spatial directory is the one block every query opens, so it is read in a single range
             // and costs no decode work: it is always stored as it is
             BlockKind::SpatialDirectory => Codec::None,
+            // its index is one range and its pages are ranges of their own, so it is stored as it is
+            BlockKind::Straddlers => Codec::None,
         }
     }
 }

@@ -11,9 +11,9 @@ use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Limits, Metad
 use pvec_entity::EntityId;
 use pvec_stream::{
     Aabb, DuplicationPolicy, EntityBox, LongEntity, PayloadRef, PlacedEntity, STRADDLER_ENTRY_LEN,
-    STRADDLER_FACTOR, STRADDLER_HEADER_LEN, STRADDLER_RULES, SpatialDirectory, StraddlerIndex, StraddlerLists,
-    build_directory, build_straddlers, classify, payload_bytes, payload_cells, place, query_viewport,
-    scan_payloads, unique_entities,
+    STRADDLER_FACTOR, STRADDLER_HEADER_LEN, STRADDLER_RULES, SpatialDirectory, StraddlerIndex,
+    StraddlerLists, build_directory, build_straddlers, classify, payload_bytes, payload_cells, place,
+    query_viewport, scan_payloads, unique_entities,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -313,14 +313,12 @@ fn a_block_that_lies_is_refused_by_rule_and_never_panics() {
         let mut bytes = w.bytes.clone();
         let off = entry.offset as usize + at;
         bytes[off] ^= 0x7F;
-        let Ok(r) = ContainerReader::open(
-            Recording::new(MemorySource::new(bytes)),
-            ReaderConfig::default(),
-        ) else {
+        let Ok(r) = ContainerReader::open(Recording::new(MemorySource::new(bytes)), ReaderConfig::default())
+        else {
             continue;
         };
         if let Ok(Some(index)) = StraddlerIndex::open(&r) {
-            let q = bx(-1e9, -1e9, 1e9, 1e9);
+            let q = bx(-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0);
             if let Err(e) = index.query(&r, &q) {
                 seen.insert(e.rule());
             }
@@ -343,4 +341,84 @@ fn the_documents_describe_the_block_kind_the_payload_cells_and_the_new_rules() {
         assert!(streaming.contains(&format!("| {rule} | {meaning} |")), "STREAMING.md lacks {rule}");
     }
     assert!(!streaming.contains("It is not a block kind of the container yet"));
+}
+
+/// The stated budget of `docs/STREAMING.md` 3.6: a one-screen viewport reads under 64 KiB and under 2 per
+/// cent of the artifact.
+const VIEWPORT_BYTE_BUDGET: u64 = 64 * 1024;
+const VIEWPORT_ARTIFACT_FRACTION: f64 = 0.02;
+
+#[test]
+fn the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_budget() {
+    let w = written();
+    let r = reader(w.bytes.clone());
+    let dir = SpatialDirectory::open(&r).unwrap().unwrap();
+    let index = StraddlerIndex::open(&r).unwrap().unwrap();
+    let screen = viewport(5000.0, 5000.0, 500.0);
+    let hits = index.query(&r, &screen).unwrap();
+    let cells = query_viewport(&dir, None, &screen).cells;
+    let stored = |b: u32| u64::from(r.entries()[b as usize].stored_length);
+    let cell_bytes: u64 = cells
+        .iter()
+        .flat_map(|c| (c.blocks.first.0..c.blocks.first.0 + c.blocks.count).map(|b| stored(b)))
+        .sum();
+    let payload_blocks: BTreeSet<u32> = hits.iter().map(|h| h.payload.block_id.0).collect();
+    let payload_bytes: u64 = payload_blocks.iter().map(|b| stored(*b)).sum();
+    let list_bytes = index.read_bytes(&screen);
+    let total = cell_bytes + list_bytes + payload_bytes;
+    let (_, entry) = straddler_entry(&r);
+    eprintln!(
+        "3.6 written file: {} B; block {} B (index {} B, {} pages); screen: {} cells {} B, list {} B, {} straddlers in {} payload blocks {} B; total {} B = {:.2} %",
+        w.bytes.len(),
+        entry.stored_length,
+        index.index_bytes(),
+        index.pages(),
+        cells.len(),
+        cell_bytes,
+        list_bytes,
+        hits.len(),
+        payload_blocks.len(),
+        payload_bytes,
+        total,
+        100.0 * total as f64 / w.bytes.len() as f64
+    );
+    assert!(total < VIEWPORT_BYTE_BUDGET, "{total} bytes");
+    assert!((total as f64) < VIEWPORT_ARTIFACT_FRACTION * w.bytes.len() as f64);
+}
+
+fn everything() -> Aabb {
+    bx(-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0)
+}
+
+#[test]
+fn str_11_a_payload_that_is_not_in_the_payload_cell_of_its_page_is_refused() {
+    let w = written();
+    let r = reader(w.bytes.clone());
+    let (_, entry) = straddler_entry(&r);
+    let first_entry = entry.offset as usize + STRADDLER_HEADER_LEN + 40 * 16;
+    // point the first entry's payload at block 0, a hot block of an ordinary cell
+    let mut bytes = w.bytes.clone();
+    bytes[first_entry + 36..first_entry + 40].copy_from_slice(&0u32.to_le_bytes());
+    let r = reader(bytes);
+    let index = StraddlerIndex::open(&r).unwrap().unwrap();
+    assert_eq!(index.query(&r, &everything()).unwrap_err().rule(), "STR-11");
+    // and one past the end of the block
+    let mut bytes = w.bytes.clone();
+    bytes[first_entry + 40..first_entry + 44].copy_from_slice(&64u32.to_le_bytes());
+    let r = reader(bytes);
+    let index = StraddlerIndex::open(&r).unwrap().unwrap();
+    assert_eq!(index.query(&r, &everything()).unwrap_err().rule(), "STR-11");
+}
+
+#[test]
+fn str_10_a_block_entry_that_disagrees_with_the_lists_is_refused() {
+    let w = written();
+    // a count that is not the entries listed
+    let mut file = ContainerWriter::new(config());
+    let meta = EntityMeta { id: eid(0), style: 0, cell: 1, bounds: to_bounds(bx(0.0, 0.0, 1.0, 1.0)) };
+    file.push_line(meta, [0.0, 0.0], [1.0, 1.0]).unwrap();
+    file.set_straddler_lists(w.long.len() as u32 + 1, to_bounds(bx(0.0, 0.0, 1.0, 1.0)), w.block.clone())
+        .unwrap();
+    let r = reader(file.finish().unwrap());
+    assert_eq!(StraddlerIndex::open(&r).unwrap_err().rule(), "STR-10");
 }

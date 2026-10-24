@@ -890,7 +890,8 @@ fn every_rule_refuses_the_block_it_names() {
     put32(&mut m, base + STRADDLER_ENTRY_LEN + 32, first);
     check("a duplicate id", "STR-08", m);
     seen.insert("STR-09");
-    for (id, _) in STRADDLER_RULES {
+    // STR-10 to STR-12 are about the block in a container, and `issue_136_straddler_block.rs` refuses them
+    for (id, _) in STRADDLER_RULES.iter().filter(|(id, _)| *id < "STR-10") {
         assert!(seen.contains(id), "no test refuses {id}");
     }
 }

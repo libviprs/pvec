@@ -446,6 +446,7 @@ pub struct ContainerWriter {
     advanced: Vec<AdvancedItem>,
     streams: Vec<(usize, Stream)>,
     spatial: Option<SpatialItem>,
+    straddlers: Option<SpatialItem>,
 }
 
 /// The spatial directory block as the caller built it.
@@ -521,6 +522,7 @@ impl ContainerWriter {
             advanced: Vec::new(),
             streams: Vec::new(),
             spatial: None,
+            straddlers: None,
         }
     }
 
@@ -803,6 +805,25 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Sets the straddler lists block (`pvec-stream`'s `build_straddlers` makes it): `entries` is the
+    /// number of listed entities, which becomes the entry's count, `bounds` is the box of all of them and
+    /// `bytes` is the block. A second call replaces the first. Like the spatial directory it is optional
+    /// (a reader that does not know it skips it) and stored as it is. The payloads it points at are hot
+    /// blocks the caller pushed in cells at or above [`crate::directory::STRADDLER_CELL_FIRST`]; the
+    /// writer does not parse the block, and `StraddlerIndex::open` checks the references.
+    pub fn set_straddler_lists(
+        &mut self,
+        entries: u32,
+        bounds: Bounds,
+        bytes: Vec<u8>,
+    ) -> Result<(), WriteError> {
+        let bounds = checked_bounds(bounds).ok_or(WriteError::BadBounds { id: None })?;
+        u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
+        let seq = self.next_seq();
+        self.straddlers = Some(SpatialItem { seq, nodes: entries, bounds, bytes });
+        Ok(())
+    }
+
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
     fn declarations(&self) -> Result<(Vec<Declared>, Version), WriteError> {
         let mut wanted: Vec<CapabilityId> = Vec::new();
@@ -1001,6 +1022,17 @@ impl ContainerWriter {
                 bytes: s.bytes.clone(),
             });
         }
+        if let Some(s) = &self.straddlers {
+            blocks.push(Planned {
+                first_seen: s.seq,
+                kind: BlockKind::Straddlers,
+                cell: 0,
+                subtype: 0,
+                count: s.nodes,
+                bounds: Some(s.bounds),
+                bytes: s.bytes.clone(),
+            });
+        }
         // arrival order first, so that a key that is switched off falls back to it and nothing else
         blocks.sort_by_key(|b| b.first_seen);
         let by = |key: SortKey, a: Ordering| if self.sorts(key) { a } else { Ordering::Equal };
@@ -1016,7 +1048,10 @@ impl ContainerWriter {
             let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
             // a block is stored compressed only if that is smaller, and an uncompressed block is legal
             let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
-            let mut flags = if matches!(b.kind, BlockKind::Components | BlockKind::SpatialDirectory) {
+            let mut flags = if matches!(
+                b.kind,
+                BlockKind::Components | BlockKind::SpatialDirectory | BlockKind::Straddlers
+            ) {
                 0
             } else {
                 FLAG_MUST_UNDERSTAND
