@@ -92,6 +92,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-mmap"
+version = "0.0.0"
+dependencies = [
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-sources",
+ "pvec-testkit",
+]
+
+[[package]]
 name = "pvec-numeric"
 version = "0.0.0"
 
