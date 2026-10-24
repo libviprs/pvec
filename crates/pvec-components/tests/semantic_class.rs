@@ -705,11 +705,11 @@ fn random_corruption_never_panics() {
         }
     }
     // a single changed byte lands in a count, a tag or an id table most of the time, so most mutants
-    // must be refused; the floor is set well below what is measured so it does not flake, and well above
-    // "a few"
+    // must be refused; the seed is fixed, 93 percent are refused today and the floor is 85 percent, far above
+    // the old floor of 100 in 3000
     assert!(changed > 2900, "the mutator changes the bytes ({changed})");
     assert!(
-        refused * 100 > changed * 60,
+        refused * 100 > changed * 85,
         "corruption is detected often enough to mean something ({refused} of {changed})"
     );
 }

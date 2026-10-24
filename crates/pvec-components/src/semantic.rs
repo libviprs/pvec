@@ -353,8 +353,18 @@ fn ring_closes(ends: &[([f64; 2], [f64; 2])], tol: f64) -> bool {
 
 impl SemanticClassStream {
     /// Decodes the semantic class stream of an opened set, if it holds one.
-    pub fn from_opened(_opened: &Opened) -> SemanticRead {
-        SemanticRead::Absent
+    ///
+    /// A payload that fails to decode fails this stream only: the result says so ([`SemanticRead::Damaged`])
+    /// and the caller carries on with the geometry and every other stream. The set itself was already
+    /// opened, because the frame hands a compatible payload over undecoded.
+    pub fn from_opened(opened: &Opened) -> SemanticRead {
+        match opened.streams.iter().find(|s| s.capability == Self::CAPABILITY) {
+            None => SemanticRead::Absent,
+            Some(s) => match Self::decode(&s.payload) {
+                Ok(stream) => SemanticRead::Present(stream),
+                Err(e) => SemanticRead::Damaged(e),
+            },
+        }
     }
 
     /// The registry capability.
@@ -402,8 +412,11 @@ impl SemanticClassStream {
         if elements_n > MAX_RECORDS || regions_n > MAX_RECORDS {
             return Err(E::TooMany);
         }
-        let need = elements_n * ELEMENT_BYTES + regions_n * REGION_MIN_BYTES; // both at most 2^20 * 32
-        if need > r.left() {
+        let need = elements_n
+            .checked_mul(ELEMENT_BYTES)
+            .zip(regions_n.checked_mul(REGION_MIN_BYTES))
+            .and_then(|(a, b)| a.checked_add(b));
+        if need.is_none_or(|need| need > r.left()) {
             return Err(E::Truncated);
         }
         let mut seen = HashSet::new();
@@ -426,7 +439,7 @@ impl SemanticClassStream {
             if holes_n > MAX_HOLES {
                 return Err(E::TooMany);
             }
-            if holes_n * 8 > r.left() {
+            if holes_n.checked_mul(8).is_none_or(|need| need > r.left()) {
                 return Err(E::Truncated);
             }
             let holes = (0..holes_n).map(|_| read_ring(&mut r)).collect::<Res<Vec<_>>>()?;
@@ -451,20 +464,35 @@ impl SemanticClassStream {
         self.regions.iter().filter(|g| g.kind == kind).collect()
     }
 
-    /// Checks the stream against the geometry it points at: every referenced entity exists, and every ring
-    /// (outer and holes) is a closed loop, with endpoints that meet within `tolerance`.
+    /// Checks the stream against the geometry it points at: every referenced entity exists, no entity
+    /// appears twice in the rings of one region (within a ring, between the outer ring and a hole, or
+    /// between holes), and every ring (outer and holes) is a closed loop, with endpoints that meet within
+    /// `tolerance`. The tolerance must be finite and not negative, or nothing is checked and
+    /// [`RegionError::BadTolerance`] comes back (NaN and a negative value would fail every ring, infinity
+    /// would pass every one).
     pub fn validate(&self, geometry: &dyn EntityGeometry, tolerance: f64) -> Result<(), RegionError> {
+        if !tolerance.is_finite() || tolerance < 0.0 {
+            return Err(RegionError::BadTolerance);
+        }
         for e in &self.elements {
             geometry
                 .endpoints(e.entity)
                 .ok_or(RegionError::MissingEntity { entity: e.entity, region: None })?;
         }
         for (region, g) in self.regions.iter().enumerate() {
+            let mut seen = HashSet::new();
+            for e in std::iter::once(&g.outer).chain(g.holes.iter()).flatten() {
+                if !seen.insert(e.index()) {
+                    return Err(RegionError::DuplicateEntity { region, entity: *e });
+                }
+            }
             for ring in std::iter::once(&g.outer).chain(g.holes.iter()) {
                 let ends = ring
                     .iter()
                     .map(|e| {
-                        geometry.endpoints(*e).ok_or(RegionError::MissingEntity { entity: *e, region: None })
+                        geometry
+                            .endpoints(*e)
+                            .ok_or(RegionError::MissingEntity { entity: *e, region: Some(region) })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 if ends.is_empty() || !ring_closes(&ends, tolerance) {

@@ -119,6 +119,8 @@ query by class.
 | COMP-15 | a confidence on an entry that is not inferred |
 | COMP-16 | a region or element that references a missing entity (validation) |
 | COMP-17 | a region ring that does not close (validation) |
+| COMP-18 | an entity that appears twice in the rings of one region (validation) |
+| COMP-19 | a closure tolerance that is not finite and non-negative (validation) |
 
 ## What this does not decide
 
