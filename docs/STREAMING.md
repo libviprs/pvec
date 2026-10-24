@@ -1,6 +1,6 @@
 # Viewport streaming
 
-How a reader decides which bytes of a `.pvec` file a viewport needs, and reads only those. Chapter 1 is the spatial directory (issue P5.1). Later chapters (payload ownership and references, straddlers, tiers, read planning) build on it. The code is the `pvec-stream` crate; the container underneath is `docs/CONTAINER.md`.
+How a reader decides which bytes of a `.pvec` file a viewport needs, and reads only those. Chapter 1 is the spatial directory (issue P5.1), chapter 2 payload ownership and duplicated references (issue P5.2). Later chapters (straddlers, tiers, read planning) build on it. The code is the `pvec-stream` crate; the container underneath is `docs/CONTAINER.md`.
 
 ## 1. The spatial directory
 
@@ -43,7 +43,7 @@ Then `node_count` nodes of 48 bytes, level by level: all leaves, then level 1, u
 
 A cell's entities are in the hot blocks whose `cell` field is the leaf's id. The block directory sorts blocks by kind, then cell, then geometry type, so the blocks of one cell are adjacent and a cell names them as a range (`Cell::blocks`).
 
-**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf, and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and splitting it is P5.2's.
+**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf, and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and splitting it by cell stays open (see the scope note in chapter 2).
 
 Per-entity references with their own bounds inside a cell are not in this version: with every payload owned by one cell (ADR 0005) there is nothing to duplicate, and a per-entity list would not fit the 2 MiB open budget at a million entities. See the scope note on issue #10.
 
@@ -100,7 +100,87 @@ The acceptance numbers are asserted by `open_reads_a_million_entity_directory_in
 
 ### 1.6 Out of scope here
 
-Payload ownership of long entities and the reference list (P5.2), straddlers and the long-entity bucket ADR 0005 keeps as a safety valve (P5.3), tiering (P5.4), read planning and prioritisation (P5.5, P5.7), and tuning the constants (P8.6).
+Straddlers and the long-entity bucket ADR 0005 keeps as a safety valve (P5.3), tiering (P5.4), read planning and prioritisation (P5.5, P5.7), and tuning the constants (P8.6).
+
+## 2. Payload ownership and duplicated references
+
+Issue P5.2. An entity that spans several cells is stored once. Its geometry payload is one row of one hot block, the block of the cell that owns it (chapter 1), and no byte of it is copied anywhere else. What a cell may duplicate is a reference to that row: a `PayloadRef` of 8 bytes, the block id and the row, both `u32`. Forcing a long entity up to a common ancestor would congest the root, copying its geometry into every cell would store it many times, and the panel's finding 4 allows exactly the middle path of bounded duplication of lightweight references.
+
+### 2.1 The ownership invariant
+
+* Every entity has exactly one payload slot, so the number of slots in the hot blocks equals the entity count, and a byte-level scan of the blocks finds no control-point run twice. The tests assert both on a fixture with 24 long polylines.
+* A reference is at most 8 bytes (`REF_BUDGET`). `PayloadRef` is held to it by a `const` assertion in `ownership.rs`, so a field that grows it fails the build, not a test run.
+* A payload has one owner: the placement pass refuses an input that gives one entity twice or one payload to two entities (OWN-05).
+
+### 2.2 The duplication policy
+
+The writer-side placement pass, `place`, takes the opened directory and, per entity, its bounds and its `PayloadRef`. The block ids exist only once the container is laid out (the block directory is sorted by kind, cell and geometry type), so the pass runs on the finished artifact: `scan_payloads` reads the hot blocks and gives every slot its reference. Each entity's reference goes into every cell whose bounds intersect the entity's bounds (closed boxes, the owning cell included), found by one directory query per entity.
+
+`DuplicationPolicy` is the ceiling: the most cells one entity may be referenced from, at least 1 (OWN-07). The default is `DEFAULT_MAX_CELLS`, 16. An entity that intersects more cells than the ceiling is not duplicated further and gets no reference at all: it comes back in `Placement::straddlers` for the P5.3 path (chapter 3). The query stops as soon as the ceiling is passed, so a long entity costs the ceiling and not the number of cells it crosses. A straddler loses nothing in the meantime, because its payload is still in its owner's block and the owning cell's bounds contain it.
+
+### 2.3 The reference arrays
+
+`CellRefs` holds, per cell that has any, its references in ascending order. It has its own byte layout (`encode` and `parse`), checked like any untrusted input: the length is held to the header before anything is allocated. All integers are little endian. A reference array is not a container block yet, see the scope note below.
+
+| offset | size | name | meaning |
+|---|---|---|---|
+| 0 | 4 | magic | `PVR1` |
+| 4 | 2 | version | 1 |
+| 6 | 2 | flags | zero |
+| 8 | 4 | cell_count | cells that have references |
+| 12 | 4 | ref_count | references in all |
+| 16 | 4 x cell_count | cell ids | strictly ascending, none 0 |
+| after | 4 x cell_count | ends | for each cell, the end of its references in the list below; each cell has at least one, and the last end is `ref_count` |
+| after | 8 x ref_count | references | `block_id` u32, `slot` u32; strictly ascending inside a cell |
+
+### 2.4 The duplication report and what it measured
+
+`DuplicationReport` is the accounting per artifact: references per entity (mean, p99 by nearest rank, max), the entities that got references and the straddlers that did not, total reference bytes, and reference bytes as a fraction of payload bytes, where payload bytes are the decoded length of the hot blocks (`payload_bytes`).
+
+Native x64 on MARS, `rustc 1.99.1`, debug build, the fixtures of `tests/issue_11_payload_ownership.rs`, default ceiling 16:
+
+| fixture | entities | straddlers | references | mean | p99 | max | reference bytes | payload bytes | fraction |
+|---|---|---|---|---|---|---|---|---|---|
+| rooms (8 x 8 rooms of 400 lines) | 25,600 | 0 | 97,203 | 3.80 | 6 | 8 | 777,624 | 1,036,800 | 0.750 |
+| stress-long (rooms 6 x 6 plus 24 long polylines) | 10,255 | 569 | 90,460 | 8.82 | 16 | 16 | 723,680 | 440,200 | 1.644 |
+| identical (640 equal boxes) | 640 | 0 | 6,400 | 10.00 | 10 | 10 | 51,200 | 25,920 | 1.975 |
+| nine-cells (575 lines and one long polyline) | 576 | 0 | 1,186 | 2.06 | 3 | 9 | 9,488 | 23,416 | 0.405 |
+
+The stated bound, asserted by the test, is a fraction of **2.0**. That is a loose bound and the table says why: the P5.1 cells are small by entity count but not by extent, because a long entity widens its cell (section 1), so cell bounds overlap heavily and a short line reaches 3.8 cells on average in `rooms`. A line is also the smallest payload (40 bytes), so an 8 byte reference is a fifth of it. How the ceiling trades references for straddlers on the same fixtures (fraction, with the straddler count in brackets):
+
+| ceiling | rooms | stress-long | identical | nine-cells |
+|---|---|---|---|---|
+| 1 | 0.002 (25,298) | 0.001 (10,758) | 0 (640) | 0.018 (524) |
+| 2 | 0.043 (22,673) | 0.023 (10,172) | 0 (640) | 0.321 (80) |
+| 4 | 0.508 (5,881) | 0.147 (8,209) | 0 (640) | 0.402 (1) |
+| 8 | 0.750 (0) | 0.400 (6,020) | 0 (640) | 0.402 (1) |
+| 16 | 0.750 (0) | 1.644 (569) | 1.975 (0) | 0.405 (0) |
+
+Two things follow and are left for the follow-up (see the scope note). In the P5.1 tree an owning cell's bounds already contain its entity, so any viewport that sees an entity touches its owner: the references are redundant for visibility today, and they earn their bytes only for a reader that wants a cell's whole contents without walking the owners of its long entities. And the numbers should be taken again after P5.3, when straddlers stop widening the cells.
+
+### 2.5 Read-side deduplication
+
+`gather` takes the cells a viewport touches (`SpatialDirectory::query`), concatenates their reference arrays, and sorts and deduplicates them: an entity that spans nine touched cells is listed nine times and comes out once (`ViewportRefs::raw` keeps the count before, for the metrics). The result is in `(block, row)` order, so the rows of one block are together. `read_viewport` fetches the blocks through the reader's plan (blocks close together arrive in one request), parses each once, and calls the visitor once per payload with the `EntityId`, the block view and the row, so a payload is decoded once per viewport however many cells referenced it. The tests count it three ways: the visitor on a viewport over nine cells that all reference one long entity, the requests a counting source saw for that entity's block, and a random sweep of 40 viewports that checks every visible entity is yielded exactly once. Taking the deduplication out of `gather` turns the nine-cell test red (it sees the long entity nine times).
+
+### 2.6 What a reader validates
+
+`CellRefs::parse` and `read_viewport` refuse by rule, and the rules are in `OWNERSHIP_RULES`:
+
+| rule | meaning |
+|---|---|
+| OWN-01 | a reference block shorter than its header, or whose length is not the header plus 8 bytes per declared cell and per declared reference |
+| OWN-02 | a magic, version or flags field that is not defined |
+| OWN-03 | a cell table that is wrong: a cell id of 0 or one that does not ascend strictly, an empty cell, or ends that do not reach the declared reference count |
+| OWN-04 | references inside a cell that do not ascend strictly |
+| OWN-05 | a placement input that gives one entity id twice, or one payload to two entities |
+| OWN-06 | an entity whose bounds intersect no cell of the directory |
+| OWN-07 | a duplication ceiling of 0, or a placement that would emit more references than a u32 can count |
+| OWN-08 | a reference that names no payload: a block that does not exist or is not a hot block, or a row past the end of the block |
+| OWN-09 | the container refused the read, or a block is not a valid hot block |
+
+### 2.7 Scope note
+
+Delivered here: the reference type and its size budget, the placement pass with the ceiling and the straddler hand-off, the report, the reference arrays with their byte layout, and read-side deduplication. Not delivered, and moved to a follow-up issue: a container block kind that stores the arrays (the layout above is ready for one; the kind needs a CONTAINER.md entry and a decision on lazy per-cell reads that #117 asks for), splitting the advanced curve set by cell (it is one set in cell 0, so it has no cell to reference from), and re-measuring and tightening the stated fraction once P5.3 lands.
 
 ## 5. Viewport queries and read plans
 
