@@ -108,6 +108,11 @@ pub enum ContainerError {
     },
     /// The header's directory-pointer table range is not where the manifest puts it.
     DirectoryTableMismatch,
+    /// The header's directory-pointer table length is not a whole number of 24 byte entries.
+    BadDirectoryTableLength {
+        /// The length in the file.
+        length: u64,
+    },
     /// The producer id is empty.
     MissingProducer,
     /// A string field is longer than the bound.

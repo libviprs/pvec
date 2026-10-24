@@ -295,3 +295,29 @@ fn a_prefix_too_short_to_hold_the_major_is_truncated() {
         assert!(matches!(parse(&HEADER_BYTES[..n]), Err(ContainerError::Truncated { .. })), "{n} bytes");
     }
 }
+
+#[test]
+fn a_directory_table_length_that_is_not_a_multiple_of_24_is_refused_by_the_header_alone() {
+    for length in [1u64, 23, 25, 47, 49, 100] {
+        assert_eq!(
+            parse(&with(&HEADER_BYTES, 48, &length.to_le_bytes())),
+            Err(ContainerError::BadDirectoryTableLength { length }),
+            "length {length}"
+        );
+    }
+}
+
+#[test]
+fn a_directory_table_length_that_is_a_multiple_of_24_is_accepted() {
+    for length in [0u64, 24, 48, 24 * 100] {
+        let h = parse(&with(&HEADER_BYTES, 48, &length.to_le_bytes())).unwrap();
+        assert_eq!(h.directory_table_length, length);
+    }
+}
+
+#[test]
+fn a_pointer_past_the_end_is_still_reported_as_a_pointer_before_the_multiple_rule() {
+    // 8192 is not a multiple of 24 either, but the range check names the real problem first.
+    let b = with(&HEADER_BYTES, 48, &(ARTIFACT_LEN).to_le_bytes());
+    assert!(matches!(parse(&b), Err(ContainerError::PointerOutOfRange { field: "directory_table", .. })));
+}
