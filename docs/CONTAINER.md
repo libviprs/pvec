@@ -341,7 +341,7 @@ The block directory is a table of 64 byte entries, one per block, in file order.
 | 8 | 4 | stored_length | u32 | bytes of the block as stored |
 | 12 | 4 | uncompressed_length | u32 | bytes of the block once decoded; equal to `stored_length` while the codec is 0 |
 | 16 | 4 | count | u32 | entities, records, offset-table entries or streams in the block |
-| 20 | 4 | cell | u32 | spatial cell id (P5.1); 0 for a block that has none |
+| 20 | 4 | cell | u32 | spatial cell id (P5.1); 0 means no cell and is never a cell of the spatial directory |
 | 24 | 8 | min_x | f64 | bounds of the entities in the block; zero unless the has-bounds flag is set |
 | 32 | 8 | min_y | f64 | see `min_x` |
 | 40 | 8 | max_x | f64 | see `min_x` |
@@ -360,8 +360,9 @@ The block kinds:
 | 2 | records | the advanced curve records (chapter 3) | 0 | records |
 | 3 | arena | one advanced payload arena (chapter 3) | the payload kind, 1 to 5 | offset-table entries |
 | 4 | components | the component stream set | 0 | streams |
+| 5 | spatial | the spatial directory (`docs/STREAMING.md` chapter 1) | 0 | directory nodes |
 
-Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set does not, so a reader that does not know it skips it. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, an arena or a component set carries none and its four bounds are zero. The codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:
+Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set and the spatial directory do not, so a reader that does not know them skips them. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, the spatial directory carries the box of its root, an arena or a component set carries none and its four bounds are zero. The codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:
 
 | rule | meaning |
 |---|---|
@@ -383,14 +384,14 @@ Every order below is decided by the writer from the content, never from the orde
 
 | key | orders | ascending by |
 |---|---|---|
-| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first and the component set last |
-| spatial cell id | the blocks of one kind | the cell id the caller gave the entity (P5.1 decides what a cell is; the writer only orders by it) |
+| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first and the spatial directory, when there is one, last |
+| spatial cell id | the blocks of one kind | the cell id the caller gave the entity (a leaf of the spatial directory, `docs/STREAMING.md` chapter 1; the writer only orders by it) |
 | geometry type | the blocks of one kind and cell | the hot geometry type or the payload kind |
 | `EntityId` | the entities inside a block | the id, so a block's id column ascends and equal sets of entities give equal columns |
 | capability id | the manifest's capability table | the stable id from the registry (P3.4), each declared once |
 | stream id | the streams of the component set | the capability id, which is the id of a stream (P3.7) |
 
-The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a composite names other records of its own block, so a curve cannot be split from its segments by cell; an advanced curve given another cell is refused. In short, cell 0 is both no cell (the advanced set and the component set) and an ordinary cell a hot block can be in, so a block in cell 0 does not say which it is: P5.1 gives the spatial directory the way to tell the two apart (the block kind does today). The records are in ascending `EntityId` order and the arenas number their entries in the order the writer first needs them, which is the same order, so shared payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities are those the caller listed plus those of the streams pushed, each once, and each is declared with the version and requirement the registry gives it; the manifest's minimum reader is the highest the declared capabilities ask for, and at least 1.0.0.
+The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a composite names other records of its own block, so a curve cannot be split from its segments by cell; an advanced curve given another cell is refused. Cell 0 means no cell: it is the cell of the advanced set, the component set and the spatial directory, and the spatial directory reserves it, so no leaf of the directory is cell 0 and a file that carries a spatial directory is refused if a hot block is in cell 0 (`SPD-10`). A hot block written without a spatial directory may still be in cell 0, and the block kind says what a block in cell 0 is. The records are in ascending `EntityId` order and the arenas number their entries in the order the writer first needs them, which is the same order, so shared payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities are those the caller listed plus those of the streams pushed, each once, and each is declared with the version and requirement the registry gives it; the manifest's minimum reader is the highest the declared capabilities ask for, and at least 1.0.0.
 
 Every scalar of every block, the directory and the manifest is written with an explicit little-endian conversion, so nothing depends on the byte order of the host that wrote it. The tests write the same input on x86_64 and on arm64 and compare the digests with a committed golden file.
 

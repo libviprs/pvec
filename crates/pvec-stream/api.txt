@@ -1,0 +1,69 @@
+directory.rs: pub const CELL_CAPACITY: u32
+directory.rs: pub const FANOUT: u32
+directory.rs: pub const MAX_FANOUT: u32
+directory.rs: pub const MAX_HEIGHT: u32
+directory.rs: pub const HEADER_LEN: usize
+directory.rs: pub const NODE_LEN: usize
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SplitPolicy
+directory.rs: SplitPolicy::HilbertPack
+directory.rs: pub const SPLIT_POLICY: SplitPolicy
+directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
+directory.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum DirectoryError
+directory.rs: DirectoryError::Length { length: u64, expected: u64 }
+directory.rs: DirectoryError::Header { reason: &'static str }
+directory.rs: DirectoryError::Limit(LimitExceeded)
+directory.rs: DirectoryError::NodeBounds { node: u32 }
+directory.rs: DirectoryError::ChildPointer { node: u32, first: u32, count: u32 }
+directory.rs: DirectoryError::Shape { node: u32, reason: &'static str }
+directory.rs: DirectoryError::Containment { node: u32 }
+directory.rs: DirectoryError::Entities { node: u32, declared: u64, expected: u64 }
+directory.rs: DirectoryError::CellId { node: u32, cell: u32 }
+directory.rs: DirectoryError::Blocks { cell: u32, reason: &'static str }
+directory.rs: DirectoryError::Duplicate { found: u32 }
+directory.rs: DirectoryError::Build { reason: &'static str }
+directory.rs: DirectoryError::Read(ReadError)
+directory.rs: DirectoryError::BadBox
+directory.rs: DirectoryError::rule(&self) -> &'static str
+directory.rs: impl core::fmt::Display for DirectoryError
+directory.rs: impl std::error::Error for DirectoryError {}
+directory.rs: impl From<ReadError> for DirectoryError
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Aabb
+directory.rs: Aabb::new(min: [f64; 2], max: [f64; 2]) -> Result<Aabb, DirectoryError>
+directory.rs: Aabb::min(&self) -> [f64; 2]
+directory.rs: Aabb::max(&self) -> [f64; 2]
+directory.rs: Aabb::intersects(&self, other: &Aabb) -> bool
+directory.rs: Aabb::contains(&self, other: &Aabb) -> bool
+directory.rs: impl From<Aabb> for Bounds
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct CellId(NonZeroU32)
+directory.rs: CellId::new(id: u32) -> Option<CellId>
+directory.rs: CellId::get(self) -> u32
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct BlockRange
+directory.rs: BlockRange.first: BlockId
+directory.rs: BlockRange.count: u32
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Cell
+directory.rs: Cell.id: CellId
+directory.rs: Cell.bounds: Aabb
+directory.rs: Cell.entities: u32
+directory.rs: Cell.blocks: BlockRange
+directory.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct EntityBox
+directory.rs: EntityBox.id: EntityId
+directory.rs: EntityBox.bounds: Aabb
+directory.rs: #[derive(Clone, Debug, PartialEq)] pub struct BuiltDirectory
+directory.rs: BuiltDirectory.bytes: Vec<u8>
+directory.rs: BuiltDirectory.nodes: u32
+directory.rs: BuiltDirectory.bounds: Aabb
+directory.rs: BuiltDirectory.cells: Vec<CellId>
+directory.rs: pub fn build_directory(entities: &[EntityBox]) -> Result<BuiltDirectory, DirectoryError>
+directory.rs: #[derive(Debug)] pub struct SpatialDirectory
+directory.rs: SpatialDirectory::find(entries: &[BlockEntry]) -> Result<Option<BlockId>, DirectoryError>
+directory.rs: SpatialDirectory::parse(bytes: &[u8], entries: &[BlockEntry], limits: &Limits) -> Result<SpatialDirectory, DirectoryError>
+directory.rs: SpatialDirectory::open<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Option<SpatialDirectory>, DirectoryError>
+directory.rs: SpatialDirectory::bounds(&self) -> Aabb
+directory.rs: SpatialDirectory::advanced_bounds(&self) -> Option<Aabb>
+directory.rs: SpatialDirectory::entities(&self) -> u64
+directory.rs: SpatialDirectory::cells(&self) -> usize
+directory.rs: SpatialDirectory::height(&self) -> u32
+directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
+directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
+directory.rs: impl Iterator for CellCursor<'_>
+lib.rs: pub use directory::*

@@ -39,7 +39,13 @@ pub const BLOCK_ENTRY_FIELDS: &[FieldSpec] = &[
         "bytes of the block once decoded; equal to `stored_length` while the codec is 0",
     ),
     field("count", 16, 4, "u32", "entities, records, offset-table entries or streams in the block"),
-    field("cell", 20, 4, "u32", "spatial cell id (P5.1); 0 means no cell and is never a cell of the spatial directory"),
+    field(
+        "cell",
+        20,
+        4,
+        "u32",
+        "spatial cell id (P5.1); 0 means no cell and is never a cell of the spatial directory",
+    ),
     field(
         "min_x",
         24,

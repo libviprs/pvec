@@ -354,8 +354,9 @@ fn every_writer_and_directory_rule_is_documented_once_and_the_errors_report_them
 }
 
 #[test]
-fn chapter_four_says_that_cell_zero_is_both_no_cell_and_a_cell() {
+fn chapter_four_says_that_cell_zero_is_no_cell_and_what_the_spatial_directory_does_with_it() {
     let doc = fs::read_to_string(doc_path()).unwrap_or_default();
-    assert!(doc.contains("cell 0 is both"), "docs/CONTAINER.md does not say that cell 0 means two things");
-    assert!(doc.contains("P5.1"), "the cell 0 note does not point at the spatial directory");
+    assert!(doc.contains("Cell 0 means no cell"), "docs/CONTAINER.md does not say that cell 0 is no cell");
+    assert!(doc.contains("SPD-10"), "the cell 0 note does not point at the spatial directory's refusal");
+    assert!(!doc.contains("cell 0 is both"), "the open question of P4.4 is answered and must not stay");
 }

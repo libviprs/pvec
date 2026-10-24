@@ -277,7 +277,8 @@ fn a_cell_whose_bounds_do_not_contain_its_children_is_refused_at_open() {
     // an internal node that does not contain a child: shrink the root (the last node) on x
     let mut a = bytes.clone();
     let root = node(get32(&a, 8) as usize - 1);
-    put64(&mut a, root + MAX_X, 1.0);
+    let min_x = f64::from_le_bytes(a[root..root + 8].try_into().unwrap());
+    put64(&mut a, root + MAX_X, min_x);
     assert_eq!(rule(parse(&a, &entries)), "SPD-07");
     // a leaf that does not contain the blocks its cell names: collapse leaf 0 to a point
     let mut b = bytes.clone();
@@ -290,7 +291,8 @@ fn a_cell_whose_bounds_do_not_contain_its_children_is_refused_at_open() {
     let entities = rooms(7, 5, 100, 1000.0);
     let (file, _) = artifact_with(&entities, "t/1", |d| {
         let root = node(get32(d, 8) as usize - 1);
-        put64(d, root + MAX_X, 1.0);
+        let min_x = f64::from_le_bytes(d[root..root + 8].try_into().unwrap());
+        put64(d, root + MAX_X, min_x);
     });
     let r = reader(file);
     assert_eq!(rule(SpatialDirectory::open(&r)), "SPD-07");
@@ -383,7 +385,9 @@ fn query_order_is_ascending_cell_id_and_is_the_same_for_ties() {
         SpatialDirectory::open(&reader(a)).unwrap().unwrap(),
         SpatialDirectory::open(&reader(b)).unwrap().unwrap(),
     );
-    for q in [bx(0.0, 0.0, 4000.0, 4000.0), bx(900.0, 900.0, 2100.0, 1500.0), bx(1000.0, 1000.0, 1000.0, 1000.0)] {
+    for q in
+        [bx(0.0, 0.0, 4000.0, 4000.0), bx(900.0, 900.0, 2100.0, 1500.0), bx(1000.0, 1000.0, 1000.0, 1000.0)]
+    {
         let (xs, ys): (Vec<_>, Vec<_>) = (da.query(&q).collect(), db.query(&q).collect());
         assert_eq!(xs, ys);
         assert!(xs.windows(2).all(|w| w[0].id < w[1].id), "cells are not ascending: {xs:?}");
@@ -446,7 +450,8 @@ fn hostile_bytes_are_refused_without_a_panic() {
         }
         // Ok or a typed refusal, never a panic or a runaway walk
         if let Ok(d) = parse(&m, &entries) {
-            let n = d.query(&bx(-1e9, -1e9, 1e9, 1e9)).count();
+            let n =
+                d.query(&bx(-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0)).count();
             assert!(n <= d.cells());
         }
     }
@@ -457,7 +462,7 @@ fn bad_boxes_and_bad_inputs_are_refused() {
     assert!(Aabb::new([f64::NAN, 0.0], [1.0, 1.0]).is_err());
     assert!(Aabb::new([0.0, 0.0], [f64::INFINITY, 1.0]).is_err());
     assert!(Aabb::new([2.0, 0.0], [1.0, 1.0]).is_err());
-    assert!(Aabb::new([0.0, 0.0], [1e13, 1.0]).is_err(), "beyond the numeric policy's range");
+    assert!(Aabb::new([0.0, 0.0], [10_000_000_000_000.0, 1.0]).is_err(), "beyond the numeric policy's range");
     assert!(build_directory(&[]).is_err());
     let twice = [EntityBox { id: eid(1), bounds: bx(0.0, 0.0, 1.0, 1.0) }; 2];
     assert_eq!(rule(build_directory(&twice)), "SPD-12");
@@ -523,7 +528,10 @@ fn the_named_constants_and_the_p1_6_measurements_are_recorded() {
     assert_eq!(SPLIT_POLICY, SplitPolicy::HilbertPack);
     let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/directory.rs")).unwrap();
     for measured in ["516,256", "63,616", "29.08", "31.12", "docs/spikes/01-6-spatial-index.md"] {
-        assert!(source.contains(measured), "src/directory.rs does not record {measured} beside the constants");
+        assert!(
+            source.contains(measured),
+            "src/directory.rs does not record {measured} beside the constants"
+        );
     }
 }
 
@@ -562,5 +570,5 @@ fn the_container_validates_a_file_that_carries_a_directory_and_skips_it_when_unk
     let e = r.entries().iter().find(|e| e.block_kind() == Some(BlockKind::SpatialDirectory)).unwrap();
     assert_eq!(e.flags & pvec_container::directory::FLAG_MUST_UNDERSTAND, 0, "optional, like the components");
     assert_eq!(e.cell, 0);
-    assert_eq!(e.count, 9 + 1, "9 leaves and a root");
+    assert_eq!(e.count, 8 + 1, "8 leaves and a root");
 }
