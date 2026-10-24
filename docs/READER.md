@@ -28,7 +28,7 @@ Every buffer is reserved with the accountant before it is made, the stored bytes
 
 ## Validation
 
-`validate()` reads everything and holds the file to the canonical layout the writer produces: the bytes between blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites are acyclic and shallow enough. It streams: blocks are decoded one at a time, padding is read a megabyte at a time, and everything it keeps (one id per entity to compare identities, the list of what to fetch, the advanced blocks until the curves have been checked) is reserved with the accountant like the blocks are.
+`validate()` reads everything except what was skipped and holds the file to the canonical layout the writer produces (the artifact digest is checked by `verify_artifact_digest`, which is separate): the bytes between blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites are acyclic and shallow enough. It streams: blocks are decoded one at a time, padding is read a megabyte at a time, and everything it keeps (one id per entity to compare identities, the list of what to fetch, the advanced blocks until the curves have been checked) is reserved with the accountant like the blocks are.
 
 ## Rules
 

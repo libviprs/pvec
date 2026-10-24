@@ -132,8 +132,10 @@ kind of block and per file, and an uncompressed block (codec 0) is always legal.
 | 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |\n\n\
 The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is \
 smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same \
-input gives the same bytes for the version of the codec crate that `Cargo.lock` pins, on every platform; a compressed \
-artifact is canonical for that version, and a change of codec version is a change of artifact. A reader holds the \
+input gives the same bytes for the version of the codec crate that `Cargo.lock` pins and the same pointer width (LZ4's \
+match finder differs on 32-bit targets, so a wasm32 writer's LZ4 is not a 64-bit writer's, and deflate has no such \
+difference); a compressed artifact is canonical for that version and width, and a change of codec version is a change \
+of artifact. A reader holds the \
 decoded length to the expansion ratio of `docs/SECURITY_LIMITS.md` before it reserves it, decompresses into exactly that \
 length, and refuses a stream that has more to write (`CODEC-01`), ends short (`CODEC-02`) or is not valid (`CODEC-03`).\n\n\
 Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 of the stored bytes of each block, \

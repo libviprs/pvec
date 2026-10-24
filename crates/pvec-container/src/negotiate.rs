@@ -438,7 +438,12 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
         }
     }
 
-    let declared = |id: u32| manifest.capabilities.iter().find(|d: &&Declared| d.id.get() == id);
+    // looked up by id for every block, so it is a map: a manifest and a directory can both be large
+    let by_id: std::collections::HashMap<u32, &Declared> =
+        manifest.capabilities.iter().map(|d| (d.id.get(), d)).collect();
+    let declared = |id: u32| by_id.get(&id).copied();
+    let mut skipped_reason: std::collections::HashMap<u32, SkipReason> =
+        skipped.iter().map(|s| (s.id.get(), s.reason)).collect();
     let mut blocks: Vec<SkippedBlock> = Vec::new();
     for (i, e) in entries.iter().enumerate() {
         let block = BlockId(i as u32);
@@ -451,7 +456,7 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
                 });
             }
         }
-        let by_capability = capability.and_then(|c| skipped.iter().find(|s| s.id == c)).map(|s| s.reason);
+        let by_capability = capability.and_then(|c| skipped_reason.get(&c.get()).copied());
         let reason = if e.block_kind().is_none() {
             Some(SkipReason::UnknownBlockKind)
         } else if crate::compress::Codec::from_id(e.codec).is_none() {
@@ -470,7 +475,7 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
             });
             // a skipped block's capability is in the report even when the reader implements it
             if let Some(c) = capability {
-                if !skipped.iter().any(|s| s.id == c) {
+                if skipped_reason.insert(c.get(), reason).is_none() {
                     let d = declared(c.get());
                     skipped.push(SkippedCapability {
                         id: c,
@@ -517,7 +522,7 @@ A newer minor version of a capability the reader supports opens: a minor only ad
 by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is \
 refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as \
 optional cannot be declared required by a file.\n\n\
-Refusals are `NegotiationError`-style and carry a rule:\n\n\
+Refusals are `Refusal` values and carry a rule:\n\n\
 | rule | meaning |\n|---|---|\n",
     );
     for (rule, meaning) in NEGOTIATE_RULES {
@@ -532,7 +537,9 @@ skips a block from a descriptor alone, and never requests a byte of its payload:
 when it is set (`DIR-04`);\n\
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);\n\
 * a block whose capability the reader skipped is skipped with it.\n\n\
-A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan. The \
+A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and \
+a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which \
+reads every byte by definition. The \
 reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the \
 block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the \
 format defines names none (`DIR-02`), because its kind fixes it.\n\n\

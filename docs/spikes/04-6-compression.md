@@ -78,7 +78,7 @@ The hash rates over the largest fixture (12 MB of hot blocks), native x64:
 ## What the table says
 
 * Both codecs find a lot to compress in plan-like data, and deflate finds about twice as much as LZ4 (0.09 to
-  0.34 against 0.21 to 0.58) at a fifth to a third of the decode speed (0.5 to 1.8 GB/s against 3.1 to 5.2).
+  0.34 against 0.21 to 0.58) at about a fifth to a half of the decode speed (0.5 to 1.8 GB/s against 3.1 to 5.2).
   On the hardest fixture, whose coordinates are random, LZ4 still takes the hot blocks to 0.577.
 * Decoding is fast enough not to matter next to a network: even deflate decodes a 33 KB block in tens of
   microseconds.
@@ -99,11 +99,10 @@ The hash rates over the largest fixture (12 MB of hot blocks), native x64:
 2. **The writer's default is no compression.** I am not choosing a default from synthetic fixtures. The
    numbers above say compression pays on plan-like data, and they say nothing about a real drawing, which
    P8.1's corpus and P8.3's benchmark are for. `CodecPolicy::RECOMMENDED` is LZ4 for every kind, which is
-   what I would pass for anything served over HTTP: it costs 5% of a network round trip in decode time and
-   takes 40 to 80% off the bytes. A producer that wants the smallest file passes deflate. A mapped file that
+   what I would pass for anything served over HTTP: it decodes at 3 to 5 GB/s and takes 40 to 80% off the bytes on these fixtures. A producer that wants the smallest file passes deflate. A mapped file that
    is read in place wants none.
 3. **Carry the block checksum.** The measurement above is the number ADR 0006 asked for: 0.1 to 5.1% of
-   decode time natively. It is an 8 byte entry per block (0.024% of a file with 512 entities a block) and it
+   decode time natively. It is an 8 byte entry per block (about 0.02 to 0.08% of a file at 512 entities a block, depending on how big the entities are) and it
    is verified before a block is decompressed or parsed, which is what makes "a corrupt byte is caught before
    it reaches the decoder" true.
 4. **The artifact digest is the SHA-256 of the whole file with its own 32 bytes read as zero.** ADR 0006 said
@@ -113,8 +112,10 @@ The hash rates over the largest fixture (12 MB of hot blocks), native x64:
    costs a read of the whole file, so it is verified on request (`verify_artifact_digest`), in chunks of at
    most 1 MiB with a bounded allocation, and not at every open: a streamed artifact is the case that cannot
    afford it.
-5. **A compressed artifact is canonical for the pinned codec crates.** The writer is deterministic for a given
-   version of `lz4_flex` and `miniz_oxide`, and `Cargo.lock` pins them. A change of codec crate version is a
+5. **A compressed artifact is canonical for the pinned codec crates and the pointer width.** The writer is
+   deterministic for a given version of `lz4_flex` and `miniz_oxide`, and `lz4_flex` picks a different match
+   finder on 32-bit targets, so a wasm32 writer's LZ4 bytes are not a 64-bit writer's (deflate has no such
+   difference), and `Cargo.lock` pins them. A change of codec crate version is a
    change of artifact and goes through a golden-file bless like any other format change.
 
 ## What this does not settle

@@ -479,7 +479,9 @@ impl Core {
             let (start, end) = (e.offset, e.offset + u64::from(e.stored_length));
             current = match current.take() {
                 Some((cs, ce, mut blocks))
-                    if start.saturating_sub(ce) <= u64::from(gap) && end - cs <= u64::from(max) =>
+                    if start.saturating_sub(ce) <= u64::from(gap)
+                        && end - cs <= u64::from(max)
+                        && !self.skipped_between(blocks.last().copied(), id) =>
                 {
                     blocks.push(id);
                     Some((cs, ce.max(end), blocks))
@@ -495,11 +497,19 @@ impl Core {
         Ok(out)
     }
 
+    /// Whether a skipped block lies between two blocks of a plan, which a coalesced request would read.
+    fn skipped_between(&self, previous: Option<BlockId>, next: BlockId) -> bool {
+        let from = previous.map_or(next.0, |p| p.0 + 1) as usize;
+        (from..next.0 as usize).any(|i| self.skipped.get(i).copied().unwrap_or(false))
+    }
+
     /// The room a block needs while it is fetched and decoded, beyond the decoded block itself: its
     /// stored bytes, and for a compressed block the buffer the decoder writes into before the bytes are
     /// copied into aligned memory.
     pub fn in_flight(&self, entry: &BlockEntry) -> u64 {
-        let packed = if entry.codec == Codec::None.id() { 0 } else { u64::from(entry.uncompressed_length) };
+        // the deflate decoder grows its buffer by doubling, so it can hold half again the declared length
+        let declared = u64::from(entry.uncompressed_length);
+        let packed = if entry.codec == Codec::None.id() { 0 } else { declared + declared / 2 };
         u64::from(entry.stored_length) + packed
     }
 
@@ -940,7 +950,7 @@ the directory and the padding a validation reads are charged too, and so is the 
 counts against `max_decode_work`. The size a file *declares* is never what is requested: a block of a declared \
 4 GiB is refused from its directory entry, before a byte of it is fetched.\n\n\
 ## Validation\n\n\
-`validate()` reads everything and holds the file to the canonical layout the writer produces: the bytes between \
+`validate()` reads everything except what was skipped and holds the file to the canonical layout the writer produces (the artifact digest is checked by `verify_artifact_digest`, which is separate): the bytes between \
 blocks are zero, every block parses, the directory and the blocks agree, identities are unique, and composites \
 are acyclic and shallow enough. It streams: blocks are decoded one at a time, padding is read a megabyte at a time, \
 and everything it keeps (one id per entity to compare identities, the list of what to fetch, the advanced blocks until \

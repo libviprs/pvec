@@ -382,3 +382,31 @@ fn the_codecs_are_pure_rust_with_no_native_source_and_no_library_discovered_on_t
         assert!(names.contains(&wanted), "the codec and checksum crates are {wanted}");
     }
 }
+
+#[test]
+fn the_expansion_ratio_is_exact_at_the_ceiling_and_a_refusal_reserves_nothing() {
+    let art = art::from_input_with(&fixtures()[0], art::sealed_with(CodecPolicy::uniform(Codec::Lz4)));
+    let i = art.entries.iter().position(|e| e.codec == Codec::Lz4.id()).expect("a compressed block");
+    let ceiling = u64::from(art.entries[i].stored_length) * u64::from(Limits::DEFAULT.max_expansion_ratio);
+    let at = art.entry_field(i, "uncompressed_length");
+    // exactly at the ceiling the descriptor is admitted (the stream will not decode to that, which is the
+    // decoder's business)
+    let admitted = art.clone().with_u32(at, ceiling as u32);
+    assert!(ContainerReader::open(MemorySource::new(admitted.bytes), ReaderConfig::default()).is_ok());
+    let over = art.clone().with_u32(at, ceiling as u32 + 1);
+    let err =
+        ContainerReader::open(MemorySource::new(over.bytes), ReaderConfig::default()).err().expect("refused");
+    assert_eq!(
+        err.limit().map(|l| (l.limit, l.declared, l.ceiling)),
+        Some((LimitKind::ExpansionRatio, ceiling + 1, ceiling))
+    );
+    // and nothing is reserved for a declaration that is admitted and then fails to decode
+    let reader = ContainerReader::open(
+        MemorySource::new(art.clone().with_u32(at, ceiling as u32).bytes),
+        ReaderConfig::default(),
+    )
+    .unwrap();
+    let live = reader.accountant().live();
+    assert!(reader.read_block(BlockId(i as u32)).is_err());
+    assert_eq!(reader.accountant().live(), live);
+}

@@ -441,7 +441,7 @@ Blocks compress independently, so that a reader that wants one block decompresse
 | 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |
 | 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |
 
-The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same input gives the same bytes for the version of the codec crate that `Cargo.lock` pins, on every platform; a compressed artifact is canonical for that version, and a change of codec version is a change of artifact. A reader holds the decoded length to the expansion ratio of `docs/SECURITY_LIMITS.md` before it reserves it, decompresses into exactly that length, and refuses a stream that has more to write (`CODEC-01`), ends short (`CODEC-02`) or is not valid (`CODEC-03`).
+The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same input gives the same bytes for the version of the codec crate that `Cargo.lock` pins and the same pointer width (LZ4's match finder differs on 32-bit targets, so a wasm32 writer's LZ4 is not a 64-bit writer's, and deflate has no such difference); a compressed artifact is canonical for that version and width, and a change of codec version is a change of artifact. A reader holds the decoded length to the expansion ratio of `docs/SECURITY_LIMITS.md` before it reserves it, decompresses into exactly that length, and refuses a stream that has more to write (`CODEC-01`), ends short (`CODEC-02`) or is not valid (`CODEC-03`).
 
 Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 of the stored bytes of each block, little-endian, eight bytes per block, in directory order, at the offset and length the manifest gives; it is verified when a block is fetched and before the block is decompressed or parsed, so a corrupt block never reaches either. The artifact digest is the SHA-256 of the whole file with its own 32 bytes in the manifest read as zero, so it covers the header, the manifest, every block, the table, the directory and the padding, and a change to any of them is seen, including to the ones no block checksum covers. A reader verifies it on request by reading the file in chunks of at most 1 MiB, not at every open. The refusals:
 
@@ -475,7 +475,7 @@ A reader that meets a block it has never heard of has to skip it correctly, with
 
 A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as optional cannot be declared required by a file.
 
-Refusals are `NegotiationError`-style and carry a rule:
+Refusals are `Refusal` values and carry a rule:
 
 | rule | meaning |
 |---|---|
@@ -493,7 +493,7 @@ A block carries everything needed to skip it in its directory entry: its kind id
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);
 * a block whose capability the reader skipped is skipped with it.
 
-A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan. The reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the format defines names none (`DIR-02`), because its kind fixes it.
+A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which reads every byte by definition. The reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the format defines names none (`DIR-02`), because its kind fixes it.
 
 ### 5.4 What a new capability must satisfy to be optional
 

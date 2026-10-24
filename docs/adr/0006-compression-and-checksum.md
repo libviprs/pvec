@@ -82,8 +82,8 @@ P4.6 (#7) re-benchmarked the codec as the Status line promised, on the fixtures 
   narrower digest left the manifest and every block uncovered by anything but XXH3, which is not a security
   hash, and the issue asks for a digest of the canonical byte stream. It is verified on request in chunks of
   at most 1 MiB, not at every open, because the case that cannot afford a whole-file read is the streamed one.
-* **Compressed artifacts are canonical for the pinned codec versions.** Both codecs are deterministic integer
-  code; `Cargo.lock` pins the versions; a change of codec version is a change of artifact and goes through
+* **Compressed artifacts are canonical for the pinned codec versions and the pointer width.** Both codecs are
+  deterministic integer code (LZ4's match finder differs on 32-bit targets, so wasm32 LZ4 bytes differ from 64-bit); `Cargo.lock` pins the versions; a change of codec version is a change of artifact and goes through
   the golden-file bless.
 * **Reversal threshold, unchanged.** Make verification opt-in per file if the wasm number for XXH3 passes 25%
   of block decode time for the codec in use.

@@ -463,3 +463,24 @@ fn chapter_5_of_the_container_document_states_the_skip_contract_and_what_a_new_c
         assert!(doc.contains(needle), "docs/CONTAINER.md chapter 5 lacks {needle:?}");
     }
 }
+
+#[test]
+fn a_coalesced_request_never_reads_across_a_skipped_block() {
+    // a block of a known kind that is optional and has a codec nobody knows, between two live blocks that
+    // touch it: with a gap threshold that would otherwise merge all three into one request
+    // blocks of 8 KB, so the first 4 KiB the open reads is the first block only
+    let base = art::lines_with(200, 3, SEALED);
+    let art = rebuild(&base, Integrity::Full, |_, blocks| {
+        blocks[1].flags = 0;
+        blocks[1].bounds = None;
+        blocks[1].codec = 7;
+    });
+    let r = open_with(art.bytes.clone(), ReaderCapabilities::v1()).unwrap();
+    assert_eq!(r.partial_open().unwrap().blocks.len(), 1);
+    let plan = r.plan(&[BlockId(0), BlockId(1), BlockId(2)]).unwrap();
+    assert_eq!(plan.len(), 2, "{plan:?}");
+    assert!(plan.iter().all(|q| !q.blocks.contains(&BlockId(1))));
+    let (offset, len) = (art.entries[1].offset, u64::from(art.entries[1].stored_length));
+    r.read_blocks(&[BlockId(0), BlockId(2)]).unwrap();
+    assert!(!r.source().touched(offset, len), "the skipped block was read inside a coalesced request");
+}

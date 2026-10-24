@@ -699,6 +699,7 @@ impl<S: BlockSource> ContainerReader<S> {
     /// it does not understand. Skipped blocks can be read this way, and only this way.
     pub fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError> {
         let (offset, len) = self.shared.core.range_of(id)?;
+        let _room = self.shared.admit_gap(len)?;
         self.fetch(offset, len)
     }
 
@@ -818,6 +819,7 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
     /// As [`ContainerReader::read_stored`].
     pub async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError> {
         let (offset, len) = self.shared.core.range_of(id)?;
+        let _room = self.shared.admit_gap(len)?;
         self.fetch(offset, len).await
     }
 

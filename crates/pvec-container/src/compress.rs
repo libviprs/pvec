@@ -123,9 +123,10 @@ impl core::fmt::Display for CodecError {
 
 impl std::error::Error for CodecError {}
 
-/// Compresses `bytes`. The same bytes always give the same output for a given version of the codec crate
-/// (`Cargo.lock` pins it), on every platform: both codecs are integer code with no dependence on the
-/// host.
+/// Compresses `bytes`. The same bytes give the same output for a given version of the codec crate
+/// (`Cargo.lock` pins it) and a given pointer width: both codecs are integer code with no dependence on the
+/// host's byte order or floating point, but `lz4_flex` picks a different match finder on 32-bit targets, so
+/// a wasm32 writer's LZ4 output is not a 64-bit writer's.
 pub fn compress(codec: Codec, bytes: &[u8]) -> Vec<u8> {
     match codec {
         Codec::None => bytes.to_vec(),
