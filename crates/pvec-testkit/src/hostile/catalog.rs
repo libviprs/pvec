@@ -326,15 +326,21 @@ fn offsets(b: &mut Builder, d: &At, line: &At) {
         "block_offset_plus_length_wraps",
         "drawing",
         vec![Op::u64(e0("offset"), u64::MAX - 7)],
-        &["DIR-06"],
+        &["DIR-06", "LIMIT-12"],
     );
-    b.refuse(F, "block_offset_past_eof", "drawing", vec![Op::u64(e0("offset"), (n + 8) & !7)], &["DIR-06"]);
+    b.refuse(
+        F,
+        "block_offset_past_eof",
+        "drawing",
+        vec![Op::u64(e0("offset"), (n + 8) & !7)],
+        &["DIR-06", "LIMIT-12"],
+    );
     b.refuse(
         F,
         "block_length_past_eof",
         "drawing",
         vec![Op::u32(e0("stored_length"), 0xFFFF_FF00), Op::u32(e0("uncompressed_length"), 0xFFFF_FF00)],
-        &["DIR-06", "LIMIT-02"],
+        &["DIR-06", "LIMIT-02", "LIMIT-03"],
     );
     b.refuse(
         F,
@@ -355,7 +361,7 @@ fn offsets(b: &mut Builder, d: &At, line: &At) {
         "block_overlaps_directory",
         "drawing",
         vec![Op::u64(last, d.layout.directory as u64)],
-        &["DIR-11", "DIR-06"],
+        &["DIR-11", "DIR-06", "LIMIT-12"],
     );
     b.refuse(
         F,
@@ -427,7 +433,14 @@ fn counts(b: &mut Builder, d: &At, s: &At, c: &At, st: &At, line: &At) {
         vec![Op::u32(lines, 1 << 28)],
         &["HOT-09", "HOT-01"],
     );
-    b.refuse(F, "hot_entities_u32_max", "drawing", vec![Op::u32(lines, u32::MAX)], &["HOT-09", "HOT-01"]);
+    // refused as a limit when the reader has one for it (P4.8), by the parser's own rule when it has not
+    b.refuse(
+        F,
+        "hot_entities_u32_max",
+        "drawing",
+        vec![Op::u32(lines, u32::MAX)],
+        &["HOT-09", "HOT-01", "LIMIT-08"],
+    );
     b.refuse(
         F,
         "hot_vertices_above_file_size",
@@ -457,21 +470,21 @@ fn counts(b: &mut Builder, d: &At, s: &At, c: &At, st: &At, line: &At) {
         "arena_entries_u32_max",
         "splines",
         vec![Op::u32(knots.header("entry_count"), u32::MAX)],
-        &["ARN-01", "ARN-07"],
+        &["ARN-01", "ARN-07", "LIMIT-08"],
     );
     b.refuse(
         F,
         "control_points_u32_max",
         "splines",
         vec![Op::u32(s.run(CONTROL_POINTS, 0, "control_points").0 + 4, u32::MAX)],
-        &["ARN-11", "ARN-13"],
+        &["ARN-11", "ARN-13", "LIMIT-09"],
     );
     b.refuse(
         F,
         "knots_u32_max",
         "splines",
         vec![Op::u32(s.run(KNOTS, 0, "knots").0 + 4, u32::MAX)],
-        &["ARN-11", "ARN-13"],
+        &["ARN-11", "ARN-13", "LIMIT-10"],
     );
     b.refuse(
         F,
@@ -485,7 +498,7 @@ fn counts(b: &mut Builder, d: &At, s: &At, c: &At, st: &At, line: &At) {
         "directory_entry_count_lies",
         "drawing",
         vec![Op::u32(d.layout.blocks[0].entry + entry_field("count"), u32::MAX)],
-        &["CONSIST-01"],
+        &["CONSIST-01", "LIMIT-08"],
     );
     b.refuse(
         F,
@@ -546,7 +559,13 @@ fn nesting(b: &mut Builder, c: &At) {
     assert_eq!(b_run.1.1, 2);
     b.refuse(F, "composite_names_itself", "composites", vec![Op::u32(first_of_a, 2)], &["ARN-21"]);
     b.refuse(F, "composites_name_each_other", "composites", vec![Op::u32(first_of_a, 3)], &["ARN-21"]);
-    b.refuse(F, "chain_deeper_than_maximum", "composites", vec![Op::u32(first_of_a, 5)], &["ARN-22"]);
+    b.refuse(
+        F,
+        "chain_deeper_than_maximum",
+        "composites",
+        vec![Op::u32(first_of_a, 5)],
+        &["ARN-22", "LIMIT-11"],
+    );
     b.refuse(F, "segment_names_missing_record", "composites", vec![Op::u32(first_of_a, 1000)], &["ARN-20"]);
     b.refuse(F, "segment_list_empty", "composites", vec![Op::u32(a_run.0 + 4, 0)], &["ARN-24"]);
 }

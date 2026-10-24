@@ -134,6 +134,39 @@ pub enum ContainerError {
     },
 }
 
+impl ContainerError {
+    /// The name of the variant, which is the rule identifier a refusal of the header or the manifest is
+    /// pinned by (`PointerOutOfRange`, `Truncated`, and so on).
+    pub fn rule(&self) -> &'static str {
+        match self {
+            ContainerError::BadMagic => "BadMagic",
+            ContainerError::UnsupportedVersion { .. } => "UnsupportedVersion",
+            ContainerError::UnsupportedByteOrder { .. } => "UnsupportedByteOrder",
+            ContainerError::Truncated { .. } => "Truncated",
+            ContainerError::BadHeaderLength { .. } => "BadHeaderLength",
+            ContainerError::PointerOutOfRange { .. } => "PointerOutOfRange",
+            ContainerError::PointerIntoManifest { .. } => "PointerIntoManifest",
+            ContainerError::ManifestTooLarge { .. } => "ManifestTooLarge",
+            ContainerError::UnknownChecksumAlgorithm { .. } => "UnknownChecksumAlgorithm",
+            ContainerError::NonZeroReserved { .. } => "NonZeroReserved",
+            ContainerError::InvalidFlags { .. } => "InvalidFlags",
+            ContainerError::UnknownLengthUnit { .. } => "UnknownLengthUnit",
+            ContainerError::UnitFactorMismatch => "UnitFactorMismatch",
+            ContainerError::Bound { .. } => "Bound",
+            ContainerError::InvertedBounds { .. } => "InvertedBounds",
+            ContainerError::ZeroCapabilityId => "ZeroCapabilityId",
+            ContainerError::DuplicateCapability { .. } => "DuplicateCapability",
+            ContainerError::InvalidRequirement { .. } => "InvalidRequirement",
+            ContainerError::DirectoryTableMismatch => "DirectoryTableMismatch",
+            ContainerError::BadDirectoryTableLength { .. } => "BadDirectoryTableLength",
+            ContainerError::MissingProducer => "MissingProducer",
+            ContainerError::StringTooLong { .. } => "StringTooLong",
+            ContainerError::InvalidUtf8 { .. } => "InvalidUtf8",
+            ContainerError::TrailingBytes { .. } => "TrailingBytes",
+        }
+    }
+}
+
 impl fmt::Display for ContainerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self:?}")

@@ -1,0 +1,17 @@
+[package]
+name = "pvec-sources"
+version = "0.0.0"
+description = "The sources of the PVec reader that touch the file system: a local file and a positional read over one. They live here, and not in pvec-container, because an API crate does no file access"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+pvec-container = { path = "../pvec-container" }
+
+[dev-dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-entity = { path = "../pvec-entity" }
+
+[lints]
+workspace = true

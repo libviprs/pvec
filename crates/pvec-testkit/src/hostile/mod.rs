@@ -24,8 +24,10 @@ pub mod bases;
 pub mod catalog;
 pub mod harness;
 pub mod mutate;
+pub mod safe;
 
 pub use bases::{Base, bases};
 pub use catalog::{Case, Expect, Family, Requires, catalog};
 pub use harness::{Failure, Limits, Meter, NoMeter, Reader, ReferenceReader, Refusal, Report, Verdict, run};
 pub use mutate::{Layout, Op, apply};
+pub use safe::SafeReader;

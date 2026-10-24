@@ -282,7 +282,7 @@ fn check_budget(table: &[u8], budget: &Budget) -> Result<(), ReadError> {
     if total > budget.max_decoded_bytes {
         return refuse(
             Stage::Directory,
-            "LIMIT-02",
+            "LIMIT-03",
             format!(
                 "the blocks declare {total} decoded bytes, over the budget of {}",
                 budget.max_decoded_bytes

@@ -744,6 +744,17 @@ impl<'a> ArenaView<'a> {
         self.arena_len as usize
     }
 
+    /// The `len` the offset-table entry `index` declares, checked to be an entry of the table and nothing
+    /// else: not against the arena. A reader holds it to its own limits before the entry is range
+    /// checked, so a count that lies is refused as a limit and not allocated for.
+    pub fn declared_len(&self, index: u32) -> Result<u32, ArenaError> {
+        let entries = self.table.len() / 2;
+        if index as usize >= entries {
+            return Err(ArenaError::EntryOutOfRange { index, entries: entries as u32 });
+        }
+        Ok(self.table[2 * index as usize + 1])
+    }
+
     /// Offset-table entry `index`, checked to lie inside the arena. One table read.
     pub fn entry(&self, index: u32) -> Result<OffsetEntry, ArenaError> {
         self.entry_range(index).map(|(e, _)| e)

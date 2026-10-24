@@ -746,30 +746,55 @@ impl<'a> AdvancedView<'a> {
     /// Resolve a composite's segments only after this returns `Ok`.
     pub fn nesting_depth(&self, index: usize) -> Result<usize, ArenaError> {
         self.record_or_err(index)?;
-        self.depth(index, 1, &mut Walk::default())
+        self.depth(index, 1, &mut Walk::new(MAX_NESTING_DEPTH))
     }
 
     /// `nesting_depth` of every record, sharing the work between them: each record is read once, and each
     /// segment list is scanned once however many composites use it, so the cost is the size of the
     /// file and not the product of composites and list lengths.
     pub fn check_nesting(&self) -> Result<(), ArenaError> {
-        let mut walk = Walk::default();
+        self.check_nesting_within(MAX_NESTING_DEPTH)
+    }
+
+    /// [`AdvancedView::check_nesting`] with a ceiling of `max_depth` (the outermost curve counting as 1)
+    /// in place of NP-18's, which a configuration may lower and never raise: a `max_depth` above NP-18's
+    /// maximum is held to NP-18's. The recursion is bounded by the ceiling, so a hostile chain cannot
+    /// exhaust the stack.
+    pub fn check_nesting_within(&self, max_depth: usize) -> Result<(), ArenaError> {
+        let mut walk = Walk::new(max_depth.min(MAX_NESTING_DEPTH));
         for index in 0..self.len() {
             self.depth(index, 1, &mut walk)?;
         }
         Ok(())
     }
 
+    /// The counts the offset-table entries of record `index` declare, read without checking them against
+    /// the arenas: `Some((knots, control_points))` for a spline and `None` for a composite. A reader
+    /// compares them with its limits first, so a count that lies is refused as one before the range
+    /// check that would also refuse it.
+    pub fn declared_counts(&self, index: usize) -> Result<Option<(u32, u32)>, ArenaError> {
+        let rec = self.record_or_err(index)?;
+        match rec.kind {
+            RecordKind::Spline => Ok(Some((
+                self.knots.declared_len(rec.knots)?,
+                self.control_points.declared_len(rec.control_points)?,
+            ))),
+            RecordKind::Composite => Ok(None),
+        }
+    }
+
     /// Height of the record at `index` when it sits at `level` (the outermost curve is level 1).
     fn depth(&self, index: usize, level: usize, walk: &mut Walk) -> Result<usize, ArenaError> {
-        if level > MAX_NESTING_DEPTH {
-            return Err(ArenaError::NestingTooDeep { record: index });
-        }
+        let max = walk.max;
+        // a record that is already on the path is a cycle at any ceiling, so it is looked for first
         if walk.open.contains(&index) {
             return Err(ArenaError::CompositeCycle { record: index });
         }
+        if level > max {
+            return Err(ArenaError::NestingTooDeep { record: index });
+        }
         if let Some(&h) = walk.done.get(&index) {
-            if level + h - 1 > MAX_NESTING_DEPTH {
+            if level + h - 1 > max {
                 return Err(ArenaError::NestingTooDeep { record: index });
             }
             return Ok(h);
@@ -795,7 +820,7 @@ impl<'a> AdvancedView<'a> {
                 1 + tallest
             }
         };
-        if level + height - 1 > MAX_NESTING_DEPTH {
+        if level + height - 1 > max {
             return Err(ArenaError::NestingTooDeep { record: index });
         }
         walk.done.insert(index, height);
@@ -805,11 +830,17 @@ impl<'a> AdvancedView<'a> {
 
 /// What the nesting walk remembers: finished heights, the records on the current path, and the height of
 /// each segment list already scanned (keyed by its offset-table index).
-#[derive(Default)]
 struct Walk {
+    max: usize,
     done: HashMap<usize, usize>,
     open: HashSet<usize>,
     lists: HashMap<u32, usize>,
+}
+
+impl Walk {
+    fn new(max: usize) -> Walk {
+        Walk { max, done: HashMap::new(), open: HashSet::new(), lists: HashMap::new() }
+    }
 }
 
 /// Chapter 3 of `docs/CONTAINER.md`, rendered from the constants in this module and in `arena`.

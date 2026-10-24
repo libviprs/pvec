@@ -10,13 +10,19 @@
 
 pub mod blocks;
 pub mod directory;
+mod engine;
 pub mod error;
 pub mod header;
+pub mod limits;
 pub mod manifest;
+pub mod reader;
+pub mod source;
 pub mod spec;
 pub mod writer;
 mod writer_doc;
 
 pub use error::ContainerError;
 pub use header::{ChecksumAlgorithm, Header};
+pub use limits::{Accountant, LimitExceeded, LimitKind, Limits};
 pub use manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata};
+pub use reader::{AsyncContainerReader, BlockId, ContainerReader, ReadError, ReaderConfig};
