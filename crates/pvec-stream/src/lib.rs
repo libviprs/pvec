@@ -8,6 +8,8 @@
 
 mod directory;
 mod ownership;
+mod viewport;
 
 pub use directory::*;
 pub use ownership::*;
+pub use viewport::*;

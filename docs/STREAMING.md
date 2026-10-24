@@ -181,3 +181,45 @@ Two things follow and are left for the follow-up (see the scope note). In the P5
 ### 2.7 Scope note
 
 Delivered here: the reference type and its size budget, the placement pass with the ceiling and the straddler hand-off, the report, the reference arrays with their byte layout, and read-side deduplication. Not delivered, and moved to a follow-up issue: a container block kind that stores the arrays (the layout above is ready for one; the kind needs a CONTAINER.md entry and a decision on lazy per-cell reads that #117 asks for), splitting the advanced curve set by cell (it is one set in cell 0, so it has no cell to reference from), and re-measuring and tightening the stated fraction once P5.3 lands.
+
+## 5. Viewport queries and read plans
+
+A pan or a zoom has to become the smallest practical set of range requests: not one per cell, and not the whole file. `ViewportQuery::plan` (in `crates/pvec-stream/src/viewport.rs`, issue P5.5) turns a viewport rectangle into a `ReadPlan`: an ordered list of the range requests the container reader's planner (P4.5) builds for the blocks the viewport wants. It reads nothing and changes nothing, and it never opens a file: it takes the `SpatialDirectory` and anything that answers `PlanSource` (both `ContainerReader` and `AsyncContainerReader` do), so the same plan serves a blocking and an async reader.
+
+### 5.1 What goes in the plan
+
+A query is `bounds` (source space), `scale` (display pixels per source unit, finite and above zero) and `tier_budget` (bytes). The config carries `prefetch_margin_px` (default 128, zero turns it off), which is turned into source units with the scale. The directory yields the cells that touch the viewport grown by that margin, and each hot block of those cells is looked at by its own bounds, because a cell's bounds are the union of its blocks and often wider:
+
+* a block that touches the viewport is **visible**,
+* a block that touches only the margin is **prefetch**,
+* anything else is not in the plan, which is how the plan never holds a block outside the viewport plus the margin (a coalesced request can still read the bytes between two blocks it holds, and that is counted as waste below),
+* a block the reader's cache already holds is counted (`blocks_cached`) and not requested, which is all a pan or a zoom needs to ask only for the delta. `is_cached` looks and does not touch, so planning moves neither the LRU order nor the hit counters, and the same viewport and cache state give the same plan, which the tests assert by comparing two independently built plans.
+
+All wanted blocks go through one call of the reader's `plan`, so adjacent blocks are merged under the gap threshold and a request never re-reads a block another request of the plan fetches. A request that holds any visible block is a visible request, and the margin blocks riding in it (across a gap, say) are charged to the margin in the metrics. A request of margin blocks alone is a prefetch request.
+
+### 5.2 Order
+
+Visible requests come first, the one that brings the most visible entities per byte first: a block's value is its entity count times the share of its bounds inside the viewport (per axis, so a block of horizontal lines is not worth nothing), summed over the request and divided by its length. Equal rates go in file order. Prefetch requests follow, nearest the viewport centre first. The order depends only on the plan's inputs, so it is deterministic.
+
+### 5.3 Budget, metrics, and what the plan does not cover
+
+`tier_budget` caps the bytes of visible requests in one plan. The first request always goes, so a query makes progress even under a budget of zero, requests past the budget move to `deferred` in the order they would have come (the prefetch with them), and `deferred_ranges` and `deferred_bytes` say what was left. P5.4 (tiers) has not landed, so there is no tier selection here: the budget applies to the exact hot blocks, and a tiered plan is that task's to add on top of this one.
+
+`PlanMetrics` has a `ClassMetrics` each for visible and prefetch: `ranges`, `bytes_requested`, `bytes_wasted` (the request's length less the stored length of the blocks it holds, which is what the gaps cost), `blocks` and `blocks_cached`. The two classes add up to the bytes the requests span. The advanced curve set is one set in cell 0 that no leaf holds, so it is not in the plan; `advanced_in_view` says when it touches the viewport, and splitting it is P5.2's.
+
+A bad query is refused by rule: VP-01 for a scale that is not finite and above zero, VP-02 for a margin that is negative, not finite or pushes the box out of range, VP-03 for a reader refusal (which carries its own rule).
+
+### 5.4 Measurements
+
+Native x64 on MARS, `rustc 1.99.1`, `rooms-1m` of chapter 1.5 (15,625 hot blocks of 2,592 bytes, 40,500,000 bytes in all), reader defaults (64 KiB gap, 16 MiB request ceiling, 1 GiB cache for the tests).
+
+| criterion | stated | measured |
+|---|---|---|
+| full extent, complete exact coverage | at most 4 range requests | 3 requests, 40,500,000 bytes, 0 wasted |
+| half-screen pan, no prefetch, viewport 25,000 wide | delta at most 0.65 of the initial view's bytes | 0.507 (1,513,728 of 2,983,392), 551 blocks from cache |
+| one-screen pan with a one-screen margin already fetched | delta at most 0.1 of the initial view's bytes | 0 |
+| waste at the default gap, view 25,000 and full extent | at most 0.25 of bytes requested | 0.113 and 0 (prefetch 0.002) |
+| waste at the default gap, view 6,000 (about 50 blocks) | at most 0.55 | 0.494 |
+| zoom into a region the outer view decoded | no request for a decoded block | 0 ranges, 0 bytes |
+
+The last waste row is the honest limit of the fixed threshold: 64 KiB is about 25 blocks here, so a handful of scattered Hilbert runs read a lot of padding. Retuning the gap against block size is P8.6's, and the number is there so that tuning has something to beat.
