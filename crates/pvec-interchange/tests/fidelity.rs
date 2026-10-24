@@ -52,7 +52,10 @@ fn the_kind_of_a_value_matches_its_variant() {
     assert_eq!(Fidelity::ExactReparameterized.kind(), FidelityKind::ExactReparameterized);
     assert_eq!(Fidelity::EquivalentCompound.kind(), FidelityKind::EquivalentCompound);
     assert_eq!(bound(0.5).kind(), FidelityKind::BoundedApproximation);
-    assert_eq!(Fidelity::Unsupported(Reason::new("no spline surface").unwrap()).kind(), FidelityKind::Unsupported);
+    assert_eq!(
+        Fidelity::Unsupported(Reason::new("no spline surface").unwrap()).kind(),
+        FidelityKind::Unsupported
+    );
 }
 
 #[test]
@@ -141,7 +144,13 @@ fn sample() -> FidelityLedger {
     let mut l = FidelityLedger::new();
     l.record(rec(0, ids::LINE, native("LINE"), Fidelity::Exact, ""));
     l.record(rec(1, ids::CIRCLE, native("CIRCLE"), Fidelity::ExactReparameterized, "start angle moved to 0"));
-    l.record(rec(2, ids::ELLIPSE, native("COMPOSITE_CURVE"), Fidelity::EquivalentCompound, "two arcs\nand a line"));
+    l.record(rec(
+        2,
+        ids::ELLIPSE,
+        native("COMPOSITE_CURVE"),
+        Fidelity::EquivalentCompound,
+        "two arcs\nand a line",
+    ));
     l.record(rec(3, ids::B_SPLINE_CURVE, tess("POLYLINE"), bound(0.1 + 0.2), "tab\there \\ backslash\r"));
     l.record(rec(
         4,
@@ -196,10 +205,10 @@ fn a_round_trip_preserves_every_field() {
 fn a_round_trip_preserves_the_exact_bit_pattern_of_the_error_bound() {
     let patterns: [u64; 6] = [
         (0.1f64 + 0.2).to_bits(),
-        1,                       // smallest subnormal
+        1, // smallest subnormal
         f64::MAX.to_bits(),
         f64::MIN_POSITIVE.to_bits(),
-        0x3FF0_0000_0000_0001,   // one ulp above 1.0
+        0x3FF0_0000_0000_0001, // one ulp above 1.0
         0x7FEF_FFFF_FFFF_FFFF,
     ];
     for bits in patterns {
@@ -220,11 +229,8 @@ fn an_empty_ledger_round_trips() {
 fn a_record_missing_its_capability_or_target_fails_to_read() {
     let good = sample().to_text();
     for field in ["capability", "target"] {
-        let broken: String = good
-            .lines()
-            .filter(|l| !l.starts_with(&format!("{field} ")))
-            .map(|l| format!("{l}\n"))
-            .collect();
+        let broken: String =
+            good.lines().filter(|l| !l.starts_with(&format!("{field} "))).map(|l| format!("{l}\n")).collect();
         let e = FidelityLedger::from_text(&broken).unwrap_err();
         assert!(matches!(e, ParseError::MissingField { field: f, .. } if f == field), "{field}: {e:?}");
     }
@@ -241,10 +247,9 @@ fn a_tessellated_record_claiming_exactness_fails_to_read() {
     let mut l = FidelityLedger::new();
     l.record(rec(0, ids::CIRCLE, tess("POLYLINE"), bound(0.5), ""));
     let t = l.to_text();
-    let forged = t.replace("fidelity BoundedApproximation\n", "fidelity Exact\n").replace(
-        &t.lines().find(|l| l.starts_with("error_bound ")).map(|l| format!("{l}\n")).unwrap(),
-        "",
-    );
+    let forged = t
+        .replace("fidelity BoundedApproximation\n", "fidelity Exact\n")
+        .replace(&t.lines().find(|l| l.starts_with("error_bound ")).map(|l| format!("{l}\n")).unwrap(), "");
     assert!(FidelityLedger::from_text(&forged).is_err());
 }
 
@@ -319,7 +324,10 @@ fn a_newer_major_version_is_refused_by_number() {
 fn garbage_and_truncation_are_refused() {
     assert_eq!(FidelityLedger::from_text("").unwrap_err(), ParseError::BadHeader);
     assert_eq!(FidelityLedger::from_text("hello 1.0\n").unwrap_err(), ParseError::BadHeader);
-    assert_eq!(FidelityLedger::from_text("pvec-fidelity-ledger one.zero\n").unwrap_err(), ParseError::BadHeader);
+    assert_eq!(
+        FidelityLedger::from_text("pvec-fidelity-ledger one.zero\n").unwrap_err(),
+        ParseError::BadHeader
+    );
     let t = sample().to_text();
     for cut in [t.len() - 1, t.len() / 2, 30] {
         assert!(FidelityLedger::from_text(&t[..cut]).is_err(), "accepted a ledger cut at {cut}");
@@ -387,7 +395,9 @@ fn the_document_defines_all_five_values_with_evidence() {
 #[test]
 fn the_document_states_the_conformance_mapping_and_the_neighbouring_documents() {
     let d = doc();
-    for needle in ["structural", "geometric", "display", "CONFORMANCE.md", "NUMERIC_POLICY.md", "CAPABILITIES.md"] {
+    for needle in
+        ["structural", "geometric", "display", "CONFORMANCE.md", "NUMERIC_POLICY.md", "CAPABILITIES.md"]
+    {
         assert!(d.contains(needle), "the document never mentions {needle}");
     }
 }
