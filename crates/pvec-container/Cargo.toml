@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-entity = { path = "../pvec-entity" }
 pvec-numeric = { path = "../pvec-numeric" }
 
 [lints]

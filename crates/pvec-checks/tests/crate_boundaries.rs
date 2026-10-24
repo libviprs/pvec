@@ -79,6 +79,44 @@ fn manifests_list_only_allow_listed_dependencies() {
     }
 }
 
+/// The unsafe blocks `crates/pvec-container/src/blocks/aligned.rs` is allowed: the `from_raw_parts` over
+/// the `Vec<u64>` storage, the `align_to::<f64>` and the `align_to::<u32>`. Growth fails the check.
+const ALIGNED_UNSAFE_BLOCKS: usize = 3;
+
+/// Zero-based line numbers of every `unsafe` token outside `//` comments, matched like `\bunsafe\b`
+/// (the crate allow-list has no regex crate, so the boundary is checked by hand): `unsafe_code` and
+/// `is_unsafe` are not hits, `unsafe{`, `unsafe fn` and a bare `unsafe` at the end of a line are.
+fn unsafe_tokens(text: &str) -> Vec<usize> {
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    let mut hits = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        let code = line.split("//").next().unwrap_or("");
+        for (at, _) in code.match_indices("unsafe") {
+            let before = code[..at].chars().next_back();
+            let after = code[at + 6..].chars().next();
+            if !before.is_some_and(word) && !after.is_some_and(word) {
+                hits.push(n);
+            }
+        }
+    }
+    hits
+}
+
+#[test]
+fn the_unsafe_token_is_matched_on_word_boundaries() {
+    assert_eq!(unsafe_tokens("unsafe { x }"), [0]);
+    assert_eq!(unsafe_tokens("let a = unsafe{ x };"), [0]);
+    assert_eq!(unsafe_tokens("a\nunsafe\n{ x }"), [1]);
+    assert_eq!(unsafe_tokens("pub unsafe fn f() {}"), [0]);
+    assert_eq!(unsafe_tokens("(unsafe { x })"), [0]);
+    assert_eq!(unsafe_tokens("unsafe impl Send for T {}"), [0]);
+    assert_eq!(unsafe_tokens("unsafe { a }; unsafe { b }"), [0, 0]);
+    assert!(unsafe_tokens("#![allow(unsafe_code)]").is_empty());
+    assert!(unsafe_tokens("let is_unsafe = 1; let unsafely = 2;").is_empty());
+    assert!(unsafe_tokens("// unsafe { x }").is_empty());
+    assert!(unsafe_tokens("let a = 1; // unsafe").is_empty());
+}
+
 #[test]
 fn api_crates_do_no_file_network_or_process_access_and_name_no_wire_crate() {
     let forbidden = ["std::fs", "std::net", "std::process", "std::env", "std::thread", "std::io", "libc::"];
@@ -91,7 +129,30 @@ fn api_crates_do_no_file_network_or_process_access_and_name_no_wire_crate() {
                 assert!(!code.contains(f), "{name}: {} uses {f}", file.display());
             }
             assert!(banned_wire_names(&code).is_empty(), "{name}: {} names a wire crate", file.display());
-            assert!(!code.contains("unsafe "), "{name}: {} contains unsafe", file.display());
+            // The one module that reinterprets block bytes in place may use `unsafe`, in exactly
+            // `ALIGNED_UNSAFE_BLOCKS` places, and every use must carry its argument in a `SAFETY:`
+            // comment just above it. The scan covers the whole file (test module included) and matches
+            // the token on word boundaries, so `unsafe{`, `unsafe\n` and `unsafe impl` count too.
+            let hits = unsafe_tokens(&text);
+            if name == &"pvec-container" && file.ends_with("src/blocks/aligned.rs") {
+                assert_eq!(
+                    hits.len(),
+                    ALIGNED_UNSAFE_BLOCKS,
+                    "{}: the number of unsafe blocks changed; every new one needs a panel review",
+                    file.display()
+                );
+                let lines: Vec<&str> = text.lines().collect();
+                for line_no in hits {
+                    assert!(
+                        lines[line_no.saturating_sub(5)..line_no].iter().any(|c| c.contains("SAFETY:")),
+                        "{}:{}: unsafe without a SAFETY comment",
+                        file.display(),
+                        line_no + 1
+                    );
+                }
+            } else {
+                assert!(hits.is_empty(), "{name}: {} contains unsafe", file.display());
+            }
         }
     }
 }
@@ -160,5 +221,32 @@ fn nothing_on_the_geometry_path_calls_a_tessellator() {
                 file.display()
             );
         }
+    }
+}
+
+#[test]
+fn the_hot_block_module_exposes_no_per_entity_struct() {
+    let text = fs::read_to_string(repo_root().join("crates/pvec-container/src/blocks/hot.rs")).unwrap();
+    let snap = public_api_snapshot_of_text("blocks/hot.rs", &text);
+    let structs: Vec<&str> = snap.lines().filter(|l| l.contains("pub struct ")).collect();
+    // The builder and the view are the only structs; neither is one entity read out of the file.
+    assert!(structs.iter().any(|l| l.contains("HotBlockView")), "the view is missing:\n{snap}");
+    for l in &structs {
+        assert!(l.contains("HotBlockView") || l.contains("HotBlockBuilder"), "per-entity struct? {l}");
+    }
+    for l in snap.lines() {
+        for owner in ["HotBlockView.", "HotBlockView<'a>.", "HotBlockBuilder."] {
+            assert!(!l.contains(owner), "public field: {l}");
+        }
+    }
+    // every collection the view hands out is a borrowed slice, never an owned Vec
+    for l in snap.lines().filter(|l| l.contains("HotBlockView<'a>::")) {
+        assert!(!l.contains("Vec<"), "the view returns an owned collection: {l}");
+    }
+    for name in ["entity_ids", "styles", "run_offsets", "column"] {
+        assert!(
+            snap.lines().any(|l| l.contains(&format!("HotBlockView<'a>::{name}(")) && l.contains("&'a [")),
+            "HotBlockView::{name} does not return a borrowed slice:\n{snap}"
+        );
     }
 }

@@ -38,6 +38,7 @@ name = "pvec-container"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-entity",
  "pvec-numeric",
 ]
 

@@ -126,3 +126,52 @@ fn chapter_one_states_byte_order_reserved_space_and_growth_rules() {
         assert!(doc.contains(needle), "docs/CONTAINER.md lacks {needle:?}");
     }
 }
+
+#[test]
+fn the_hot_header_table_is_in_the_document_row_for_row() {
+    use pvec_container::blocks::hot::{HOT_HEADER_FIELDS, HOT_HEADER_LEN};
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    contiguous(HOT_HEADER_FIELDS, HOT_HEADER_LEN);
+    for f in HOT_HEADER_FIELDS {
+        let row = format!("| {} | {} | {} |", f.offset, f.size, f.name);
+        assert!(doc.contains(&row), "docs/CONTAINER.md has no hot block row {row:?}");
+    }
+}
+
+#[test]
+fn chapter_two_states_the_alignment_and_padding_rules_and_every_kind() {
+    use pvec_container::blocks::hot::HotKind;
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for needle in [
+        "## 2. Hot geometry blocks",
+        "natural alignment",
+        "Padding",
+        "WASM linear memory",
+        "ascending `EntityId`",
+        "run offsets",
+    ] {
+        assert!(doc.contains(needle), "docs/CONTAINER.md lacks {needle:?}");
+    }
+    for k in HotKind::ALL {
+        let row = format!("| {} |", k.id());
+        assert!(doc.contains(&row), "no row for hot kind {k:?}");
+        for c in k.f64_columns() {
+            assert!(doc.contains(c), "kind {k:?}: no mention of column {c}");
+        }
+    }
+}
+
+#[test]
+fn every_hot_block_rule_is_documented_once_and_the_error_type_reports_them() {
+    use pvec_container::blocks::hot::{HOT_RULES, HotError};
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for (rule, meaning) in HOT_RULES {
+        assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/CONTAINER.md lacks {rule}");
+    }
+    let mut ids: Vec<&str> = HOT_RULES.iter().map(|r| r.0).collect();
+    ids.dedup();
+    assert_eq!(ids.len(), HOT_RULES.len(), "a rule id is listed twice");
+    for e in [HotError::BadMagic, HotError::NonZeroPadding, HotError::Misaligned, HotError::EmptyBlock] {
+        assert!(ids.contains(&e.rule()), "{e} reports a rule the document does not list");
+    }
+}
