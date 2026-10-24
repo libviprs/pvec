@@ -60,7 +60,7 @@ Five stages, each a public function in `pvec_interchange::mvt`, each testable al
 * Screen budget: 0.25 px at 512 px tiles.
 * Quantization error: half the diagonal of one tile unit. In screen space that is 0.0884 px at
   extent 4096 and 512 px tiles, at every zoom. In world units it depends on the zoom and the map.
-* Tested zoom range 0 to 14; maximum tested zoom 14.
+* The tested zoom range 0 to 14; maximum tested zoom 14.
 * On the named fixture `crossing-curves` (a drawing 200 units across, scale 2 onto a 1024 unit map,
   rotated 0.4 rad), the quantization error at zoom 14 is bounded by 5.395e-6 world units. The test
   measures 5.274e-6 over 5000 points on the fixture circle, so the bound is tight to about 2%.

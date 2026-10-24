@@ -10,6 +10,7 @@ use pvec_geometry::{
 };
 use pvec_interchange::mvt::*;
 use pvec_interchange::{Fidelity, FidelityKind, FidelityRecord, Representation, TargetConstruct};
+use pvec_numeric::Policy;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
@@ -372,11 +373,14 @@ fn issue_23_tessellation_stays_within_the_screen_derived_tolerance_across_zooms(
             assert!(t.deviation <= tol, "zoom {z}: measured {} > tolerance {tol}", t.deviation);
             // an independent check against dense exact evaluation, not the samples the tessellator used
             let worst = dense(&c, 4000).iter().map(|q| dist_to_polyline(*q, &t.points)).fold(0.0, f64::max);
-            assert!(worst <= tol * 1.0000001, "zoom {z}: dense deviation {worst} > tolerance {tol}");
+            assert!(
+                worst <= tol * (1.0 + Policy::V1.rel * 1000.0),
+                "zoom {z}: dense deviation {worst} > tolerance {tol}"
+            );
             // the polyline starts and ends where the curve does
             let d = c.domain();
-            assert!(t.points[0].distance(c.eval(d.lo()).unwrap()) < 1e-9);
-            assert!(t.points.last().unwrap().distance(c.eval(d.hi()).unwrap()) < 1e-9);
+            assert!(t.points[0].distance(c.eval(d.lo()).unwrap()) < Policy::V1.abs * 1000.0);
+            assert!(t.points.last().unwrap().distance(c.eval(d.hi()).unwrap()) < Policy::V1.abs * 1000.0);
         }
     }
 }
@@ -404,7 +408,7 @@ fn issue_23_ledger_bound_covers_what_the_tile_actually_holds() {
                         .unwrap();
                     let bound = rec.error_bound().unwrap().get();
                     assert!(
-                        bound <= t.world_budget * 1.0000001,
+                        bound <= t.world_budget * (1.0 + Policy::V1.rel * 1000.0),
                         "bound {bound} above the screen budget {}",
                         t.world_budget
                     );
@@ -577,7 +581,7 @@ fn issue_23_adjacent_tiles_reconstruct_the_source_with_no_seam_or_gap() {
                 let d =
                     segs.iter().map(|(a, b)| dist_to_polyline(q, &[*a, *b])).fold(f64::INFINITY, f64::min);
                 assert!(
-                    d <= bound * 1.0000001,
+                    d <= bound * (1.0 + Policy::V1.rel * 1000.0),
                     "entity {id}, buffer {buffer}: gap of {d} against a bound of {bound}"
                 );
             }
@@ -643,7 +647,10 @@ fn issue_23_tessellation_stage_in_isolation() {
     let fine = tessellate(&c, 0.01).unwrap();
     assert!(fine.points.len() > coarse.points.len() * 3);
     assert!(coarse.deviation <= 1.0 && fine.deviation <= 0.01);
-    assert!((coarse.points[0].distance(*coarse.points.last().unwrap())) < 1e-9, "a circle closes");
+    assert!(
+        (coarse.points[0].distance(*coarse.points.last().unwrap())) < Policy::V1.abs * 1000.0,
+        "a circle closes"
+    );
     assert_eq!(tessellate(&c, 0.0).unwrap_err(), TessError::BadTolerance);
     assert_eq!(tessellate(&c, f64::NAN).unwrap_err(), TessError::BadTolerance);
 }
@@ -658,7 +665,7 @@ fn issue_23_screen_budget_converts_through_the_projection() {
     assert_eq!(pr.screen_to_world(0, 0.25), 0.25 * 2.0 / 2.0);
     assert_eq!(pr.screen_to_world(3, 0.25), 0.25 * 0.25 / 2.0);
     let tol = pr.tessellation_tolerance(3, &opts).unwrap();
-    assert!((pr.screen_to_world(3, 0.25) - tol - pr.quantization_error(3, 4096)).abs() < 1e-15);
+    assert!((pr.screen_to_world(3, 0.25) - tol - pr.quantization_error(3, 4096)).abs() < Policy::V1.abs);
 }
 
 #[test]

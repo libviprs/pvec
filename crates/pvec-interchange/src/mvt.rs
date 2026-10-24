@@ -25,6 +25,7 @@ use core::fmt;
 use pvec_capabilities::{CapabilityId, ids};
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Curve2d, Point2, Transform2};
+use pvec_numeric::Policy;
 use std::collections::BTreeMap;
 
 /// The tile extent the export writes by default (the value most MVT consumers assume).
@@ -144,7 +145,7 @@ impl Projection {
         let col0 = a * a + c * c;
         let col1 = b * b + d * d;
         let dot = a * b + c * d;
-        let rel = 1e-9 * col0.max(col1);
+        let rel = Policy::V1.rel * 10.0 * col0.max(col1);
         if col0 <= 0.0 || (col0 - col1).abs() > rel || dot.abs() > rel {
             return Err(MvtError::NotSimilarity);
         }
