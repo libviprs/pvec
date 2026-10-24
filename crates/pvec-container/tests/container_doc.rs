@@ -283,3 +283,72 @@ fn every_arena_rule_is_documented_once_and_the_error_type_reports_them() {
         assert!(ids.contains(&e.rule()), "{e} reports a rule the document does not list");
     }
 }
+
+// ---- chapter 4: the writer (issue P4.4) ----
+
+#[test]
+fn the_block_entry_table_covers_its_entry_and_is_in_the_document_row_for_row() {
+    use pvec_container::directory::{BLOCK_ENTRY_FIELDS, ENTRY_LEN};
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    contiguous(BLOCK_ENTRY_FIELDS, ENTRY_LEN);
+    for f in BLOCK_ENTRY_FIELDS {
+        let row = format!("| {} | {} | {} |", f.offset, f.size, f.name);
+        assert!(doc.contains(&row), "docs/CONTAINER.md has no block entry row {row:?}");
+    }
+}
+
+#[test]
+fn chapter_four_states_the_layout_the_canonical_order_and_the_metadata_rules() {
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    for needle in [
+        "## 4. The writer",
+        "### 4.1 File layout",
+        "### 4.2 The block directory",
+        "### 4.3 Canonical order",
+        "### 4.4 Stable metadata",
+        "### 4.5 Refusals",
+        "### 4.6 Review checklist",
+        "block kind",
+        "spatial cell id",
+        "geometry type",
+        "`EntityId`",
+        "capability id",
+        "stream id",
+        "little-endian",
+        "byte-identical",
+    ] {
+        assert!(doc.contains(needle), "docs/CONTAINER.md lacks {needle:?}");
+    }
+    use pvec_container::directory::BlockKind;
+    for k in BlockKind::ALL {
+        assert!(doc.contains(&format!("| {} | {} |", k.id(), k.name())), "no row for block kind {k:?}");
+    }
+}
+
+#[test]
+fn every_writer_and_directory_rule_is_documented_once_and_the_errors_report_them() {
+    use pvec_container::directory::DIRECTORY_RULES;
+    use pvec_container::writer::{WRITE_RULES, WriteError};
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    assert!(WRITE_RULES.len() >= 13, "{} writer rules listed", WRITE_RULES.len());
+    for (rule, meaning) in WRITE_RULES.iter().chain(DIRECTORY_RULES) {
+        assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/CONTAINER.md lacks {rule}");
+    }
+    let mut ids: Vec<&str> = WRITE_RULES.iter().map(|r| r.0).collect();
+    let before = ids.len();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), before, "a writer rule id is listed twice");
+    for e in [
+        WriteError::Empty,
+        WriteError::DuplicateId { id: 1 },
+        WriteError::CellOnAdvanced { id: 1 },
+        WriteError::UnknownCapability { id: 1 },
+        WriteError::DuplicateStream { capability: 1 },
+        WriteError::BadBounds { id: None },
+        WriteError::TooLarge,
+        WriteError::Unsupported { what: "x" },
+    ] {
+        assert!(ids.contains(&e.rule()), "{e} reports {}, which is not listed", e.rule());
+    }
+}
