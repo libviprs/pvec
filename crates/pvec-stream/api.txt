@@ -67,18 +67,21 @@ directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
 directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
 directory.rs: impl Iterator for CellCursor<'_>
 lib.rs: pub use directory::*
+lib.rs: pub use viewport::*
 viewport.rs: pub const DEFAULT_PREFETCH_MARGIN_PX: f64
-viewport.rs: pub trait PlanSource { entries, plan, is_cached }
-viewport.rs: impl PlanSource for ContainerReader<S: BlockSource>
-viewport.rs: impl PlanSource for AsyncContainerReader<S: AsyncBlockSource>
+viewport.rs: pub trait PlanSource
+viewport.rs: PlanSource::entries(&self) -> &[BlockEntry]
+viewport.rs: PlanSource::plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError>
+viewport.rs: PlanSource::is_cached(&self, id: BlockId) -> bool
+viewport.rs: impl<S: BlockSource> PlanSource for ContainerReader<S>
+viewport.rs: impl<S: AsyncBlockSource> PlanSource for AsyncContainerReader<S>
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportQuery
 viewport.rs: ViewportQuery.bounds: Aabb
 viewport.rs: ViewportQuery.scale: f64
 viewport.rs: ViewportQuery.tier_budget: u64
-viewport.rs: ViewportQuery::new(bounds: Aabb, scale: f64) -> ViewportQuery
-viewport.rs: ViewportQuery::plan<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportConfig
 viewport.rs: ViewportConfig.prefetch_margin_px: f64
+viewport.rs: impl Default for ViewportConfig
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Priority
 viewport.rs: Priority::Visible
 viewport.rs: Priority::Prefetch
@@ -109,4 +112,10 @@ viewport.rs: ViewportError::BadScale
 viewport.rs: ViewportError::BadMargin
 viewport.rs: ViewportError::Read(ReadError)
 viewport.rs: ViewportError::rule(&self) -> &'static str
+viewport.rs: impl core::fmt::Display for ViewportError
+viewport.rs: impl std::error::Error for ViewportError {}
+viewport.rs: impl From<ReadError> for ViewportError
+viewport.rs: impl From<DirectoryError> for ViewportError
 viewport.rs: pub const VIEWPORT_RULES: &[(&str, &str)]
+viewport.rs: ViewportQuery::new(bounds: Aabb, scale: f64) -> ViewportQuery
+viewport.rs: ViewportQuery::plan<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>
