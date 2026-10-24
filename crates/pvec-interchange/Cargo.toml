@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-entity = { path = "../pvec-entity" }
+pvec-geometry = { path = "../pvec-geometry" }
 
 [lints]
 workspace = true
