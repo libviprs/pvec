@@ -594,6 +594,13 @@ macro_rules! accessors {
             self.shared.core.partial.as_ref()
         }
 
+        /// Whether block `id` is in the decoded-block cache right now. It looks and does not touch: the
+        /// block is not made the most recently used and no hit or miss is counted, so a planner can ask
+        /// about many blocks without changing what it is asking about.
+        pub fn is_cached(&self, id: BlockId) -> bool {
+            self.shared.cache.lock().map(|c| c.map.contains_key(&id)).unwrap_or(false)
+        }
+
         /// The requests that would fetch `ids`, coalescing blocks whose gap is within the configured
         /// threshold and never spanning more than the configured request size. Nothing is fetched.
         pub fn plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError> {
