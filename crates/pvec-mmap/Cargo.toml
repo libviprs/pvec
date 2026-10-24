@@ -1,0 +1,20 @@
+[package]
+name = "pvec-mmap"
+version = "0.0.0"
+description = "A memory-mapped source for the PVec reader. It holds the one confined unsafe block the workspace allows outside pvec-container's aligned.rs (ADR 0016), so that the API crates stay free of it"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+memmap2 = "0.9.5"
+pvec-container = { path = "../pvec-container" }
+
+[dev-dependencies]
+pvec-entity = { path = "../pvec-entity" }
+pvec-corpus = { path = "../pvec-corpus" }
+pvec-testkit = { path = "../pvec-testkit" }
+pvec-sources = { path = "../pvec-sources" }
+
+[lints]
+workspace = true
