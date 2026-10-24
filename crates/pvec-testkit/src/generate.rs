@@ -615,7 +615,7 @@ fn bulge_arc(cx: &Ctx<'_>, e: &Entity, bulge: &[f64]) -> Result<Mapped, Refusal>
         &["circle", "trimmed_curve"],
         vec![
             said(
-                "the centre and the radius of the arc, from the vertices and the bulge (+ - * / and sqrt)",
+                "stored as the arc the bulge describes, and not as a bulge (the container has no bulge segment, so the structural claim that the vertices stay a bulge is not held); the centre and the radius come from the vertices and the bulge (+ - * / and sqrt)",
                 place,
             ),
             said(
