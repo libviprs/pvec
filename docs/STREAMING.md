@@ -198,7 +198,7 @@ What the model costs: an entity up to four cells long stays in a cell, and does 
 
 ### 3.2 Layout
 
-The straddler block is its own run of bytes with the magic `PVST`. It is not a block kind of the container yet, for the same reason P5.2's reference arrays are not (its scope note): a kind needs a CONTAINER.md entry and a decision on lazy reads, and one follow-up issue, linked from #12, does it for both. Until then it is built by `build_straddlers`, parsed by `StraddlerLists::parse`, and carried by whoever holds the bytes. All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
+The straddler block is its own run of bytes with the magic `PVST`. It is not a block kind of the container yet, for the same reason P5.2's reference arrays are not (its scope note): a kind needs a CONTAINER.md entry and a decision on lazy reads, and one follow-up, #136, does it for the straddler block and #131 for the reference arrays. Until then it is built by `build_straddlers`, parsed by `StraddlerLists::parse`, and carried by whoever holds the bytes. All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
 
 | offset | size | name | encoding | meaning |
 |---|---|---|---|---|
@@ -285,7 +285,7 @@ Congestion metrics for each fixture of the phase 5 set (`local`, `long`, root re
 
 ### 3.7 Out of scope here
 
-Writing the block into the container and the placement of straddler payloads (P5.2's pass, and a follow-up issue), previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry.
+Writing the block into the container and the placement of straddler payloads (#136), previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry.
 
 ## 5. Viewport queries and read plans
 
