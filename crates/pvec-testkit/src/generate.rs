@@ -67,6 +67,20 @@ pub struct Artifact {
     pub bytes: Vec<u8>,
     /// For each entity of the record, in record order: its id there and the `EntityId` it was given.
     pub ids: Vec<(String, u32)>,
+    /// Every stored number that is derived and not authored, with how far it may be from the exact
+    /// value. Empty when every stored real is the bit pattern the record authored.
+    pub derived: Vec<Derived>,
+}
+
+/// A stored number the record did not author.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Derived {
+    /// The entity of the record.
+    pub entity: String,
+    /// What was derived and how.
+    pub what: String,
+    /// A bound on the distance from the exact value (an angle in radians, a length in metres).
+    pub bound: f64,
 }
 
 impl Artifact {
@@ -580,6 +594,7 @@ pub fn generate_record_with(
         corpus_revision: corpus_revision.to_string(),
         bytes,
         ids: p.ids(),
+        derived: Vec::new(),
     })
 }
 

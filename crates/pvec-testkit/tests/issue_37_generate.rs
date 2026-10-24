@@ -19,13 +19,18 @@ use std::f64::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-const EMITTED: [&str; 16] = [
+const EMITTED: [&str; 21] = [
     "arc-seam-001",
     "bezier-d3-001",
     "bspline-d3-001",
     "bspline-d5-001",
+    "bulge-arc-001",
+    "bulge-arc-neg-001",
     "circle-001",
     "closed-by-endpoint-001",
+    "closed-periodic-001",
+    "ellipse-001",
+    "elliptical-arc-001",
     "large-coords-001",
     "line-001",
     "lwpolyline-closed-001",
@@ -40,12 +45,7 @@ const EMITTED: [&str; 16] = [
 
 /// The fixtures the current capability set cannot hold exactly, and the capability each one is
 /// missing. A refusal is the right answer for all of them: none may be approximated.
-const MISSING: [(&str, &str); 13] = [
-    ("bulge-arc-001", "trimmed_curve"),
-    ("bulge-arc-neg-001", "trimmed_curve"),
-    ("closed-periodic-001", "b_spline_curve"),
-    ("ellipse-001", "ellipse"),
-    ("elliptical-arc-001", "ellipse"),
+const MISSING: [(&str, &str); 8] = [
     ("layer-state-001", "layer (on/frozen state)"),
     ("nested-blocks-001", "affine_transform_2d"),
     ("nonuniform-scale-circle-001", "affine_transform_2d"),
