@@ -160,6 +160,9 @@ straddler.rs: StraddlerError::Scale { level: u16 }
 straddler.rs: StraddlerError::Placement { id: u32, level: u16 }
 straddler.rs: StraddlerError::Duplicate { id: u32 }
 straddler.rs: StraddlerError::Build { reason: &'static str }
+straddler.rs: StraddlerError::Block { reason: &'static str }
+straddler.rs: StraddlerError::Payload { id: u32, reason: &'static str }
+straddler.rs: StraddlerError::Read(ReadError)
 straddler.rs: StraddlerError::rule(&self) -> &'static str
 straddler.rs: impl core::fmt::Display for StraddlerError
 straddler.rs: impl std::error::Error for StraddlerError {}
@@ -184,6 +187,7 @@ straddler.rs: BuiltStraddlers.bytes: Vec<u8>
 straddler.rs: BuiltStraddlers.entries: u32
 straddler.rs: BuiltStraddlers.pages: u32
 straddler.rs: BuiltStraddlers.per_level: Vec<u32>
+straddler.rs: pub fn payload_cells(scale: &LevelScale, long: &[LongEntity]) -> Result<Vec<(EntityId, u32)>, StraddlerError>
 straddler.rs: pub fn build_straddlers(scale: &LevelScale, long: &[LongEntity]) -> Result<BuiltStraddlers, StraddlerError>
 straddler.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct StraddlerRef
 straddler.rs: StraddlerRef.id: EntityId
@@ -200,6 +204,16 @@ straddler.rs: StraddlerLists::level_len(&self, level: u16) -> usize
 straddler.rs: StraddlerLists::entries(&self) -> &[StraddlerRef]
 straddler.rs: StraddlerLists::query<'a>(&'a self, q: &'a Aabb) -> impl Iterator<Item = StraddlerRef> + 'a
 straddler.rs: StraddlerLists::read_bytes(&self, q: &Aabb) -> u64
+straddler.rs: #[derive(Clone, Debug)] pub struct StraddlerIndex
+straddler.rs: StraddlerIndex::find(entries: &[BlockEntry]) -> Result<Option<BlockId>, StraddlerError>
+straddler.rs: StraddlerIndex::open<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Option<StraddlerIndex>, StraddlerError>
+straddler.rs: StraddlerIndex::scale(&self) -> &LevelScale
+straddler.rs: StraddlerIndex::pages(&self) -> usize
+straddler.rs: StraddlerIndex::len(&self) -> usize
+straddler.rs: StraddlerIndex::is_empty(&self) -> bool
+straddler.rs: StraddlerIndex::index_bytes(&self) -> u64
+straddler.rs: StraddlerIndex::read_bytes(&self, q: &Aabb) -> u64
+straddler.rs: StraddlerIndex::query<S: BlockSource>(&self, reader: &ContainerReader<S>, q: &Aabb) -> Result<Vec<StraddlerRef>, StraddlerError>
 straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct ViewportHits
 straddler.rs: ViewportHits.cells: Vec<Cell>
 straddler.rs: ViewportHits.long: Vec<StraddlerRef>

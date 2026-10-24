@@ -17,7 +17,7 @@
 //! walk itself is iterative with a stack bounded by `MAX_HEIGHT * MAX_FANOUT`, so a hostile directory
 //! costs at most its own length.
 
-use pvec_container::directory::{BlockEntry, BlockKind};
+use pvec_container::directory::{BlockEntry, BlockKind, STRADDLER_CELL_FIRST};
 use pvec_container::reader::ReadError;
 use pvec_container::source::BlockSource;
 use pvec_container::{BlockId, Bounds, ContainerReader, LimitExceeded, LimitKind, Limits};
@@ -95,10 +95,13 @@ pub const DIRECTORY_RULES: &[(&str, &str)] = &[
         "SPD-08",
         "an entity count that is wrong: a leaf with none, an internal node that is not the sum of its children, or a root that is not the header's total",
     ),
-    ("SPD-09", "a leaf cell id that is 0 or does not ascend strictly from one leaf to the next"),
+    (
+        "SPD-09",
+        "a leaf cell id that is 0, is in the straddler payload cells or does not ascend strictly from one leaf to the next",
+    ),
     (
         "SPD-10",
-        "the cells and the hot blocks disagree: a hot block in cell 0 or in no leaf, a hot block without bounds or with bounds outside its leaf, a leaf with no block, blocks of one cell that are not contiguous, or a leaf whose entity count is not its blocks' total",
+        "the cells and the hot blocks disagree: a hot block in cell 0 or in no leaf (the straddler payload cells are left alone), a hot block without bounds or with bounds outside its leaf, a leaf with no block, blocks of one cell that are not contiguous, or a leaf whose entity count is not its blocks' total",
     ),
     ("SPD-11", "more than one spatial directory block, or a block entry whose count is not the node count"),
     (
@@ -654,7 +657,7 @@ impl SpatialDirectory {
                 if node.count != 0 {
                     return shape("a leaf has children");
                 }
-                if node.first == 0 || node.first <= previous_cell {
+                if node.first == 0 || node.first >= STRADDLER_CELL_FIRST || node.first <= previous_cell {
                     return Err(DirectoryError::CellId { node: me, cell: node.first });
                 }
                 previous_cell = node.first;
@@ -809,6 +812,10 @@ fn check_blocks(leaves: &[Node], entries: &[BlockEntry]) -> Result<Vec<BlockRang
         }
         if e.cell == 0 {
             return blocks(0, "a hot block is in cell 0, which is no cell");
+        }
+        // the payloads of the straddler lists: no leaf holds them, the lists point at them (P5.3b)
+        if e.cell >= STRADDLER_CELL_FIRST {
+            continue;
         }
         let Ok(leaf) = leaves.binary_search_by(|n| n.first.cmp(&e.cell)) else {
             return blocks(e.cell, "a hot block is in a cell the directory does not have");
