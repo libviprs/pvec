@@ -181,21 +181,26 @@ fn a_non_finite_or_subnormal_bulge_is_refused_under_np01() {
 fn a_non_finite_end_point_is_refused_under_np01_and_a_far_one_under_np02() {
     assert_eq!(rule_of(Trimmed::from_bulge(pt(f64::NAN, 0.0), pt(1.0, 0.0), 0.5)), "NP-01");
     assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(0.0, f64::INFINITY), 0.5)), "NP-01");
-    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1e13, 0.0), 0.5)), "NP-02");
+    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(10000000000000.0, 0.0), 0.5)), "NP-02");
 }
 
 #[test]
 fn a_degenerate_chord_is_refused_under_np06() {
     assert_eq!(rule_of(Trimmed::from_bulge(pt(1.0, 1.0), pt(1.0, 1.0), 0.5)), "NP-06");
-    assert_eq!(rule_of(Trimmed::from_bulge(pt(1.0, 1.0), pt(1.0 + 1e-13, 1.0), 0.5)), "NP-06");
+    assert_eq!(rule_of(Trimmed::from_bulge(pt(1.0, 1.0), pt(1.0 + 0.0000000000001, 1.0), 0.5)), "NP-06");
 }
 
 #[test]
 fn a_radius_the_policy_cannot_hold_is_refused_under_np07_or_np02() {
-    // Huge bulge: the radius overflows to infinity, which NP-07 refuses.
-    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1.0, 0.0), 1e308)), "NP-07");
+    // Huge bulge: past the magnitude bound the bulge itself is out of range (NP-02), and below it
+    // the centre falls outside the coordinate bound (NP-02 again).
+    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1.0, 0.0), f64::MAX)), "NP-02");
+    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(10.0, 0.0), 1000000000000.0)), "NP-02");
     // Tiny bulge: the radius is finite but the centre falls outside the coordinate bound (NP-02).
-    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1.0, 0.0), 1e-20)), "NP-02");
-    // Tinier still: the radius overflows to infinity, again NP-07.
-    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1.0, 0.0), 1e-308)), "NP-07");
+    assert_eq!(rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1.0, 0.0), 0.00000000000000000001)), "NP-02");
+    // Tinier still, on a long chord: the radius overflows to infinity, again NP-07.
+    assert_eq!(
+        rule_of(Trimmed::from_bulge(pt(0.0, 0.0), pt(1000000000000.0, 0.0), f64::MIN_POSITIVE * 1.5)),
+        "NP-07"
+    );
 }

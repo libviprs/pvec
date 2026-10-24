@@ -242,9 +242,65 @@ impl Trimmed {
         Ok(Trimmed { basis: Box::new(basis), trim })
     }
 
-    /// Red-first stub of the bulge constructor (issue 91); the real one follows.
-    pub fn from_bulge(_p0: Point2, _p1: Point2, _bulge: f64) -> Result<Trimmed> {
-        unimplemented!("bulge constructor")
+    /// The circular arc a polyline segment describes: two end points and a bulge.
+    ///
+    /// The bulge is `tan(theta / 4)` for the included angle `theta` of the arc, so the span is
+    /// `4 atan |bulge|` and the radius is `L (1 + b^2) / (4 |b|)` for a chord of length `L`.
+    ///
+    /// Sign convention: a **positive** bulge runs counter-clockwise from `p0` to `p1` and a
+    /// **negative** bulge runs clockwise. The result always starts at `p0` and ends at `p1`: a
+    /// counter-clockwise arc is a trim with `sense = true`, a clockwise one has `sense = false` and
+    /// comes back with [`Trim::reversed`] set, over the same increasing interval of basis angle
+    /// (profile section 8, NP-11). Swapping the end points and negating the bulge gives the same
+    /// circle and interval with the flag flipped. The circle's frame is the x axis, as for any
+    /// circle built without a source direction. The closing segment of a closed polyline is built
+    /// with the same call, from the last vertex to the first.
+    ///
+    /// Refusals: a zero bulge is a line, not an arc (`GEOM-02`, build a trimmed [`Line`] instead);
+    /// a non-finite or subnormal bulge or end point (NP-01); an end point past the coordinate bound
+    /// or a centre that falls past it, as a very large or very small bulge makes it (NP-02, which
+    /// also bounds the bulge's own magnitude); a chord that is degenerate (NP-06); a radius that is
+    /// not finite, as a bulge of a few units of `1e-308` on a long chord makes it (NP-07). Nothing is
+    /// approximated.
+    ///
+    /// The arithmetic is `hypot`, `atan`, `atan2` and the basic operations, all of which the
+    /// evaluator already uses; the formulas are written so a large bulge cannot overflow before
+    /// the radius itself does.
+    pub fn from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed> {
+        let (p0, p1) = (Point2::checked(p0.x, p0.y)?, Point2::checked(p1.x, p1.y)?);
+        let b = check_value(bulge)?;
+        if b == 0.0 {
+            return Err(GeometryError::ZeroBulge);
+        }
+        let chord = p0.distance(p1);
+        if POLICY.degenerate_length(chord, p0.mag().max(p1.mag())) {
+            return Err(NumericError::DegenerateLength.into());
+        }
+        let ccw = b > 0.0;
+        // r = L (1 + b^2) / (4 |b|) = (L / 4) (1 / |b| + |b|), and the centre lies (L / 4) (1 / b - b)
+        // along the left normal of the chord from its midpoint (to the right when b is negative).
+        let radius = (chord / 4.0) * (1.0 / b.abs() + b.abs());
+        if !radius.is_finite() {
+            return Err(NumericError::DegenerateRadius.into());
+        }
+        let offset = (chord / 4.0) * (1.0 / b - b);
+        let (dx, dy) = (p1.x - p0.x, p1.y - p0.y);
+        let (nx, ny) = (-dy / chord, dx / chord);
+        let mid = Point2::new(0.5 * (p0.x + p1.x), 0.5 * (p0.y + p1.y));
+        let centre = Point2::checked(mid.x + offset * nx, mid.y + offset * ny)?;
+        let circle = Circle::new(Placement2::new(centre, Vector2::new(1.0, 0.0))?, radius)?;
+        let a0 = (p0.y - centre.y).atan2(p0.x - centre.x);
+        let a1 = (p1.y - centre.y).atan2(p1.x - centre.x);
+        let sweep = 4.0 * b.abs().atan();
+        // The interval always starts at the smaller angle: p0 when counter-clockwise, p1 when not.
+        let (t1, t2) = if ccw {
+            let s = a0.rem_euclid(TAU);
+            (s, s + sweep)
+        } else {
+            let s = a1.rem_euclid(TAU);
+            (s + sweep, s)
+        };
+        Trimmed::new(Curve::Circle(circle), t1, t2, ccw)
     }
 
     /// Rebuilds a trimmed curve from an already normalised trim, keeping its numbers bit for bit.
