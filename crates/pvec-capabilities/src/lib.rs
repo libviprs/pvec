@@ -92,6 +92,8 @@ pub mod ids {
     pub const SOURCE_PROVENANCE: CapabilityId = CapabilityId::new(18);
     /// The reserved space for future DWG semantics (P3.7).
     pub const DWG_SEMANTICS: CapabilityId = CapabilityId::new(19);
+    /// The semantic class stream (P3.9).
+    pub const SEMANTIC_CLASS: CapabilityId = CapabilityId::new(20);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
@@ -644,7 +646,7 @@ impl Registry {
         Ok(())
     }
 
-    /// The v1 registry: the thirteen capabilities of the semantic profile and the six component streams.
+    /// The v1 registry: the thirteen capabilities of the semantic profile and the seven component streams.
     pub fn v1() -> Registry {
         let g = |id: CapabilityId,
                  name: &'static str,
@@ -804,6 +806,11 @@ impl Registry {
                 ids::DWG_SEMANTICS,
                 "dwg_semantics",
                 "reserved space for future DWG semantics; opaque to a reader that does not know it",
+            ),
+            c(
+                ids::SEMANTIC_CLASS,
+                "semantic_class",
+                "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
         ];
         Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")

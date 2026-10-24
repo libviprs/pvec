@@ -3,6 +3,7 @@
 
 use core::fmt;
 use pvec_capabilities::CapabilityId;
+use pvec_entity::EntityId;
 
 /// Why a set of streams was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,6 +103,10 @@ pub enum ComponentError {
     ReservedNotZero,
     /// The registry has no entry for the stream's capability.
     UnknownCapability(CapabilityId),
+    /// An entity appears twice where it may appear once.
+    Duplicate(EntityId),
+    /// A confidence on an entry whose source is not `inferred`.
+    ConfidenceNotAllowed,
 }
 
 impl ComponentError {
@@ -121,6 +126,8 @@ impl ComponentError {
             ComponentError::BadTag(_) => "COMP-11",
             ComponentError::ReservedNotZero => "COMP-12",
             ComponentError::UnknownCapability(_) => "COMP-13",
+            ComponentError::Duplicate(_) => "COMP-14",
+            ComponentError::ConfidenceNotAllowed => "COMP-15",
         }
     }
 }

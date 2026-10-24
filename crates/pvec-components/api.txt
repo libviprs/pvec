@@ -26,6 +26,8 @@ error.rs: ComponentError::EmbeddedGeometry
 error.rs: ComponentError::BadTag(u32)
 error.rs: ComponentError::ReservedNotZero
 error.rs: ComponentError::UnknownCapability(CapabilityId)
+error.rs: ComponentError::Duplicate(EntityId)
+error.rs: ComponentError::ConfidenceNotAllowed
 error.rs: ComponentError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ComponentError
 error.rs: impl std::error::Error for ComponentError {}
@@ -50,6 +52,7 @@ frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
 lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, TextRecord, TextStream, }
+lib.rs: pub use semantic::{ ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord, SemanticClassStream, SemanticRead, SourceTag, }
 payloads.rs: pub const MAX_TABLE: usize
 payloads.rs: pub const MAX_NAME: usize
 payloads.rs: pub const MAX_DASHES: usize
@@ -115,3 +118,53 @@ payloads.rs: ReservedStream::const CAPABILITY: CapabilityId
 payloads.rs: ReservedStream::encode(&self) -> Res<Vec<u8>>
 payloads.rs: ReservedStream::decode(bytes: &[u8]) -> Res<ReservedStream>
 payloads.rs: ReservedStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+semantic.rs: pub const MAX_HOLES: usize
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum ElementClass
+semantic.rs: ElementClass::Other
+semantic.rs: ElementClass::Wall
+semantic.rs: ElementClass::Column
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum RegionKind
+semantic.rs: RegionKind::Room
+semantic.rs: RegionKind::Corridor
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SourceTag
+semantic.rs: SourceTag::LayerRule
+semantic.rs: SourceTag::BlockRule
+semantic.rs: SourceTag::Inferred
+semantic.rs: SourceTag::Explicit
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Origin
+semantic.rs: Origin.source: SourceTag
+semantic.rs: Origin.confidence: Option<f64>
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ElementEntry
+semantic.rs: ElementEntry.entity: EntityId
+semantic.rs: ElementEntry.class: ElementClass
+semantic.rs: ElementEntry.origin: Origin
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub struct RegionRecord
+semantic.rs: RegionRecord.kind: RegionKind
+semantic.rs: RegionRecord.origin: Origin
+semantic.rs: RegionRecord.outer: Vec<EntityId>
+semantic.rs: RegionRecord.holes: Vec<Vec<EntityId>>
+semantic.rs: pub trait EntityGeometry
+semantic.rs: EntityGeometry::endpoints(&self, entity: EntityId) -> Option<([f64; 2], [f64; 2])>
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RegionError
+semantic.rs: RegionError::MissingEntity { entity: EntityId, region: Option<usize> }
+semantic.rs: RegionError::NotClosed { region: usize }
+semantic.rs: RegionError::DuplicateEntity { region: usize, entity: EntityId }
+semantic.rs: RegionError::BadTolerance
+semantic.rs: RegionError::rule(&self) -> &'static str
+semantic.rs: impl fmt::Display for RegionError
+semantic.rs: impl std::error::Error for RegionError {}
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub enum SemanticRead
+semantic.rs: SemanticRead::Absent
+semantic.rs: SemanticRead::Present(SemanticClassStream)
+semantic.rs: SemanticRead::Damaged(E)
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub struct SemanticClassStream
+semantic.rs: SemanticClassStream.elements: Vec<ElementEntry>
+semantic.rs: SemanticClassStream.regions: Vec<RegionRecord>
+semantic.rs: SemanticClassStream::from_opened(opened: &Opened) -> SemanticRead
+semantic.rs: SemanticClassStream::const CAPABILITY: CapabilityId
+semantic.rs: SemanticClassStream::encode(&self) -> Res<Vec<u8>>
+semantic.rs: SemanticClassStream::decode(bytes: &[u8]) -> Res<SemanticClassStream>
+semantic.rs: SemanticClassStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+semantic.rs: SemanticClassStream::entities_of(&self, class: ElementClass) -> Vec<EntityId>
+semantic.rs: SemanticClassStream::regions_of(&self, kind: RegionKind) -> Vec<&RegionRecord>
+semantic.rs: SemanticClassStream::validate(&self, geometry: &dyn EntityGeometry, tolerance: f64) -> Result<(), RegionError>

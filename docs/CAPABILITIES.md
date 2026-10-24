@@ -27,6 +27,7 @@ The STEP and GIS columns are what the semantic profile declares for each capabil
 | 17 | `hatch` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | boundary by EntityId references plus fill parameters; embeds no curve |
 | 18 | `source_provenance` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | source handle bytes per EntityId; never inside the id |
 | 19 | `dwg_semantics` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | reserved space for future DWG semantics; opaque to a reader that does not know it |
+| 20 | `semantic_class` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve |
 
 ## Retired ids
 
