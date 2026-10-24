@@ -248,7 +248,8 @@ pub enum ArenaError {
         /// Position of the offending id.
         index: usize,
     },
-    /// A segment that names a record that does not exist, or the record itself.
+    /// A segment that names a record that does not exist. A segment that names its own composite is not
+    /// this error: it is a [`ArenaError::CompositeCycle`].
     SegmentOutOfRange {
         /// The composite record.
         record: usize,
@@ -328,7 +329,75 @@ impl ArenaError {
 
 impl core::fmt::Display for ArenaError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}: {self:?}", self.rule())
+        let rule = self.rule();
+        match self {
+            ArenaError::Truncated { needed, got } => {
+                write!(f, "{rule}: the block needs {needed} bytes but only {got} are present")
+            }
+            ArenaError::BadMagic => write!(f, "{rule}: the block does not start with its magic bytes"),
+            ArenaError::UnsupportedVersion { found } => {
+                write!(f, "{rule}: version {found} is not one this reader implements")
+            }
+            ArenaError::UnknownKind { id } => {
+                write!(f, "{rule}: kind id {id} is unknown or in the wrong slot")
+            }
+            ArenaError::NonZeroReserved => write!(f, "{rule}: a reserved field is not zero"),
+            ArenaError::NonZeroPadding => write!(f, "{rule}: a padding byte is not zero"),
+            ArenaError::LengthMismatch { declared, actual } => {
+                write!(f, "{rule}: the header declares {declared} bytes but {actual} are present")
+            }
+            ArenaError::Misaligned => write!(f, "{rule}: the buffer does not start on an 8-byte boundary"),
+            ArenaError::HostEndianness => write!(f, "{rule}: the host is not little-endian"),
+            ArenaError::EntryOutOfRange { index, entries } => {
+                write!(f, "{rule}: index {index} is past the end of a table of {entries} entries")
+            }
+            ArenaError::RangeOutOfArena { start, len, arena_len } => write!(
+                f,
+                "{rule}: the entry (start {start}, len {len}) does not fit in an arena of {arena_len} elements"
+            ),
+            ArenaError::WrongPayload { held } => {
+                write!(f, "{rule}: this accessor does not apply to a {} arena", held.name())
+            }
+            ArenaError::KnotCount { knots, control_points, degree } => write!(
+                f,
+                "{rule}: {knots} knots do not match {control_points} control points at degree {degree}"
+            ),
+            ArenaError::WeightCount { weights, control_points } => {
+                write!(f, "{rule}: {weights} weights for {control_points} control points")
+            }
+            ArenaError::ControlPointColumns { x, y } => {
+                write!(f, "{rule}: the control-point columns have {x} x values and {y} y values")
+            }
+            ArenaError::PeriodicUnsupported => {
+                write!(f, "{rule}: the periodic flag is set, and this profile has no wrapped periodic form")
+            }
+            ArenaError::InvalidFlags { bits } => write!(f, "{rule}: flags {bits:#06x} are not valid here"),
+            ArenaError::RecordFields { index } => {
+                write!(f, "{rule}: record {index} sets a field its kind does not use or lacks one it needs")
+            }
+            ArenaError::IdsNotAscending { index } => {
+                write!(f, "{rule}: the id of record {index} does not ascend or is out of range")
+            }
+            ArenaError::SegmentOutOfRange { record, segment } => {
+                write!(f, "{rule}: composite record {record} names record {segment}, which does not exist")
+            }
+            ArenaError::CompositeCycle { record } => {
+                write!(f, "{rule}: record {record} is part of a composite cycle")
+            }
+            ArenaError::NestingTooDeep { record } => {
+                write!(f, "{rule}: record {record} nests composites deeper than the NP-18 limit")
+            }
+            ArenaError::TrimCount { values, segments } => {
+                write!(f, "{rule}: {values} trim values for {segments} segments, expected two per segment")
+            }
+            ArenaError::Numeric(n) => write!(f, "{rule}: the numeric policy refused a value ({})", n.rule()),
+            ArenaError::EmptyBlock => write!(f, "{rule}: the block has no records"),
+            ArenaError::DuplicateId { id } => write!(f, "{rule}: entity {id} was pushed twice"),
+            ArenaError::UnknownSegment { id } => {
+                write!(f, "{rule}: a composite names entity {id}, which was not pushed")
+            }
+            ArenaError::TooLarge => write!(f, "{rule}: the blocks would not fit 32-bit lengths"),
+        }
     }
 }
 

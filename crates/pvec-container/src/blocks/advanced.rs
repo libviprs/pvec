@@ -746,34 +746,29 @@ impl<'a> AdvancedView<'a> {
     /// Resolve a composite's segments only after this returns `Ok`.
     pub fn nesting_depth(&self, index: usize) -> Result<usize, ArenaError> {
         self.record_or_err(index)?;
-        self.depth(index, 1, &mut HashMap::new(), &mut HashSet::new())
+        self.depth(index, 1, &mut Walk::default())
     }
 
-    /// `nesting_depth` of every record, sharing the work between them.
+    /// `nesting_depth` of every record, sharing the work between them: each record is read once, and each
+    /// segment list is scanned once however many composites use it, so the cost is the size of the
+    /// file and not the product of composites and list lengths.
     pub fn check_nesting(&self) -> Result<(), ArenaError> {
-        let mut done = HashMap::new();
+        let mut walk = Walk::default();
         for index in 0..self.len() {
-            self.depth(index, 1, &mut done, &mut HashSet::new())?;
+            self.depth(index, 1, &mut walk)?;
         }
         Ok(())
     }
 
     /// Height of the record at `index` when it sits at `level` (the outermost curve is level 1).
-    /// Each record is read once: `done` holds finished heights and `open` the records on the path.
-    fn depth(
-        &self,
-        index: usize,
-        level: usize,
-        done: &mut HashMap<usize, usize>,
-        open: &mut HashSet<usize>,
-    ) -> Result<usize, ArenaError> {
+    fn depth(&self, index: usize, level: usize, walk: &mut Walk) -> Result<usize, ArenaError> {
         if level > MAX_NESTING_DEPTH {
             return Err(ArenaError::NestingTooDeep { record: index });
         }
-        if open.contains(&index) {
+        if walk.open.contains(&index) {
             return Err(ArenaError::CompositeCycle { record: index });
         }
-        if let Some(&h) = done.get(&index) {
+        if let Some(&h) = walk.done.get(&index) {
             if level + h - 1 > MAX_NESTING_DEPTH {
                 return Err(ArenaError::NestingTooDeep { record: index });
             }
@@ -783,19 +778,38 @@ impl<'a> AdvancedView<'a> {
         let height = match rec.kind {
             RecordKind::Spline => 1,
             RecordKind::Composite => {
-                open.insert(index);
-                let list = self.segment_list(index, &rec)?;
-                let mut tallest = 0;
-                for &s in list {
-                    tallest = tallest.max(self.depth(s as usize, level + 1, done, open)?);
-                }
-                open.remove(&index);
+                walk.open.insert(index);
+                let tallest = match walk.lists.get(&rec.segments) {
+                    Some(&t) => t,
+                    None => {
+                        let list = self.segment_list(index, &rec)?;
+                        let mut t = 0;
+                        for &s in list {
+                            t = t.max(self.depth(s as usize, level + 1, walk)?);
+                        }
+                        walk.lists.insert(rec.segments, t);
+                        t
+                    }
+                };
+                walk.open.remove(&index);
                 1 + tallest
             }
         };
-        done.insert(index, height);
+        if level + height - 1 > MAX_NESTING_DEPTH {
+            return Err(ArenaError::NestingTooDeep { record: index });
+        }
+        walk.done.insert(index, height);
         Ok(height)
     }
+}
+
+/// What the nesting walk remembers: finished heights, the records on the current path, and the height of
+/// each segment list already scanned (keyed by its offset-table index).
+#[derive(Default)]
+struct Walk {
+    done: HashMap<usize, usize>,
+    open: HashSet<usize>,
+    lists: HashMap<u32, usize>,
 }
 
 /// Chapter 3 of `docs/CONTAINER.md`, rendered from the constants in this module and in `arena`.
@@ -887,10 +901,16 @@ segment. This layer does not check a trim against the curve it trims (NP-12 need
 domain), and it only references records of its own block: a segment that is a hot line or arc has to be \
 written as a degree 1 spline here.\n\n\
 Composites may nest up to the depth of NP-18, counting the outermost curve as 1, so a composite of \
-composites of splines is depth 3. `curve` follows nothing. `nesting_depth` walks the references with each \
-record read once, and refuses a cycle (a composite that leads back to itself, itself included) and a \
-chain deeper than the limit before anything is resolved. The writer runs the same walk over everything it \
-wrote and refuses the set if it fails.\n\n\
+composites of splines is depth 3. This is an allowance of the container, which stores a composite as \
+references so that shared geometry is stored once. It is not a change to the Part 21 form of \
+`docs/ISO_PROFILE.md` section 9, where a `composite_curve` segment's parent is never another composite: \
+a writer of Part 21 (P6.2) expands nested references into one flat list of segments, as that section says, \
+and ADR 0004 records the amendment. `curve` follows nothing. `nesting_depth` walks the references with \
+each record read once, and refuses a cycle (a composite that leads back to itself, itself included) and a \
+chain deeper than the limit before anything is resolved. `check_nesting` does the same for every record \
+at once and scans each segment list once, however many composites share it, so its cost is the size of \
+the file and not the product of composites and list lengths. The writer runs it over everything it wrote \
+and refuses the set if it fails.\n\n\
 ### 3.6 Sharing and canonical order\n\n\
 An arena builder adds a payload once: if the same bits were added before, it returns the existing table \
 index. Two entities with the same knot vector therefore share one table entry and one arena range, and \

@@ -45,3 +45,20 @@ Choose A if the browser reader decodes in TypeScript directly rather than in the
 wasm (A buys a language-neutral schema at 1.7 to 1.9 times the wasm cost), or if B's reader fails fuzzing in
 P7.8 in a way bounds checks cannot close. Revisit B if P8.3's corpus shows its wasm touch more than 25%
 behind the faster candidate (it is 12% to 21% behind C here).
+
+## Amendment for the advanced geometry arenas (P4.3)
+
+Layout B's offset-table arena is realised as one arena block per payload kind (knots, weights, control
+points, composite segment lists, trims) with a table of `(start, len)` entries, and a fixed 32 byte record
+per advanced curve that holds only degree, flags and table indices (`docs/CONTAINER.md` chapter 3). Two
+decisions go beyond the layout measured above.
+
+A composite curve is stored as a list of record indices, so a segment that several composites share is
+stored once. That means composites can reference composites, up to the depth of NP-18 (a spline is depth
+1), with cycles and deeper chains refused. `docs/ISO_PROFILE.md` section 9 says nested composites are
+flattened by the producer; that stays true of the Part 21 form, and the container's allowance is
+reconciled with it by making the Part 21 writer (P6.2) expand references into one flat segment list. A
+composite on disk can therefore be nested while one in a STEP file never is.
+
+The periodic flag exists in the record and is refused: the profile has no wrapped periodic form (ISO_PROFILE
+section 12, ADR 0011), so there is no periodic rule to check counts against.

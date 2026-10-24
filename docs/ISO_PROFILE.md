@@ -190,7 +190,7 @@ above; a nesting depth beyond `NP-18`.
 | Field | Value |
 |---|---|
 | ISO 10303-42:2025 construct | `composite_curve` with `composite_curve_segment` |
-| PVec restriction | each segment's parent is a trimmed curve, a polyline, a Bezier or a B-spline; nested composite curves are flattened by the producer. The segments must join end to start within `NP-17` |
+| PVec restriction | each segment's parent is a trimmed curve, a polyline, a Bezier or a B-spline; nested composite curves are flattened in the Part 21 form (the container may store a composite as references to other records, to a depth of `NP-18`, and a Part 21 writer expands them; see ADR 0004, amendment for P4.3). The segments must join end to start within `NP-17` |
 | Allowed dimensions | 2 |
 | Parameter-domain convention | PVec definition: segment `k` (zero based) occupies `[k, k+1]` of the composite parameter, mapped linearly from that segment's own canonical domain. Part 21 does not carry this parameter, so only the locus is comparable |
 | Trim convention | bounded by construction; each segment is already trimmed |

@@ -82,6 +82,7 @@ blocks/advanced.rs: AdvancedView<'a>::is_empty(&self) -> bool
 blocks/advanced.rs: AdvancedView<'a>::record(&self, index: usize) -> Option<AdvancedCurveRecord>
 blocks/advanced.rs: AdvancedView<'a>::curve(&self, index: usize) -> Result<CurveView<'a>, ArenaError>
 blocks/advanced.rs: AdvancedView<'a>::nesting_depth(&self, index: usize) -> Result<usize, ArenaError>
+blocks/advanced.rs: AdvancedView<'a>::check_nesting(&self) -> Result<(), ArenaError>
 blocks/advanced.rs: pub fn render_chapter() -> String
 blocks/aligned.rs: #[derive(Clone, Debug, Default, PartialEq, Eq)] pub struct AlignedBytes
 blocks/aligned.rs: AlignedBytes::from_bytes(bytes: &[u8]) -> AlignedBytes
