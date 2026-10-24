@@ -181,6 +181,11 @@ conditioning bound in `NP-07`; a placement that fails section 3.
 | Exact Part 21 form | `TRIMMED_CURVE('',#basis,(PARAMETER_VALUE(t1)),(PARAMETER_VALUE(t2)),.T.,.PARAMETER.);` (`.F.` for reversed) |
 | Unsupported Part 42 features | trims given as `cartesian_point` (the point form needs a projection step that has no single answer near self-approach); `.CARTESIAN.` and `.UNSPECIFIED.` master representation; trimmed curve over a surface curve or `pcurve` |
 
+A producer that wants the canonical curve for a circle or ellipse trim calls `Curve::trimmed_conic`: a trim
+that is the whole carrier under `NP-11` rule 6 (a full period, forward, starting at the origin of the period)
+comes back as the untrimmed `circle` or `ellipse`, and any other trim as the `trimmed_curve` that
+`Trimmed::new` builds. A decoder never applies it, so a stored `trimmed_curve` keeps its kind.
+
 A decoder rejects: a collapsed trim domain under `NP-12`; a span of more than one period on a
 periodic basis; a trim outside the basis domain on a non-periodic basis; a basis outside the list
 above; a nesting depth beyond `NP-18`.

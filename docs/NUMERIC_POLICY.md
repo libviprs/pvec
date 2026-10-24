@@ -143,6 +143,19 @@ For a periodic basis of period `P` (`2 pi` for circle and ellipse) and trims `t1
 The normalised start is `t1 mod P` if `s`, else `t2 mod P`, taken into `[0, P)`, and the arc is
 flagged reversed when `s` is false.
 
+6. **The whole carrier.** A trim is the whole carrier, and a producer that wants the canonical curve
+   builds the untrimmed circle or ellipse, when all three hold: it is a full period (rule 3), `s` is
+   true, and the normalised start is within `tp` of the origin of the period, that is `start <= tp` or
+   `P - start <= tp`. A full period that starts anywhere else, or runs backwards, is not the carrier's
+   own parameterisation and stays a trimmed curve with its start and direction. Equal ends are rule 2
+   and a full turn written backwards is rule 4, so neither reaches this rule. `tp` is the one defined
+   above, from the trim parameters as given. ADR 0002 (amendment of 2026-10-23) has the options.
+
+`Trimmed::new` applies rules 1 to 5 only and keeps a full period as a trim with `span = P`, so a decoder
+that rebuilds a stored trim never sees its kind change. Rule 6 is applied by the one entry point that
+asks for the canonical curve, `Curve::trimmed_conic`, and `Trimmed::is_full_period` answers rule 3 for a
+trim that already exists.
+
 ### NP-12 Trim domains
 
 A trim is collapsed when its span is at most `tp`. For a basis with a bounded domain `[lo, hi]` the

@@ -83,6 +83,26 @@ macro_rules! dispatch {
 }
 
 impl Curve {
+    /// The canonical curve for a trim of a circle or an ellipse.
+    ///
+    /// When NP-11 says the trim is the whole carrier (a full period, running forward, starting at the
+    /// origin of the period; rule 6) the result is `basis` itself, the untrimmed circle or ellipse, so
+    /// a whole DWG ellipse is an `ellipse`. In every other case it is exactly the [`Trimmed`] that
+    /// [`Trimmed::new`] builds, including a whole-period trim that starts elsewhere or runs backwards:
+    /// that one keeps its start and direction, because the untrimmed curve would put `eval(0)` on a
+    /// different point. Equal ends are an empty arc and are refused (NP-12), as is a full turn written
+    /// backwards (NP-11). A basis that is not a circle or an ellipse is refused (profile section 8).
+    /// ADR 0002, amendment of 2026-10-23, has the options and the reasons.
+    pub fn trimmed_conic(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Curve> {
+        if !matches!(basis, Curve::Circle(_) | Curve::Ellipse(_)) {
+            return Err(GeometryError::BadBasis);
+        }
+        if POLICY.is_whole_carrier_trim(t1, t2, sense, TAU)? {
+            return Ok(basis);
+        }
+        Trimmed::new(basis, t1, t2, sense).map(Curve::Trimmed)
+    }
+
     /// How deeply curves are nested, counting the outermost as 1 (NP-18 allows at most 4). The
     /// structure of the profile keeps this at 3 or less.
     pub fn nesting_depth(&self) -> usize {
@@ -279,6 +299,14 @@ impl Trimmed {
             _ => return Err(GeometryError::BadBasis),
         }
         Ok(Trimmed { basis: Box::new(basis), trim: Trim { start, span, reversed: trim.reversed } })
+    }
+
+    /// Whether the trim covers the whole period of a circle or ellipse basis, under the same
+    /// tolerance as NP-11 rule 3. It says nothing about where the trim starts or which way it runs: a
+    /// whole-period trim that starts at `pi` is a full period and is still a trimmed curve. A line or a
+    /// spline has no period, so it is never a full period.
+    pub fn is_full_period(&self) -> bool {
+        matches!(*self.basis, Curve::Circle(_) | Curve::Ellipse(_)) && POLICY.is_full_period(&self.trim, TAU)
     }
 
     /// The curve being trimmed.
