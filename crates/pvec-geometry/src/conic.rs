@@ -5,7 +5,7 @@ use crate::error::{GeometryError, Result};
 use crate::primitives::*;
 use crate::transform::{ParamMap, Transform2};
 use core::f64::consts::{FRAC_PI_2, TAU};
-use pvec_numeric::{MAX_ABS_COORD, Policy, Side, check_value};
+use pvec_numeric::{MAX_ABS_COORD, NumericError, Policy, Side, check_value};
 
 const POLICY: Policy = Policy::V1;
 
@@ -213,6 +213,14 @@ impl Ellipse {
     pub fn new(placement: Placement2, semi_axis_1: f64, semi_axis_2: f64) -> Result<Ellipse> {
         POLICY.check_semi_axes(semi_axis_1, semi_axis_2, placement.mag())?;
         Ok(Ellipse { placement, a: semi_axis_1, b: semi_axis_2 })
+    }
+
+    /// Builds an ellipse from a centre, a major-axis vector (the end of the major axis relative to
+    /// the centre) and the ratio of the minor to the major semi-axis: the three numbers a DWG
+    /// `ELLIPSE` stores. Not implemented yet.
+    pub fn from_major_axis(centre: Point2, major_axis: Vector2, ratio: f64) -> Result<Ellipse> {
+        let _ = (centre, major_axis, ratio);
+        Err(NumericError::Limit.into())
     }
 
     /// The frame.
