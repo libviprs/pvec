@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Runs the GML schema validation test (pvec#21) on MARS, where docker is.
+# The merge gate runs it too, as the docker-tests stage (tools/gate-fleet.sh local-ci pvec REF, from the
+# workspace); this script is the quick single-test version.
 #
 #   tools/schema-validate.sh [ssh-target]      default devshell@192.168.0.100 (MARS, native x86_64)
 #

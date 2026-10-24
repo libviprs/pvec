@@ -2,8 +2,9 @@
 //! schema, in a container the test starts and removes within the run.
 //!
 //! The test needs a docker daemon and the container image, so it is `#[ignore]` by default and a lane
-//! that has docker runs it with `--include-ignored` (`tools/schema-validate.sh` does that on MARS, from
-//! inside a toolchain container that shares the host's docker socket). With docker missing it follows the
+//! that has docker runs it with `--include-ignored`: the `docker-tests` stage of `gate-fleet.sh local-ci pvec`
+//! does that on mars (x64) and mercury (arm64), and `tools/schema-validate.sh` does it by hand on MARS, from
+//! inside a toolchain container that shares the host's docker socket. With docker missing it follows the
 //! `pvec-hermetic` policy: a developer run (`PVEC_DEV_RUN=1`) skips, anything else fails.
 
 use pvec_geometry::Transform2;
@@ -39,7 +40,7 @@ fn copy_tree(from: &Path, to: &Path) {
 }
 
 #[test]
-#[ignore = "needs a docker daemon: run with --include-ignored (tools/schema-validate.sh does, on MARS)"]
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored (tools/schema-validate.sh does it by hand on MARS)"]
 fn every_fixture_validates_against_the_gml_schema_in_a_container_that_is_removed_afterwards() {
     use pvec_hermetic::{Config, Container, Decision, Policy};
     let work = std::env::temp_dir().join(format!("pvec-gml-21-{}", std::process::id()));
