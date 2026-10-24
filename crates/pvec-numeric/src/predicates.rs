@@ -217,6 +217,23 @@ impl Policy {
         Ok(Trim { start, span, reversed: !sense })
     }
 
+    /// NP-11 rule 6: the trim is the whole carrier. It must be a full period (rule 3), run forward,
+    /// and start at the origin of the period within `tp`, either side of it (a start of `period - x`
+    /// with `x <= tp` is the origin reached from below). A whole-period trim that starts elsewhere or
+    /// runs backwards is not the carrier's own parameterisation, so it is not the whole carrier.
+    /// Everything NP-11 refuses is refused here too.
+    pub fn is_whole_carrier_trim(&self, t1: f64, t2: f64, sense: bool, period: f64) -> Result<bool, E> {
+        let trim = self.normalise_periodic_trim(t1, t2, sense, period)?;
+        let tp = self.tol(period, t1.abs().max(t2.abs()));
+        Ok(!trim.reversed && trim.span == period && (trim.start <= tp || period - trim.start <= tp))
+    }
+
+    /// NP-11 rule 3 for an already normalised trim: the span is the period within `tp`, whatever the
+    /// start and the direction.
+    pub fn is_full_period(&self, trim: &Trim, period: f64) -> bool {
+        (trim.span - period).abs() <= self.tol(period, trim.start + trim.span)
+    }
+
     /// NP-12 for a basis with domain `[lo, hi]` that is not periodic.
     pub fn normalise_trim(&self, t1: f64, t2: f64, sense: bool, lo: f64, hi: f64) -> Result<Trim, E> {
         let (t1, t2, lo, hi) = (check_value(t1)?, check_value(t2)?, check_value(lo)?, check_value(hi)?);
