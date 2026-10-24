@@ -321,11 +321,14 @@ fn chord_deviation(curve: &Curve, a: f64, b: f64, pa: Pt, pb: Pt) -> Result<f64,
 
 fn approximate(curve: &Curve, tol: f64) -> Result<Done, GpkgError> {
     let mag = magnitude(curve)?;
-    // below a few ulps of the coordinates a deviation cannot be told from rounding in the points
-    if tol < 8.0 * f64::EPSILON * mag {
+    // below the numeric policy's own tolerance for these coordinates (NP-04) a deviation cannot be told
+    // from rounding in the points
+    if tol < POLICY.tol(0.0, mag) {
         return Err(GpkgError::ToleranceUnreachable { tolerance: tol });
     }
     let d = curve.domain();
+    // the narrowest parameter span worth splitting: the policy's tolerance for a feature of this size
+    let narrowest = POLICY.tol(d.width(), d.lo().abs().max(d.hi().abs()));
     let mut params = breakpoints(curve);
     // top up to the minimum number of equal pieces
     for i in 1..INITIAL_PIECES {
@@ -337,7 +340,7 @@ fn approximate(curve: &Curve, tol: f64) -> Result<Done, GpkgError> {
     let mut worst: f64 = 0.0;
     for w in params.windows(2) {
         let end = ev(curve, w[1])?;
-        refine(curve, w[0], w[1], *pts.last().unwrap(), end, tol, 0, &mut pts, &mut worst)?;
+        refine(curve, w[0], w[1], *pts.last().unwrap(), end, tol, narrowest, 0, &mut pts, &mut worst)?;
     }
     if pts.len() > MAX_VERTICES {
         return Err(GpkgError::ToleranceUnreachable { tolerance: tol });
@@ -360,13 +363,14 @@ fn refine(
     pa: Pt,
     pb: Pt,
     tol: f64,
+    narrowest: f64,
     depth: usize,
     pts: &mut Vec<Pt>,
     worst: &mut f64,
 ) -> Result<(), GpkgError> {
     let dev = chord_deviation(curve, a, b, pa, pb)? * SAFETY;
     let mid = a + 0.5 * (b - a);
-    let narrow = !(mid > a && mid < b) || (b - a) <= 1e-13 * (1.0 + a.abs().max(b.abs())) || depth >= 60;
+    let narrow = !(mid > a && mid < b) || (b - a) <= narrowest || depth >= 60;
     if dev <= tol {
         *worst = worst.max(dev);
         pts.push(pb);
@@ -374,8 +378,8 @@ fn refine(
         return Err(GpkgError::ToleranceUnreachable { tolerance: tol });
     } else {
         let pm = ev(curve, mid)?;
-        refine(curve, a, mid, pa, pm, tol, depth + 1, pts, worst)?;
-        refine(curve, mid, b, pm, pb, tol, depth + 1, pts, worst)?;
+        refine(curve, a, mid, pa, pm, tol, narrowest, depth + 1, pts, worst)?;
+        refine(curve, mid, b, pm, pb, tol, narrowest, depth + 1, pts, worst)?;
     }
     Ok(())
 }

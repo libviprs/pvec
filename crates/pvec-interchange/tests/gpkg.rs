@@ -268,10 +268,10 @@ fn the_contents_bounds_are_the_union_of_the_feature_envelopes() {
     let e = export(&ents, &opts(0.01)).unwrap();
     let db = open(&e.bytes);
     let c = &db.named_rows("gpkg_contents")[0];
-    assert!((c["min_x"].real() + 9.0).abs() < 1e-9, "{:?}", c["min_x"]);
-    assert!((c["max_x"].real() - 5.0).abs() < 1e-9);
-    assert!((c["min_y"].real() + 2.0).abs() < 1e-9);
-    assert!((c["max_y"].real() - 7.0).abs() < 1e-9);
+    assert!(POLICY.near(c["min_x"].real(), -9.0, 14.0), "{:?}", c["min_x"]);
+    assert!(POLICY.near(c["max_x"].real(), 5.0, 14.0));
+    assert!(POLICY.near(c["min_y"].real(), -2.0, 14.0));
+    assert!(POLICY.near(c["max_y"].real(), 7.0, 14.0));
 }
 
 // ---- the extension rows ---------------------------------------------------------------------------
@@ -333,7 +333,7 @@ fn a_compound_curve_registers_both_nonlinear_extensions_it_uses() {
 
 #[test]
 fn a_polyline_is_a_linestring_with_the_same_vertices_bit_for_bit() {
-    let v = [(0.1, 0.2), (3.3, 4.4), (-7.7, 2.2), (1e5 + 0.3, -1e5)];
+    let v = [(0.1, 0.2), (3.3, 4.4), (-7.7, 2.2), (100000.3, -100000.0)];
     let (e, db) = export_one(polyline(&v), 0.01);
     let g = geom_of(&features(&db)[0]);
     let pts = line_points(&g.wkb);
@@ -435,11 +435,10 @@ fn the_envelope_of_an_arc_covers_its_extremes_not_just_its_end_points() {
     let curve = arc(0.0, 0.0, 10.0, PI / 6.0, 5.0 * PI / 6.0, true);
     let (_, db) = export_one(curve, 0.01);
     let g = geom_of(&features(&db)[0]);
-    assert!((g.envelope[3] - 10.0).abs() < 1e-9, "max y is the top of the circle: {:?}", g.envelope);
-    assert!((g.envelope[2] - 5.0).abs() < 1e-9, "min y is the end points' height: {:?}", g.envelope);
-    assert!(
-        g.envelope[0] <= -10.0 * (PI / 6.0).cos() + 1e-9 && g.envelope[1] >= 10.0 * (PI / 6.0).cos() - 1e-9
-    );
+    assert!(POLICY.near(g.envelope[3], 10.0, 10.0), "max y is the top of the circle: {:?}", g.envelope);
+    assert!(POLICY.near(g.envelope[2], 5.0, 10.0), "min y is the end points' height: {:?}", g.envelope);
+    let (slack, reach) = (POLICY.tol(10.0, 10.0), 10.0 * (PI / 6.0).cos());
+    assert!(g.envelope[0] <= -reach + slack && g.envelope[1] >= reach - slack);
 }
 
 // ---- approximations carry a measured bound ----------------------------------------------------------
@@ -494,7 +493,7 @@ fn a_tolerance_the_coordinates_cannot_resolve_is_refused_not_looped_on() {
     let big = Curve::Circle(circle(1.0e8, 1.0e8, 1.0e6));
     let e = Curve::Ellipse(Ellipse::from_major_axis(p(1.0e8, 1.0e8), Vector2::new(1.0e6, 0.0), 0.5).unwrap());
     let _ = big;
-    assert!(matches!(translate(&e, 1.0e-12), Err(GpkgError::ToleranceUnreachable { .. })));
+    assert!(matches!(translate(&e, 0.000000000001), Err(GpkgError::ToleranceUnreachable { .. })));
 }
 
 #[test]
@@ -502,7 +501,7 @@ fn the_tolerance_is_checked_when_the_options_are_built() {
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert!(matches!(GpkgOptions::new(bad), Err(GpkgError::BadTolerance)), "{bad}");
     }
-    assert!(GpkgOptions::new(1e-6).is_ok());
+    assert!(GpkgOptions::new(0.000001).is_ok());
 }
 
 #[test]
