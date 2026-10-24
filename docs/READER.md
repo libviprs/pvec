@@ -32,7 +32,7 @@ Every buffer is reserved with the accountant before it is made, the stored bytes
 
 ## Rules
 
-A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-nn`, `STREAM-nn`, or the name of the `ContainerError` variant), the rule of a limit (`LIMIT-nn`, see SECURITY_LIMITS.md), or one of these:
+A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-nn`, `STREAM-nn`, or the name of the `ContainerError` variant), the rule of a limit (`LIMIT-nn`, see SECURITY_LIMITS.md), a codec, integrity or negotiation rule (`CODEC-nn`, `INTEGRITY-nn`, `NEGOTIATE-nn`, all in chapters 4 and 5 of CONTAINER.md), or one of these:
 
 | rule | meaning |
 |---|---|
@@ -47,7 +47,7 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
 | CONSIST-02 | the record count of the directory differs from the record block, or the entities found differ from the directory's counts |
 | CONSIST-03 | an entity id is in two blocks |
 | CONSIST-04 | some of the six advanced blocks are present and some are not |
-| NEGOTIATE-01 | an optional block of a kind or a codec this reader cannot read (skipping it is P4.7) |
+| SKIPPED | a block that was skipped when the file was opened (an optional block of a kind, a codec or a capability this reader does not support) was asked for; it is never fetched, but `read_stored` returns its bytes for a tool that carries it as it is |
 | SOURCE | the source failed, or answered with another number of bytes than were asked for |
 | BLOCK-ID | a block id that is not in the directory |
 | LIMITS | the configured limits ask for more than the format allows |
@@ -56,4 +56,4 @@ The reference reader in `pvec-testkit` also has `LAYOUT-05`, a range that lies o
 
 ## Not here
 
-There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. Compression and checksums are P4.6, skipping blocks the reader does not know is P4.7.
+There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. Compression, the block checksums and the artifact digest are in chapter 4.7 of CONTAINER.md, and skipping what the reader does not support is chapter 5.

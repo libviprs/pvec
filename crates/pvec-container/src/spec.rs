@@ -263,7 +263,7 @@ pub const MANIFEST_FIELDS: &[FieldSpec] = &[
         m::BLOCK_CHECKSUMS_OFFSET,
         8,
         "u64",
-        "per-block checksum table (P4.6); zero with a zero length means not written",
+        "per-block checksum table (section 4.7); zero with a zero length means not written",
     ),
     f("block_checksums_length", m::BLOCK_CHECKSUMS_LENGTH, 8, "u64", "see `block_checksums_offset`"),
     f(
@@ -271,7 +271,7 @@ pub const MANIFEST_FIELDS: &[FieldSpec] = &[
         m::ARTIFACT_DIGEST,
         32,
         "bytes",
-        "artifact-level digest (P4.6); all zero unless flag bit 0 is set",
+        "artifact-level SHA-256 digest (section 4.7); all zero unless flag bit 0 is set",
     ),
     f("producer_id_len", m::PRODUCER_ID_LEN, 4, "u32", "bytes of UTF-8, 1 to 1024"),
     f("producer_version_len", m::PRODUCER_VERSION_LEN, 4, "u32", "bytes of UTF-8, 0 to 1024"),
@@ -370,12 +370,12 @@ to be inside the manifest.\n\n",
     s.push_str("\nBounds are `f64` in source space and obey the numeric policy (`NP-01`, `NP-02`, `NP-03`): finite, normal or zero, at most 2^40 in magnitude, negative zero read as positive zero, and `min <= max` on both axes. A NaN or infinite bound fails parsing.\n\n");
     s.push_str("Capability entry:\n\n");
     s.push_str(&table(CAPABILITY_ENTRY_FIELDS));
-    s.push_str("\nAn id the reader does not implement still parses; what to do about it is version negotiation (P4.7).\n\n");
+    s.push_str("\nAn id the reader does not implement still parses; what to do about it is version negotiation (chapter 5).\n\n");
     s.push_str("Directory-pointer entry:\n\n");
     s.push_str(&table(DIRECTORY_ENTRY_FIELDS));
     s.push_str("\n### 1.4 Metadata and digests\n\nThe producer id and version are supplied by the caller and the producer id is never empty. \
 The corpus revision is present only for a file built from a fixture or corpus. The block checksum table pointer and the \
-artifact digest are written by P4.6; until then they are absent (zeros, flag bit 0 clear), which is a valid manifest.\n\n");
+artifact digest are written by default and defined in section 4.7; a file without them has zeros there and flag bit 0 clear, which is a valid manifest, and a reader can be told to refuse it.\n\n");
     s.push_str("### 1.5 Units of length\n\nThe unit is declared as an ISO 10303-41 length unit and the factor to metres is stored next to it, \
 which must equal the table's value exactly.\n\n| code | unit | metres per unit | ISO 10303-41 declaration |\n|---|---|---|---|\n");
     for u in LengthUnit::ALL {
@@ -409,5 +409,7 @@ a bound that fails the numeric policy, a duplicate or malformed capability, a mi
     s.push_str(&crate::blocks::advanced::render_chapter());
     s.push('\n');
     s.push_str(&crate::writer_doc::render_chapter());
+    s.push('\n');
+    s.push_str(&crate::negotiate::render_chapter());
     s
 }

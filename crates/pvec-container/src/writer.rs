@@ -17,13 +17,14 @@ use crate::blocks::advanced::{AdvancedBuilder, SplineSpec};
 use crate::blocks::arena::{ArenaError, PayloadKind};
 use crate::blocks::hot::{HotBlockBuilder, HotError, HotKind};
 use crate::compress::CodecPolicy;
+use crate::compress::pack;
 use crate::directory::{
-    BLOCK_ALIGN, BlockEntry, BlockKind, CODEC_NONE, ENTRY_LEN, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND,
+    BLOCK_ALIGN, BlockEntry, BlockKind, ENTRY_LEN, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND,
 };
 use crate::error::ContainerError;
 use crate::header::{ChecksumAlgorithm, Header};
-use crate::integrity::Integrity;
-use crate::manifest::{Bounds, DirectoryPointer, LengthUnit, Manifest, Metadata};
+use crate::integrity::{Integrity, artifact_digest, block_checksum};
+use crate::manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata};
 use crate::spec::{cap, dir};
 use core::cmp::Ordering;
 use core::fmt;
@@ -113,16 +114,99 @@ pub struct RawBlock {
 }
 
 /// Lays out an artifact from a manifest and blocks that are already encoded: header, manifest, the blocks
-/// each on a multiple of 8, the checksum table when `integrity` asks for one, and the directory last.
-/// The manifest's directory pointer, checksum table pointer and digest are set here. This is what the
-/// writer itself uses, and it is how a tool that must carry a block it does not understand byte for byte
-/// (or a test that needs a file no writer would make) builds one.
+/// each on a multiple of 8, the checksum table when `integrity` asks for one, and the directory last, with
+/// zero padding between and nothing else. The manifest's directory pointer, its checksum table pointer
+/// and its digest are set here, whatever the manifest it was given held. This is what the writer itself
+/// uses, and it is how a tool that must carry a block it does not understand byte for byte (or a test that
+/// needs a file no writer would make) builds one: it checks the lengths fit and nothing else about the
+/// blocks.
 pub fn assemble(
-    _manifest: Manifest,
-    _blocks: &[RawBlock],
-    _integrity: Integrity,
+    mut manifest: Manifest,
+    blocks: &[RawBlock],
+    integrity: Integrity,
 ) -> Result<Vec<u8>, WriteError> {
-    Err(WriteError::Unsupported { what: "assemble (not written yet)" })
+    let sealed = integrity != Integrity::None;
+    manifest.directories =
+        vec![DirectoryPointer { kind: DirectoryPointer::KIND_BLOCK, offset: 0, length: 0 }];
+    manifest.block_checksums = sealed.then_some(ByteRange { offset: 0, length: 0 });
+    manifest.artifact_digest = (integrity == Integrity::Full).then_some([0u8; 32]);
+    // the manifest's length depends on counts, not on the offsets it holds, so it is known now
+    let manifest_len = manifest.encode()?.len() as u64;
+    let mut at = Header::LEN as u64 + manifest_len;
+    let mut entries: Vec<BlockEntry> = Vec::with_capacity(blocks.len());
+    for b in blocks {
+        let stored_length = u32::try_from(b.stored.len()).map_err(|_| WriteError::TooLarge)?;
+        at = align8(at);
+        entries.push(BlockEntry {
+            offset: at,
+            stored_length,
+            uncompressed_length: b.uncompressed_length,
+            count: b.count,
+            cell: b.cell,
+            bounds: b.bounds,
+            kind: b.kind,
+            subtype: b.subtype,
+            flags: b.flags,
+            codec: b.codec,
+            capability: b.capability,
+        });
+        at += u64::from(stored_length);
+    }
+    let table_offset = align8(at);
+    let table_length = if sealed { 8 * blocks.len() as u64 } else { 0 };
+    let directory_offset = align8(if sealed { table_offset + table_length } else { at });
+    let directory_length = (entries.len() * ENTRY_LEN) as u64;
+    let total = directory_offset.checked_add(directory_length).ok_or(WriteError::TooLarge)?;
+    let total = usize::try_from(total).map_err(|_| WriteError::TooLarge)?;
+    manifest.directories[0] = DirectoryPointer {
+        kind: DirectoryPointer::KIND_BLOCK,
+        offset: directory_offset,
+        length: directory_length,
+    };
+    if sealed {
+        manifest.block_checksums = Some(ByteRange { offset: table_offset, length: table_length });
+    }
+    let manifest_bytes = manifest.encode()?;
+    let header = Header {
+        major: Header::MAJOR,
+        minor: Header::MINOR,
+        header_len: Header::LEN as u16,
+        block_checksum: ChecksumAlgorithm::Xxh3_64,
+        artifact_checksum: ChecksumAlgorithm::Sha256,
+        manifest_offset: Header::LEN as u64,
+        manifest_length: manifest_len,
+        directory_table_offset: Header::LEN as u64
+            + Manifest::FIXED_LEN as u64
+            + (cap::SIZE * manifest.capabilities.len()) as u64,
+        directory_table_length: dir::SIZE as u64,
+    };
+
+    let mut out: Vec<u8> = Vec::with_capacity(total);
+    out.extend_from_slice(&header.encode());
+    out.extend_from_slice(&manifest_bytes);
+    for (b, e) in blocks.iter().zip(&entries) {
+        out.resize(e.offset as usize, 0);
+        out.extend_from_slice(&b.stored);
+    }
+    if sealed {
+        out.resize(table_offset as usize, 0);
+        for b in blocks {
+            out.extend_from_slice(&block_checksum(&b.stored).to_le_bytes());
+        }
+    }
+    out.resize(directory_offset as usize, 0);
+    for e in &entries {
+        out.extend_from_slice(&e.encode());
+    }
+    debug_assert_eq!(out.len(), total);
+    if integrity == Integrity::Full {
+        // the digest covers everything with its own 32 bytes read as zero, so it is computed over the file
+        // as it stands (they are zero now) and written into the place it was left out of
+        let at = Header::LEN + crate::spec::m::ARTIFACT_DIGEST;
+        let digest = artifact_digest(&out, at);
+        out[at..at + 32].copy_from_slice(&digest);
+    }
+    Ok(out)
 }
 
 /// What every entity carries.
@@ -355,7 +439,6 @@ struct Planned {
 #[derive(Debug)]
 pub struct ContainerWriter {
     config: WriterConfig,
-    #[allow(dead_code)]
     options: WriterOptions,
     skipped: Vec<SortKey>,
     seq: usize,
@@ -886,80 +969,39 @@ impl ContainerWriter {
                 .then(by(SortKey::GeometryType, a.subtype.cmp(&b.subtype)))
         });
 
-        let mut manifest = Manifest {
-            unit: self.config.unit,
-            bounds: source_bounds,
-            min_reader,
-            capabilities,
-            directories: vec![DirectoryPointer { kind: DirectoryPointer::KIND_BLOCK, offset: 0, length: 0 }],
-            block_checksums: None,
-            artifact_digest: None,
-            metadata: self.config.metadata.clone(),
-        };
-        // the manifest's length depends on counts, not on the offsets it holds, so it is known now
-        let manifest_len = manifest.encode()?.len() as u64;
-        let mut at = Header::LEN as u64 + manifest_len;
-        let mut entries: Vec<BlockEntry> = Vec::with_capacity(blocks.len());
-        let mut offsets: Vec<u64> = Vec::with_capacity(blocks.len());
-        for b in &blocks {
-            let stored_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
-            at = align8(at);
-            offsets.push(at);
+        let policy = self.options.codecs;
+        let mut raw: Vec<RawBlock> = Vec::with_capacity(blocks.len());
+        for b in blocks {
+            let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
+            // a block is stored compressed only if that is smaller, and an uncompressed block is legal
+            let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
             let mut flags = if b.kind == BlockKind::Components { 0 } else { FLAG_MUST_UNDERSTAND };
             if b.bounds.is_some() {
                 flags |= FLAG_HAS_BOUNDS;
             }
-            entries.push(BlockEntry {
-                offset: at,
-                stored_length,
-                uncompressed_length: stored_length,
-                count: b.count,
-                cell: b.cell,
-                bounds: b.bounds,
+            raw.push(RawBlock {
                 kind: b.kind.id(),
                 subtype: b.subtype,
+                cell: b.cell,
+                count: b.count,
+                bounds: b.bounds,
                 flags,
-                codec: CODEC_NONE,
+                codec: codec.id(),
                 capability: 0,
+                uncompressed_length,
+                stored,
             });
-            at += u64::from(stored_length);
         }
-        let directory_offset = align8(at);
-        let directory_length = (entries.len() * ENTRY_LEN) as u64;
-        let total = directory_offset.checked_add(directory_length).ok_or(WriteError::TooLarge)?;
-        let total = usize::try_from(total).map_err(|_| WriteError::TooLarge)?;
-        manifest.directories[0] = DirectoryPointer {
-            kind: DirectoryPointer::KIND_BLOCK,
-            offset: directory_offset,
-            length: directory_length,
+        let manifest = Manifest {
+            unit: self.config.unit,
+            bounds: source_bounds,
+            min_reader,
+            capabilities,
+            directories: Vec::new(),
+            block_checksums: None,
+            artifact_digest: None,
+            metadata: self.config.metadata.clone(),
         };
-        let manifest_bytes = manifest.encode()?;
-        let header = Header {
-            major: Header::MAJOR,
-            minor: Header::MINOR,
-            header_len: Header::LEN as u16,
-            block_checksum: ChecksumAlgorithm::Xxh3_64,
-            artifact_checksum: ChecksumAlgorithm::Sha256,
-            manifest_offset: Header::LEN as u64,
-            manifest_length: manifest_len,
-            directory_table_offset: Header::LEN as u64
-                + Manifest::FIXED_LEN as u64
-                + (cap::SIZE * manifest.capabilities.len()) as u64,
-            directory_table_length: dir::SIZE as u64,
-        };
-
-        let mut out: Vec<u8> = Vec::with_capacity(total);
-        out.extend_from_slice(&header.encode());
-        out.extend_from_slice(&manifest_bytes);
-        for (b, offset) in blocks.iter().zip(&offsets) {
-            out.resize(*offset as usize, 0);
-            out.extend_from_slice(&b.bytes);
-        }
-        out.resize(directory_offset as usize, 0);
-        for e in &entries {
-            out.extend_from_slice(&e.encode());
-        }
-        debug_assert_eq!(out.len(), total);
-        Ok(out)
+        assemble(manifest, &raw, self.options.integrity)
     }
 }

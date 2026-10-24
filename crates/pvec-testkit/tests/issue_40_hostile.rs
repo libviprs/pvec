@@ -343,7 +343,7 @@ fn the_safe_reader_satisfies_every_case_it_provides() {
     // the floor was calibrated on the reference reader; say how the safe reader sits against it
     let floor = Limits::default().alloc_floor;
     assert!(
-        report.peak_allocation < floor,
+        report.peak_allocation * 3 / 2 < floor,
         "the safe reader peaked at {}, the floor is {floor}",
         report.peak_allocation
     );
@@ -663,23 +663,24 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
             if !seen.insert(*r) {
                 continue;
             }
-            let documented = if ["DIR-", "HOT-", "ARN-"].iter().any(|p| r.starts_with(p)) {
-                docs.contains(&format!("| {r} |"))
-            } else if ["STREAM-", "COMP-"].iter().any(|p| r.starts_with(p)) {
-                stream_errors.contains(&format!("\"{r}\""))
-            } else if r.starts_with("LIMIT-") {
-                // the limits of P4.8 are documented in SECURITY_LIMITS.md; LIMIT-03 is also the
-                // reference reader's own stand-in for a decoded-size budget
-                limits_doc.contains(&format!("| {r} |")) || reference.contains(&format!("\"{r}\""))
-            } else if ["LAYOUT-", "CONSIST-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
-                reference.contains(&format!("\"{r}\"")) || reader_doc.contains(&format!("| {r} |"))
-            } else if r.starts_with("NP-") {
-                policy.contains(&format!("### {r} "))
-            } else if r.starts_with("INTEGRITY-") {
-                true
-            } else {
-                container_errors.contains(&format!("    {r}"))
-            };
+            let documented =
+                if ["DIR-", "HOT-", "ARN-", "CODEC-", "INTEGRITY-"].iter().any(|p| r.starts_with(p)) {
+                    docs.contains(&format!("| {r} |"))
+                } else if ["STREAM-", "COMP-"].iter().any(|p| r.starts_with(p)) {
+                    stream_errors.contains(&format!("\"{r}\""))
+                } else if r.starts_with("LIMIT-") {
+                    // the limits of P4.8 are documented in SECURITY_LIMITS.md; LIMIT-03 is also the
+                    // reference reader's own stand-in for a decoded-size budget
+                    limits_doc.contains(&format!("| {r} |")) || reference.contains(&format!("\"{r}\""))
+                } else if ["LAYOUT-", "CONSIST-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
+                    reference.contains(&format!("\"{r}\""))
+                        || reader_doc.contains(&format!("| {r} |"))
+                        || docs.contains(&format!("| {r} |"))
+                } else if r.starts_with("NP-") {
+                    policy.contains(&format!("### {r} "))
+                } else {
+                    container_errors.contains(&format!("    {r}"))
+                };
             assert!(documented, "{}: rule {r} is not defined anywhere", c.name);
         }
     }
@@ -863,7 +864,7 @@ fn a_sweep_case_wants_a_rule_the_container_knows_not_just_any_refusal() {
     );
 }
 
-/// Allocates 64 KiB on every read: little, but 60 times what the reference ever needs for a small file.
+/// Allocates 64 KiB on every read: little, but five times what the reference ever needs for a small file.
 struct AllocatesSixtyFourKiB;
 impl Reader for AllocatesSixtyFourKiB {
     fn name(&self) -> String {
@@ -882,7 +883,7 @@ impl Reader for AllocatesSixtyFourKiB {
 #[test]
 fn the_allocation_floor_is_calibrated_to_the_reference_and_catches_a_small_waste() {
     let limits = Limits::default();
-    assert!(limits.alloc_floor <= 16 << 10, "the floor is {}", limits.alloc_floor);
+    assert!(limits.alloc_floor <= 32 << 10, "the floor is {}", limits.alloc_floor);
     let ok = run_full(ReferenceReader::new(), limits);
     assert!(ok.passed(), "{}", ok.summary());
     assert!(

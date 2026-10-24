@@ -8,7 +8,7 @@
 mod counting_alloc;
 mod support;
 
-use pvec_container::compress::{Codec, CodecError, CodecPolicy, compress, decompress};
+use pvec_container::compress::{Codec, CodecError, CodecPolicy, compress, decompress, pack};
 use pvec_container::directory::BlockKind;
 use pvec_container::limits::{LimitKind, Limits};
 use pvec_container::reader::{BlockId, ContainerReader, ReadError, ReaderConfig};
@@ -190,9 +190,16 @@ fn the_codec_is_recorded_in_each_descriptor_and_a_block_that_does_not_shrink_sta
             }
         }
     }
-    // one polyline of two vertices is too small for any codec to help
-    let tiny = art::lines_with(1, 1, sealed_with(CodecPolicy::uniform(Codec::Deflate)));
-    assert_eq!(tiny.entries[0].codec, Codec::None.id());
+    // a block that would not shrink is stored as it is, not made larger by trying
+    let mut rng = Rng(77);
+    let noise = sample(&mut rng, 200, 3);
+    for codec in REAL {
+        let (used, stored) = pack(codec, noise.clone());
+        assert_eq!((used, &stored), (Codec::None, &noise), "{codec:?}: noise stays stored");
+        let (used, stored) = pack(codec, vec![0u8; 4096]);
+        assert_eq!(used, codec);
+        assert!(stored.len() < 100);
+    }
 }
 
 #[test]

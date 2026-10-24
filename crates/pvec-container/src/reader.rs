@@ -27,7 +27,7 @@ use crate::blocks::hot::{HotBlockView, HotError};
 use crate::compress::CodecError;
 use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
-use crate::engine::{Core, Need, Opening, Validation};
+use crate::engine::{Core, DigestCheck, Need, OpenOptions, Opening, Validation};
 use crate::integrity::{DigestStatus, IntegrityError};
 use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation};
 use crate::negotiate::{PartialOpen, ReaderCapabilities, Refusal};
@@ -149,7 +149,7 @@ impl ReadError {
             ReadError::NoSuchBlock { .. } => "BLOCK-ID".to_string(),
             ReadError::Codec(e) => e.rule().to_string(),
             ReadError::Integrity(e) => e.rule().to_string(),
-            ReadError::Negotiation(_) => "NEGOTIATE".to_string(),
+            ReadError::Negotiation(r) => r.rule().to_string(),
             ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
@@ -469,9 +469,9 @@ impl Shared {
     /// Everything a block costs, charged before a byte of it is fetched: the decode work, the room for
     /// the decoded block, and the room for the bytes in flight. A block the budget would refuse is
     /// refused here, without a request.
-    fn admit(&self, id: BlockId, in_flight: u64) -> Result<(Reservation, Reservation), ReadError> {
-        let entry = self.core.entry(id)?;
-        self.core.check_decodable(entry)?;
+    fn admit(&self, id: BlockId) -> Result<(Reservation, Reservation), ReadError> {
+        let entry = self.core.check_readable(id)?;
+        let in_flight = self.core.in_flight(entry);
         self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
         let decoded = self.reserve(u64::from(entry.uncompressed_length))?;
         let transient = self.reserve(in_flight)?;
@@ -521,14 +521,23 @@ impl Shared {
     /// For each request of a plan: the room for what it fetches, reserved before it is asked for.
     fn admit_request(&self, request: &RangeRequest) -> Result<(Vec<Reservation>, Reservation), ReadError> {
         let mut decoded = Vec::with_capacity(request.blocks.len());
+        let mut decoder_room = 0u64;
         for id in &request.blocks {
-            let entry = self.core.entry(*id)?;
-            self.core.check_decodable(entry)?;
+            let entry = self.core.check_readable(*id)?;
+            decoder_room = decoder_room.max(self.core.in_flight(entry) - u64::from(entry.stored_length));
             self.acct.charge_work(u64::from(entry.stored_length) + u64::from(entry.uncompressed_length))?;
             decoded.push(self.reserve(u64::from(entry.uncompressed_length))?);
         }
-        let transient = self.reserve(u64::from(request.len))?;
+        let transient = self.reserve(u64::from(request.len) + decoder_room)?;
         Ok((decoded, transient))
+    }
+}
+
+fn open_options(config: &ReaderConfig) -> OpenOptions<'_> {
+    OpenOptions {
+        limits: &config.limits,
+        capabilities: &config.capabilities,
+        require_integrity: config.require_integrity,
     }
 }
 
@@ -582,7 +591,7 @@ macro_rules! accessors {
         /// What the open left out because this reader does not support it, or `None` when it left out
         /// nothing.
         pub fn partial_open(&self) -> Option<&PartialOpen> {
-            None
+            self.shared.core.partial.as_ref()
         }
 
         /// The requests that would fetch `ids`, coalescing blocks whose gap is within the configured
@@ -606,7 +615,7 @@ impl<S: BlockSource> ContainerReader<S> {
         config.limits.validate().map_err(ReadError::BadLimits)?;
         let counters = Counters::default();
         let acct = Accountant::new(&config.limits);
-        let mut opening = Opening::new(BlockSource::len(&source), &config.limits, &acct)?;
+        let mut opening = Opening::new(BlockSource::len(&source), &open_options(&config), &acct)?;
         while let Some((offset, len)) = opening.request() {
             counters.requests.fetch_add(1, Ordering::Relaxed);
             counters.bytes.fetch_add(u64::from(len), Ordering::Relaxed);
@@ -626,12 +635,12 @@ impl<S: BlockSource> ContainerReader<S> {
 
     /// One block, decoded and cached.
     pub fn read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError> {
-        self.shared.core.entry(id)?;
+        self.shared.core.check_readable(id)?;
         if let Some(block) = self.shared.cached(id) {
             return Ok(block);
         }
         let (offset, len) = self.shared.core.range_of(id)?;
-        let (decoded, _in_flight) = self.shared.admit(id, u64::from(len))?;
+        let (decoded, _in_flight) = self.shared.admit(id)?;
         let stored = self.fetch(offset, len)?;
         self.shared.finish_block(id, &stored, decoded)
     }
@@ -642,7 +651,7 @@ impl<S: BlockSource> ContainerReader<S> {
         let mut found: HashMap<BlockId, Arc<DecodedBlock>> = HashMap::new();
         let mut missing: Vec<BlockId> = Vec::new();
         for id in ids {
-            self.shared.core.entry(*id)?;
+            self.shared.core.check_readable(*id)?;
             match self.shared.cached(*id) {
                 Some(b) => {
                     found.insert(*id, b);
@@ -677,7 +686,13 @@ impl<S: BlockSource> ContainerReader<S> {
 
     /// Hashes the whole artifact in bounded chunks and compares it with the digest in the manifest.
     pub fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError> {
-        Err(ReadError::Layout { rule: "NOT-IMPLEMENTED", detail: "the digest is not verified yet".into() })
+        let mut check = DigestCheck::new(&self.shared.core);
+        while let Some((offset, len)) = check.request() {
+            let _room = self.shared.admit_gap(len)?;
+            let bytes = self.fetch(offset, len)?;
+            check.feed(&bytes);
+        }
+        check.finish()
     }
 
     /// The bytes of a block as they are stored, undecoded and unchecked, for a tool that carries a block
@@ -721,7 +736,7 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         config.limits.validate().map_err(ReadError::BadLimits)?;
         let counters = Counters::default();
         let acct = Accountant::new(&config.limits);
-        let mut opening = Opening::new(AsyncBlockSource::len(&source), &config.limits, &acct)?;
+        let mut opening = Opening::new(AsyncBlockSource::len(&source), &open_options(&config), &acct)?;
         while let Some((offset, len)) = opening.request() {
             counters.requests.fetch_add(1, Ordering::Relaxed);
             counters.bytes.fetch_add(u64::from(len), Ordering::Relaxed);
@@ -741,12 +756,12 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
 
     /// As [`ContainerReader::read_block`].
     pub async fn read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError> {
-        self.shared.core.entry(id)?;
+        self.shared.core.check_readable(id)?;
         if let Some(block) = self.shared.cached(id) {
             return Ok(block);
         }
         let (offset, len) = self.shared.core.range_of(id)?;
-        let (decoded, _in_flight) = self.shared.admit(id, u64::from(len))?;
+        let (decoded, _in_flight) = self.shared.admit(id)?;
         let stored = self.fetch(offset, len).await?;
         self.shared.finish_block(id, &stored, decoded)
     }
@@ -756,7 +771,7 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         let mut found: HashMap<BlockId, Arc<DecodedBlock>> = HashMap::new();
         let mut missing: Vec<BlockId> = Vec::new();
         for id in ids {
-            self.shared.core.entry(*id)?;
+            self.shared.core.check_readable(*id)?;
             match self.shared.cached(*id) {
                 Some(b) => {
                     found.insert(*id, b);
@@ -791,7 +806,13 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
 
     /// As [`ContainerReader::verify_artifact_digest`].
     pub async fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError> {
-        Err(ReadError::Layout { rule: "NOT-IMPLEMENTED", detail: "the digest is not verified yet".into() })
+        let mut check = DigestCheck::new(&self.shared.core);
+        while let Some((offset, len)) = check.request() {
+            let _room = self.shared.admit_gap(len)?;
+            let bytes = self.fetch(offset, len).await?;
+            check.feed(&bytes);
+        }
+        check.finish()
     }
 
     /// As [`ContainerReader::read_stored`].

@@ -232,9 +232,10 @@ fn the_digest_sees_what_the_block_checksums_do_not_the_manifest_and_the_director
         + 16 * art.manifest.capabilities.len()
         + 24 * art.manifest.directories.len();
     let cell = art.entry_field(1, "cell");
-    for at in [producer, cell] {
+    // the cell goes from 1 to 3, which keeps the blocks in order
+    for (at, mask) in [(producer, 0x01u8), (cell, 0x02)] {
         let mut bytes = art.bytes.clone();
-        bytes[at] ^= 0x01;
+        bytes[at] ^= mask;
         let reader = open(bytes).expect("still a well-formed file");
         for i in 0..art.entries.len() {
             reader.read_block(BlockId(i as u32)).expect("every block still matches its checksum");
@@ -358,7 +359,7 @@ fn a_sealed_1gib_artifact_still_opens_and_reads_one_block_in_three_requests_unde
 
 #[test]
 fn the_digest_is_hashed_in_bounded_chunks_and_every_byte_of_the_file_is_read_once() {
-    let art = art::lines_with(2000, 4, SEALED);
+    let art = art::lines_with(20_000, 4, SEALED);
     assert!(art.len() > 2 << 20, "the artifact is {} bytes", art.len());
     let source = Recording::new(MemorySource::new(art.bytes.clone()));
     let reader = ContainerReader::open(source, ReaderConfig::default()).unwrap();

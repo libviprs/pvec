@@ -62,3 +62,28 @@ Make verification opt-in per file (a manifest flag) if P4.6 finds checksum verif
 25% of block decode time in wasm for the chosen codec; today it is about 21% for LZ4 and about 1.4% for
 deflate. Reverse the shuffle decision if P8.1's real-drawing corpus shows it saving more than 10% on
 deflate. Replace XXH3 if its specification changes or P7.8's fuzzing finds a collision problem.
+
+## Amendment 2026-10-24
+
+P4.6 (#7) re-benchmarked the codec as the Status line promised, on the fixtures and with the numbers in
+`docs/spikes/04-6-compression.md`. What it settles, and what it changes in the decision above:
+
+* **Codecs.** LZ4 (id 1) and raw deflate at level 6 (id 2) are admitted, both pure Rust (`lz4_flex` in safe
+  mode, `miniz_oxide`). zstd is not: it is a C library. Which codec a block uses is per block kind and per
+  file, in the directory entry, and a block is stored compressed only when that is smaller.
+* **Default.** The writer's default is no compression. The measurement was made on synthetic fixtures, and a
+  default needs real drawings (P8.1, P8.3). `CodecPolicy::RECOMMENDED` (LZ4 for every kind) is what a
+  producer serving over HTTP passes.
+* **Block checksum, carried.** XXH3-64 over the stored bytes costs 0.1 to 5.1% of the time to decode them
+  natively, against the reversal threshold of 25% in wasm, so decision 3 above stands. The wasm and arm64
+  numbers are #110.
+* **Artifact digest, widened.** Decision 4 said SHA-256 "over the header, the directory and the per-block
+  checksums". It is now the SHA-256 of the whole file with the digest's own 32 bytes read as zero. The
+  narrower digest left the manifest and every block uncovered by anything but XXH3, which is not a security
+  hash, and the issue asks for a digest of the canonical byte stream. It is verified on request in chunks of
+  at most 1 MiB, not at every open, because the case that cannot afford a whole-file read is the streamed one.
+* **Compressed artifacts are canonical for the pinned codec versions.** Both codecs are deterministic integer
+  code; `Cargo.lock` pins the versions; a change of codec version is a change of artifact and goes through
+  the golden-file bless.
+* **Reversal threshold, unchanged.** Make verification opt-in per file if the wasm number for XXH3 passes 25%
+  of block decode time for the codec in use.

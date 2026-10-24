@@ -1,11 +1,24 @@
-//! Capability negotiation and unknown-block skipping (issue P4.7). STUB for the red commit.
-#![allow(dead_code)]
+//! Capability negotiation and unknown-block skipping (issue P4.7).
+//!
+//! A reader that meets a block it has never heard of has to skip it correctly without parsing its
+//! payload, or every future capability is a breaking change. This module is the match between what a file
+//! declares (its manifest's capability list, from P3.4, and the descriptors of its blocks) and what a
+//! build supports ([`ReaderCapabilities`]), and the three outcomes of it: [`Outcome::Open`],
+//! [`Outcome::OpenDegraded`] with a report of what was skipped, and [`Outcome::Refuse`] naming the
+//! capability and its version. Chapter 5 of `docs/CONTAINER.md` is the contract and is rendered from the
+//! constants here.
 
-use crate::directory::BlockEntry;
+use crate::directory::{BlockEntry, BlockKind};
 use crate::manifest::Manifest;
 use crate::reader::BlockId;
-use pvec_capabilities::{CapabilityId, Registry, Version};
+use pvec_capabilities::{CapabilityId, Class, Declared, Registry, Requirement, Version};
 use std::fmt;
+use std::sync::OnceLock;
+
+fn registry() -> &'static Registry {
+    static R: OnceLock<Registry> = OnceLock::new();
+    R.get_or_init(Registry::v1)
+}
 
 /// The capabilities, and the versions of them, a build supports.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,9 +31,8 @@ pub struct ReaderCapabilities {
 impl ReaderCapabilities {
     /// Every capability of the v1 registry, at the version the registry gives it.
     pub fn v1() -> ReaderCapabilities {
-        let registry = Registry::v1();
         let supported =
-            registry.entries().iter().map(|c| (c.id, c.version.major, c.version.minor)).collect::<Vec<_>>();
+            registry().entries().iter().map(|c| (c.id, c.version.major, c.version.minor)).collect();
         ReaderCapabilities { version: Version::new(1, 0, 0), supported }
     }
 
@@ -29,7 +41,8 @@ impl ReaderCapabilities {
         ReaderCapabilities { version, supported: Vec::new() }
     }
 
-    /// Supports capability `id` up to `major.minor`.
+    /// Supports capability `id` up to `major.minor`: files at that major and any minor opens, since a
+    /// newer minor only adds.
     pub fn with(mut self, id: CapabilityId, major: u16, minor: u16) -> ReaderCapabilities {
         self.supported.retain(|(i, _, _)| *i != id);
         self.supported.push((id, major, minor));
@@ -87,11 +100,92 @@ pub enum Refusal {
     ComponentDeclaredRequired(CapabilityId),
     /// An optional extension declared required.
     ExtensionDeclaredRequired(CapabilityId),
+    /// A block names a capability the manifest does not declare.
+    UndeclaredBlockCapability {
+        /// The block.
+        block: BlockId,
+        /// The capability it names.
+        capability: u16,
+    },
 }
+
+impl Refusal {
+    /// The rule identifier of `docs/CONTAINER.md`.
+    pub fn rule(&self) -> &'static str {
+        match self {
+            Refusal::MissingRequired { .. } => "NEGOTIATE-01",
+            Refusal::IncompatibleMajor { .. } => "NEGOTIATE-02",
+            Refusal::ReaderTooOld { .. } => "NEGOTIATE-03",
+            Refusal::ComponentDeclaredRequired(_) | Refusal::ExtensionDeclaredRequired(_) => "NEGOTIATE-04",
+            Refusal::UndeclaredBlockCapability { .. } => "NEGOTIATE-05",
+        }
+    }
+}
+
+/// The refusals, rule by rule.
+pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
+    (
+        "NEGOTIATE-01",
+        "a required capability is not supported by the reader, or not known to it at all; the refusal names its id and the version the file declares",
+    ),
+    (
+        "NEGOTIATE-02",
+        "a required capability is declared at a major version the reader does not support (a newer minor of a supported major opens)",
+    ),
+    (
+        "NEGOTIATE-03",
+        "the file needs a newer reader than this one (its minimum reader, or a declared capability's)",
+    ),
+    (
+        "NEGOTIATE-04",
+        "a component or an optional extension is declared required, which the registry does not allow",
+    ),
+    ("NEGOTIATE-05", "a block names a capability id the manifest does not declare"),
+];
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
+        let rule = self.rule();
+        match self {
+            Refusal::ReaderTooOld { file_requires, reader } => {
+                write!(
+                    f,
+                    "{rule}: the file needs reader version {file_requires} or newer and this reader is {reader}"
+                )
+            }
+            Refusal::MissingRequired { id, version, name: Some(n) } => {
+                write!(
+                    f,
+                    "{rule}: required capability {n} (id {id}, version {version}) is not supported by this reader"
+                )
+            }
+            Refusal::MissingRequired { id, version, name: None } => {
+                write!(
+                    f,
+                    "{rule}: required capability with unknown id {id} (version {version}) is not supported by this reader"
+                )
+            }
+            Refusal::IncompatibleMajor { id, file, supported_major } => write!(
+                f,
+                "{rule}: required capability id {id} is declared at version {file}, and this reader supports major version {supported_major}"
+            ),
+            Refusal::ComponentDeclaredRequired(id) => {
+                write!(f, "{rule}: capability id {id} is a component and cannot be declared required")
+            }
+            Refusal::ExtensionDeclaredRequired(id) => {
+                write!(
+                    f,
+                    "{rule}: capability id {id} is an optional extension and cannot be declared required"
+                )
+            }
+            Refusal::UndeclaredBlockCapability { block, capability } => {
+                write!(
+                    f,
+                    "{rule}: block {} names capability {capability}, which the manifest does not declare",
+                    block.0
+                )
+            }
+        }
     }
 }
 
@@ -156,11 +250,12 @@ pub struct SkippedBlock {
 /// What a degraded open left out, so a consumer can say so and not silently drop content.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct PartialOpen {
-    /// The capabilities skipped, by id.
+    /// The capabilities skipped, ascending by id.
     pub capabilities: Vec<SkippedCapability>,
-    /// The blocks skipped.
+    /// The blocks skipped, in directory order.
     pub blocks: Vec<SkippedBlock>,
-    /// The entities in the file, all of which a skipped capability may apply to.
+    /// The entities in the file, all of which a skipped capability may apply to. Which of them a skipped
+    /// stream names is in its payload, which is not read.
     pub entities: u64,
 }
 
@@ -171,10 +266,26 @@ pub struct RewriteRefused {
     pub skipped: Vec<u32>,
 }
 
+impl fmt::Display for RewriteRefused {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "a rewrite from the decoded model would drop capabilities {:?} that this reader did not understand",
+            self.skipped
+        )
+    }
+}
+
+impl std::error::Error for RewriteRefused {}
+
 impl PartialOpen {
-    /// The ids of every skipped capability, ascending, each once.
+    /// The ids of every skipped capability, ascending, each once: the manifest's and the blocks'.
     pub fn skipped_ids(&self) -> Vec<u32> {
-        Vec::new()
+        let mut ids: Vec<u32> = self.capabilities.iter().map(|c| c.id.get()).collect();
+        ids.extend(self.blocks.iter().filter_map(|b| b.capability.map(CapabilityId::get)));
+        ids.sort_unstable();
+        ids.dedup();
+        ids
     }
 
     /// Whether nothing was skipped.
@@ -182,14 +293,55 @@ impl PartialOpen {
         self.capabilities.is_empty() && self.blocks.is_empty()
     }
 
-    /// Succeeds only when nothing was skipped.
+    /// The decision on re-writing: a rewrite that goes through the decoded model cannot carry what the
+    /// reader did not decode, so it refuses when anything was skipped. A tool that must keep the blocks
+    /// byte for byte copies them raw (`ContainerReader::read_stored` and `writer::assemble`), which
+    /// preserves them exactly.
     pub fn ensure_lossless_rewrite(&self) -> Result<(), RewriteRefused> {
-        Ok(())
+        if self.is_empty() { Ok(()) } else { Err(RewriteRefused { skipped: self.skipped_ids() }) }
     }
 
     /// A sentence a consumer can show.
     pub fn describe(&self) -> String {
-        String::new()
+        if self.is_empty() {
+            return "nothing was skipped".to_string();
+        }
+        let name = |c: &SkippedCapability| match c.name {
+            Some(n) => format!("{} ({n})", c.id),
+            None => c.id.to_string(),
+        };
+        let list = |effect: Effect| {
+            self.capabilities.iter().filter(|c| c.effect == effect).map(name).collect::<Vec<_>>().join(", ")
+        };
+        let mut parts = Vec::new();
+        let (styles, components, unknown) =
+            (list(Effect::Unstyled), list(Effect::Uncomponented), list(Effect::Unknown));
+        if !styles.is_empty() {
+            parts.push(format!(
+                "the {} entities may be unstyled, because capability {styles} was not read",
+                self.entities
+            ));
+        }
+        if !components.is_empty() {
+            parts.push(format!(
+                "the {} entities may lack components, because capability {components} was not read",
+                self.entities
+            ));
+        }
+        if !unknown.is_empty() {
+            parts.push(format!("capability {unknown} is unknown to this reader and was not read"));
+        }
+        if !self.blocks.is_empty() {
+            let ids: Vec<String> = self.blocks.iter().map(|b| b.block.0.to_string()).collect();
+            parts.push(format!(
+                "{} block(s) were skipped without being read (block {})",
+                self.blocks.len(),
+                ids.join(", ")
+            ));
+        }
+        let mut s = parts.join("; ");
+        s.push('.');
+        s
     }
 }
 
@@ -204,7 +356,207 @@ pub enum Outcome {
     Refuse(Refusal),
 }
 
+fn effect_of(id: CapabilityId) -> Effect {
+    match registry().get(id) {
+        Some(c) if c.class == Class::Component => {
+            if id == pvec_capabilities::ids::LAYER || id == pvec_capabilities::ids::LINE_STYLE {
+                Effect::Unstyled
+            } else {
+                Effect::Uncomponented
+            }
+        }
+        _ => Effect::Unknown,
+    }
+}
+
 /// Negotiates `manifest` and the block directory against `reader`.
-pub fn negotiate(_manifest: &Manifest, _entries: &[BlockEntry], _reader: &ReaderCapabilities) -> Outcome {
-    Outcome::Open
+///
+/// Reads only what the manifest and the descriptors say: no payload is looked at, so what is skipped is
+/// skipped from its descriptor alone.
+pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCapabilities) -> Outcome {
+    if manifest.min_reader > reader.version {
+        return Outcome::Refuse(Refusal::ReaderTooOld {
+            file_requires: manifest.min_reader,
+            reader: reader.version,
+        });
+    }
+    let reg = registry();
+    let mut skipped: Vec<SkippedCapability> = Vec::new();
+    for d in &manifest.capabilities {
+        let known = reg.get(d.id);
+        if let Some(c) = known {
+            if c.min_reader > reader.version {
+                return Outcome::Refuse(Refusal::ReaderTooOld {
+                    file_requires: c.min_reader,
+                    reader: reader.version,
+                });
+            }
+            if c.class == Class::Component && d.requirement == Requirement::Required {
+                return Outcome::Refuse(Refusal::ComponentDeclaredRequired(d.id));
+            }
+            if c.class == Class::Extension
+                && c.requirement == Requirement::Optional
+                && d.requirement == Requirement::Required
+            {
+                return Outcome::Refuse(Refusal::ExtensionDeclaredRequired(d.id));
+            }
+        }
+        let required = d.requirement == Requirement::Required
+            || known.is_some_and(|c| c.requirement == Requirement::Required);
+        let skip = |reason| SkippedCapability {
+            id: d.id,
+            version: Some(d.version),
+            name: known.map(|c| c.name),
+            reason,
+            effect: effect_of(d.id),
+        };
+        match reader.supports(d.id) {
+            None if required => {
+                return Outcome::Refuse(Refusal::MissingRequired {
+                    id: d.id,
+                    version: d.version,
+                    name: known.map(|c| c.name),
+                });
+            }
+            None => skipped.push(skip(SkipReason::NotImplemented)),
+            Some((major, _)) if d.version.major != major => {
+                if required {
+                    return Outcome::Refuse(Refusal::IncompatibleMajor {
+                        id: d.id,
+                        file: d.version,
+                        supported_major: major,
+                    });
+                }
+                skipped.push(skip(if d.version.major > major {
+                    SkipReason::NewerMajor
+                } else {
+                    SkipReason::NotImplemented
+                }));
+            }
+            // a newer minor of a supported major only adds, so the file opens
+            Some(_) => {}
+        }
+    }
+
+    let declared = |id: u32| manifest.capabilities.iter().find(|d: &&Declared| d.id.get() == id);
+    let mut blocks: Vec<SkippedBlock> = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        let block = BlockId(i as u32);
+        let capability = (e.capability != 0).then(|| CapabilityId::new(u32::from(e.capability)));
+        if let Some(c) = capability {
+            if declared(c.get()).is_none() {
+                return Outcome::Refuse(Refusal::UndeclaredBlockCapability {
+                    block,
+                    capability: e.capability,
+                });
+            }
+        }
+        let by_capability = capability.and_then(|c| skipped.iter().find(|s| s.id == c)).map(|s| s.reason);
+        let reason = if e.block_kind().is_none() {
+            Some(SkipReason::UnknownBlockKind)
+        } else if crate::compress::Codec::from_id(e.codec).is_none() {
+            Some(SkipReason::UnknownCodec)
+        } else {
+            by_capability
+        };
+        if let Some(reason) = reason {
+            blocks.push(SkippedBlock {
+                block,
+                kind: e.kind,
+                capability,
+                codec: e.codec,
+                stored_length: e.stored_length,
+                reason,
+            });
+            // a skipped block's capability is in the report even when the reader implements it
+            if let Some(c) = capability {
+                if !skipped.iter().any(|s| s.id == c) {
+                    let d = declared(c.get());
+                    skipped.push(SkippedCapability {
+                        id: c,
+                        version: d.map(|d| d.version),
+                        name: reg.get(c).map(|r| r.name),
+                        reason,
+                        effect: effect_of(c),
+                    });
+                }
+            }
+        }
+    }
+    if skipped.is_empty() && blocks.is_empty() {
+        return Outcome::Open;
+    }
+    skipped.sort_by_key(|s| s.id);
+    let entities = entries
+        .iter()
+        .filter(|e| matches!(e.block_kind(), Some(BlockKind::Hot | BlockKind::Records)))
+        .map(|e| u64::from(e.count))
+        .sum();
+    Outcome::OpenDegraded(PartialOpen { capabilities: skipped, blocks, entities })
+}
+
+/// Chapter 5 of `docs/CONTAINER.md`, rendered from the constants.
+pub(crate) fn render_chapter() -> String {
+    let mut s = String::new();
+    s.push_str(
+        "## 5. Negotiation and skipping blocks\n\n\
+A reader that meets a block it has never heard of has to skip it correctly, without parsing its payload, or \
+every future capability is a breaking change. This chapter is the contract that makes optional capabilities \
+additive. Negotiation is capability-based and not a single version number (ADR 0008), so it is about sets: \
+what the manifest declares, and what a reader supports.\n\n\
+### 5.1 What a reader supports\n\n\
+`ReaderCapabilities` is the set and the versions a build supports: for each capability id, the major version it \
+implements and the newest minor of it. A file declares each capability it uses in the manifest (chapter 1) with \
+the version it was written at and a requirement, required or optional. Matching them gives one of three outcomes.\n\n\
+### 5.2 The three outcomes\n\n\
+| outcome | when | what the reader does |\n|---|---|---|\n\
+| `Open` | every declared capability is supported, at a major version the reader implements | reads the file |\n\
+| `OpenDegraded` | an optional capability is not supported, or is declared at a major version the reader does not implement, or a block is of a kind or a codec the reader does not know | reads the file, skips what it cannot read, and returns a `PartialOpen` that lists the skipped capability ids and blocks |\n\
+| `Refuse` | a required capability is not supported, or is declared at another major version, or the file needs a newer reader | opens nothing, and the refusal names the capability id and the version the file declares |\n\n\
+A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable \
+by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is \
+refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as \
+optional cannot be declared required by a file.\n\n\
+Refusals are `NegotiationError`-style and carry a rule:\n\n\
+| rule | meaning |\n|---|---|\n",
+    );
+    for (rule, meaning) in NEGOTIATE_RULES {
+        s.push_str(&format!("| {rule} | {meaning} |\n"));
+    }
+    s.push_str(
+        "\n### 5.3 The skip contract\n\n\
+A block carries everything needed to skip it in its directory entry: its kind id, the capability id it belongs to \
+(0 for the kinds this format defines), its offset and stored length, its codec id and its decoded length. A reader \
+skips a block from a descriptor alone, and never requests a byte of its payload:\n\n\
+* a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file \
+when it is set (`DIR-04`);\n\
+* a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);\n\
+* a block whose capability the reader skipped is skipped with it.\n\n\
+A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan. The \
+reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the \
+block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the \
+format defines names none (`DIR-02`), because its kind fixes it.\n\n\
+### 5.4 What a new capability must satisfy to be optional\n\n\
+A capability is optional, and so skippable by an old reader, only if it satisfies every one of these. One it cannot \
+satisfy is required, and an old reader refuses the file, which is the right outcome.\n\n\
+1. It adds information about the entities and never changes what a geometry block says. Style, text, hatch and \
+provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` \
+(ADR 0008) and is always required.\n\
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id.\n\
+3. The manifest declares it with the optional requirement and the version it was written at.\n\
+4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.\n\
+5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of \
+the capability.\n\
+6. Its id comes from the registry (`docs/CAPABILITIES.md`, `docs/EXTENSIONS.md`) and is never reused.\n\n\
+### 5.5 The report and re-writing\n\n\
+`PartialOpen` lists the skipped capability ids with their versions, names and what each leaves undone (entities \
+unstyled, entities without a component, or unknown), the skipped blocks, and the number of entities a skipped \
+capability may apply to, so a consumer can say so and not silently drop content. Which entities a skipped stream \
+names is in its payload, which is not read.\n\n\
+Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes \
+through the decoded model refuses (`PartialOpen::ensure_lossless_rewrite`), because the model cannot carry what \
+was not decoded. A tool that must keep the blocks copies them as they are, through `read_stored` and `assemble`, and \
+preserves them byte for byte, the descriptor and the checksum included. Both are tested.\n\n",
+    );
+    s
 }

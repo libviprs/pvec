@@ -5,23 +5,27 @@
 //! and the checks exist exactly once:
 //!
 //! * [`Opening`] fetches the first 4 KiB (header, and the manifest when it fits), the manifest when it
-//!   did not, and the block directory, and checks each against the artifact length and the limits before
-//!   the next range is asked for;
+//!   did not, the block checksum table and the block directory (one request, since the table is right
+//!   before the directory), and checks each against the artifact length and the limits before the next
+//!   range is asked for. It then negotiates the manifest against what the reader supports (P4.7);
 //! * [`Core`] is what opening produces: the checked layout, with the range of a block, the read plan and
 //!   the decoding of one block;
 //! * [`Validation`] is the whole-file check: the bytes between blocks and every block against the parsers,
-//!   the directory and each other.
+//!   the directory and each other;
+//! * [`DigestCheck`] hashes the whole file in bounded chunks and compares it with the manifest's digest.
 
 use crate::blocks::AlignedBytes;
 use crate::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
-use crate::directory::{
-    BLOCK_ENTRY_FIELDS, BlockEntry, BlockKind, CODEC_NONE, ENTRY_LEN, parse_directory_checked,
-};
+use crate::compress::{Codec, decompress};
+use crate::directory::{BLOCK_ENTRY_FIELDS, BlockEntry, BlockKind, ENTRY_LEN, parse_directory_checked};
 use crate::header::Header;
+use crate::integrity::{DigestStatus, DigestStream, IntegrityError, block_checksum};
 use crate::limits::{Accountant, LimitExceeded, LimitKind, Limits, Reservation};
 use crate::manifest::{ByteRange, DirectoryPointer, Manifest};
+use crate::negotiate::{Outcome, PartialOpen, ReaderCapabilities, negotiate};
 use crate::reader::{BlockId, DecodedBlock, RangeRequest, ReadError, Validated};
+use crate::spec::m;
 use pvec_capabilities::{Reader, Registry, Version};
 use pvec_components::read_streams;
 use std::sync::Arc;
@@ -30,6 +34,8 @@ use std::sync::Arc;
 const PREFIX_LEN: u64 = Header::MAX_LEN as u64;
 /// The most bytes of padding one fetch reads during a full validation.
 const GAP_CHUNK: u64 = 1 << 20;
+/// The most bytes one fetch reads while the artifact digest is verified.
+pub(crate) const DIGEST_CHUNK: u64 = 1 << 20;
 
 fn layout<T>(rule: &'static str, detail: impl Into<String>) -> Result<T, ReadError> {
     Err(ReadError::Layout { rule, detail: detail.into() })
@@ -40,37 +46,64 @@ fn layout<T>(rule: &'static str, detail: impl Into<String>) -> Result<T, ReadErr
 enum Stage {
     Prefix,
     Manifest,
+    /// The checksum table and the directory, in one request: the table is right before the directory.
+    Tail,
+    /// The checksum table alone, when it is somewhere else.
+    Table,
     Directory,
     Done,
+}
+
+/// What opening is told: the ceilings, what the reader supports, and whether to require integrity.
+pub(crate) struct OpenOptions<'a> {
+    pub limits: &'a Limits,
+    pub capabilities: &'a ReaderCapabilities,
+    pub require_integrity: bool,
 }
 
 /// The opening sequence: header prefix, manifest, directory. See the module documentation.
 pub(crate) struct Opening {
     limits: Limits,
+    capabilities: ReaderCapabilities,
+    require_integrity: bool,
     acct: Accountant,
     artifact_len: u64,
     stage: Stage,
     header: Option<Header>,
     manifest: Option<Manifest>,
     directory: Option<ByteRange>,
+    table: Option<ByteRange>,
+    table_bytes: Vec<u8>,
     entries: Vec<BlockEntry>,
+    checksums: Option<Vec<u64>>,
+    partial: Option<PartialOpen>,
     held: Option<Reservation>,
 }
 
 impl Opening {
     /// Starts an opening of an artifact of `artifact_len` bytes. An artifact over the ceiling is refused
     /// before anything is asked of the source.
-    pub fn new(artifact_len: u64, limits: &Limits, acct: &Accountant) -> Result<Opening, ReadError> {
-        limits.check(LimitKind::ArtifactBytes, artifact_len)?;
+    pub fn new(
+        artifact_len: u64,
+        options: &OpenOptions<'_>,
+        acct: &Accountant,
+    ) -> Result<Opening, ReadError> {
+        options.limits.check(LimitKind::ArtifactBytes, artifact_len)?;
         Ok(Opening {
-            limits: *limits,
+            limits: *options.limits,
+            capabilities: options.capabilities.clone(),
+            require_integrity: options.require_integrity,
             acct: acct.clone(),
             artifact_len,
             stage: Stage::Prefix,
             header: None,
             manifest: None,
             directory: None,
+            table: None,
+            table_bytes: Vec::new(),
             entries: Vec::new(),
+            checksums: None,
+            partial: None,
             held: None,
         })
     }
@@ -86,6 +119,14 @@ impl Opening {
             Stage::Directory => {
                 let d = self.directory?;
                 Some((d.offset, d.length as u32))
+            }
+            Stage::Table => {
+                let t = self.table?;
+                Some((t.offset, t.length as u32))
+            }
+            Stage::Tail => {
+                let (t, d) = (self.table?, self.directory?);
+                Some((t.offset, (t.length + d.length) as u32))
             }
             Stage::Done => None,
         }
@@ -123,6 +164,20 @@ impl Opening {
                 self.after_header(header, bytes)
             }
             Stage::Directory => self.directory_fed(bytes),
+            Stage::Table => {
+                let _transient = self.acct.reserve(bytes.len() as u64)?;
+                self.table_bytes = bytes.to_vec();
+                self.stage = Stage::Directory;
+                Ok(())
+            }
+            Stage::Tail => {
+                let split = self.table.ok_or_else(internal)?.length as usize;
+                if bytes.len() < split {
+                    return Err(internal());
+                }
+                self.table_bytes = bytes[..split].to_vec();
+                self.directory_fed(&bytes[split..])
+            }
             Stage::Done => Ok(()),
         }
     }
@@ -161,10 +216,38 @@ impl Opening {
                 ceiling: u64::from(u32::MAX) / ENTRY_LEN as u64,
             }));
         }
+        if self.require_integrity
+            && (manifest.block_checksums.is_none() || manifest.artifact_digest.is_none())
+        {
+            return Err(ReadError::Integrity(IntegrityError::NotWritten));
+        }
+        let bad = |reason| Err(ReadError::Integrity(IntegrityError::BadTable { reason }));
+        let mut stage = Stage::Directory;
+        if let Some(t) = manifest.block_checksums {
+            if t.length % 8 != 0 {
+                return bad("is not a whole number of 8 byte sums");
+            }
+            // the table is fetched whole, so it is bounded like the directory
+            self.limits.check(LimitKind::Blocks, t.length / 8)?;
+            if t.length.saturating_add(ptr.length) > u64::from(u32::MAX) {
+                return Err(ReadError::Limit(LimitExceeded {
+                    limit: LimitKind::Blocks,
+                    declared: t.length / 8,
+                    ceiling: u64::from(u32::MAX) / (8 + ENTRY_LEN as u64),
+                }));
+            }
+            match t.offset.checked_add(t.length) {
+                Some(end) if end <= ptr.offset => {
+                    stage = if end == ptr.offset { Stage::Tail } else { Stage::Table };
+                }
+                _ => return bad("runs into the directory"),
+            }
+            self.table = Some(t);
+        }
         self.directory = Some(ByteRange { offset: ptr.offset, length: ptr.length });
         self.header = Some(header);
         self.manifest = Some(manifest);
-        self.stage = Stage::Directory;
+        self.stage = stage;
         Ok(())
     }
 
@@ -172,8 +255,10 @@ impl Opening {
         let header = self.header.as_ref().ok_or_else(internal)?;
         let ptr = self.directory.ok_or_else(internal)?;
         let n = table.len() / ENTRY_LEN;
-        // the table, and the entries parsed from it, are held for the life of the reader
-        let held = self.acct.reserve((table.len() + n * core::mem::size_of::<BlockEntry>()) as u64)?;
+        // the table, the entries parsed from it and the checksums are held for the life of the reader
+        let held = self.acct.reserve(
+            (table.len() + n * core::mem::size_of::<BlockEntry>() + self.table_bytes.len() * 2) as u64,
+        )?;
         check_table(table, self.artifact_len, &self.limits)?;
         let manifest_range = ByteRange { offset: header.manifest_offset, length: header.manifest_length };
         let entries = parse_directory_checked(
@@ -194,6 +279,31 @@ impl Opening {
                 format!("blocks are not in strictly ascending (kind, cell, geometry type) order: {keys:?}"),
             );
         }
+        let manifest = self.manifest.as_ref().ok_or_else(internal)?;
+        if let Some(t) = self.table {
+            let bad = |reason| Err(ReadError::Integrity(IntegrityError::BadTable { reason }));
+            if t.length != 8 * entries.len() as u64 {
+                return bad("is not one 8 byte sum per block");
+            }
+            let end = t.offset + t.length;
+            if entries.iter().any(|e| e.offset < end && t.offset < e.offset + u64::from(e.stored_length)) {
+                return bad("overlaps a block");
+            }
+            let sums: Vec<u64> = self
+                .table_bytes
+                .chunks_exact(8)
+                .map(|c| u64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
+                .collect();
+            self.table_bytes = Vec::new();
+            self.checksums = Some(sums);
+        }
+        // negotiation: what the manifest declares against what this reader supports, from the manifest and
+        // the descriptors alone
+        match negotiate(manifest, &entries, &self.capabilities) {
+            Outcome::Open => {}
+            Outcome::OpenDegraded(p) => self.partial = Some(p),
+            Outcome::Refuse(r) => return Err(ReadError::Negotiation(r)),
+        }
         self.entries = entries;
         self.held = Some(held);
         self.stage = Stage::Done;
@@ -206,13 +316,23 @@ impl Opening {
             (Stage::Done, Some(header), Some(manifest), Some(directory), Some(held)) => {
                 let manifest_range =
                     ByteRange { offset: header.manifest_offset, length: header.manifest_length };
+                let mut skipped = vec![false; self.entries.len()];
+                for b in self.partial.iter().flat_map(|p| p.blocks.iter()) {
+                    if let Some(flag) = skipped.get_mut(b.block.0 as usize) {
+                        *flag = true;
+                    }
+                }
                 Ok(Core {
                     header,
                     manifest,
                     entries: self.entries,
+                    artifact_len: self.artifact_len,
                     directory,
                     manifest_range,
                     limits: self.limits,
+                    checksums: self.checksums,
+                    partial: self.partial,
+                    skipped,
                     _held: held,
                 })
             }
@@ -282,9 +402,15 @@ pub(crate) struct Core {
     pub header: Header,
     pub manifest: Manifest,
     pub entries: Vec<BlockEntry>,
+    pub artifact_len: u64,
     pub directory: ByteRange,
     pub manifest_range: ByteRange,
     pub limits: Limits,
+    /// One XXH3-64 per block, when the file has a checksum table.
+    pub checksums: Option<Vec<u64>>,
+    /// What negotiation left out, when it left anything out.
+    pub partial: Option<PartialOpen>,
+    skipped: Vec<bool>,
     _held: Reservation,
 }
 
@@ -292,6 +418,21 @@ impl Core {
     /// The directory entry of a block.
     pub fn entry(&self, id: BlockId) -> Result<&BlockEntry, ReadError> {
         self.entries.get(id.0 as usize).ok_or(ReadError::NoSuchBlock { id: id.0, blocks: self.entries.len() })
+    }
+
+    /// Whether negotiation skipped the block: it is never fetched, checksummed, decoded or parsed.
+    pub fn is_skipped(&self, id: BlockId) -> bool {
+        self.skipped.get(id.0 as usize).copied().unwrap_or(false)
+    }
+
+    /// The entry of a block that may be read: a block that was skipped is an error, before anything is
+    /// charged or requested for it.
+    pub fn check_readable(&self, id: BlockId) -> Result<&BlockEntry, ReadError> {
+        let entry = self.entry(id)?;
+        if self.is_skipped(id) {
+            return Err(ReadError::Skipped { id: id.0 });
+        }
+        Ok(entry)
     }
 
     /// Where a block is stored.
@@ -326,6 +467,8 @@ impl Core {
         for id in &wanted {
             self.entry(*id)?;
         }
+        // a skipped block is never fetched, so it is not in the plan
+        wanted.retain(|id| !self.is_skipped(*id));
         // the directory is in file order, so the id order is the offset order
         wanted.sort_unstable();
         wanted.dedup();
@@ -352,30 +495,52 @@ impl Core {
         Ok(out)
     }
 
-    /// Refuses a block whose codec this reader cannot decode, before anything is charged or fetched.
-    pub fn check_decodable(&self, entry: &BlockEntry) -> Result<(), ReadError> {
-        if entry.codec != CODEC_NONE {
-            return layout("NEGOTIATE-01", format!("cannot decode codec {}", entry.codec));
-        }
-        Ok(())
+    /// The room a block needs while it is fetched and decoded, beyond the decoded block itself: its
+    /// stored bytes, and for a compressed block the buffer the decoder writes into before the bytes are
+    /// copied into aligned memory.
+    pub fn in_flight(&self, entry: &BlockEntry) -> u64 {
+        let packed = if entry.codec == Codec::None.id() { 0 } else { u64::from(entry.uncompressed_length) };
+        u64::from(entry.stored_length) + packed
     }
 
     /// Decodes the stored bytes of block `id` into aligned memory held against `reservation`.
+    ///
+    /// The order is the point: the bytes are checked against their checksum first, so a corrupt block
+    /// never reaches the decompressor, and the decompressor is given the declared length and stops there,
+    /// so what comes out is never parsed before it is known to be the length the directory said.
     pub fn decode(
         &self,
         id: BlockId,
         stored: &[u8],
         reservation: Reservation,
     ) -> Result<DecodedBlock, ReadError> {
-        let entry = *self.entry(id)?;
+        let entry = *self.check_readable(id)?;
         if stored.len() as u64 != u64::from(entry.stored_length) {
             return Err(ReadError::Source(crate::source::SourceError::Short {
                 wanted: u64::from(entry.stored_length),
                 got: stored.len() as u64,
             }));
         }
-        self.check_decodable(&entry)?;
-        let bytes = AlignedBytes::from_bytes(stored);
+        if let Some(sums) = &self.checksums {
+            let expected = sums.get(id.0 as usize).copied().ok_or_else(internal)?;
+            let found = block_checksum(stored);
+            if expected != found {
+                return Err(ReadError::Integrity(IntegrityError::BlockChecksum {
+                    block: id.0,
+                    expected,
+                    found,
+                }));
+            }
+        }
+        let codec = Codec::from_id(entry.codec).ok_or_else(internal)?;
+        let bytes = match codec {
+            Codec::None => AlignedBytes::from_bytes(stored),
+            packed => {
+                let decoded = decompress(packed, stored, entry.uncompressed_length as usize)
+                    .map_err(ReadError::Codec)?;
+                AlignedBytes::from_bytes(&decoded)
+            }
+        };
         precheck_counts(&entry, bytes.as_bytes(), &self.limits)?;
         Ok(DecodedBlock::new(id, entry, bytes, reservation))
     }
@@ -501,16 +666,28 @@ impl<'a> Validation<'a> {
             push_gap(&mut needs, at, e.offset);
             at = e.offset + u64::from(e.stored_length);
         }
+        // the checksum table is the one thing between the last block and the directory, and it is checked
+        // by what it is (the integrity rules), not by being zero
+        if let Some(t) = core.manifest.block_checksums {
+            if t.offset < at || t.offset + t.length > core.directory.offset {
+                return layout("LAYOUT-07", "the checksum table is not between the blocks and the directory");
+            }
+            push_gap(&mut needs, at, t.offset);
+            at = t.offset + t.length;
+        }
         if at > core.directory.offset {
             return layout("LAYOUT-07", "the blocks run into the directory");
         }
         push_gap(&mut needs, at, core.directory.offset);
-        needs.extend((0..core.entries.len()).map(|i| Need::Block(BlockId(i as u32))));
+        // a block that was skipped is never read, so it is not asked for and its entities are not expected
+        let live = |i: usize| !core.is_skipped(BlockId(i as u32));
+        needs.extend((0..core.entries.len()).filter(|i| live(*i)).map(|i| Need::Block(BlockId(i as u32))));
         let expected_entities: u64 = core
             .entries
             .iter()
-            .filter(|e| matches!(e.block_kind(), Some(BlockKind::Hot | BlockKind::Records)))
-            .map(|e| u64::from(e.count))
+            .enumerate()
+            .filter(|(i, e)| live(*i) && matches!(e.block_kind(), Some(BlockKind::Hot | BlockKind::Records)))
+            .map(|(_, e)| u64::from(e.count))
             .sum();
         limits.check(LimitKind::EntitiesPerArtifact, expected_entities)?;
         // one id per entity, held until the identities have been compared
@@ -569,12 +746,8 @@ impl<'a> Validation<'a> {
                 self.streams = opened.skipped.iter().map(|s| s.capability.get()).collect();
                 self.streams.sort_unstable();
             }
-            None => {
-                return layout(
-                    "NEGOTIATE-01",
-                    format!("cannot skip an optional block of kind {}", entry.kind),
-                );
-            }
+            // a block of a kind nobody knows is skipped when the file is opened and never fed here
+            None => return Err(internal()),
         }
         Ok(())
     }
@@ -624,8 +797,58 @@ impl<'a> Validation<'a> {
             blocks: self.core.entries.len(),
             entities: self.entities,
             stream_capabilities: self.streams,
-            skipped: Vec::new(),
+            skipped: (0..self.core.entries.len())
+                .map(|i| BlockId(i as u32))
+                .filter(|id| self.core.is_skipped(*id))
+                .collect(),
         })
+    }
+}
+
+/// The artifact digest being verified: the whole file in chunks, with the digest's own bytes read as zero.
+pub(crate) struct DigestCheck {
+    stream: DigestStream,
+    at: u64,
+    total: u64,
+    expected: Option<[u8; 32]>,
+}
+
+impl DigestCheck {
+    pub fn new(core: &Core) -> DigestCheck {
+        let field = core.header.manifest_offset + m::ARTIFACT_DIGEST as u64;
+        DigestCheck {
+            stream: DigestStream::new(field),
+            at: 0,
+            total: core.artifact_len,
+            expected: core.manifest.artifact_digest,
+        }
+    }
+
+    /// The next chunk to fetch, or `None` when the whole file has been read or there is no digest.
+    pub fn request(&self) -> Option<(u64, u32)> {
+        if self.expected.is_none() || self.at >= self.total {
+            return None;
+        }
+        Some((self.at, (self.total - self.at).min(DIGEST_CHUNK) as u32))
+    }
+
+    pub fn feed(&mut self, bytes: &[u8]) {
+        self.stream.update(bytes);
+        self.at += bytes.len() as u64;
+    }
+
+    pub fn finish(self) -> Result<DigestStatus, ReadError> {
+        match self.expected {
+            None => Ok(DigestStatus::NotWritten),
+            Some(expected) => {
+                let found = self.stream.finalize();
+                if found == expected {
+                    Ok(DigestStatus::Verified)
+                } else {
+                    Err(ReadError::Integrity(IntegrityError::ArtifactDigest { expected, found }))
+                }
+            }
+        }
     }
 }
 
@@ -663,7 +886,10 @@ pub(crate) const READER_RULES: &[(&str, &str)] = &[
     ),
     ("CONSIST-03", "an entity id is in two blocks"),
     ("CONSIST-04", "some of the six advanced blocks are present and some are not"),
-    ("NEGOTIATE-01", "an optional block of a kind or a codec this reader cannot read (skipping it is P4.7)"),
+    (
+        "SKIPPED",
+        "a block that was skipped when the file was opened (an optional block of a kind, a codec or a capability this reader does not support) was asked for; it is never fetched, but `read_stored` returns its bytes for a tool that carries it as it is",
+    ),
     ("SOURCE", "the source failed, or answered with another number of bytes than were asked for"),
     ("BLOCK-ID", "a block id that is not in the directory"),
     ("LIMITS", "the configured limits ask for more than the format allows"),
@@ -721,7 +947,8 @@ and everything it keeps (one id per entity to compare identities, the list of wh
 the curves have been checked) is reserved with the accountant like the blocks are.\n\n\
 ## Rules\n\n\
 A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-nn`, `STREAM-nn`, or the name of the \
-`ContainerError` variant), the rule of a limit (`LIMIT-nn`, see SECURITY_LIMITS.md), or one of these:\n\n\
+`ContainerError` variant), the rule of a limit (`LIMIT-nn`, see SECURITY_LIMITS.md), a codec, integrity or negotiation rule \
+(`CODEC-nn`, `INTEGRITY-nn`, `NEGOTIATE-nn`, all in chapters 4 and 5 of CONTAINER.md), or one of these:\n\n\
 | rule | meaning |\n|---|---|\n",
     );
     for (rule, meaning) in READER_RULES {
@@ -733,7 +960,7 @@ never reaches it, because every extent is held to the artifact length first (`LI
 There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the \
 confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same \
 checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. \
-Compression and checksums are P4.6, skipping blocks the reader does not know is P4.7.\n",
+Compression, the block checksums and the artifact digest are in chapter 4.7 of CONTAINER.md, and skipping what the reader does not support is chapter 5.\n",
     );
     s
 }

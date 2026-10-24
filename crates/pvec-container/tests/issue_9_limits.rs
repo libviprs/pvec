@@ -321,7 +321,11 @@ fn a_block_this_reader_cannot_decode_is_refused_before_a_byte_of_it_is_fetched()
     let before = reader.stats();
     let work = reader.accountant().work();
     let e = reader.read_block(BlockId(comp as u32)).unwrap_err();
-    assert_eq!(e.rule(), "NEGOTIATE-01");
+    assert_eq!(
+        e.rule(),
+        "SKIPPED",
+        "an optional block with a codec nobody knows is skipped (P4.7), so asking for it is an error"
+    );
     let after = reader.stats();
     assert_eq!((after.requests, after.bytes), (before.requests, before.bytes), "nothing was fetched");
     assert_eq!(reader.accountant().work(), work, "nothing was charged either");

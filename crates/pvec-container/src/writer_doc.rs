@@ -21,18 +21,19 @@ unreproducible. The caller decides the entity ids, the styles, the cells, the bo
 producer identity and the capabilities to declare; the writer decides everything else.\n\n\
 ### 4.1 File layout\n\n\
 The artifact is, in this order and with nothing between them but zero padding: the {header} byte header at \
-offset 0, the manifest at offset {header}, the blocks, and the block directory, which ends the file. Every \
-block starts on a multiple of {align} bytes from the first byte of the file, the directory too, so a block \
-can be mapped and read in place. The manifest holds one directory pointer, of kind 1 (the block directory), \
-and declares no block checksum table and no artifact digest: P4.6 adds those, and an artifact without them \
-is a valid one (section 1.4). The header and the manifest agree on where the directory pointer table \
-lies, as chapter 1 requires.\n\n\
+offset 0, the manifest at offset {header}, the blocks, the block checksum table, and the block directory, which \
+ends the file. Every block starts on a multiple of {align} bytes from the first byte of the file, the table and the \
+directory too, so a block can be mapped and read in place. The manifest holds one directory pointer, of kind 1 (the \
+block directory), and by default a pointer to the checksum table and the artifact digest (section 4.7); a writer \
+told not to seal leaves out the table, and an artifact without it or without the digest is a valid one (section \
+1.4). The header and the manifest agree on where the directory pointer table lies, as chapter 1 requires.\n\n\
 ### 4.2 The block directory\n\n\
 The block directory is a table of {entry} byte entries, one per block, in file order. A block carries \
 its offset, its stored length, the length once decoded (equal while no codec is used), a count, its spatial \
-cell, the bounds of its entities, a kind and a subtype, flags and a codec id. ADR 0003 priced the entry at \
-56 bytes and ADR 0006 at 64 once the codec and the uncompressed length were added; ADR 0008's kind and \
-flags fit in the same 64 bytes.\n\n",
+cell, the bounds of its entities, a kind and a subtype, flags, a codec id and the id of the capability it \
+belongs to. ADR 0003 priced the entry at 56 bytes and ADR 0006 at 64 once the codec and the uncompressed length \
+were added; ADR 0008's kind and flags, and the capability id that lets a reader skip a block it does not know from \
+its descriptor alone (chapter 5), fit in the same 64 bytes.\n\n",
         header = Header::LEN,
         align = BLOCK_ALIGN,
         entry = ENTRY_LEN,
@@ -60,7 +61,9 @@ flags fit in the same 64 bytes.\n\n",
 Geometry blocks carry it; the component stream set does not, so a reader that does not know it skips it. \
 Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds \
 the caller gave their entities, an arena or a component set carries none and its four bounds are zero. The \
-codec is 0 (stored as it is); P4.6 adds the others. A reader checks every entry before using it:\n\n\
+codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an \
+optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does \
+not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:\n\n\
 | rule | meaning |\n|---|---|\n{}\n",
         crate::directory::DIRECTORY_RULES
             .iter()
@@ -118,7 +121,36 @@ A change to the writer, the directory or a block builder is reviewed against the
 * No transcendental function runs on the write path, because its last bit is the platform's.\n\
 * A new canonical-ordering key gets a `SortKey`, a fixture where it matters and a mutation test that goes \
 red without it; a key with no mutation test is not covered.\n\
-* A new field of the artifact is written from caller-supplied or derived values only.\n",
+* A new field of the artifact is written from caller-supplied or derived values only.\n\n\
+### 4.7 Compression and integrity\n\n\
+Blocks compress independently, so that a reader that wants one block decompresses one block, and each \
+directory entry says how: its codec id, its stored length and its decoded length. The codec may differ per \
+kind of block and per file, and an uncompressed block (codec 0) is always legal.\n\n\
+| id | codec | stream |\n|---|---|---|\n\
+| 0 | none | the block as it is |\n\
+| 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |\n\
+| 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |\n\n\
+The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is \
+smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same \
+input gives the same bytes for the version of the codec crate that `Cargo.lock` pins, on every platform; a compressed \
+artifact is canonical for that version, and a change of codec version is a change of artifact. A reader holds the \
+decoded length to the expansion ratio of `docs/SECURITY_LIMITS.md` before it reserves it, decompresses into exactly that \
+length, and refuses a stream that has more to write (`CODEC-01`), ends short (`CODEC-02`) or is not valid (`CODEC-03`).\n\n\
+Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 of the stored bytes of each block, \
+little-endian, eight bytes per block, in directory order, at the offset and length the manifest gives; it is verified \
+when a block is fetched and before the block is decompressed or parsed, so a corrupt block never reaches either. \
+The artifact digest is the SHA-256 of the whole file with its own 32 bytes in the manifest read as zero, so it \
+covers the header, the manifest, every block, the table, the directory and the padding, and a change to any of them \
+is seen, including to the ones no block checksum covers. A reader verifies it on request by reading the file in chunks of \
+at most 1 MiB, not at every open. The refusals:\n\n\
+| rule | meaning |\n|---|---|\n",
+    );
+    for (r, m) in crate::compress::CODEC_RULES.iter().chain(crate::integrity::INTEGRITY_RULES) {
+        s.push_str(&format!("| {r} | {m} |\n"));
+    }
+    s.push_str(
+        "\nThe measurement behind the codec ids and the decision on the writer's default is \
+`docs/spikes/04-6-compression.md`.\n",
     );
     s
 }

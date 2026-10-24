@@ -57,9 +57,9 @@ Fixed part, offsets from the first byte of the manifest:
 | 54 | 2 | reserved_a | u16 | zero |
 | 56 | 4 | directory_count | u32 | number of directory pointer entries |
 | 60 | 4 | reserved_b | u32 | zero |
-| 64 | 8 | block_checksums_offset | u64 | per-block checksum table (P4.6); zero with a zero length means not written |
+| 64 | 8 | block_checksums_offset | u64 | per-block checksum table (section 4.7); zero with a zero length means not written |
 | 72 | 8 | block_checksums_length | u64 | see `block_checksums_offset` |
-| 80 | 32 | artifact_digest | bytes | artifact-level digest (P4.6); all zero unless flag bit 0 is set |
+| 80 | 32 | artifact_digest | bytes | artifact-level SHA-256 digest (section 4.7); all zero unless flag bit 0 is set |
 | 112 | 4 | producer_id_len | u32 | bytes of UTF-8, 1 to 1024 |
 | 116 | 4 | producer_version_len | u32 | bytes of UTF-8, 0 to 1024 |
 | 120 | 4 | corpus_revision_len | u32 | bytes of UTF-8, 0 to 1024; zero means there is no fixture or corpus revision |
@@ -79,7 +79,7 @@ Capability entry:
 | 11 | 1 | reserved_a | u8 | zero |
 | 12 | 4 | reserved_b | u32 | zero |
 
-An id the reader does not implement still parses; what to do about it is version negotiation (P4.7).
+An id the reader does not implement still parses; what to do about it is version negotiation (chapter 5).
 
 Directory-pointer entry:
 
@@ -92,7 +92,7 @@ Directory-pointer entry:
 
 ### 1.4 Metadata and digests
 
-The producer id and version are supplied by the caller and the producer id is never empty. The corpus revision is present only for a file built from a fixture or corpus. The block checksum table pointer and the artifact digest are written by P4.6; until then they are absent (zeros, flag bit 0 clear), which is a valid manifest.
+The producer id and version are supplied by the caller and the producer id is never empty. The corpus revision is present only for a file built from a fixture or corpus. The block checksum table pointer and the artifact digest are written by default and defined in section 4.7; a file without them has zeros there and flag bit 0 clear, which is a valid manifest, and a reader can be told to refuse it.
 
 ### 1.5 Units of length
 
@@ -329,11 +329,11 @@ The writer turns semantic geometry into one artifact, and the same input gives a
 
 ### 4.1 File layout
 
-The artifact is, in this order and with nothing between them but zero padding: the 64 byte header at offset 0, the manifest at offset 64, the blocks, and the block directory, which ends the file. Every block starts on a multiple of 8 bytes from the first byte of the file, the directory too, so a block can be mapped and read in place. The manifest holds one directory pointer, of kind 1 (the block directory), and declares no block checksum table and no artifact digest: P4.6 adds those, and an artifact without them is a valid one (section 1.4). The header and the manifest agree on where the directory pointer table lies, as chapter 1 requires.
+The artifact is, in this order and with nothing between them but zero padding: the 64 byte header at offset 0, the manifest at offset 64, the blocks, the block checksum table, and the block directory, which ends the file. Every block starts on a multiple of 8 bytes from the first byte of the file, the table and the directory too, so a block can be mapped and read in place. The manifest holds one directory pointer, of kind 1 (the block directory), and by default a pointer to the checksum table and the artifact digest (section 4.7); a writer told not to seal leaves out the table, and an artifact without it or without the digest is a valid one (section 1.4). The header and the manifest agree on where the directory pointer table lies, as chapter 1 requires.
 
 ### 4.2 The block directory
 
-The block directory is a table of 64 byte entries, one per block, in file order. A block carries its offset, its stored length, the length once decoded (equal while no codec is used), a count, its spatial cell, the bounds of its entities, a kind and a subtype, flags and a codec id. ADR 0003 priced the entry at 56 bytes and ADR 0006 at 64 once the codec and the uncompressed length were added; ADR 0008's kind and flags fit in the same 64 bytes.
+The block directory is a table of 64 byte entries, one per block, in file order. A block carries its offset, its stored length, the length once decoded (equal while no codec is used), a count, its spatial cell, the bounds of its entities, a kind and a subtype, flags, a codec id and the id of the capability it belongs to. ADR 0003 priced the entry at 56 bytes and ADR 0006 at 64 once the codec and the uncompressed length were added; ADR 0008's kind and flags, and the capability id that lets a reader skip a block it does not know from its descriptor alone (chapter 5), fit in the same 64 bytes.
 
 | offset | size | name | encoding | meaning |
 |---|---|---|---|---|
@@ -349,7 +349,7 @@ The block directory is a table of 64 byte entries, one per block, in file order.
 | 56 | 2 | kind | u16 | block kind from the table in section 4.2 |
 | 58 | 2 | subtype | u16 | geometry type of a hot block, payload kind of an arena, otherwise 0 |
 | 60 | 1 | flags | u8 | bit 0 must-understand, bit 1 has-bounds; the rest zero |
-| 61 | 1 | codec | u8 | 0 stored as it is; later ids belong to P4.6 |
+| 61 | 1 | codec | u8 | codec id from the table in section 4.2; 0 stored as it is |
 | 62 | 2 | capability | u16 | the registry id of the capability the block belongs to; zero for a block of a kind the format defines |
 
 The block kinds:
@@ -361,12 +361,12 @@ The block kinds:
 | 3 | arena | one advanced payload arena (chapter 3) | the payload kind, 1 to 5 | offset-table entries |
 | 4 | components | the component stream set | 0 | streams |
 
-Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set does not, so a reader that does not know it skips it. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, an arena or a component set carries none and its four bounds are zero. The codec is 0 (stored as it is); P4.6 adds the others. A reader checks every entry before using it:
+Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set does not, so a reader that does not know it skips it. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, an arena or a component set carries none and its four bounds are zero. The codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:
 
 | rule | meaning |
 |---|---|
 | DIR-01 | the table is not a whole number of 64 byte entries |
-| DIR-02 | a reserved field is not zero |
+| DIR-02 | a reserved field is not zero, or a capability id is set on a block of a kind the format defines (the kind fixes it) |
 | DIR-03 | a flag bit other than must-understand and has-bounds is set |
 | DIR-04 | a must-understand block of a kind the reader does not know (an optional one is kept and skipped) |
 | DIR-05 | a codec id the reader does not know on a must-understand block (on an optional one the entry is kept and skipped) |
@@ -430,3 +430,85 @@ A change to the writer, the directory or a block builder is reviewed against the
 * No transcendental function runs on the write path, because its last bit is the platform's.
 * A new canonical-ordering key gets a `SortKey`, a fixture where it matters and a mutation test that goes red without it; a key with no mutation test is not covered.
 * A new field of the artifact is written from caller-supplied or derived values only.
+
+### 4.7 Compression and integrity
+
+Blocks compress independently, so that a reader that wants one block decompresses one block, and each directory entry says how: its codec id, its stored length and its decoded length. The codec may differ per kind of block and per file, and an uncompressed block (codec 0) is always legal.
+
+| id | codec | stream |
+|---|---|---|
+| 0 | none | the block as it is |
+| 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |
+| 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |
+
+The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same input gives the same bytes for the version of the codec crate that `Cargo.lock` pins, on every platform; a compressed artifact is canonical for that version, and a change of codec version is a change of artifact. A reader holds the decoded length to the expansion ratio of `docs/SECURITY_LIMITS.md` before it reserves it, decompresses into exactly that length, and refuses a stream that has more to write (`CODEC-01`), ends short (`CODEC-02`) or is not valid (`CODEC-03`).
+
+Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 of the stored bytes of each block, little-endian, eight bytes per block, in directory order, at the offset and length the manifest gives; it is verified when a block is fetched and before the block is decompressed or parsed, so a corrupt block never reaches either. The artifact digest is the SHA-256 of the whole file with its own 32 bytes in the manifest read as zero, so it covers the header, the manifest, every block, the table, the directory and the padding, and a change to any of them is seen, including to the ones no block checksum covers. A reader verifies it on request by reading the file in chunks of at most 1 MiB, not at every open. The refusals:
+
+| rule | meaning |
+|---|---|
+| CODEC-01 | a stream that has more to write than the length its descriptor declares (it is stopped at that length) |
+| CODEC-02 | a stream that ends short of the length its descriptor declares |
+| CODEC-03 | a stream that is not valid for its codec |
+| INTEGRITY-01 | the SHA-256 of the file, with the digest's own bytes read as zero, is not the digest in the manifest (including a digest declared present that is all zero) |
+| INTEGRITY-02 | the block checksum table is not one 8 byte sum per block, overlaps a block, or runs into the directory |
+| INTEGRITY-03 | the XXH3-64 of a block's stored bytes is not the sum in the table |
+| INTEGRITY-04 | the reader was configured to require integrity and the file has no checksum table or no digest |
+
+The measurement behind the codec ids and the decision on the writer's default is `docs/spikes/04-6-compression.md`.
+
+## 5. Negotiation and skipping blocks
+
+A reader that meets a block it has never heard of has to skip it correctly, without parsing its payload, or every future capability is a breaking change. This chapter is the contract that makes optional capabilities additive. Negotiation is capability-based and not a single version number (ADR 0008), so it is about sets: what the manifest declares, and what a reader supports.
+
+### 5.1 What a reader supports
+
+`ReaderCapabilities` is the set and the versions a build supports: for each capability id, the major version it implements and the newest minor of it. A file declares each capability it uses in the manifest (chapter 1) with the version it was written at and a requirement, required or optional. Matching them gives one of three outcomes.
+
+### 5.2 The three outcomes
+
+| outcome | when | what the reader does |
+|---|---|---|
+| `Open` | every declared capability is supported, at a major version the reader implements | reads the file |
+| `OpenDegraded` | an optional capability is not supported, or is declared at a major version the reader does not implement, or a block is of a kind or a codec the reader does not know | reads the file, skips what it cannot read, and returns a `PartialOpen` that lists the skipped capability ids and blocks |
+| `Refuse` | a required capability is not supported, or is declared at another major version, or the file needs a newer reader | opens nothing, and the refusal names the capability id and the version the file declares |
+
+A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as optional cannot be declared required by a file.
+
+Refusals are `NegotiationError`-style and carry a rule:
+
+| rule | meaning |
+|---|---|
+| NEGOTIATE-01 | a required capability is not supported by the reader, or not known to it at all; the refusal names its id and the version the file declares |
+| NEGOTIATE-02 | a required capability is declared at a major version the reader does not support (a newer minor of a supported major opens) |
+| NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a declared capability's) |
+| NEGOTIATE-04 | a component or an optional extension is declared required, which the registry does not allow |
+| NEGOTIATE-05 | a block names a capability id the manifest does not declare |
+
+### 5.3 The skip contract
+
+A block carries everything needed to skip it in its directory entry: its kind id, the capability id it belongs to (0 for the kinds this format defines), its offset and stored length, its codec id and its decoded length. A reader skips a block from a descriptor alone, and never requests a byte of its payload:
+
+* a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file when it is set (`DIR-04`);
+* a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);
+* a block whose capability the reader skipped is skipped with it.
+
+A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan. The reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the format defines names none (`DIR-02`), because its kind fixes it.
+
+### 5.4 What a new capability must satisfy to be optional
+
+A capability is optional, and so skippable by an old reader, only if it satisfies every one of these. One it cannot satisfy is required, and an old reader refuses the file, which is the right outcome.
+
+1. It adds information about the entities and never changes what a geometry block says. Style, text, hatch and provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` (ADR 0008) and is always required.
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id.
+3. The manifest declares it with the optional requirement and the version it was written at.
+4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.
+5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of the capability.
+6. Its id comes from the registry (`docs/CAPABILITIES.md`, `docs/EXTENSIONS.md`) and is never reused.
+
+### 5.5 The report and re-writing
+
+`PartialOpen` lists the skipped capability ids with their versions, names and what each leaves undone (entities unstyled, entities without a component, or unknown), the skipped blocks, and the number of entities a skipped capability may apply to, so a consumer can say so and not silently drop content. Which entities a skipped stream names is in its payload, which is not read.
+
+Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes through the decoded model refuses (`PartialOpen::ensure_lossless_rewrite`), because the model cannot carry what was not decoded. A tool that must keep the blocks copies them as they are, through `read_stored` and `assemble`, and preserves them byte for byte, the descriptor and the checksum included. Both are tested.
+
