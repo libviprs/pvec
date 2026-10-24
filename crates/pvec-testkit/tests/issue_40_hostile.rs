@@ -140,6 +140,12 @@ const NAMED: &[(Family, &str)] = &[
     (Family::Domains, "domains/hot_coordinate_nan"),
     (Family::Domains, "domains/hot_arc_sweep_infinite"),
     (Family::Domains, "domains/hot_polyline_vertex_nan"),
+    (Family::Domains, "domains/hot_arc_radius_zero"),
+    (Family::Domains, "domains/hot_arc_radius_negative"),
+    (Family::Domains, "domains/hot_coordinate_beyond_coordinate_range"),
+    (Family::Domains, "domains/hot_coordinate_subnormal"),
+    (Family::Domains, "domains/hot_line_zero_length"),
+    (Family::Domains, "domains/hot_polyline_repeated_vertex"),
     // integrity: artifact digest and block checksum mismatch
     (Family::Integrity, "integrity/artifact_digest_mismatch"),
     (Family::Integrity, "integrity/artifact_digest_present_but_zero"),
@@ -301,11 +307,12 @@ fn the_reference_reader_satisfies_every_case_it_provides() {
     // what a later issue has to provide is counted, not hidden
     assert_eq!(
         report.skipped.keys().copied().collect::<Vec<_>>(),
-        vec![Requires::Integrity, Requires::Negotiation],
+        vec![Requires::Integrity, Requires::Negotiation, Requires::Semantics],
         "the reference has parsers for everything else"
     );
     assert!(report.skipped[&Requires::Integrity] >= 3);
     assert!(report.skipped[&Requires::Negotiation] >= 1);
+    assert!(report.skipped[&Requires::Semantics] >= 5);
 }
 
 #[test]
@@ -342,7 +349,13 @@ impl Reader for AcceptsAnything {
         "accepts anything".into()
     }
     fn provides(&self) -> Vec<Requires> {
-        vec![Requires::Parse, Requires::Limits, Requires::Integrity, Requires::Negotiation]
+        vec![
+            Requires::Parse,
+            Requires::Limits,
+            Requires::Integrity,
+            Requires::Negotiation,
+            Requires::Semantics,
+        ]
     }
     fn read(&self, _: &[u8]) -> Verdict {
         Verdict::Accepted
@@ -614,6 +627,7 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
     let container_errors = include_str!("../../pvec-container/src/error.rs");
     let stream_errors = include_str!("../../pvec-components/src/error.rs");
     let reference = include_str!("../src/reference.rs");
+    let policy = include_str!("../../../docs/NUMERIC_POLICY.md");
     let mut seen = BTreeSet::new();
     for c in cases.iter() {
         let Expect::Refuse(rules) = &c.expect else { continue };
@@ -626,6 +640,8 @@ fn every_rule_a_case_pins_is_one_the_container_documents() {
                 stream_errors.contains(&format!("\"{r}\""))
             } else if ["LAYOUT-", "CONSIST-", "LIMIT-", "NEGOTIATE-"].iter().any(|p| r.starts_with(p)) {
                 reference.contains(&format!("\"{r}\""))
+            } else if r.starts_with("NP-") {
+                policy.contains(&format!("### {r} "))
             } else if r.starts_with("INTEGRITY-") {
                 true
             } else {
@@ -709,6 +725,21 @@ fn a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_k
     );
     assert_eq!(report.failures.len(), 1, "{}", report.summary());
     assert!(matches!(&report.failures[0].1, Failure::Rejected(r) if r.rule == "NEGOTIATE-01"));
+}
+
+#[test]
+fn the_hot_parsers_let_semantically_hostile_values_through_so_a_reader_has_to_check_them() {
+    // This is the gap the Semantics cases exist for: each of these files parses today.
+    let (bases, cases) = corpus();
+    let gaps: Vec<&Case> = cases.iter().filter(|c| c.requires == Requires::Semantics).collect();
+    assert!(gaps.len() >= 6, "{}", gaps.len());
+    for c in gaps {
+        assert!(
+            read(&c.bytes(&bases[c.base])).is_ok(),
+            "{}: the parsers refuse it now, so the case moves to Parse",
+            c.name
+        );
+    }
 }
 
 #[test]

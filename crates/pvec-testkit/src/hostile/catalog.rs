@@ -22,6 +22,10 @@ pub enum Requires {
     Integrity,
     /// Skipping an optional block the reader does not know (P4.7).
     Negotiation,
+    /// The numeric policy applied to the values of a hot block (P4.5). The hot parsers refuse a NaN
+    /// or an infinity (`HOT-16`) and nothing else: a radius of zero, a coordinate past 2^40 and a
+    /// zero-length line all parse, so a safe reader has to check them as it uses them.
+    Semantics,
 }
 
 /// The case families of the issue, plus the ones it implies.
@@ -632,6 +636,36 @@ fn domains(b: &mut Builder, s: &At, c: &At, d: &At) {
     b.refuse(F, "hot_arc_sweep_infinite", "drawing", vec![inf(arcs[4])], &["HOT-16"]);
     let (_, _, polys) = d.hot_parts(POLYLINE);
     b.refuse(F, "hot_polyline_vertex_nan", "drawing", vec![nan(polys[0] + 8)], &["HOT-16"]);
+
+    // What the hot parsers let through today, and a reader has to refuse (NP-01, NP-02, NP-06, NP-07).
+    let later = |b: &mut Builder, name: &str, ops: Vec<Op>, rule: &'static str| {
+        b.add(F, Requires::Semantics, name, "drawing", ops, Expect::Refuse(vec![rule]));
+    };
+    later(b, "hot_arc_radius_zero", vec![Op::f64(arcs[2], 0.0)], "NP-07");
+    later(b, "hot_arc_radius_negative", vec![Op::f64(arcs[2], -1.0)], "NP-07");
+    later(
+        b,
+        "hot_coordinate_beyond_coordinate_range",
+        vec![Op::f64(lines[0], 10_000_000_000_000.0)],
+        "NP-02",
+    );
+    later(b, "hot_coordinate_subnormal", vec![Op::f64(lines[0], f64::MIN_POSITIVE / 4.0)], "NP-01");
+    let copy = |from: usize| d.bytes[from..from + 8].to_vec();
+    later(
+        b,
+        "hot_line_zero_length",
+        vec![
+            Op::Put { at: lines[2], bytes: copy(lines[0]) },
+            Op::Put { at: lines[3], bytes: copy(lines[1]) },
+        ],
+        "NP-06",
+    );
+    later(
+        b,
+        "hot_polyline_repeated_vertex",
+        vec![Op::Put { at: polys[0] + 8, bytes: copy(polys[0]) }],
+        "NP-06",
+    );
 }
 
 fn integrity(b: &mut Builder, line: &At) {
