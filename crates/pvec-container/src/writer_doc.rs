@@ -59,12 +59,18 @@ its descriptor alone (chapter 5), fit in the same 64 bytes.\n\n",
             "0",
             "directory nodes",
         ),
+        (
+            BlockKind::CellRefs,
+            "the per-cell payload references (`docs/STREAMING.md` chapter 2)",
+            "0",
+            "cells that have references",
+        ),
     ] {
         s.push_str(&format!("| {} | {} | {} | {} | {} |\n", kind.id(), kind.name(), holds, subtype, count));
     }
     s.push_str(&format!(
         "\nFlag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). \
-Geometry blocks carry it; the component stream set and the spatial directory do not, so a reader that does not know them skips them. \
+Geometry blocks carry it; the component stream set, the spatial directory and the reference arrays do not, so a reader that does not know them skips them. \
 Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds \
 the caller gave their entities, the spatial directory carries the box of its root, an arena or a component set carries none and its four bounds are zero. The \
 codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an \
@@ -83,7 +89,7 @@ Every order below is decided by the writer from the content, never from the orde
 is one group of entities that share a block kind, a spatial cell id and a geometry type; the writer does \
 not split a group by size (that is tuning, P8.6), so a group is one block.\n\n\
 | key | orders | ascending by |\n|---|---|---|\n\
-| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first and the spatial directory, when there is one, last |\n\
+| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first, then the spatial directory and the reference arrays when there are any, last |\n\
 | spatial cell id | the blocks of one kind | the cell id the caller gave the entity (a leaf of the spatial directory, `docs/STREAMING.md` chapter 1; the writer only orders by it) |\n\
 | geometry type | the blocks of one kind and cell | the hot geometry type or the payload kind |\n\
 | `EntityId` | the entities inside a block | the id, so a block's id column ascends and equal sets of entities give equal columns |\n\
@@ -91,7 +97,7 @@ not split a group by size (that is tuning, P8.6), so a group is one block.\n\n\
 | stream id | the streams of the component set | the capability id, which is the id of a stream (P3.7) |\n\n\
 The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a \
 composite names other records of its own block, so a curve cannot be split from its segments by cell; an \
-advanced curve given another cell is refused. Cell 0 means no cell: it is the cell of the advanced set, the component set and the spatial directory, and the spatial directory reserves it, so no leaf of the directory is cell 0 and a file that carries a spatial directory is refused if a hot block is in cell 0 (`SPD-10`). A hot block written without a spatial directory may still be in cell 0, and the block kind says what a block in cell 0 is. The records are in ascending `EntityId` order and the \
+advanced curve given another cell is refused. A cell can still reference a curve of the set by the row of the record block (`docs/STREAMING.md` section 2.8), so the set stays whole and a reader still knows which cells need it. Cell 0 means no cell: it is the cell of the advanced set, the component set, the spatial directory and the reference arrays, and the spatial directory reserves it, so no leaf of the directory is cell 0 and a file that carries a spatial directory is refused if a hot block is in cell 0 (`SPD-10`). A hot block written without a spatial directory may still be in cell 0, and the block kind says what a block in cell 0 is. The records are in ascending `EntityId` order and the \
 arenas number their entries in the order the writer first needs them, which is the same order, so shared \
 payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities \
 are those the caller listed plus those of the streams pushed, each once, and each is declared with the \

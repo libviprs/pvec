@@ -758,7 +758,8 @@ impl<'a> Validation<'a> {
             }
             // the layout of the spatial directory is `pvec-stream`'s; here it has been fetched, verified
             // against its checksum and decoded, which is all the container knows how to check
-            Some(BlockKind::SpatialDirectory) => {}
+            // likewise the reference arrays: `pvec-stream` parses them when a reader asks
+            Some(BlockKind::SpatialDirectory | BlockKind::CellRefs) => {}
             // a block of a kind nobody knows is skipped when the file is opened and never fed here
             None => return Err(internal()),
         }

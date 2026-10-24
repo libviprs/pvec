@@ -124,7 +124,7 @@ pub struct ReadPlan {
     pub requests: Vec<PlannedRequest>,
     /// Requests the budget left out, in the order they would have come.
     pub deferred: Vec<PlannedRequest>,
-    /// Whether the advanced curve set, which no cell holds, touches the viewport (P5.2 splits it).
+    /// Whether the advanced curve set, which no cell holds, touches the viewport (a cell references its curves by row, see `docs/STREAMING.md` section 2.8).
     pub advanced_in_view: bool,
     /// What the plan costs.
     pub metrics: PlanMetrics,

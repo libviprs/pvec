@@ -103,6 +103,11 @@ pub const OWNERSHIP_RULES: &[(&str, &str)] = &[
         "a reference that names no payload: a block that does not exist or is not a hot block, or a row past the end of the block",
     ),
     ("OWN-09", "the container refused the read, or a block is not a valid hot block"),
+    ("OWN-10", "more than one reference block in the file"),
+    (
+        "OWN-11",
+        "a reference block whose entry disagrees with its bytes: it is in a cell, or its count is not the number of cells the arrays hold",
+    ),
 ];
 
 /// Why a placement, a reference array or a read was refused.
@@ -165,6 +170,13 @@ pub enum OwnershipError {
         /// What is wrong.
         reason: &'static str,
     },
+    /// More than one reference block (OWN-10).
+    DuplicateBlock,
+    /// The entry of the reference block disagrees with its bytes (OWN-11).
+    Entry {
+        /// What is wrong.
+        reason: &'static str,
+    },
 }
 
 impl OwnershipError {
@@ -180,6 +192,8 @@ impl OwnershipError {
             OwnershipError::Ceiling | OwnershipError::TooManyRefs => "OWN-07",
             OwnershipError::NoPayload { .. } => "OWN-08",
             OwnershipError::Read(_) | OwnershipError::Block { .. } => "OWN-09",
+            OwnershipError::DuplicateBlock => "OWN-10",
+            OwnershipError::Entry { .. } => "OWN-11",
         }
     }
 }
@@ -206,6 +220,8 @@ impl core::fmt::Display for OwnershipError {
             }
             OwnershipError::Read(e) => write!(f, "{rule}: {e}"),
             OwnershipError::Block { block, reason } => write!(f, "{rule}: block {block}: {reason}"),
+            OwnershipError::DuplicateBlock => write!(f, "{rule}: the file has more than one reference block"),
+            OwnershipError::Entry { reason } => write!(f, "{rule}: {reason}"),
         }
     }
 }
@@ -296,6 +312,41 @@ impl CellRefs {
             }
             Err(_) => &[],
         }
+    }
+
+    /// The reference block of a file: its position in the block directory, or `None` when the file has
+    /// none. This reads the directory entries only. More than one is refused (OWN-10).
+    pub fn find(entries: &[BlockEntry]) -> Result<Option<BlockId>, OwnershipError> {
+        let mut found = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.block_kind() == Some(BlockKind::CellRefs))
+            .map(|(i, _)| BlockId(i as u32));
+        let first = found.next();
+        if found.next().is_some() {
+            return Err(OwnershipError::DuplicateBlock);
+        }
+        Ok(first)
+    }
+
+    /// The reference arrays of a file, read now: the block is fetched here and not when the file or its
+    /// spatial directory is opened, so a reader that never asks for references never pays for them.
+    /// `None` when the file has no reference block. The entry has to agree with the bytes (OWN-11): the
+    /// block is in no cell and its count is the number of cells the arrays hold.
+    pub fn open<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Option<CellRefs>, OwnershipError> {
+        let Some(id) = CellRefs::find(reader.entries())? else { return Ok(None) };
+        let entry = reader.entries()[id.0 as usize];
+        if entry.cell != 0 {
+            return Err(OwnershipError::Entry { reason: "the reference block is in a cell" });
+        }
+        let block = reader.read_block(id)?;
+        let refs = CellRefs::parse(block.as_bytes())?;
+        if entry.count as usize != refs.cells() {
+            return Err(OwnershipError::Entry {
+                reason: "the entry's count is not the number of cells in the block",
+            });
+        }
+        Ok(Some(refs))
     }
 
     /// The bytes of the reference arrays: a 16 byte header (`PVR1`, version, flags, cell count, reference
@@ -547,6 +598,37 @@ pub fn scan_payloads<S: BlockSource>(
     Ok(out)
 }
 
+/// Every advanced curve of the file, in record order (ascending entity id), each as a reference to its
+/// row of the record block. The advanced set stays one set in cell 0, because a composite names other
+/// records of its own block; what a cell gets is a reference to the row, like a hot payload, and a
+/// reader that finds such a row in a viewport fetches the whole set once ([`advanced_rows`]). Empty when
+/// the file has no advanced curves.
+pub fn scan_advanced<S: BlockSource>(
+    reader: &ContainerReader<S>,
+) -> Result<Vec<PayloadSlot>, OwnershipError> {
+    let Some(set) = reader.advanced()? else { return Ok(Vec::new()) };
+    let records = reader.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Records)).ok_or(
+        OwnershipError::Block { block: 0, reason: "the file has advanced curves and no record block" },
+    )?;
+    let view = set.view()?;
+    let mut out = Vec::with_capacity(view.len());
+    for row in 0..view.len() {
+        let rec = view
+            .record(row)
+            .ok_or(OwnershipError::Block { block: records as u32, reason: "a record is missing" })?;
+        let id = EntityId::new(rec.id).map_err(|_| OwnershipError::Block {
+            block: records as u32,
+            reason: "an entity id is out of range",
+        })?;
+        out.push(PayloadSlot {
+            id,
+            payload: PayloadRef { block_id: BlockId(records as u32), slot: row as u32 },
+            cell: 0,
+        });
+    }
+    Ok(out)
+}
+
 /// The references a viewport touches.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ViewportRefs {
@@ -569,6 +651,39 @@ pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> Viewp
     ViewportRefs { raw, refs: all }
 }
 
+/// The rows of the advanced record block that `gathered` names, ascending: when this is not empty the
+/// viewport needs the advanced set (`ContainerReader::advanced`), and which curves of it are in view is
+/// these rows. A row past the end of the record block, or a reference into a block that is neither hot nor
+/// the record block, is refused (OWN-08). This reads no block.
+pub fn advanced_rows<S: BlockSource>(
+    reader: &ContainerReader<S>,
+    gathered: &ViewportRefs,
+) -> Result<Vec<u32>, OwnershipError> {
+    let mut rows = Vec::new();
+    for r in &gathered.refs {
+        let entry = check_payload(reader.entries(), r)?;
+        if entry.block_kind() == Some(BlockKind::Records) {
+            rows.push(r.slot);
+        }
+    }
+    rows.sort_unstable();
+    rows.dedup();
+    Ok(rows)
+}
+
+/// The entry a reference names, if it names a row of a hot block or of the record block.
+fn check_payload<'a>(entries: &'a [BlockEntry], r: &PayloadRef) -> Result<&'a BlockEntry, OwnershipError> {
+    let bad = |reason| OwnershipError::NoPayload { block: r.block_id.0, slot: r.slot, reason };
+    let entry = entries.get(r.block_id.0 as usize).ok_or(bad("no such block"))?;
+    if !matches!(entry.block_kind(), Some(BlockKind::Hot | BlockKind::Records)) {
+        return Err(bad("not a hot block"));
+    }
+    if r.slot >= entry.count {
+        return Err(bad("past the last row"));
+    }
+    Ok(entry)
+}
+
 /// Decodes each payload of `gathered` once and calls `visit` with the entity, its block and its row.
 /// The blocks are fetched through the reader's plan, so blocks close together arrive in one request, and
 /// each is parsed once however many rows are wanted from it. Returns how many payloads were visited.
@@ -580,34 +695,16 @@ pub fn read_viewport<S: BlockSource>(
     let entries = reader.entries();
     let mut wanted: BTreeSet<BlockId> = BTreeSet::new();
     for r in &gathered.refs {
-        let Some(entry) = entries.get(r.block_id.0 as usize) else {
-            return Err(OwnershipError::NoPayload {
-                block: r.block_id.0,
-                slot: r.slot,
-                reason: "no such block",
-            });
-        };
-        if entry.block_kind() != Some(BlockKind::Hot) {
-            return Err(OwnershipError::NoPayload {
-                block: r.block_id.0,
-                slot: r.slot,
-                reason: "not a hot block",
-            });
+        // a row of the advanced record block is checked and left to `advanced_rows`
+        if check_payload(entries, r)?.block_kind() == Some(BlockKind::Hot) {
+            wanted.insert(r.block_id);
         }
-        if r.slot >= entry.count {
-            return Err(OwnershipError::NoPayload {
-                block: r.block_id.0,
-                slot: r.slot,
-                reason: "past the last row",
-            });
-        }
-        wanted.insert(r.block_id);
     }
     let ids: Vec<BlockId> = wanted.into_iter().collect();
     let blocks = reader.read_blocks(&ids)?;
     let mut visited = 0usize;
     let mut views: Vec<Option<HotBlockView<'_>>> = (0..blocks.len()).map(|_| None).collect();
-    for r in &gathered.refs {
+    for r in gathered.refs.iter().filter(|r| ids.binary_search(&r.block_id).is_ok()) {
         let k = ids.binary_search(&r.block_id).map_err(|_| OwnershipError::Block {
             block: r.block_id.0,
             reason: "the block was not fetched",

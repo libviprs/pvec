@@ -260,8 +260,10 @@ fn a_spatial_reference_is_at_most_8_bytes() {
     assert!(src.contains("assert!(core::mem::size_of::<PayloadRef>() <= REF_BUDGET)"));
 }
 
-/// The fraction of payload bytes that reference bytes may reach on the named fixtures, measured and then
-/// stated in `docs/STREAMING.md` section 2.4.
+/// The fraction of payload bytes that reference bytes may reach on the named fixtures when the directory is
+/// built over every entity (the placement pass alone, before P5.3), measured and then stated in
+/// `docs/STREAMING.md` section 2.4. The bound for the pipeline that classifies first is lower and is held
+/// by `issue_131_reference_bound.rs`.
 const MAX_FRACTION: f64 = 2.0;
 
 #[test]
@@ -578,7 +580,7 @@ fn the_rules_are_documented_and_the_policy_is_in_the_streaming_chapter() {
         assert!(doc.contains(needle), "docs/STREAMING.md lacks {needle:?}");
     }
     let ids: BTreeMap<_, _> = OWNERSHIP_RULES.iter().copied().collect();
-    assert_eq!(ids.len(), 9);
+    assert_eq!(ids.len(), 11);
     for (rule, meaning) in OWNERSHIP_RULES {
         assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/STREAMING.md lacks {rule}");
     }

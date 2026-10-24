@@ -223,6 +223,8 @@ impl CodecPolicy {
             // the spatial directory is the one block every query opens, so it is read in a single range
             // and costs no decode work: it is always stored as it is
             BlockKind::SpatialDirectory => Codec::None,
+            // the reference arrays are small next to the payload they point at and are read whole, once
+            BlockKind::CellRefs => Codec::None,
         }
     }
 }
