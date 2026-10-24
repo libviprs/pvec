@@ -362,5 +362,5 @@ fn share(b: &Aabb, v: &Aabb) -> f64 {
         let len = bh - bl;
         if len <= 0.0 { 1.0 } else { ((bh.min(vh) - bl.max(vl)) / len).clamp(0.0, 1.0) }
     };
-    (axis(0) * axis(1)).max(1e-9)
+    (axis(0) * axis(1)).max(f64::MIN_POSITIVE)
 }

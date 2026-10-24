@@ -412,7 +412,7 @@ fn a_viewport_off_the_drawing_plans_nothing_and_a_bad_query_is_refused_by_rule()
         let e = ViewportQuery::new(on, scale).plan(&dir, &r, &no_margin()).unwrap_err();
         assert_eq!(e.rule(), "VP-01", "{scale}");
     }
-    for margin in [-1.0, f64::NAN, f64::INFINITY, 1e300] {
+    for margin in [-1.0, f64::NAN, f64::INFINITY, f64::MAX] {
         let e = ViewportQuery::new(on, 1.0)
             .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin })
             .unwrap_err();
