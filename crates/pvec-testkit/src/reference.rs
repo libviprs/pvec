@@ -460,6 +460,8 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
                 }
                 advanced.push(((e.kind << 8) | e.subtype, aligned));
             }
+            // the spatial directory is `pvec-stream`'s to validate; here it is a block that decoded
+            Some(BlockKind::SpatialDirectory) => {}
             Some(BlockKind::Components) => {
                 let reader = Reader { version: Version::new(1, 0, 0), implemented: Vec::new() };
                 let opened =

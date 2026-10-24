@@ -13,6 +13,7 @@ members = [
     "crates/pvec-mmap",
     "crates/pvec-numeric",
     "crates/pvec-sources",
+    "crates/pvec-stream",
     "crates/pvec-testkit",
 ]
 # Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),

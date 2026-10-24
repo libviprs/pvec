@@ -220,6 +220,9 @@ impl CodecPolicy {
             BlockKind::Records => self.records,
             BlockKind::Arena => self.arena,
             BlockKind::Components => self.components,
+            // the spatial directory is the one block every query opens, so it is read in a single range
+            // and costs no decode work: it is always stored as it is
+            BlockKind::SpatialDirectory => Codec::None,
         }
     }
 }
