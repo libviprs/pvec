@@ -8,7 +8,7 @@ use pvec_numeric::NumericError;
 ///
 /// [`GeometryError::rule`] gives the identifier of the violated rule: `NP-nn` for the numeric policy,
 /// `PROFILE-n` for a section of the semantic profile, and `GEOM-nn` for the few rules of this crate's
-/// own API (`GEOM-01`: a bounding box has `min <= max`).
+/// own API (`GEOM-01`: a bounding box has `min <= max`; `GEOM-02`: a bulge is not zero).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum GeometryError {
@@ -28,6 +28,8 @@ pub enum GeometryError {
     InvertedBounds,
     /// A stored direction is not unit length (NP-10).
     NotUnitDirection,
+    /// A bulge of zero describes a straight segment, which is a trimmed line and not an arc (GEOM-02).
+    ZeroBulge,
 }
 
 impl GeometryError {
@@ -42,6 +44,7 @@ impl GeometryError {
             GeometryError::WeightCount => "NP-15",
             GeometryError::InvertedBounds => "GEOM-01",
             GeometryError::NotUnitDirection => "NP-10",
+            GeometryError::ZeroBulge => "GEOM-02",
         }
     }
 
@@ -76,6 +79,9 @@ impl fmt::Display for GeometryError {
             }
             GeometryError::NotUnitDirection => {
                 write!(f, "NotUnitDirection: a stored direction must be unit length ({})", self.rule())
+            }
+            GeometryError::ZeroBulge => {
+                write!(f, "ZeroBulge: a zero bulge is a line, not an arc ({})", self.rule())
             }
         }
     }
