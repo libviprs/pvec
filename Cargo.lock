@@ -105,6 +105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-stream"
+version = "0.0.0"
+dependencies = [
+ "pvec-container",
+ "pvec-entity",
+ "pvec-numeric",
+]
+
+[[package]]
 name = "pvec-testkit"
 version = "0.0.0"
 dependencies = [

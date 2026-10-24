@@ -39,7 +39,7 @@ pub const BLOCK_ENTRY_FIELDS: &[FieldSpec] = &[
         "bytes of the block once decoded; equal to `stored_length` while the codec is 0",
     ),
     field("count", 16, 4, "u32", "entities, records, offset-table entries or streams in the block"),
-    field("cell", 20, 4, "u32", "spatial cell id (P5.1); 0 for a block that has none"),
+    field("cell", 20, 4, "u32", "spatial cell id (P5.1); 0 means no cell and is never a cell of the spatial directory"),
     field(
         "min_x",
         24,
@@ -74,12 +74,20 @@ pub enum BlockKind {
     Arena,
     /// The component stream set (`docs/COMPONENT_STREAMS.md`).
     Components,
+    /// The spatial directory over source-space bounds (`docs/STREAMING.md` chapter 1, issue P5.1). The
+    /// container carries it as opaque bytes; `pvec-stream` defines and validates its layout.
+    SpatialDirectory,
 }
 
 impl BlockKind {
     /// Every kind, in id order.
-    pub const ALL: [BlockKind; 4] =
-        [BlockKind::Hot, BlockKind::Records, BlockKind::Arena, BlockKind::Components];
+    pub const ALL: [BlockKind; 5] = [
+        BlockKind::Hot,
+        BlockKind::Records,
+        BlockKind::Arena,
+        BlockKind::Components,
+        BlockKind::SpatialDirectory,
+    ];
 
     /// The id stored in the file.
     pub fn id(self) -> u16 {
@@ -88,6 +96,7 @@ impl BlockKind {
             BlockKind::Records => 2,
             BlockKind::Arena => 3,
             BlockKind::Components => 4,
+            BlockKind::SpatialDirectory => 5,
         }
     }
 
@@ -103,6 +112,7 @@ impl BlockKind {
             BlockKind::Records => "records",
             BlockKind::Arena => "arena",
             BlockKind::Components => "components",
+            BlockKind::SpatialDirectory => "spatial",
         }
     }
 }
