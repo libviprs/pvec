@@ -352,3 +352,10 @@ fn every_writer_and_directory_rule_is_documented_once_and_the_errors_report_them
         assert!(ids.contains(&e.rule()), "{e} reports {}, which is not listed", e.rule());
     }
 }
+
+#[test]
+fn chapter_four_says_that_cell_zero_is_both_no_cell_and_a_cell() {
+    let doc = fs::read_to_string(doc_path()).unwrap_or_default();
+    assert!(doc.contains("cell 0 is both"), "docs/CONTAINER.md does not say that cell 0 means two things");
+    assert!(doc.contains("P5.1"), "the cell 0 note does not point at the spatial directory");
+}

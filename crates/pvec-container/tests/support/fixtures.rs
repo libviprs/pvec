@@ -7,6 +7,7 @@ use pvec_container::blocks::advanced::SplineSpec;
 use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig};
 use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_entity::EntityId;
+use pvec_geometry::{BSpline, Circle, Curve, Ellipse, Line, Placement2, Point2, Polyline, Trimmed, Vector2};
 
 /// A small xorshift generator, so a shuffle depends on the seed and nothing else.
 pub struct Rng(pub u64);
@@ -77,6 +78,13 @@ pub enum Ent {
         trims: Option<Vec<[f64; 2]>>,
         closed: bool,
     },
+    /// A curve of the semantic model, pushed with `push_curve`.
+    Model {
+        id: u32,
+        style: u32,
+        cell: u32,
+        curve: Curve,
+    },
 }
 
 /// Something a caller hands the writer.
@@ -115,7 +123,8 @@ impl Ent {
             | Ent::Arc { id, .. }
             | Ent::Ellipse { id, .. }
             | Ent::Spline { id, .. }
-            | Ent::Composite { id, .. } => *id,
+            | Ent::Composite { id, .. }
+            | Ent::Model { id, .. } => *id,
         }
     }
 
@@ -129,13 +138,14 @@ impl Ent {
                 let pts: Vec<[f64; 2]> = x.iter().zip(y).map(|(a, b)| [*a, *b]).collect();
                 boxed(&pts)
             }
-            Ent::Composite { .. } => Bounds { min: [0.0, 0.0], max: [1.0, 1.0] },
+            Ent::Composite { .. } | Ent::Model { .. } => Bounds { min: [0.0, 0.0], max: [1.0, 1.0] },
         }
     }
 
     pub fn push(&self, w: &mut ContainerWriter) -> Result<(), WriteError> {
         let b = self.bounds();
         match self {
+            Ent::Model { id, style, cell, curve } => w.push_curve(eid(*id), *style, *cell, curve),
             Ent::Line { id, style, cell, a, b: e } => {
                 w.push_line(EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b }, *a, *e)
             }
@@ -377,6 +387,46 @@ pub fn mixed() -> Input {
     Input { name: "mixed", config: config(&[1, 3, 4, 5, 6, 7, 9, 11, 12, 13], Some(bounds)), items }
 }
 
+/// Curves of the semantic model through `push_curve`: circles, ellipses and arcs of both (whose own
+/// bounds go through libm), polylines, B-splines and trimmed lines, in five cells.
+pub fn model_curves() -> Input {
+    let pt = |x: f64, y: f64| Point2::new(x, y);
+    let axis = Vector2::new(1.0, 0.0);
+    let mut items = Vec::new();
+    for i in 0..70u32 {
+        let u = u64::from(i);
+        let o = pt(frac(u * 37 % 400, 8.0), frac(u * 91 % 300, 8.0));
+        let r = 1.0 + frac(u % 11, 4.0);
+        let frame = Placement2::new(o, axis).unwrap();
+        let curve = match i % 7 {
+            0 => Curve::Circle(Circle::new(frame, r).unwrap()),
+            1 => Curve::Ellipse(Ellipse::new(frame, r + 1.0, r).unwrap()),
+            2 => Curve::Trimmed(
+                Trimmed::new(Curve::Circle(Circle::new(frame, r).unwrap()), 0.25, 1.75, true).unwrap(),
+            ),
+            3 => Curve::Trimmed(
+                Trimmed::new(Curve::Ellipse(Ellipse::new(frame, r + 2.0, r).unwrap()), 1.0, 0.5, false)
+                    .unwrap(),
+            ),
+            4 => Curve::Polyline(Polyline::new(vec![o, pt(o.x + r, o.y), pt(o.x + r, o.y + 2.0)]).unwrap()),
+            5 => {
+                let cps = vec![o, pt(o.x + 1.0, o.y + r), pt(o.x + 2.0, o.y - 1.0), pt(o.x + 4.0, o.y + 0.5)];
+                Curve::BSpline(BSpline::new(2, cps, clamped_knots(2, 4)).unwrap())
+            }
+            _ => {
+                Curve::Trimmed(Trimmed::new(Curve::Line(Line::new(o, axis).unwrap()), 0.0, r, true).unwrap())
+            }
+        };
+        items.push(Item::Ent(Ent::Model {
+            id: i,
+            style: i % 3,
+            cell: if i % 7 == 5 { 0 } else { i % 5 },
+            curve,
+        }));
+    }
+    Input { name: "model-curves", config: config(&[6, 7, 8, 5, 11], None), items }
+}
+
 /// One entity, nothing else.
 pub fn minimal() -> Input {
     Input {
@@ -387,5 +437,5 @@ pub fn minimal() -> Input {
 }
 
 pub fn fixtures() -> Vec<Input> {
-    vec![plan(), spline_heavy(), mixed(), minimal()]
+    vec![plan(), spline_heavy(), mixed(), model_curves(), minimal()]
 }

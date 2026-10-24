@@ -1,7 +1,7 @@
 //! The block directory (issue P4.4): one 64 byte entry per block, hand-written bytes first.
 
-use pvec_container::Bounds;
 use pvec_container::directory::*;
+use pvec_container::{Bounds, ByteRange};
 
 fn entry() -> BlockEntry {
     BlockEntry {
@@ -168,7 +168,7 @@ fn dir_10_bounds_must_be_valid_and_zero_unless_the_flag_says_otherwise() {
 
 #[test]
 fn every_directory_error_reports_a_listed_rule() {
-    assert!(DIRECTORY_RULES.len() >= 10, "{} rules listed", DIRECTORY_RULES.len());
+    assert!(DIRECTORY_RULES.len() >= 11, "{} rules listed", DIRECTORY_RULES.len());
     let ids: Vec<&str> = DIRECTORY_RULES.iter().map(|r| r.0).collect();
     for e in [
         DirectoryError::BadLength { length: 1 },
@@ -181,6 +181,7 @@ fn every_directory_error_reports_a_listed_rule() {
         DirectoryError::Overlap { index: 0 },
         DirectoryError::LengthMismatch { index: 0 },
         DirectoryError::BadBounds { index: 0 },
+        DirectoryError::OverlapsReserved { index: 0 },
     ] {
         assert!(ids.contains(&e.rule()), "{e} reports {}, which is not listed", e.rule());
     }
@@ -201,4 +202,52 @@ fn no_input_makes_the_directory_parser_panic() {
         let _ = parse_directory(&b, 64, 1 << 20);
         let _ = parse_directory(&b[..(state % 65) as usize], 64, 1 << 20);
     }
+}
+
+#[test]
+fn dir_05_an_unknown_codec_on_an_optional_block_is_kept_and_skipped() {
+    // ADR 0008: codec ids follow the kind rule, so a block that need not be understood is stepped over
+    let mut b = ENTRY_BYTES;
+    b[60] = FLAG_HAS_BOUNDS;
+    b[61] = 9;
+    b[12] = 0xff; // the decoded length of a codec this reader does not know says nothing about the stored one
+    let kept = parse_directory(&b, 64, 8192).unwrap();
+    assert_eq!(kept[0].codec, 9);
+    assert_eq!(kept[0].offset, 4096);
+    // but it is still a block in the file: the range is checked
+    let mut far = b;
+    far[8..12].copy_from_slice(&9000u32.to_le_bytes());
+    assert!(matches!(parse_directory(&far, 64, 8192), Err(DirectoryError::OutOfRange { .. })));
+}
+
+fn checked(
+    entries: &[BlockEntry],
+    manifest: ByteRange,
+    directory: ByteRange,
+) -> Result<Vec<BlockEntry>, DirectoryError> {
+    let t: Vec<[u8; 64]> = entries.iter().map(BlockEntry::encode).collect();
+    parse_directory_checked(&table(&t), 64, 4800, manifest, directory)
+}
+
+#[test]
+fn dir_11_a_block_may_not_start_inside_the_manifest_or_overlap_the_directory_table() {
+    let manifest = ByteRange { offset: 64, length: 256 };
+    let directory = ByteRange { offset: 4096, length: 128 };
+    assert!(checked(&[at(320, 8), at(4000, 96)], manifest, directory).is_ok());
+    assert_eq!(
+        checked(&[at(256, 8)], manifest, directory),
+        Err(DirectoryError::OverlapsReserved { index: 0 })
+    );
+    assert_eq!(
+        checked(&[at(64, 8)], manifest, directory),
+        Err(DirectoryError::OverlapsReserved { index: 0 })
+    );
+    assert_eq!(
+        checked(&[at(320, 8), at(4080, 64)], manifest, directory),
+        Err(DirectoryError::OverlapsReserved { index: 1 })
+    );
+    assert_eq!(
+        checked(&[at(4096, 8)], manifest, directory),
+        Err(DirectoryError::OverlapsReserved { index: 0 })
+    );
 }

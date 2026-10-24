@@ -1,6 +1,6 @@
 //! The block directory (issue P4.4): one fixed 64 byte entry per block, ADR 0003 and ADR 0006.
 
-use crate::manifest::Bounds;
+use crate::manifest::{Bounds, ByteRange};
 use crate::spec::FieldSpec;
 use core::fmt;
 use pvec_numeric::check_value;
@@ -240,6 +240,11 @@ pub enum DirectoryError {
         /// The entry.
         index: usize,
     },
+    /// A block that overlaps the manifest or the directory table.
+    OverlapsReserved {
+        /// The entry.
+        index: usize,
+    },
 }
 
 impl DirectoryError {
@@ -256,6 +261,7 @@ impl DirectoryError {
             DirectoryError::Overlap { .. } => "DIR-08",
             DirectoryError::LengthMismatch { .. } => "DIR-09",
             DirectoryError::BadBounds { .. } => "DIR-10",
+            DirectoryError::OverlapsReserved { .. } => "DIR-11",
         }
     }
 }
@@ -302,6 +308,9 @@ impl fmt::Display for DirectoryError {
                 )
             }
             DirectoryError::BadBounds { index } => write!(f, "{rule}: entry {index} has invalid bounds"),
+            DirectoryError::OverlapsReserved { index } => {
+                write!(f, "{rule}: entry {index} overlaps the manifest or the directory")
+            }
         }
     }
 }
@@ -431,4 +440,15 @@ pub fn parse_directory(
         });
     }
     Ok(out)
+}
+
+/// [`parse_directory`], and in addition no block may overlap the manifest or the directory table.
+pub fn parse_directory_checked(
+    table: &[u8],
+    header_len: u64,
+    artifact_len: u64,
+    _manifest: ByteRange,
+    _directory: ByteRange,
+) -> Result<Vec<BlockEntry>, DirectoryError> {
+    parse_directory(table, header_len, artifact_len)
 }

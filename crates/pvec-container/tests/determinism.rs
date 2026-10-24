@@ -228,11 +228,9 @@ fn the_suite_notices_without(key: SortKey) {
     for seed in 1..=24 {
         assert_eq!(base.shuffled(seed).write().unwrap(), reference, "the unmutated writer is not stable");
     }
-    let mutated = base.write_skipping(key);
-    let noticed = (1..=24).any(|seed| match (&mutated, base.shuffled(seed).write_skipping(key)) {
-        (Ok(m), Ok(s)) => *m != s,
-        _ => true,
-    });
+    let mutated = base.write_skipping(key).expect("the mutated writer still writes the fixture");
+    // a write error would be a different symptom, not the suite noticing the missing sort
+    let noticed = (1..=24).any(|seed| base.shuffled(seed).write_skipping(key).is_ok_and(|s| s != mutated));
     assert!(
         noticed,
         "without the {key:?} sort no shuffle changed the output: the suite does not need that sort"
@@ -405,5 +403,34 @@ fn the_writer_source_exists_and_is_where_the_checklist_says() {
     assert!(doc.contains("### 4.6 Review checklist"), "docs/CONTAINER.md has no review checklist entry");
     for needle in ["wall-clock", "absolute path", "hash-map iteration", "pointer", "hostname"] {
         assert!(doc.contains(needle), "the checklist does not mention {needle}");
+    }
+}
+
+/// The write path may not reach libm. `curve.bounds()` of an arc goes through `sin_cos` and `atan2` in
+/// pvec-geometry, so the writer must not call it, and it must not name a transcendental itself.
+#[test]
+fn the_writer_path_never_calls_a_transcendental_or_the_models_bounds() {
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    for file in ["writer.rs", "directory.rs", "header.rs", "manifest.rs"] {
+        let code = code_of(&fs::read_to_string(src.join(file)).unwrap());
+        for banned in [
+            ".bounds()",
+            "sin_cos",
+            ".sin(",
+            ".cos(",
+            ".tan(",
+            "atan",
+            "asin",
+            "acos",
+            ".exp(",
+            ".ln(",
+            ".log(",
+            ".powf(",
+            ".powi(",
+            "hypot",
+            "cbrt",
+        ] {
+            assert!(!code.contains(banned), "{file} uses {banned}, which can reach libm");
+        }
     }
 }

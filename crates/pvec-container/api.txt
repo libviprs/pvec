@@ -275,11 +275,13 @@ directory.rs: DirectoryError::Misaligned { index: usize, offset: u64 }
 directory.rs: DirectoryError::Overlap { index: usize }
 directory.rs: DirectoryError::LengthMismatch { index: usize }
 directory.rs: DirectoryError::BadBounds { index: usize }
+directory.rs: DirectoryError::OverlapsReserved { index: usize }
 directory.rs: DirectoryError::rule(&self) -> &'static str
 directory.rs: impl fmt::Display for DirectoryError
 directory.rs: impl std::error::Error for DirectoryError {}
 directory.rs: pub const DIRECTORY_RULES: &[(&str, &str)]
 directory.rs: pub fn parse_directory(table: &[u8], header_len: u64, artifact_len: u64) -> Result<Vec<BlockEntry>, DirectoryError>
+directory.rs: pub fn parse_directory_checked(table: &[u8], header_len: u64, artifact_len: u64, _manifest: ByteRange, _directory: ByteRange) -> Result<Vec<BlockEntry>, DirectoryError>
 error.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ContainerError
 error.rs: ContainerError::BadMagic
 error.rs: ContainerError::UnsupportedVersion { found: u16, supported: u16 }

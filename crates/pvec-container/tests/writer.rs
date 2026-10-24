@@ -347,10 +347,10 @@ fn pt(x: f64, y: f64) -> Point2 {
     Point2::new(x, y)
 }
 
-fn as_bounds(c: &Curve) -> Bounds {
-    use pvec_geometry::Curve2d;
-    let b = c.bounds().unwrap();
-    Bounds { min: [b.min().x, b.min().y], max: [b.max().x, b.max().y] }
+/// Written out by hand: the writer's bounds for a model curve are a conservative box from basic
+/// arithmetic, and the test must not ask the model for them (that is the call that reaches libm).
+fn bx(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Bounds {
+    Bounds { min: [min_x, min_y], max: [max_x, max_y] }
 }
 
 fn via_curve(c: &Curve) -> Vec<u8> {
@@ -364,7 +364,7 @@ fn a_polyline_of_the_model_is_the_same_bytes_as_the_hot_polyline() {
     let c = Curve::Polyline(Polyline::new(vec![pt(0.0, 0.0), pt(1.5, 2.0), pt(3.0, 0.5)]).unwrap());
     let mut w = writer(&minimal());
     w.push_polyline(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&c) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(0.0, 0.0, 3.0, 2.0) },
         &[[0.0, 0.0], [1.5, 2.0], [3.0, 0.5]],
     )
     .unwrap();
@@ -383,7 +383,7 @@ fn a_bspline_and_a_rational_bspline_of_the_model_are_the_same_bytes_as_a_spline_
     for (curve, weights) in [(&plain, None), (&rational, Some(&[1.0, 2.0, 1.5, 1.0][..]))] {
         let mut w = writer(&minimal());
         w.push_spline(
-            EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(curve) },
+            EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(0.0, -1.0, 4.0, 2.0) },
             SplineSpec { degree: 2, knots: &knots, x: &x, y: &y, weights, closed: false, periodic: false },
         )
         .unwrap();
@@ -397,7 +397,7 @@ fn a_bezier_is_a_clamped_spline_of_the_same_degree() {
     let curve = Curve::Bezier(b);
     let mut w = writer(&minimal());
     w.push_spline(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&curve) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(0.0, 0.0, 4.0, 3.0) },
         SplineSpec {
             degree: 3,
             knots: &[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
@@ -418,7 +418,7 @@ fn a_trimmed_line_is_the_hot_line_between_its_end_points() {
     let curve = Curve::Trimmed(Trimmed::new(Curve::Line(line), 0.0, 4.0, true).unwrap());
     let mut w = writer(&minimal());
     w.push_line(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&curve) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(1.0, 1.0, 5.0, 1.0) },
         [1.0, 1.0],
         [5.0, 1.0],
     )
@@ -433,7 +433,7 @@ fn a_circle_and_a_trimmed_circle_with_an_axis_aligned_frame_are_arcs() {
     let full = Curve::Circle(circle);
     let mut w = writer(&minimal());
     w.push_circle_arc(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&full) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(-3.0, -2.0, 7.0, 8.0) },
         [2.0, 3.0],
         5.0,
         [0.0, std::f64::consts::TAU],
@@ -444,7 +444,7 @@ fn a_circle_and_a_trimmed_circle_with_an_axis_aligned_frame_are_arcs() {
     let arc = Curve::Trimmed(Trimmed::new(Curve::Circle(circle), 0.5, 2.0, true).unwrap());
     let mut w = writer(&minimal());
     w.push_circle_arc(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&arc) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(-3.0, -2.0, 7.0, 8.0) },
         [2.0, 3.0],
         5.0,
         [0.5, 1.5],
@@ -456,7 +456,7 @@ fn a_circle_and_a_trimmed_circle_with_an_axis_aligned_frame_are_arcs() {
     let e = Curve::Ellipse(ellipse);
     let mut w = writer(&minimal());
     w.push_ellipse_arc(
-        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: as_bounds(&e) },
+        EntityMeta { id: eid(0), style: 2, cell: 0, bounds: bx(-4.0, 1.0, 8.0, 5.0) },
         [2.0, 3.0],
         [6.0, 2.0],
         [0.0, 0.0, std::f64::consts::TAU],
@@ -483,4 +483,31 @@ fn what_the_hot_forms_cannot_say_exactly_is_refused_and_not_approximated() {
         let mut w = writer(&minimal());
         assert_eq!(w.push_curve(eid(0), 0, 0, &curve), Err(WriteError::Unsupported { what }));
     }
+}
+
+#[test]
+fn a_model_circle_arc_and_ellipse_are_bounded_by_basic_arithmetic_only() {
+    let frame = Placement2::new(pt(2.0, 3.0), Vector2::new(1.0, 0.0)).unwrap();
+    let circle = Circle::new(frame, 5.0).unwrap();
+    let arc = Curve::Trimmed(Trimmed::new(Curve::Circle(circle), 0.5, 2.0, true).unwrap());
+    // the conservative box is the whole circle's, whatever the arc: centre plus and minus the radius
+    let (_, _, entries) = open(&via_curve(&arc));
+    assert_eq!(entries[0].bounds, Some(bx(-3.0, -2.0, 7.0, 8.0)));
+    let e = Curve::Ellipse(Ellipse::new(frame, 6.0, 2.0).unwrap());
+    let (_, _, entries) = open(&via_curve(&e));
+    assert_eq!(entries[0].bounds, Some(bx(-4.0, 1.0, 8.0, 5.0)));
+}
+
+#[test]
+fn wrapped_errors_display_through_their_own_display_not_debug() {
+    use pvec_components::StreamError;
+    use pvec_geometry::GeometryError;
+    assert_eq!(
+        WriteError::Geometry(GeometryError::Unbounded).to_string(),
+        format!("WRT-13: {}", GeometryError::Unbounded)
+    );
+    assert_eq!(
+        WriteError::Stream(StreamError::TooLarge).to_string(),
+        format!("WRT-11: {}", StreamError::TooLarge)
+    );
 }
