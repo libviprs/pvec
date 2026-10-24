@@ -343,7 +343,7 @@ any other way refuses the file rather than byte-swapping it. Floats are IEEE 754
     ));
     s.push_str(&format!(
         "### 1.2 The header\n\nThe header is {} bytes in version 1.0 and never more than 4096. Offsets are from the \
-first byte of the file.\n\n",
+first byte of the file. The reasoning for 64 rather than 32 bytes is in [ADR 0003, Amendment 2026-10-23](adr/0003-physical-container.md#amendment-2026-10-23).\n\n",
         HEADER_FIELDS.iter().map(|x| x.size).sum::<usize>()
     ));
     s.push_str(&table(HEADER_FIELDS));

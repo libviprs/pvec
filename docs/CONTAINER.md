@@ -14,7 +14,7 @@ Every multi-byte integer and every `f64` in the prefix is little-endian. The byt
 
 ### 1.2 The header
 
-The header is 64 bytes in version 1.0 and never more than 4096. Offsets are from the first byte of the file.
+The header is 64 bytes in version 1.0 and never more than 4096. Offsets are from the first byte of the file. The reasoning for 64 rather than 32 bytes is in [ADR 0003, Amendment 2026-10-23](adr/0003-physical-container.md#amendment-2026-10-23).
 
 | offset | size | name | encoding | meaning |
 |---|---|---|---|---|
