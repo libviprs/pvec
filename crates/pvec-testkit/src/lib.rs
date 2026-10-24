@@ -6,4 +6,6 @@
 //! on `libviprs`, on a CAD reader, or on a PDF reader.
 
 pub mod generate;
+pub mod hostile;
+pub mod records;
 pub mod reference;
