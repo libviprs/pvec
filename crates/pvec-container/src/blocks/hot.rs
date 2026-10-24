@@ -9,7 +9,7 @@
 use crate::blocks::aligned::{AlignedBytes, f64s, u32s};
 use crate::spec::FieldSpec;
 use pvec_entity::EntityId;
-use pvec_numeric::MAX_ENTITIES;
+use pvec_numeric::{MAX_ENTITIES, NumericError, Policy, check_value};
 
 /// The four magic bytes of a hot block.
 pub const HOT_MAGIC: [u8; 4] = *b"PVH1";
@@ -183,6 +183,38 @@ pub enum HotError {
         /// The position in it.
         index: usize,
     },
+    /// A subnormal value (NP-01).
+    Subnormal {
+        /// The column.
+        column: &'static str,
+        /// The position in it.
+        index: usize,
+    },
+    /// A value whose magnitude is above the coordinate bound (NP-02).
+    OutOfRange {
+        /// The column.
+        column: &'static str,
+        /// The position in it.
+        index: usize,
+    },
+    /// A stored negative zero (NP-03). The writer stores positive zero, and a view borrows the bytes
+    /// in place and cannot normalise them, so a block that holds one is refused.
+    NegativeZero {
+        /// The column.
+        column: &'static str,
+        /// The position in it.
+        index: usize,
+    },
+    /// A radius or semi-axis that is not positive, is degenerate, or makes an ellipse too thin (NP-07).
+    DegenerateRadius {
+        /// The entity.
+        index: usize,
+    },
+    /// A line, or two consecutive polyline vertices, closer than the degenerate length (NP-06).
+    DegenerateLength {
+        /// The entity.
+        index: usize,
+    },
     /// The buffer does not start on an 8-byte boundary, so the columns cannot be borrowed in place.
     Misaligned,
     /// The host is not little-endian, so a column cannot be borrowed in place.
@@ -227,13 +259,33 @@ impl HotError {
             HotError::HostEndianness => "HOT-18",
             HotError::WrongKind { .. } => "HOT-19",
             HotError::TooLarge => "HOT-20",
+            HotError::Subnormal { .. } => "HOT-21",
+            HotError::OutOfRange { .. } => "HOT-22",
+            HotError::NegativeZero { .. } => "HOT-23",
+            HotError::DegenerateRadius { .. } => "HOT-24",
+            HotError::DegenerateLength { .. } => "HOT-25",
+        }
+    }
+
+    /// The rule of `docs/NUMERIC_POLICY.md` behind a refusal that comes from it.
+    pub fn np_rule(&self) -> Option<&'static str> {
+        match self {
+            HotError::NonFinite { .. } | HotError::Subnormal { .. } => Some("NP-01"),
+            HotError::OutOfRange { .. } => Some("NP-02"),
+            HotError::NegativeZero { .. } => Some("NP-03"),
+            HotError::DegenerateLength { .. } => Some("NP-06"),
+            HotError::DegenerateRadius { .. } => Some("NP-07"),
+            _ => None,
         }
     }
 }
 
 impl core::fmt::Display for HotError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}: {self:?}", self.rule())
+        match self.np_rule() {
+            Some(np) => write!(f, "{} ({np}): {self:?}", self.rule()),
+            None => write!(f, "{}: {self:?}", self.rule()),
+        }
     }
 }
 
@@ -259,12 +311,72 @@ pub const HOT_RULES: &[(&str, &str)] = &[
     ("HOT-13", "run offsets that decrease"),
     ("HOT-14", "run offsets that do not start at zero or do not end at the vertex count"),
     ("HOT-15", "a polyline run of fewer than 2 or more than 2^20 vertices"),
-    ("HOT-16", "a NaN or infinite coordinate (NP-01)"),
+    ("HOT-16", "a NaN or infinite value (NP-01)"),
     ("HOT-17", "the buffer does not start on an 8-byte boundary"),
     ("HOT-18", "the host is not little-endian, so columns cannot be borrowed in place"),
     ("HOT-19", "(builder) an entity of another kind than the block"),
     ("HOT-20", "(builder) the block would not fit 32-bit lengths"),
+    ("HOT-21", "a subnormal value (NP-01)"),
+    ("HOT-22", "a value of magnitude above 2^40 (NP-02)"),
+    ("HOT-23", "a stored negative zero (NP-03); the builder writes positive zero instead of refusing"),
+    (
+        "HOT-24",
+        "a radius or semi-axis that is not positive or is degenerate, or an ellipse whose axis ratio is above the bound (NP-07)",
+    ),
+    (
+        "HOT-25",
+        "a line of degenerate length, or a polyline with two consecutive vertices closer than the degenerate length (NP-06)",
+    ),
 ];
+
+/// The one policy the hot blocks apply; the tolerances come from it and nowhere else.
+const POLICY: Policy = Policy::V1;
+
+/// A refusal of a single value, named after the rule that refused it.
+fn value_error(e: NumericError, column: &'static str, index: usize) -> HotError {
+    match e {
+        NumericError::Subnormal => HotError::Subnormal { column, index },
+        NumericError::OutOfRange => HotError::OutOfRange { column, index },
+        _ => HotError::NonFinite { column, index },
+    }
+}
+
+/// The largest magnitude among some values, the `mag` of NP-06 and NP-07.
+fn magnitude(values: &[f64]) -> f64 {
+    values.iter().fold(0.0, |m, v| m.max(v.abs()))
+}
+
+/// NP-06 for the segment from `a` to `b`.
+fn degenerate_segment(a: [f64; 2], b: [f64; 2]) -> bool {
+    POLICY.degenerate_length((b[0] - a[0]).hypot(b[1] - a[1]), magnitude(&[a[0], a[1], b[0], b[1]]))
+}
+
+/// NP-06 and NP-07 for one entity of `kind`, whose values have already passed `check_value`. `row` is
+/// the entity's values in column order; a polyline is checked by its caller, run by run.
+fn check_entity(kind: HotKind, row: &[f64], index: usize) -> Result<(), HotError> {
+    match kind {
+        HotKind::Line if degenerate_segment([row[0], row[1]], [row[2], row[3]]) => {
+            Err(HotError::DegenerateLength { index })
+        }
+        HotKind::CircleArc => POLICY
+            .check_radius(row[2], row[0].abs().max(row[1].abs()))
+            .map_err(|_| HotError::DegenerateRadius { index }),
+        HotKind::EllipseArc => POLICY
+            .check_semi_axes(row[2], row[3], row[0].abs().max(row[1].abs()))
+            .map_err(|_| HotError::DegenerateRadius { index }),
+        _ => Ok(()),
+    }
+}
+
+/// NP-06 for every consecutive pair in a polyline run.
+fn check_run(x: &[f64], y: &[f64], index: usize) -> Result<(), HotError> {
+    for i in 1..x.len() {
+        if degenerate_segment([x[i - 1], y[i - 1]], [x[i], y[i]]) {
+            return Err(HotError::DegenerateLength { index });
+        }
+    }
+    Ok(())
+}
 
 /// The most vertices one polyline run holds.
 pub const MAX_RUN_VERTICES: u32 = 1 << 20;
@@ -349,21 +461,23 @@ impl HotBlockBuilder {
         if self.kind == pushed { Ok(()) } else { Err(HotError::WrongKind { block: self.kind, pushed }) }
     }
 
-    fn check_finite(&self, values: &[f64]) -> Result<(), HotError> {
+    /// NP-01, NP-02 and NP-03 on every value, then NP-06 and NP-07 on the entity. Returns the values with
+    /// negative zero written as positive zero.
+    fn checked_row(&self, values: &[f64]) -> Result<[f64; 7], HotError> {
+        let names = self.kind.f64_columns();
+        let mut row = [0.0; 7];
         for (i, v) in values.iter().enumerate() {
-            if !v.is_finite() {
-                let column = self.kind.f64_columns()[i % self.kind.f64_columns().len()];
-                return Err(HotError::NonFinite { column, index: self.ids.len() });
-            }
+            row[i] = check_value(*v).map_err(|e| value_error(e, names[i % names.len()], self.ids.len()))?;
         }
-        Ok(())
+        check_entity(self.kind, &row[..values.len()], self.ids.len())?;
+        Ok(row)
     }
 
     fn push_row(&mut self, id: EntityId, style: u32, values: &[f64]) -> Result<(), HotError> {
-        self.check_finite(values)?;
+        let row = self.checked_row(values)?;
         self.ids.push(id.index());
         self.styles.push(style);
-        for (col, v) in self.columns.iter_mut().zip(values) {
+        for (col, v) in self.columns.iter_mut().zip(&row) {
             col.push(*v);
         }
         Ok(())
@@ -381,20 +495,19 @@ impl HotBlockBuilder {
         if points.len() < 2 || points.len() > MAX_RUN_VERTICES as usize {
             return Err(HotError::BadRunLength { index: self.ids.len() });
         }
+        let mut x = Vec::with_capacity(points.len());
+        let mut y = Vec::with_capacity(points.len());
         for p in points {
-            if !p[0].is_finite() || !p[1].is_finite() {
-                let column = if p[0].is_finite() { "y" } else { "x" };
-                return Err(HotError::NonFinite { column, index: self.ids.len() });
-            }
+            x.push(check_value(p[0]).map_err(|e| value_error(e, "x", self.ids.len()))?);
+            y.push(check_value(p[1]).map_err(|e| value_error(e, "y", self.ids.len()))?);
         }
+        check_run(&x, &y, self.ids.len())?;
         let end = u64::from(*self.runs.last().unwrap_or(&0)) + points.len() as u64;
         let end = u32::try_from(end).map_err(|_| HotError::TooLarge)?;
         self.ids.push(id.index());
         self.styles.push(style);
-        for p in points {
-            self.columns[0].push(p[0]);
-            self.columns[1].push(p[1]);
-        }
+        self.columns[0].extend_from_slice(&x);
+        self.columns[1].extend_from_slice(&y);
         self.runs.push(end);
         Ok(())
     }
@@ -625,10 +738,27 @@ impl<'a> HotBlockView<'a> {
         for (c, slot) in columns.iter_mut().enumerate().take(names.len()) {
             let from = at(layout.f64_start) + c * F64 * len;
             let col = f64s(&bytes[from..from + F64 * len]).ok_or(HotError::Misaligned)?;
-            if let Some(index) = col.iter().position(|v| !v.is_finite()) {
-                return Err(HotError::NonFinite { column: names[c], index });
+            for (index, &v) in col.iter().enumerate() {
+                check_value(v).map_err(|e| value_error(e, names[c], index))?;
+                if v.to_bits() == (-0.0f64).to_bits() {
+                    return Err(HotError::NegativeZero { column: names[c], index });
+                }
             }
             *slot = col;
+        }
+        if is_poly {
+            for (i, w) in offsets.windows(2).enumerate() {
+                let (lo, hi) = (w[0] as usize, w[1] as usize);
+                check_run(&columns[0][lo..hi], &columns[1][lo..hi], i)?;
+            }
+        } else if matches!(kind, HotKind::Line | HotKind::CircleArc | HotKind::EllipseArc) {
+            let mut row = [0.0; 7];
+            for i in 0..n {
+                for (slot, col) in row.iter_mut().zip(&columns[..names.len()]) {
+                    *slot = col[i];
+                }
+                check_entity(kind, &row[..names.len()], i)?;
+            }
         }
         Ok(HotBlockView { kind, ids, styles, offsets, columns, column_count: names.len() })
     }
@@ -704,7 +834,7 @@ of the block.\n\n"
     s.push_str(
         "\n### 2.2 Kinds and columns\n\n\
 Coordinates are `f64` end to end: there is no quantisation or rounding in this layer, and a value comes \
-back with the bits it went in with. They are finite (`NP-01`); a NaN or an infinity refuses the block. \
+back with the bits it went in with (negative zero goes in as positive zero). They obey the numeric policy: finite, normal or zero (`NP-01`), at most 2^40 in magnitude (`NP-02`), and negative zero is written as positive zero (`NP-03`), so a block that holds a NaN, an infinity, a subnormal, a larger value or a stored negative zero is refused whole. A radius or semi-axis is positive and not degenerate, and an ellipse is not thinner than the axis ratio bound (`NP-07`); a line has a length above the degenerate length and no two consecutive vertices of a polyline are closer than it (`NP-06`). The tolerances are the ones of `pvec-numeric`, none of them is repeated here. \
 These are the immediate display forms (a line is its two end points); the exact curve parameters of \
 ADR 0011 stay in the codec sections of P3.2.\n\n\
 | id | kind | `f64` columns, in order | meaning |\n|---|---|---|---|\n",
