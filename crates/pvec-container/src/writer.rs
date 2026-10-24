@@ -446,6 +446,7 @@ pub struct ContainerWriter {
     advanced: Vec<AdvancedItem>,
     streams: Vec<(usize, Stream)>,
     spatial: Option<SpatialItem>,
+    cell_refs: Option<RefsItem>,
     straddlers: Option<SpatialItem>,
 }
 
@@ -455,6 +456,14 @@ struct SpatialItem {
     seq: usize,
     nodes: u32,
     bounds: Bounds,
+    bytes: Vec<u8>,
+}
+
+/// The reference arrays block as the caller built it.
+#[derive(Clone, Debug)]
+struct RefsItem {
+    seq: usize,
+    cells: u32,
     bytes: Vec<u8>,
 }
 
@@ -522,6 +531,7 @@ impl ContainerWriter {
             advanced: Vec::new(),
             streams: Vec::new(),
             spatial: None,
+            cell_refs: None,
             straddlers: None,
         }
     }
@@ -805,6 +815,19 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Sets the reference block (`pvec-stream`'s `CellRefs::encode` makes it): `cells` is the number of
+    /// cells that have references, which becomes the entry's count, and `bytes` is the block. A second
+    /// call replaces the first. The block is optional, is stored as it is and is not a must-understand
+    /// block, so a reader that does not know it skips it; it sorts after every other kind, so adding it
+    /// moves no block id and the references it holds stay valid. The writer does not parse it: that the
+    /// count is the cell count of the bytes is checked when `pvec-stream` reads it.
+    pub fn set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError> {
+        u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
+        let seq = self.next_seq();
+        self.cell_refs = Some(RefsItem { seq, cells, bytes });
+        Ok(())
+    }
+
     /// Sets the straddler lists block (`pvec-stream`'s `build_straddlers` makes it): `entries` is the
     /// number of listed entities, which becomes the entry's count, `bounds` is the box of all of them and
     /// `bytes` is the block. A second call replaces the first. Like the spatial directory it is optional
@@ -1022,6 +1045,17 @@ impl ContainerWriter {
                 bytes: s.bytes.clone(),
             });
         }
+        if let Some(r) = &self.cell_refs {
+            blocks.push(Planned {
+                first_seen: r.seq,
+                kind: BlockKind::CellRefs,
+                cell: 0,
+                subtype: 0,
+                count: r.cells,
+                bounds: None,
+                bytes: r.bytes.clone(),
+            });
+        }
         if let Some(s) = &self.straddlers {
             blocks.push(Planned {
                 first_seen: s.seq,
@@ -1050,7 +1084,10 @@ impl ContainerWriter {
             let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
             let mut flags = if matches!(
                 b.kind,
-                BlockKind::Components | BlockKind::SpatialDirectory | BlockKind::Straddlers
+                BlockKind::Components
+                    | BlockKind::SpatialDirectory
+                    | BlockKind::CellRefs
+                    | BlockKind::Straddlers
             ) {
                 0
             } else {

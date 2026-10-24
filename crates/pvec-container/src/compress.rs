@@ -225,6 +225,8 @@ impl CodecPolicy {
             BlockKind::SpatialDirectory => Codec::None,
             // its index is one range and its pages are ranges of their own, so it is stored as it is
             BlockKind::Straddlers => Codec::None,
+            // the reference arrays are small next to the payload they point at and are read whole, once
+            BlockKind::CellRefs => Codec::None,
         }
     }
 }

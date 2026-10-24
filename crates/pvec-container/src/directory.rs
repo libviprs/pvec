@@ -83,6 +83,9 @@ pub enum BlockKind {
     /// The spatial directory over source-space bounds (`docs/STREAMING.md` chapter 1, issue P5.1). The
     /// container carries it as opaque bytes; `pvec-stream` defines and validates its layout.
     SpatialDirectory,
+    /// The per-cell payload references (`docs/STREAMING.md` chapter 2, issue P5.2b). The container carries
+    /// it as opaque bytes, read on demand and never at open; `pvec-stream` defines and validates its layout.
+    CellRefs,
     /// The straddler lists (`docs/STREAMING.md` section 3.2, issue P5.3b). The container carries them as
     /// opaque bytes, stored as they are so that a reader gets the index in one range and pages in
     /// further ranges; `pvec-stream` defines and validates the layout.
@@ -96,12 +99,13 @@ pub const STRADDLER_CELL_FIRST: u32 = 0xF000_0000;
 
 impl BlockKind {
     /// Every kind, in id order.
-    pub const ALL: [BlockKind; 6] = [
+    pub const ALL: [BlockKind; 7] = [
         BlockKind::Hot,
         BlockKind::Records,
         BlockKind::Arena,
         BlockKind::Components,
         BlockKind::SpatialDirectory,
+        BlockKind::CellRefs,
         BlockKind::Straddlers,
     ];
 
@@ -113,7 +117,8 @@ impl BlockKind {
             BlockKind::Arena => 3,
             BlockKind::Components => 4,
             BlockKind::SpatialDirectory => 5,
-            BlockKind::Straddlers => 6,
+            BlockKind::CellRefs => 6,
+            BlockKind::Straddlers => 7,
         }
     }
 
@@ -130,6 +135,7 @@ impl BlockKind {
             BlockKind::Arena => "arena",
             BlockKind::Components => "components",
             BlockKind::SpatialDirectory => "spatial",
+            BlockKind::CellRefs => "refs",
             BlockKind::Straddlers => "straddlers",
         }
     }

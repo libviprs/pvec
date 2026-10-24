@@ -43,7 +43,7 @@ Then `node_count` nodes of 48 bytes, level by level: all leaves, then level 1, u
 
 A cell's entities are in the hot blocks whose `cell` field is the leaf's id. The block directory sorts blocks by kind, then cell, then geometry type, so the blocks of one cell are adjacent and a cell names them as a range (`Cell::blocks`).
 
-**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf (nor an id from `STRADDLER_CELL_FIRST` up, which is where the straddlers' payloads live, section 3.2), and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and splitting it by cell stays open (see the scope note in chapter 2).
+**Cell 0 is reserved.** In the block directory, 0 is "no cell": the advanced curve set, the component set and the spatial directory itself are in it. The directory therefore never uses 0 for a leaf (nor an id from `STRADDLER_CELL_FIRST` up, which is where the straddlers' payloads live, section 3.2), and a file that carries a directory is refused when a hot block is in cell 0 (SPD-10), because the entities in it would be invisible to every query. The block kind says what a block in cell 0 is, as it did before. The advanced curve set is one set the container cannot split by cell, so no leaf holds it; `SpatialDirectory::advanced_bounds` reports its bounds beside the cells, and a cell references its curves by the row of the record block instead of holding them (section 2.8).
 
 Per-entity references with their own bounds inside a cell are not in this version: with every payload owned by one cell (ADR 0005) there is nothing to duplicate, and a per-entity list would not fit the 2 MiB open budget at a million entities. See the scope note on issue #10.
 
@@ -120,7 +120,7 @@ The writer-side placement pass, `place`, takes the opened directory and, per ent
 
 ### 2.3 The reference arrays
 
-`CellRefs` holds, per cell that has any, its references in ascending order. It has its own byte layout (`encode` and `parse`), checked like any untrusted input: the length is held to the header before anything is allocated. All integers are little endian. A reference array is not a container block yet, see the scope note below.
+`CellRefs` holds, per cell that has any, its references in ascending order. It has its own byte layout (`encode` and `parse`), checked like any untrusted input: the length is held to the header before anything is allocated. All integers are little endian. The arrays are stored as one container block of kind `refs` (section 2.3.1).
 
 | offset | size | name | meaning |
 |---|---|---|---|
@@ -133,11 +133,21 @@ The writer-side placement pass, `place`, takes the opened directory and, per ent
 | after | 4 x cell_count | ends | for each cell, the end of its references in the list below; each cell has at least one, and the last end is `ref_count` |
 | after | 8 x ref_count | references | `block_id` u32, `slot` u32; strictly ascending inside a cell |
 
+#### 2.3.1 The reference block
+
+The arrays are one block of kind 6 (`refs`, `BlockKind::CellRefs`) holding exactly the bytes above. Its directory entry says it is in no cell (cell 0), its count is the number of cells that have references (`cell_count`), it has no bounds, it is stored as it is, and it is not must-understand: a reader that does not know the kind skips it, as it skips the spatial directory. `ContainerWriter::set_cell_refs(cells, bytes)` sets it. A block kind sorts after every lower kind, so the block lands after the spatial directory and moves no hot block: a writer places in two passes, first the file without the block, then `scan_payloads` and `place`, then the same file with the block, and the block ids the references name are the same in both.
+
+It is read lazily. Neither `ContainerReader::open` nor `SpatialDirectory::open` fetches it (a test asserts that no byte of it is requested); `CellRefs::open(&reader)` fetches it when a caller wants references, and returns `None` for a file without one. `CellRefs::find` looks at the block directory only. The block is one range read in whole, not one per cell. I considered one block per cell (the cell field of the entry is there for it) and dropped it: every block is 64 bytes of the directory a reader fetches at open, and per-cell blocks would add one entry per leaf to the part of the file that has to stay small, to save reading arrays that are 8 bytes a reference. If a drawing's arrays ever outgrow a single read, the layout above already has the cell table in front, so a ranged read of one cell is a change to the reader and not to the format. #117 asks for the lazy read; it is the part of it this answers, the per-entity box is still open there.
+
+Two more rules cover the block: OWN-10 (more than one) and OWN-11 (the entry disagrees with the bytes).
+
 ### 2.4 The duplication report and what it measured
 
 `DuplicationReport` is the accounting per artifact: references per entity (mean, p99 by nearest rank, max), the entities that got references and the straddlers that did not, total reference bytes, and reference bytes as a fraction of payload bytes, where payload bytes are the decoded length of the hot blocks (`payload_bytes`).
 
-Native x64 on MARS, `rustc 1.99.1`, debug build, the fixtures of `tests/issue_11_payload_ownership.rs`, default ceiling 16:
+The fixtures of `tests/issue_11_payload_ownership.rs`, default ceiling 16, in two pipelines. Native x64 on MARS, `rustc 1.99.1`, debug build.
+
+**Before P5.3** the directory is built over every entity, so a long entity widens its cell. This is `tests/issue_11_payload_ownership.rs`, and it still holds a fraction of **2.0** on all four fixtures as the worst case of the placement pass alone:
 
 | fixture | entities | straddlers | references | mean | p99 | max | reference bytes | payload bytes | fraction |
 |---|---|---|---|---|---|---|---|---|---|
@@ -146,17 +156,32 @@ Native x64 on MARS, `rustc 1.99.1`, debug build, the fixtures of `tests/issue_11
 | identical (640 equal boxes) | 640 | 0 | 6,400 | 10.00 | 10 | 10 | 51,200 | 25,920 | 1.975 |
 | nine-cells (575 lines and one long polyline) | 576 | 0 | 1,186 | 2.06 | 3 | 9 | 9,488 | 23,416 | 0.405 |
 
-The stated bound, asserted by the test, is a fraction of **2.0**. That is a loose bound and the table says why: the P5.1 cells are small by entity count but not by extent, because a long entity widens its cell (section 1), so cell bounds overlap heavily and a short line reaches 3.8 cells on average in `rooms`. A line is also the smallest payload (40 bytes), so an 8 byte reference is a fifth of it. How the ceiling trades references for straddlers on the same fixtures (fraction, with the straddler count in brackets):
+**After P5.3** `classify` runs first, the directory is built over the local entities only, and only they get references; a straddler is in a list (chapter 3) and has none. Payload bytes are the hot blocks of the file plus the decoded bytes of the straddlers (a straddler's payload cannot sit in a leaf of a directory that was built without it, SPD-10, so the test writes the straddlers as a second file with no directory and adds its hot bytes). The numbers come from `tests/issue_131_reference_bound.rs`, which also checks this table against the document:
+
+| fixture | entities | straddlers | references | mean | p99 | max | fraction |
+|---|---|---|---|---|---|---|---|
+| rooms | 25600 | 0 | 97203 | 3.80 | 6 | 8 | 0.750 |
+| stress-long | 10800 | 24 | 34079 | 3.16 | 6 | 9 | 0.620 |
+| identical | 640 | 0 | 6400 | 10.00 | 10 | 10 | 1.975 |
+| nine-cells | 576 | 0 | 1186 | 2.06 | 3 | 9 | 0.405 |
+
+What changed: `stress-long` fell from 1.644 to 0.620, because the 24 long polylines no longer widen the cells they used to sit in, so no entity reaches more than 9 cells (it was 16, the ceiling, with 569 entities over it). `rooms` and `nine-cells` did not move: `classify` calls nothing long there (zero straddlers, including the one long polyline of `nine-cells`), so the overlap in `rooms` comes from the cells themselves, small by entity count and large in extent, and a short line reaches 3.8 of them on average. A line is also the smallest payload (40 bytes), so an 8 byte reference is a fifth of it. `identical` did not move either, and cannot: 640 equal boxes tie in every cell, so each reaches the ten cells of its tie whatever is classified. That fixture is degenerate, and I state its bound apart.
+
+The stated bounds are a fraction of **0.8** of the payload bytes on the plan-like fixtures (`rooms`, `stress-long`, `nine-cells`) and **2.0** on the degenerate one (`identical`). The first is down from 2.0, and the test asserts both. 0.8 is the measured 0.750 with a little room for a different seed and not a design target.
+
+How the ceiling trades references for fraction on the same pipeline:
 
 | ceiling | rooms | stress-long | identical | nine-cells |
 |---|---|---|---|---|
-| 1 | 0.002 (25,298) | 0.001 (10,758) | 0 (640) | 0.018 (524) |
-| 2 | 0.043 (22,673) | 0.023 (10,172) | 0 (640) | 0.321 (80) |
-| 4 | 0.508 (5,881) | 0.147 (8,209) | 0 (640) | 0.402 (1) |
-| 8 | 0.750 (0) | 0.400 (6,020) | 0 (640) | 0.402 (1) |
-| 16 | 0.750 (0) | 1.644 (569) | 1.975 (0) | 0.405 (0) |
+| 1 | 0.002 | 0.006 | 0 | 0.018 |
+| 2 | 0.043 | 0.102 | 0 | 0.321 |
+| 4 | 0.508 | 0.517 | 0 | 0.402 |
+| 8 | 0.750 | 0.620 | 0 | 0.402 |
+| 16 | 0.750 | 0.620 | 1.975 | 0.405 |
 
-Two things follow and are left for the follow-up (see the scope note). In the P5.1 tree an owning cell's bounds already contain its entity, so any viewport that sees an entity touches its owner: the references are redundant for visibility today, and they earn their bytes only for a reader that wants a cell's whole contents without walking the owners of its long entities. And the numbers should be taken again after P5.3, when straddlers stop widening the cells.
+(`identical` is 0 below 10 because every entity then reaches more cells than the ceiling and is a straddler of the placement pass, with no reference.)
+
+One thing follows and stays as it was. In the P5.1 tree an owning cell's bounds already contain its entity, so any viewport that sees an entity touches its owner: the references are redundant for visibility today, and they earn their bytes only for a reader that wants a cell's whole contents without walking the owners of its long entities, and for the advanced curves (section 2.8), whose payload no cell owns.
 
 ### 2.5 Read-side deduplication
 
@@ -177,10 +202,22 @@ Two things follow and are left for the follow-up (see the scope note). In the P5
 | OWN-07 | a duplication ceiling of 0, or a placement that would emit more references than a u32 can count |
 | OWN-08 | a reference that names no payload: a block that does not exist or is not a hot block, or a row past the end of the block |
 | OWN-09 | the container refused the read, or a block is not a valid hot block |
+| OWN-10 | more than one reference block in the file |
+| OWN-11 | a reference block whose entry disagrees with its bytes: it is in a cell, or its count is not the number of cells the arrays hold |
 
 ### 2.7 Scope note
 
-Delivered here: the reference type and its size budget, the placement pass with the ceiling and the straddler hand-off, the report, the reference arrays with their byte layout, and read-side deduplication. Not delivered, and moved to a follow-up issue: a container block kind that stores the arrays (the layout above is ready for one; the kind needs a CONTAINER.md entry and a decision on lazy per-cell reads that #117 asks for), splitting the advanced curve set by cell (it is one set in cell 0, so it has no cell to reference from), and re-measuring and tightening the stated fraction once P5.3 lands.
+Delivered in P5.2: the reference type and its size budget, the placement pass with the ceiling and the straddler hand-off, the report, the reference arrays with their byte layout, and read-side deduplication. Delivered in #131: the container block that stores the arrays with a lazy read (section 2.3.1), the measurements taken again after P5.3 with the lower bound (section 2.4), and the decision on the advanced set (section 2.8).
+
+Not done, and not part of either: where a straddler's own payload lives in a file that carries a directory (the directory refuses a hot block that no leaf owns, SPD-10, so chapter 3's lists point at payloads the writer has no cell to put in), and reading one cell's references without the rest of the block.
+
+### 2.8 The advanced curve set
+
+The advanced curves are one set of six blocks in cell 0, and I keep it one set. A composite names other records of its own block by id, so a curve cannot be moved to another cell without its segments, and a set per cell would need the segments copied or a rule that a composite and everything it names share a cell. The first stores a payload twice, the second is a clustering problem on the writer that the format does not need.
+
+What a cell needs is to know which curves reach it, and that is what a reference is for. An advanced curve is a payload with an owner (the record block) and a row (its position in the records, ascending by entity id), so it is a `PayloadRef` like any other: `block_id` is the record block and `slot` is the row. `scan_advanced` lists them. The placement pass treats them as it treats a hot entity: the curve's bounds go in, a reference goes into every leaf they intersect. `read_viewport` checks a reference to the record block (OWN-08 if the row is past the end) and leaves it alone; `advanced_rows` returns the rows a viewport names, and when that list is not empty the reader fetches the set once through `ContainerReader::advanced` and picks those rows. That replaces the box test of `advanced_in_view` with the cells' own references, and a composite spanning two regions is referenced from both, so a viewport over one end finds it without finding the segment it never touches.
+
+`SpatialDirectory::advanced_bounds` and `ReadPlan::advanced_in_view` stay, for a file that has no reference block: they say the same thing more coarsely, from one box.
 
 ## 3. Long entities and straddlers
 
@@ -198,7 +235,7 @@ What the model costs: an entity up to four cells long stays in a cell, and does 
 
 ### 3.2 Layout
 
-The straddler block is its own run of bytes with the magic `PVST`. It is built by `build_straddlers` and parsed by `StraddlerLists::parse`, and it is block kind 6 of the container (`straddlers`, section 3.8; CONTAINER.md section 4.2). All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
+The straddler block is its own run of bytes with the magic `PVST`. It is built by `build_straddlers` and parsed by `StraddlerLists::parse`, and it is block kind 7 of the container (`straddlers`, section 3.8; CONTAINER.md section 4.2). All integers are little-endian, all floats IEEE 754 binary64, all reserved fields zero. The header is 96 bytes:
 
 | offset | size | name | encoding | meaning |
 |---|---|---|---|---|
@@ -270,7 +307,7 @@ Native x64 on MARS, `rustc 1.99.1`, release, hot blocks written through the cont
 | everything in cells (P5.1 alone) | 10 | 25,920 |
 | promote to the root (cells and every long payload) | 9 | 63,829 |
 
-The stated budget is 64 KiB and 2 per cent of the artifact, which is 4,326,920 bytes for the written file, block and payload blocks included: the straddler path is 1.25 per cent. These two rows are read from that file (`the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_budget` in `issue_136_straddler_block.rs`), through a recording source, and replace the modelled 46,369 bytes (1.07 per cent) of the first version of this chapter: the difference is that a payload is fetched as the block of its page (2,592 bytes for 64 lines) and not as a row. The other rows of the table are still the model of `issue_12_straddlers.rs`, with the payload at the average hot bytes per entity. The byte counts do not depend on the architecture (the determinism goldens write the same file on x86_64 and arm64). The root's reference count is where the strategies differ most, and the stated ceiling is 64, one cell's capacity: promote-to-ancestor puts 1,000 references in the root, the lists put 0 there (1,000 at level 0).
+The stated budget is 64 KiB and 2 per cent of the artifact, which is 4,326,920 bytes for the written file, block and payload blocks included: the straddler path is 1.25 per cent. These two rows are read from that file (`the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_budget` in `issue_136_straddler_block.rs`), with every byte counted by a recording source (the directory is already open), and replace the modelled 46,369 bytes (1.07 per cent) of the first version of this chapter: the difference is that a payload is fetched as the block of its page (2,592 bytes for 64 lines) and not as a row. The other rows of the table are still the model of `issue_12_straddlers.rs`, with the payload at the average hot bytes per entity. The byte counts do not depend on the architecture (the determinism goldens write the same file on x86_64 and arm64). The root's reference count is where the strategies differ most, and the stated ceiling is 64, one cell's capacity: promote-to-ancestor puts 1,000 references in the root, the lists put 0 there (1,000 at level 0).
 
 I should be straight about what the screen row says. For this fixture the status quo is cheaper by about 20 KB at the centre of the drawing. The spanning lines' centres all lie on the middle cross, so Hilbert order puts them in cells of their own, and those cells are the only stretched ones. The strategy pays where long entities are scattered among local ones, which is what real drawings do, and `stress-long` is that case: 20,000 room entities and 10,000 random axis-aligned lines of 1,000 to 5,000 over 5,000 x 5,000. 7,968 of them are classified long (estimated cell sizes 447, 2,530, 5,000). Over 60 random 250-unit viewports the lists read 15.4 MB in 1,973 cells, and the same entities all in cells read 22.6 MB in 8,725.
 
@@ -292,9 +329,11 @@ Previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a 
 
 ### 3.8 In the container (issue P5.3b)
 
-The lists are a block of their own kind, `straddlers` (id 6). It is optional, so a reader that does not know it skips it and still validates the file; it is never compressed whatever the codec policy says, because a reader fetches its index in one range and each page in a range of its own; its count is the number of entities listed; its bounds are the union of their bounds; its cell is 0. The container does not parse it: `StraddlerIndex::open` does, and checks it against the block directory with the rules STR-10 to STR-12 of section 3.3.
+The lists are a block of their own kind, `straddlers` (id 7; id 6 is the reference arrays of P5.2b). It is optional, so a reader that does not know it skips it and still validates the file; it is never compressed whatever the codec policy says, because a reader fetches its index in one range and each page in a range of its own; its count is the number of entities listed; its bounds are the union of their bounds; its cell is 0. The container does not parse it: `StraddlerIndex::open` does, and checks it against the block directory with the rules STR-10 to STR-12 of section 3.3.
 
 **Where the payloads go.** A hot block has to sit in a cell of the directory (SPD-10), and a straddler is deliberately not in the directory. I gave the payloads cells the directory never traverses: cell `STRADDLER_CELL_FIRST` (0xF0000000) plus the index of the page the entity is listed in, so there is one cell, and so one hot block, for each page of the lists. The writer already orders blocks by cell, so the payload blocks are one run at the end of the hot blocks, in the order of the pages. The directory does not number a leaf that high (SPD-09) and leaves a hot block in such a cell alone (SPD-10), and nothing else about a cell of the directory changes. I rejected a single cell for all payloads: a block is the unit a reader fetches, and one block of 1,000 lines costs 52 KB to read for any one of them, where a block per page costs 2.6 KB. I also rejected a block range inside the existing cells, which would put the payloads where the cells' bounds have to grow to contain them, the very thing this chapter exists to avoid. `payload_cells` gives the cell of each entity before the file is laid out, because the pages depend on the bounds and the scale and not on where a payload ends up.
+
+**What an older reader does.** The block is optional, so at the container layer a reader older than this change skips it and opens the file. Its spatial directory does not: `SpatialDirectory::open` of that reader refuses a file that has straddler payloads with SPD-10, `a hot block is in a cell the directory does not have`, because the payload blocks are hot blocks in cells from `STRADDLER_CELL_FIRST` up. A hot block has to sit in a cell, so I see no way to make that reader tolerate the file without changing its code, and a format break is not on the table. So "an older reader skips it" is true of the container and false of the viewport path, and a writer should emit straddler payloads only for readers that know these cells. I call that acceptable before 1.0, where there are no deployed readers, and `a_reader_older_than_this_change_skips_the_lists_but_refuses_the_payload_cells_at_spd_10` pins the outcome by modelling that one rule.
 
 **Writer order.** Classify, build the directory over the local entities, write the local entities in their cells and each straddler in the cell `payload_cells` names, lay the file out once to learn the block ids (`scan_payloads`; hot blocks sort before the lists, so their ids do not move when the lists are added), build the lists over those ids, and write the file again with `set_straddler_lists`. P5.2's `place` over the directory of the local entities hands nothing over (section 3.4), and the test asserts it on the written file.
 
@@ -323,7 +362,7 @@ Visible requests come first, the one that brings the most visible entities per b
 
 `tier_budget` caps the bytes of visible requests in one plan. The first request always goes, so a query makes progress even under a budget of zero, requests past the budget move to `deferred` in the order they would have come (the prefetch with them), and `deferred_ranges` and `deferred_bytes` say what was left. P5.4 (tiers) has not landed, so there is no tier selection here: the budget applies to the exact hot blocks, and a tiered plan is that task's to add on top of this one.
 
-`PlanMetrics` has a `ClassMetrics` each for visible and prefetch: `ranges`, `bytes_requested`, `bytes_wasted` (the request's length less the stored length of the blocks it holds, which is what the gaps cost), `blocks` and `blocks_cached`. The two classes add up to the bytes the requests span. The advanced curve set is one set in cell 0 that no leaf holds, so it is not in the plan; `advanced_in_view` says when it touches the viewport, and splitting it is P5.2's.
+`PlanMetrics` has a `ClassMetrics` each for visible and prefetch: `ranges`, `bytes_requested`, `bytes_wasted` (the request's length less the stored length of the blocks it holds, which is what the gaps cost), `blocks` and `blocks_cached`. The two classes add up to the bytes the requests span. The advanced curve set is one set in cell 0 that no leaf holds, so it is not in the plan; `advanced_in_view` says when it touches the viewport, and a cell reaches it by reference (section 2.8).
 
 A bad query is refused by rule: VP-01 for a scale that is not finite and above zero, VP-02 for a margin that is negative, not finite or pushes the box out of range, VP-03 for a reader refusal (which carries its own rule).
 

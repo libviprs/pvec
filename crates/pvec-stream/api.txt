@@ -91,6 +91,8 @@ ownership.rs: OwnershipError::TooManyRefs
 ownership.rs: OwnershipError::NoPayload { block: u32, slot: u32, reason: &'static str }
 ownership.rs: OwnershipError::Read(ReadError)
 ownership.rs: OwnershipError::Block { block: u32, reason: &'static str }
+ownership.rs: OwnershipError::DuplicateBlock
+ownership.rs: OwnershipError::Entry { reason: &'static str }
 ownership.rs: OwnershipError::rule(&self) -> &'static str
 ownership.rs: impl core::fmt::Display for OwnershipError
 ownership.rs: impl std::error::Error for OwnershipError {}
@@ -110,6 +112,8 @@ ownership.rs: #[derive(Clone, Debug, PartialEq, Eq, Default)] pub struct CellRef
 ownership.rs: CellRefs::cells(&self) -> usize
 ownership.rs: CellRefs::total_refs(&self) -> usize
 ownership.rs: CellRefs::refs_of(&self, cell: CellId) -> &[PayloadRef]
+ownership.rs: CellRefs::find(entries: &[BlockEntry]) -> Result<Option<BlockId>, OwnershipError>
+ownership.rs: CellRefs::open<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Option<CellRefs>, OwnershipError>
 ownership.rs: CellRefs::encode(&self) -> Vec<u8>
 ownership.rs: CellRefs::parse(bytes: &[u8]) -> Result<CellRefs, OwnershipError>
 ownership.rs: #[derive(Clone, Debug, PartialEq)] pub struct DuplicationReport
@@ -133,10 +137,12 @@ ownership.rs: PayloadSlot.id: EntityId
 ownership.rs: PayloadSlot.payload: PayloadRef
 ownership.rs: PayloadSlot.cell: u32
 ownership.rs: pub fn scan_payloads<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Vec<PayloadSlot>, OwnershipError>
+ownership.rs: pub fn scan_advanced<S: BlockSource>(reader: &ContainerReader<S>) -> Result<Vec<PayloadSlot>, OwnershipError>
 ownership.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ViewportRefs
 ownership.rs: ViewportRefs.raw: usize
 ownership.rs: ViewportRefs.refs: Vec<PayloadRef>
 ownership.rs: pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> ViewportRefs
+ownership.rs: pub fn advanced_rows<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs) -> Result<Vec<u32>, OwnershipError>
 ownership.rs: pub fn read_viewport<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs, mut visit: impl FnMut(EntityId, &HotBlockView<'_>, usize)) -> Result<usize, OwnershipError>
 straddler.rs: pub const STRADDLER_FACTOR: f64
 straddler.rs: pub const STRADDLER_HEADER_LEN: usize

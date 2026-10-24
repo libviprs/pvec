@@ -286,9 +286,10 @@ directory.rs: BlockKind::Records
 directory.rs: BlockKind::Arena
 directory.rs: BlockKind::Components
 directory.rs: BlockKind::SpatialDirectory
+directory.rs: BlockKind::CellRefs
 directory.rs: BlockKind::Straddlers
 directory.rs: pub const STRADDLER_CELL_FIRST: u32
-directory.rs: BlockKind::const ALL: [BlockKind; 6]
+directory.rs: BlockKind::const ALL: [BlockKind; 7]
 directory.rs: BlockKind::id(self) -> u16
 directory.rs: BlockKind::from_id(id: u16) -> Option<BlockKind>
 directory.rs: BlockKind::name(self) -> &'static str
@@ -874,5 +875,6 @@ writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments
 writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_straddler_lists(&mut self, entries: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>

@@ -195,14 +195,14 @@ fn a_file_with_straddlers_validates_and_the_block_is_optional_and_stored_as_it_i
     let r = reader(w.bytes.clone());
     r.validate().expect("a file with straddlers validates");
     let (i, e) = straddler_entry(&r);
-    assert_eq!(e.kind, 6);
+    assert_eq!(e.kind, 7);
     assert_eq!(e.flags & FLAG_MUST_UNDERSTAND, 0, "optional: an older reader skips it");
     assert_eq!(e.codec, 0, "stored as it is, so its index is one range");
     assert_eq!(e.cell, 0);
     assert_eq!(e.count as usize, w.long.len());
     assert_eq!(e.uncompressed_length as usize, w.block.len());
     assert_eq!(r.read_block(BlockId(i as u32)).unwrap().as_bytes(), &w.block[..]);
-    assert_eq!(BlockKind::from_id(6), Some(BlockKind::Straddlers));
+    assert_eq!(BlockKind::from_id(7), Some(BlockKind::Straddlers));
     // the whole block parses and is the block that went in
     StraddlerLists::parse(&w.block, &Limits::DEFAULT).unwrap();
 }
@@ -335,7 +335,7 @@ fn the_documents_describe_the_block_kind_the_payload_cells_and_the_new_rules() {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/");
     let container = fs::read_to_string(format!("{root}CONTAINER.md")).unwrap();
     let streaming = fs::read_to_string(format!("{root}STREAMING.md")).unwrap();
-    assert!(container.contains("| 6 | straddlers |"), "CONTAINER.md has no row for kind 6");
+    assert!(container.contains("| 7 | straddlers |"), "CONTAINER.md has no row for kind 7");
     assert!(container.contains("STRADDLER_CELL_FIRST"), "CONTAINER.md does not name the payload cells");
     for (rule, meaning) in STRADDLER_RULES {
         assert!(streaming.contains(&format!("| {rule} | {meaning} |")), "STREAMING.md lacks {rule}");
@@ -399,7 +399,7 @@ fn the_numbers_of_section_3_6_are_measured_from_the_written_file_and_stay_in_bud
 
 /// What a reader from before this change does with the file. It cannot be run (the code is gone), so
 /// this models its one relevant rule, SPD-10 of `docs/STREAMING.md`: every hot block must sit in a cell
-/// of the directory. The container layer is real: kind 6 is optional and skipped.
+/// of the directory. The container layer is real: kind 7 is optional and skipped.
 #[test]
 fn a_reader_older_than_this_change_skips_the_lists_but_refuses_the_payload_cells_at_spd_10() {
     let w = written();
