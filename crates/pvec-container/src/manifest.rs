@@ -349,7 +349,36 @@ impl Manifest {
     }
 
     /// The canonical encoding.
+    ///
+    /// Fails for anything `Manifest::parse` would refuse on its own terms: an empty producer id, a
+    /// string over `MAX_STRING_LEN` bytes, or a manifest over `Manifest::MAX_LEN`. The checks run
+    /// before any length is narrowed to a `u32`, so an oversized string cannot wrap.
     pub fn encode(&self) -> Result<Vec<u8>, ContainerError> {
+        let corpus = self.metadata.corpus_revision.as_deref().unwrap_or("");
+        let strings = [
+            ("producer_id", self.metadata.producer_id.as_str()),
+            ("producer_version", self.metadata.producer_version.as_str()),
+            ("corpus_revision", corpus),
+        ];
+        for (field, text) in strings {
+            if text.len() > MAX_STRING_LEN as usize {
+                let length = u32::try_from(text.len()).unwrap_or(u32::MAX);
+                return Err(ContainerError::StringTooLong { field, length });
+            }
+        }
+        if self.metadata.producer_id.is_empty() {
+            return Err(ContainerError::MissingProducer);
+        }
+        let padded = |n: u64| (n + 7) & !7;
+        let size = padded(
+            Manifest::FIXED_LEN as u64
+                + self.capabilities.len() as u64 * cap::SIZE as u64
+                + self.directories.len() as u64 * dir::SIZE as u64
+                + strings.iter().map(|(_, t)| t.len() as u64).sum::<u64>(),
+        );
+        if size > Manifest::MAX_LEN {
+            return Err(ContainerError::ManifestTooLarge { length: size });
+        }
         let mut b = vec![0u8; Manifest::FIXED_LEN];
         let put16 = |b: &mut Vec<u8>, at: usize, v: u16| b[at..at + 2].copy_from_slice(&v.to_le_bytes());
         let put32 = |b: &mut Vec<u8>, at: usize, v: u32| b[at..at + 4].copy_from_slice(&v.to_le_bytes());
@@ -377,7 +406,6 @@ impl Manifest {
         if let Some(d) = self.artifact_digest {
             b[m::ARTIFACT_DIGEST..m::ARTIFACT_DIGEST + 32].copy_from_slice(&d);
         }
-        let corpus = self.metadata.corpus_revision.as_deref().unwrap_or("");
         put32(&mut b, m::PRODUCER_ID_LEN, self.metadata.producer_id.len() as u32);
         put32(&mut b, m::PRODUCER_VERSION_LEN, self.metadata.producer_version.len() as u32);
         put32(&mut b, m::CORPUS_REVISION_LEN, corpus.len() as u32);
