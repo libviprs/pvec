@@ -9,6 +9,7 @@ members = [
     "crates/pvec-corpus",
     "crates/pvec-entity",
     "crates/pvec-geometry",
+    "crates/pvec-interchange",
     "crates/pvec-mmap",
     "crates/pvec-numeric",
     "crates/pvec-sources",
