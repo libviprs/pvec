@@ -217,10 +217,22 @@ impl Ellipse {
 
     /// Builds an ellipse from a centre, a major-axis vector (the end of the major axis relative to
     /// the centre) and the ratio of the minor to the major semi-axis: the three numbers a DWG
-    /// `ELLIPSE` stores. Not implemented yet.
+    /// `ELLIPSE` stores.
+    ///
+    /// The frame is the vector normalised (NP-10), the first semi-axis is its length and the second
+    /// is that length times `ratio`, so the major axis stays first. A reader hands over the source
+    /// numbers as they are and does no arithmetic on them. Refused: a zero vector (NP-10), a
+    /// non-finite or subnormal ratio (NP-01), a ratio outside `(0, 1]` or one whose axis ratio is
+    /// past the conditioning bound (NP-07), and any value NP-01, NP-02 or NP-07 refuse in
+    /// [`Ellipse::new`]. A ratio of one is still an ellipse; PVec does not convert it to a circle.
     pub fn from_major_axis(centre: Point2, major_axis: Vector2, ratio: f64) -> Result<Ellipse> {
-        let _ = (centre, major_axis, ratio);
-        Err(NumericError::Limit.into())
+        let placement = Placement2::new(centre, major_axis)?;
+        check_value(ratio)?;
+        if !(ratio > 0.0 && ratio <= 1.0) {
+            return Err(NumericError::DegenerateRadius.into());
+        }
+        let major = major_axis.length();
+        Ellipse::new(placement, major, ratio * major)
     }
 
     /// The frame.
