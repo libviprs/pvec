@@ -41,12 +41,12 @@ const EMITTED: [&str; 16] = [
 /// The fixtures the current capability set cannot hold exactly, and the capability each one is
 /// missing. A refusal is the right answer for all of them: none may be approximated.
 const MISSING: [(&str, &str); 13] = [
-    ("bulge-arc-001", "composite_curve"),
-    ("bulge-arc-neg-001", "composite_curve"),
+    ("bulge-arc-001", "trimmed_curve"),
+    ("bulge-arc-neg-001", "trimmed_curve"),
     ("closed-periodic-001", "b_spline_curve"),
     ("ellipse-001", "ellipse"),
     ("elliptical-arc-001", "ellipse"),
-    ("layer-state-001", "layer"),
+    ("layer-state-001", "layer (on/frozen state)"),
     ("nested-blocks-001", "affine_transform_2d"),
     ("nonuniform-scale-circle-001", "affine_transform_2d"),
     ("nonuniform-scale-rotated-001", "affine_transform_2d"),
@@ -295,6 +295,18 @@ fn every_stored_real_is_the_bit_pattern_the_record_authored() {
         for (i, (got, want)) in opened.entities.iter().zip(&record.entities).enumerate() {
             assert_eq!(art.ids[i], (want.id.clone(), got.id()), "{id}: the id map");
             assert_eq!(got.bits(), truth(want), "{id}/{}: stored numbers differ from the record", want.id);
+            let degree = match want.geometry.get("degree") {
+                Some(Node::Int(d)) => Some(usize::try_from(*d).unwrap()),
+                _ => None,
+            };
+            match (got, degree) {
+                (ReadEntity::Spline { degree: stored, .. }, Some(d)) => {
+                    assert_eq!(*stored, d, "{id}/{}: the stored degree differs from the record", want.id)
+                }
+                (ReadEntity::Spline { .. }, None) => panic!("{id}: a spline from a record with no degree"),
+                (_, Some(_)) => panic!("{id}: a record with a degree is not a spline in the file"),
+                (_, None) => {}
+            }
         }
     }
 }
@@ -395,13 +407,9 @@ fn geometry_the_capability_set_cannot_hold_is_refused_with_the_capability_named(
     // a rotated frame needs an angle whose last bit belongs to libm
     missing(&record("r", &[circle("turned", o, z, [0.0, 1.0, 0.0], 1.0)]), "turned", "circle");
     missing(&record("r", &[ellipse("slanted", o, [0.96, 0.28, 0.0], 3.0, 2.0)]), "slanted", "ellipse");
-    // arcs inside a polyline are a composite of lines and trimmed circles
+    // a bulge is an arc, a trimmed circle whose angles need atan2
     let verts = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 2.0, 0.0]];
-    missing(
-        &record("r", &[polyline("bulged", &verts, &[0.0, 0.5, 0.0], false)]),
-        "bulged",
-        "composite_curve",
-    );
+    missing(&record("r", &[polyline("bulged", &verts, &[0.0, 0.5, 0.0], false)]), "bulged", "trimmed_curve");
     // no wrapped periodic form
     let cps = [
         [3.0, 0.0, 0.0],
@@ -493,7 +501,7 @@ fn artifacts_are_reproducible_from_the_bundle_alone() {
 
 /// What is wrong with a dependency tree: a package that is not of this workspace, or one that reads
 /// CAD or PDF, or any `libviprs` crate.
-fn tree_problems(lock: &str, manifests: &[(&str, &str)]) -> Vec<String> {
+fn tree_problems(lock: &str, manifests: &[(&str, &str)], workspace_only: bool) -> Vec<String> {
     const BANNED: [&str; 14] = [
         "libviprs",
         "dwg",
@@ -508,12 +516,12 @@ fn tree_problems(lock: &str, manifests: &[(&str, &str)]) -> Vec<String> {
         "opencascade",
         "occt",
         "oda",
-        "step-",
+        "ruststep",
     ];
     let mut out = Vec::new();
     for line in lock.lines() {
         if let Some(name) = line.strip_prefix("name = \"").and_then(|r| r.strip_suffix('"')) {
-            if !name.starts_with("pvec-") {
+            if workspace_only && !name.starts_with("pvec-") {
                 out.push(format!("Cargo.lock: {name} is not a crate of this workspace"));
             }
             for b in BANNED {
@@ -548,11 +556,16 @@ fn tree_problems(lock: &str, manifests: &[(&str, &str)]) -> Vec<String> {
 fn the_dependency_check_flags_a_libviprs_crate_and_a_cad_or_pdf_reader() {
     let lock = "[[package]]\nname = \"pvec-numeric\"\n\n[[package]]\nname = \"libviprs-core\"\n\n[[package]]\nname = \"pdfium-render\"\n";
     let manifest = "[dependencies]\nacadrust = \"1\"\npvec-numeric = { path = \"../pvec-numeric\" }\n";
-    let found = tree_problems(lock, &[("crates/x/Cargo.toml", manifest)]);
+    let found = tree_problems(lock, &[("crates/x/Cargo.toml", manifest)], true);
     assert!(found.iter().any(|p| p.contains("libviprs-core")), "{found:?}");
     assert!(found.iter().any(|p| p.contains("pdfium-render")), "{found:?}");
     assert!(found.iter().any(|p| p.contains("acadrust")), "{found:?}");
-    assert!(tree_problems("[[package]]\nname = \"pvec-numeric\"\n", &[]).is_empty());
+    assert!(tree_problems("[[package]]\nname = \"pvec-numeric\"\n", &[], true).is_empty());
+    // a spike has its own tree, which may carry other crates but not a reader or a libviprs crate
+    let spike = "[[package]]\nname = \"serde\"\n\n[[package]]\nname = \"pdfium-render\"\n";
+    let found = tree_problems(spike, &[], false);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].contains("pdfium-render"));
 }
 
 #[test]
@@ -568,5 +581,23 @@ fn the_repository_tree_has_no_libviprs_crate_and_no_cad_or_pdf_reader() {
     }
     assert!(manifests.len() >= 9, "the scan has to see the crates");
     let refs: Vec<(&str, &str)> = manifests.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
-    assert_eq!(tree_problems(&lock, &refs), Vec::<String>::new());
+    assert_eq!(tree_problems(&lock, &refs, true), Vec::<String>::new());
+}
+
+#[test]
+fn the_spikes_have_no_libviprs_crate_and_no_cad_or_pdf_reader_either() {
+    let spikes = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spikes");
+    let mut seen = 0;
+    for e in fs::read_dir(&spikes).unwrap() {
+        let dir = e.unwrap().path();
+        let (Ok(lock), Ok(manifest)) =
+            (fs::read_to_string(dir.join("Cargo.lock")), fs::read_to_string(dir.join("Cargo.toml")))
+        else {
+            continue;
+        };
+        let name = dir.display().to_string();
+        assert_eq!(tree_problems(&lock, &[(name.as_str(), manifest.as_str())], false), Vec::<String>::new());
+        seen += 1;
+    }
+    assert!(seen >= 8, "the scan has to see the spikes ({seen})");
 }
