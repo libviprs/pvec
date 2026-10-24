@@ -201,6 +201,13 @@ A decoder rejects: a gap between consecutive segments larger than `NP-17`; more 
 `NP-18`; a `.DISCONTINUOUS.` transition; a segment whose own entry (sections 4 to 8, 10, 11, 12)
 would be rejected; a declared closed composite whose last end does not meet its first start.
 
+A polyline segment with a bulge is one circular arc, and a producer that holds its two end points and the
+bulge builds it with `Trimmed::from_bulge`: a positive bulge runs counter-clockwise from the first point to
+the second and a negative one clockwise, which comes back as a reversed trim (`NP-11`). The span is
+`4 atan |bulge|` and the radius is `L (1 + b^2) / (4 |b|)` for a chord of length `L`. A zero bulge is a line
+and is refused (`GEOM-02`), as are the values `NP-01`, `NP-02`, `NP-06` and `NP-07` refuse. The closing
+segment of a closed polyline is built with the same call, from the last vertex to the first.
+
 ## 10. Bezier
 
 | Field | Value |

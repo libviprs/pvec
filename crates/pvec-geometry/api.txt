@@ -46,6 +46,7 @@ curve.rs: Polyline::vertices(&self) -> &[Point2]
 curve.rs: impl Curve2d for Polyline
 curve.rs: #[derive(Clone, Debug, PartialEq)] pub struct Trimmed
 curve.rs: Trimmed::new(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Trimmed>
+curve.rs: Trimmed::from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed>
 curve.rs: Trimmed::from_normalised(basis: Curve, trim: Trim) -> Result<Trimmed>
 curve.rs: Trimmed::basis(&self) -> &Curve
 curve.rs: Trimmed::trim(&self) -> Trim
@@ -66,6 +67,7 @@ error.rs: GeometryError::BadSegment
 error.rs: GeometryError::WeightCount
 error.rs: GeometryError::InvertedBounds
 error.rs: GeometryError::NotUnitDirection
+error.rs: GeometryError::ZeroBulge
 error.rs: GeometryError::rule(&self) -> &'static str
 error.rs: GeometryError::as_numeric(&self) -> Option<NumericError>
 error.rs: impl From<NumericError> for GeometryError
