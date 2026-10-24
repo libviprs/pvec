@@ -80,6 +80,20 @@ pub mod ids {
     pub const RATIONAL_B_SPLINE_CURVE: CapabilityId = CapabilityId::new(12);
     /// Section 13.
     pub const AFFINE_TRANSFORM_2D: CapabilityId = CapabilityId::new(13);
+    /// The layer stream (P3.7).
+    pub const LAYER: CapabilityId = CapabilityId::new(14);
+    /// The line style stream (P3.7).
+    pub const LINE_STYLE: CapabilityId = CapabilityId::new(15);
+    /// The text stream (P3.7).
+    pub const TEXT: CapabilityId = CapabilityId::new(16);
+    /// The hatch stream (P3.7).
+    pub const HATCH: CapabilityId = CapabilityId::new(17);
+    /// The source provenance stream (P3.7).
+    pub const SOURCE_PROVENANCE: CapabilityId = CapabilityId::new(18);
+    /// The reserved space for future DWG semantics (P3.7).
+    pub const DWG_SEMANTICS: CapabilityId = CapabilityId::new(19);
+    /// The semantic class stream (P3.9).
+    pub const SEMANTIC_CLASS: CapabilityId = CapabilityId::new(20);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
@@ -256,6 +270,19 @@ pub enum RegistryError {
     ExtensionNamesConstruct(&'static str),
     /// An extension is registered as required without an ADR listed in its entry.
     ExtensionRequiredWithoutAdr(&'static str),
+    /// No entry has this id.
+    UnknownId(CapabilityId),
+    /// The entry is not a component, so its version is not bumped this way.
+    NotAComponent(CapabilityId),
+    /// A version bump that does not go up.
+    VersionNotIncreased {
+        /// The capability.
+        id: CapabilityId,
+        /// Its current version.
+        current: Version,
+        /// The version asked for.
+        requested: Version,
+    },
 }
 
 impl fmt::Display for RegistryError {
@@ -302,6 +329,11 @@ impl fmt::Display for RegistryError {
             }
             RegistryError::ExtensionRequiredWithoutAdr(n) => {
                 write!(f, "extension {n} is required but lists no ADR; extensions are optional by default")
+            }
+            RegistryError::UnknownId(id) => write!(f, "no capability has id {id}"),
+            RegistryError::NotAComponent(id) => write!(f, "capability {id} is not a component"),
+            RegistryError::VersionNotIncreased { id, current, requested } => {
+                write!(f, "capability {id} is at version {current}; {requested} is not higher")
             }
         }
     }
@@ -597,7 +629,24 @@ impl Registry {
         Ok(Negotiated { skipped })
     }
 
-    /// The v1 registry: the thirteen capabilities of the semantic profile.
+    /// Raises the version of a component stream. Geometry versions are not touched by this, and a
+    /// component version never moves backwards or stays put, so a bump is always visible.
+    pub fn bump_component_version(&mut self, id: CapabilityId, to: Version) -> Result<(), RegistryError> {
+        let Some(i) = self.entries.iter().position(|c| c.id == id) else {
+            return Err(RegistryError::UnknownId(id));
+        };
+        let c = &mut self.entries[i];
+        if c.class != Class::Component {
+            return Err(RegistryError::NotAComponent(id));
+        }
+        if to <= c.version {
+            return Err(RegistryError::VersionNotIncreased { id, current: c.version, requested: to });
+        }
+        c.version = to;
+        Ok(())
+    }
+
+    /// The v1 registry: the thirteen capabilities of the semantic profile and the seven component streams.
     pub fn v1() -> Registry {
         let g = |id: CapabilityId,
                  name: &'static str,
@@ -614,6 +663,21 @@ impl Registry {
             requirement: Requirement::Required,
             step,
             gis,
+            min_reader: Version::new(1, 0, 0),
+            restriction,
+            adr: None,
+        };
+        // A component stream: optional by construction, no ISO construct, no STEP or GIS behaviour.
+        let c = |id: CapabilityId, name: &'static str, restriction: &'static str| Capability {
+            id,
+            name,
+            class: Class::Component,
+            version: Version::new(1, 0, 0),
+            iso_construct: "",
+            profile_section: 0,
+            requirement: Requirement::Optional,
+            step: StepBehaviour::NotApplicable,
+            gis: GisBehaviour::NotApplicable,
             min_reader: Version::new(1, 0, 0),
             restriction,
             adr: None,
@@ -724,6 +788,29 @@ impl Registry {
                 S::ExactForm,
                 G::NotApplicable,
                 "any invertible 2x3 affine map; only the similarity subset has a Part 21 operator",
+            ),
+            c(ids::LAYER, "layer", "a layer table and a layer index per entity, by EntityId"),
+            c(
+                ids::LINE_STYLE,
+                "line_style",
+                "a dash pattern table and a style index per entity, by EntityId",
+            ),
+            c(ids::TEXT, "text", "text records anchored at a point, each referring to an entity by EntityId"),
+            c(ids::HATCH, "hatch", "boundary by EntityId references plus fill parameters; embeds no curve"),
+            c(
+                ids::SOURCE_PROVENANCE,
+                "source_provenance",
+                "source handle bytes per EntityId; never inside the id",
+            ),
+            c(
+                ids::DWG_SEMANTICS,
+                "dwg_semantics",
+                "reserved space for future DWG semantics; opaque to a reader that does not know it",
+            ),
+            c(
+                ids::SEMANTIC_CLASS,
+                "semantic_class",
+                "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
         ];
         Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")

@@ -1,0 +1,170 @@
+error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum StreamError
+error.rs: StreamError::BadMagic
+error.rs: StreamError::UnsupportedVersion(u16)
+error.rs: StreamError::ReservedNotZero
+error.rs: StreamError::Truncated
+error.rs: StreamError::TooMany
+error.rs: StreamError::NonZeroPadding
+error.rs: StreamError::TrailingBytes
+error.rs: StreamError::GeometryCapability(CapabilityId)
+error.rs: StreamError::NotAComponent(CapabilityId)
+error.rs: StreamError::TooLarge
+error.rs: StreamError::rule(&self) -> &'static str
+error.rs: impl fmt::Display for StreamError
+error.rs: impl std::error::Error for StreamError {}
+error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum ComponentError
+error.rs: ComponentError::Truncated
+error.rs: ComponentError::Trailing
+error.rs: ComponentError::TooMany
+error.rs: ComponentError::TooLong
+error.rs: ComponentError::BadCount
+error.rs: ComponentError::BadNumber
+error.rs: ComponentError::BadUtf8
+error.rs: ComponentError::BadEntityId(u32)
+error.rs: ComponentError::IndexOutOfRange
+error.rs: ComponentError::EmbeddedGeometry
+error.rs: ComponentError::BadTag(u32)
+error.rs: ComponentError::ReservedNotZero
+error.rs: ComponentError::UnknownCapability(CapabilityId)
+error.rs: ComponentError::Duplicate(EntityId)
+error.rs: ComponentError::ConfidenceNotAllowed
+error.rs: ComponentError::rule(&self) -> &'static str
+error.rs: impl fmt::Display for ComponentError
+error.rs: impl std::error::Error for ComponentError {}
+frame.rs: pub const MAX_STREAMS: usize
+frame.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Stream
+frame.rs: Stream.capability: CapabilityId
+frame.rs: Stream.version: Version
+frame.rs: Stream.payload: Vec<u8>
+frame.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SkipReason
+frame.rs: SkipReason::UnknownCapability
+frame.rs: SkipReason::NotImplemented
+frame.rs: SkipReason::IncompatibleVersion
+frame.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Skipped
+frame.rs: Skipped.capability: CapabilityId
+frame.rs: Skipped.version: Version
+frame.rs: Skipped.reason: SkipReason
+frame.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Opened
+frame.rs: Opened.streams: Vec<Stream>
+frame.rs: Opened.skipped: Vec<Skipped>
+frame.rs: pub fn encode_streams(streams: &[Stream]) -> Result<Vec<u8>, StreamError>
+frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader) -> Result<Opened, StreamError>
+lib.rs: pub use error::{ComponentError, StreamError}
+lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
+lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, TextRecord, TextStream, }
+lib.rs: pub use semantic::{ ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord, SemanticClassStream, SemanticRead, SourceTag, }
+payloads.rs: pub const MAX_TABLE: usize
+payloads.rs: pub const MAX_NAME: usize
+payloads.rs: pub const MAX_DASHES: usize
+payloads.rs: pub const MAX_TEXT: usize
+payloads.rs: pub const MAX_BOUNDARY: usize
+payloads.rs: pub const MAX_HANDLE: usize
+payloads.rs: pub const MAX_RECORDS: usize
+payloads.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct LayerStream
+payloads.rs: LayerStream.names: Vec<String>
+payloads.rs: LayerStream.assignments: Vec<(EntityId, u32)>
+payloads.rs: LayerStream::const CAPABILITY: CapabilityId
+payloads.rs: LayerStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: LayerStream::decode(bytes: &[u8]) -> Res<LayerStream>
+payloads.rs: LayerStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct LineStyleDef
+payloads.rs: LineStyleDef.name: String
+payloads.rs: LineStyleDef.dashes: Vec<f64>
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct LineStyleStream
+payloads.rs: LineStyleStream.styles: Vec<LineStyleDef>
+payloads.rs: LineStyleStream.assignments: Vec<(EntityId, u32)>
+payloads.rs: LineStyleStream::const CAPABILITY: CapabilityId
+payloads.rs: LineStyleStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: LineStyleStream::decode(bytes: &[u8]) -> Res<LineStyleStream>
+payloads.rs: LineStyleStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct TextRecord
+payloads.rs: TextRecord.entity: EntityId
+payloads.rs: TextRecord.x: f64
+payloads.rs: TextRecord.y: f64
+payloads.rs: TextRecord.height: f64
+payloads.rs: TextRecord.rotation: f64
+payloads.rs: TextRecord.text: String
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct TextStream
+payloads.rs: TextStream.records: Vec<TextRecord>
+payloads.rs: TextStream::const CAPABILITY: CapabilityId
+payloads.rs: TextStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: TextStream::decode(bytes: &[u8]) -> Res<TextStream>
+payloads.rs: TextStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub enum Fill
+payloads.rs: Fill::Solid { rgba: u32 }
+payloads.rs: Fill::Pattern { name: String, angle: f64, scale: f64, rgba: u32 }
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct HatchRecord
+payloads.rs: HatchRecord.boundary: Vec<EntityId>
+payloads.rs: HatchRecord.fill: Fill
+payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct HatchStream
+payloads.rs: HatchStream.records: Vec<HatchRecord>
+payloads.rs: HatchStream::const CAPABILITY: CapabilityId
+payloads.rs: HatchStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: HatchStream::decode(bytes: &[u8]) -> Res<HatchStream>
+payloads.rs: HatchStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+payloads.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ProvenanceRecord
+payloads.rs: ProvenanceRecord.entity: EntityId
+payloads.rs: ProvenanceRecord.source_kind: u16
+payloads.rs: ProvenanceRecord.handle: Vec<u8>
+payloads.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ProvenanceStream
+payloads.rs: ProvenanceStream.records: Vec<ProvenanceRecord>
+payloads.rs: ProvenanceStream::const CAPABILITY: CapabilityId
+payloads.rs: ProvenanceStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: ProvenanceStream::decode(bytes: &[u8]) -> Res<ProvenanceStream>
+payloads.rs: ProvenanceStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+payloads.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ReservedStream
+payloads.rs: ReservedStream.payload: Vec<u8>
+payloads.rs: ReservedStream::const CAPABILITY: CapabilityId
+payloads.rs: ReservedStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: ReservedStream::decode(bytes: &[u8]) -> Res<ReservedStream>
+payloads.rs: ReservedStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+semantic.rs: pub const MAX_HOLES: usize
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum ElementClass
+semantic.rs: ElementClass::Other
+semantic.rs: ElementClass::Wall
+semantic.rs: ElementClass::Column
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum RegionKind
+semantic.rs: RegionKind::Room
+semantic.rs: RegionKind::Corridor
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SourceTag
+semantic.rs: SourceTag::LayerRule
+semantic.rs: SourceTag::BlockRule
+semantic.rs: SourceTag::Inferred
+semantic.rs: SourceTag::Explicit
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Origin
+semantic.rs: Origin.source: SourceTag
+semantic.rs: Origin.confidence: Option<f64>
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ElementEntry
+semantic.rs: ElementEntry.entity: EntityId
+semantic.rs: ElementEntry.class: ElementClass
+semantic.rs: ElementEntry.origin: Origin
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub struct RegionRecord
+semantic.rs: RegionRecord.kind: RegionKind
+semantic.rs: RegionRecord.origin: Origin
+semantic.rs: RegionRecord.outer: Vec<EntityId>
+semantic.rs: RegionRecord.holes: Vec<Vec<EntityId>>
+semantic.rs: pub trait EntityGeometry
+semantic.rs: EntityGeometry::endpoints(&self, entity: EntityId) -> Option<([f64; 2], [f64; 2])>
+semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RegionError
+semantic.rs: RegionError::MissingEntity { entity: EntityId, region: Option<usize> }
+semantic.rs: RegionError::NotClosed { region: usize }
+semantic.rs: RegionError::DuplicateEntity { region: usize, entity: EntityId }
+semantic.rs: RegionError::BadTolerance
+semantic.rs: RegionError::rule(&self) -> &'static str
+semantic.rs: impl fmt::Display for RegionError
+semantic.rs: impl std::error::Error for RegionError {}
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub enum SemanticRead
+semantic.rs: SemanticRead::Absent
+semantic.rs: SemanticRead::Present(SemanticClassStream)
+semantic.rs: SemanticRead::Damaged(E)
+semantic.rs: #[derive(Clone, Debug, PartialEq)] pub struct SemanticClassStream
+semantic.rs: SemanticClassStream.elements: Vec<ElementEntry>
+semantic.rs: SemanticClassStream.regions: Vec<RegionRecord>
+semantic.rs: SemanticClassStream::from_opened(opened: &Opened) -> SemanticRead
+semantic.rs: SemanticClassStream::const CAPABILITY: CapabilityId
+semantic.rs: SemanticClassStream::encode(&self) -> Res<Vec<u8>>
+semantic.rs: SemanticClassStream::decode(bytes: &[u8]) -> Res<SemanticClassStream>
+semantic.rs: SemanticClassStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+semantic.rs: SemanticClassStream::entities_of(&self, class: ElementClass) -> Vec<EntityId>
+semantic.rs: SemanticClassStream::regions_of(&self, kind: RegionKind) -> Vec<&RegionRecord>
+semantic.rs: SemanticClassStream::validate(&self, geometry: &dyn EntityGeometry, tolerance: f64) -> Result<(), RegionError>

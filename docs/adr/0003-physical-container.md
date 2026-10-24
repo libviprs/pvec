@@ -47,3 +47,34 @@ Reverse to adopting HDF5 as the storage under a PVec-defined block directory and
 a rerun against corpus revision r2 or later: a Morton-ordered, chunk-per-block HDF5 file reads at most twice
 layout B's bytes for the 1/16 viewport on `million` (at most 1.9 MB, against the 42.3 MB measured), and a
 maintained pure-Rust reader decodes variable-length data in wasm at 100 MiB/s or better.
+
+## Amendment 2026-10-23
+
+The decision above says a 32-byte header. The v1.0 header that P4.1 (#2, PR #85) implements is 64 bytes, and I
+am accepting that, so this amendment replaces "32-byte" in the Decision with "64-byte" for every file written
+from v1.0 on. The rest of the decision (custom block container, independent blocks, a directory entry per
+block) stands untouched.
+
+Why 64. The 32 came from the prototype header I measured in the layout spike, and that header had nowhere to
+put four things the real format needs in the first read: the manifest offset and length (so the manifest can
+sit anywhere after the header), the per-block and per-artifact checksum algorithm ids from ADR 0006, a
+`header_len` field so a later minor version can lengthen the header without breaking an older reader, and
+some reserved space to grow into without a major bump. Squeezing those into 32 bytes meant dropping the
+header length or the reserved space, and those are the two fields that make the format extensible, so I
+widened the header instead.
+
+Cold-open cost. A cold open reads 32 more bytes than the ADR priced in (64 instead of 32). It costs no extra
+range read: the 64-byte header sits well inside the first 4 KiB fetch, which also carries the start of the
+manifest, so the range counts in the spike tables do not change, and `Header::MAX_LEN` still caps the header
+at 4096 bytes.
+
+The directory-table pointer in the header (`directory_table_offset` and `directory_table_length`) is a
+redundant copy of where the manifest puts its directory-pointer table. It is there so a reader can go
+straight to the directories from the header alone. Because it is a copy, a reader never reconciles two
+values: if the header and the manifest disagree, the file is refused (`DirectoryTableMismatch`), not
+repaired by picking one.
+
+The 32 in `docs/spikes/01-5-layouts.md` (and the spike numbers that quote it) stays as it is. It is what the
+prototype measured, the spike is a dated record, and rewriting it would make the measurement look like
+something it was not. The normative layout is `docs/CONTAINER.md` chapter 1.
+

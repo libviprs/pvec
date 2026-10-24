@@ -58,6 +58,13 @@ lib.rs: pub const BEZIER_CURVE: CapabilityId
 lib.rs: pub const B_SPLINE_CURVE: CapabilityId
 lib.rs: pub const RATIONAL_B_SPLINE_CURVE: CapabilityId
 lib.rs: pub const AFFINE_TRANSFORM_2D: CapabilityId
+lib.rs: pub const LAYER: CapabilityId
+lib.rs: pub const LINE_STYLE: CapabilityId
+lib.rs: pub const TEXT: CapabilityId
+lib.rs: pub const HATCH: CapabilityId
+lib.rs: pub const SOURCE_PROVENANCE: CapabilityId
+lib.rs: pub const DWG_SEMANTICS: CapabilityId
+lib.rs: pub const SEMANTIC_CLASS: CapabilityId
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct Version
 lib.rs: Version.major: u16
 lib.rs: Version.minor: u16
@@ -114,6 +121,9 @@ lib.rs: RegistryError::AmbiguousConstruct { construct: &'static str, first: &'st
 lib.rs: RegistryError::ComponentNamesConstruct(&'static str)
 lib.rs: RegistryError::ExtensionNamesConstruct(&'static str)
 lib.rs: RegistryError::ExtensionRequiredWithoutAdr(&'static str)
+lib.rs: RegistryError::UnknownId(CapabilityId)
+lib.rs: RegistryError::NotAComponent(CapabilityId)
+lib.rs: RegistryError::VersionNotIncreased { id: CapabilityId, current: Version, requested: Version }
 lib.rs: impl fmt::Display for RegistryError
 lib.rs: impl std::error::Error for RegistryError {}
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct Reader
@@ -144,4 +154,5 @@ lib.rs: Registry::by_name(&self, name: &str) -> Option<&Capability>
 lib.rs: Registry::is_retired(&self, id: CapabilityId) -> bool
 lib.rs: Registry::validate_against_profile(&self, profile: &[ProfileSection]) -> Result<(), RegistryError>
 lib.rs: Registry::negotiate(&self, reader: &Reader, file: &Declaration) -> Result<Negotiated, NegotiationError>
+lib.rs: Registry::bump_component_version(&mut self, id: CapabilityId, to: Version) -> Result<(), RegistryError>
 lib.rs: Registry::v1() -> Registry

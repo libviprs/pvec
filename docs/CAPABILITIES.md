@@ -21,6 +21,13 @@ The STEP and GIS columns are what the semantic profile declares for each capabil
 | 11 | `b_spline_curve` | geometry | 1.0.0 | `b_spline_curve_with_knots` | 11 | required | exact form | densified, error reported | 1.0.0 | none | degree 1 to 16, explicit knots, non-rational, no wrapped periodic form |
 | 12 | `rational_b_spline_curve` | geometry | 1.0.0 | `rational_b_spline_curve` | 12 | required | exact form | densified, error reported | 1.0.0 | none | a B-spline plus strictly positive weights; equal weights stay rational |
 | 13 | `affine_transform_2d` | geometry | 1.0.0 | `cartesian_transformation_operator_2d` | 13 | required | exact form | not applicable | 1.0.0 | none | any invertible 2x3 affine map; only the similarity subset has a Part 21 operator |
+| 14 | `layer` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | a layer table and a layer index per entity, by EntityId |
+| 15 | `line_style` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | a dash pattern table and a style index per entity, by EntityId |
+| 16 | `text` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | text records anchored at a point, each referring to an entity by EntityId |
+| 17 | `hatch` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | boundary by EntityId references plus fill parameters; embeds no curve |
+| 18 | `source_provenance` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | source handle bytes per EntityId; never inside the id |
+| 19 | `dwg_semantics` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | reserved space for future DWG semantics; opaque to a reader that does not know it |
+| 20 | `semantic_class` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve |
 
 ## Retired ids
 

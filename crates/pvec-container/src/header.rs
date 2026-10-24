@@ -2,7 +2,7 @@
 
 use crate::error::ContainerError;
 use crate::manifest::Manifest;
-use crate::spec::{BYTE_ORDER_MARKER, MAGIC, h};
+use crate::spec::{BYTE_ORDER_MARKER, MAGIC, dir, h};
 
 /// A checksum algorithm id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -100,12 +100,17 @@ impl Header {
         if prefix[h::MAGIC..h::MAGIC + MAGIC.len()] != MAGIC {
             return Err(ContainerError::BadMagic);
         }
-        if prefix.len() < Header::LEN {
-            return Err(truncated(Header::LEN));
+        // The major is judged as soon as its two bytes are present: a file of a version this reader
+        // cannot read says so, even when its header is shorter than this version's.
+        if prefix.len() < h::MAJOR + 2 {
+            return Err(truncated(h::MAJOR + 2));
         }
         let major = u16_at(prefix, h::MAJOR);
         if major != Header::MAJOR {
             return Err(ContainerError::UnsupportedVersion { found: major, supported: Header::MAJOR });
+        }
+        if prefix.len() < Header::LEN {
+            return Err(truncated(Header::LEN));
         }
         let marker = u32::from_le_bytes([
             prefix[h::BYTE_ORDER],
@@ -152,6 +157,9 @@ impl Header {
             return Err(ContainerError::ManifestTooLarge { length: manifest_length });
         }
         check_range("directory_table", directory_table_offset, directory_table_length, floor, artifact_len)?;
+        if directory_table_length % dir::SIZE as u64 != 0 {
+            return Err(ContainerError::BadDirectoryTableLength { length: directory_table_length });
+        }
         Ok(Header {
             major,
             minor: u16_at(prefix, h::MINOR),
