@@ -19,13 +19,18 @@ use std::f64::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-const EMITTED: [&str; 16] = [
+const EMITTED: [&str; 21] = [
     "arc-seam-001",
     "bezier-d3-001",
     "bspline-d3-001",
     "bspline-d5-001",
+    "bulge-arc-001",
+    "bulge-arc-neg-001",
     "circle-001",
     "closed-by-endpoint-001",
+    "closed-periodic-001",
+    "ellipse-001",
+    "elliptical-arc-001",
     "large-coords-001",
     "line-001",
     "lwpolyline-closed-001",
@@ -40,12 +45,7 @@ const EMITTED: [&str; 16] = [
 
 /// The fixtures the current capability set cannot hold exactly, and the capability each one is
 /// missing. A refusal is the right answer for all of them: none may be approximated.
-const MISSING: [(&str, &str); 13] = [
-    ("bulge-arc-001", "trimmed_curve"),
-    ("bulge-arc-neg-001", "trimmed_curve"),
-    ("closed-periodic-001", "b_spline_curve"),
-    ("ellipse-001", "ellipse"),
-    ("elliptical-arc-001", "ellipse"),
+const MISSING: [(&str, &str); 8] = [
     ("layer-state-001", "layer (on/frozen state)"),
     ("nested-blocks-001", "affine_transform_2d"),
     ("nonuniform-scale-circle-001", "affine_transform_2d"),
@@ -294,6 +294,10 @@ fn every_stored_real_is_the_bit_pattern_the_record_authored() {
         assert_eq!(opened.entities.len(), record.entities.len(), "{id}");
         for (i, (got, want)) in opened.entities.iter().zip(&record.entities).enumerate() {
             assert_eq!(art.ids[i], (want.id.clone(), got.id()), "{id}: the id map");
+            if art.derived.iter().any(|d| d.entity == want.id) {
+                // a stored number of this entity is derived and says so; issue_101_gaps holds it to its bound
+                continue;
+            }
             assert_eq!(got.bits(), truth(want), "{id}/{}: stored numbers differ from the record", want.id);
             let degree = match want.geometry.get("degree") {
                 Some(Node::Int(d)) => Some(usize::try_from(*d).unwrap()),
@@ -404,13 +408,12 @@ fn geometry_the_capability_set_cannot_hold_is_refused_with_the_capability_named(
     missing(&record("r", &[line("up", [0.0, 0.0, 0.5], [1.0, 1.0, 0.5])]), "up", "line");
     missing(&record("r", &[circle("tilted", o, [0.0, 1.0, 0.0], x, 1.0)]), "tilted", "circle");
     missing(&record("r", &[circle("flipped", o, [0.0, 0.0, -1.0], x, 1.0)]), "flipped", "circle");
-    // a rotated frame needs an angle whose last bit belongs to libm
+    // a circle frame that is not along x is still refused: its angle would be derived, and nothing needs it
     missing(&record("r", &[circle("turned", o, z, [0.0, 1.0, 0.0], 1.0)]), "turned", "circle");
-    missing(&record("r", &[ellipse("slanted", o, [0.96, 0.28, 0.0], 3.0, 2.0)]), "slanted", "ellipse");
-    // a bulge is an arc, a trimmed circle whose angles need atan2
+    // a bulge on more than one segment is a composite, which needs the container's composite storage
     let verts = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 2.0, 0.0]];
     missing(&record("r", &[polyline("bulged", &verts, &[0.0, 0.5, 0.0], false)]), "bulged", "trimmed_curve");
-    // no wrapped periodic form
+    // a periodic rational spline: ADR 0011 unwraps the non-rational form only
     let cps = [
         [3.0, 0.0, 0.0],
         [1.5, 2.5, 0.0],
@@ -421,9 +424,9 @@ fn geometry_the_capability_set_cannot_hold_is_refused_with_the_capability_named(
     ];
     let knots: Vec<(f64, u32)> = [0.0, 0.1, 0.25, 0.4, 0.6, 0.8, 1.0].iter().map(|k| (*k, 1)).collect();
     missing(
-        &record("r", &[bspline("wrapped", 3, &cps, &knots, None, PERIODIC)]),
+        &record("r", &[bspline("wrapped", 3, &cps, &knots, Some(&[1.0; 6]), PERIODIC)]),
         "wrapped",
-        "b_spline_curve",
+        "rational_b_spline_curve",
     );
 }
 

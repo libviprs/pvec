@@ -162,6 +162,7 @@ dependencies = [
  "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-numeric",
 ]
 
 [[package]]

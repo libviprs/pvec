@@ -21,19 +21,37 @@
 //! | `polyline`, all bulges zero | hot polyline; a closed one repeats its first vertex (profile section 5) |
 //! | `circle` | circle through `push_curve`, domain `0..2 pi` |
 //! | `circular_arc` | hot circle arc with the authored start angle and sweep |
-//! | `ellipse` with its major axis along `x` | ellipse through `push_curve` |
+//! | `polyline` that is one arc (two vertices, one bulge) | hot circle arc, derived (see below) |
+//! | `ellipse`, `elliptical_arc` along `x` | ellipse through `push_curve` |
+//! | `ellipse`, `elliptical_arc` with any other in-plane major axis | hot ellipse arc, rotation derived |
 //! | `bezier` | `push_curve` |
 //! | `bspline`, `nurbs` | `push_curve`, knots expanded from their multiplicities; `closed_by_endpoint` declares the curve closed |
+//! | periodic `bspline` | the clamped closed unwrap of ADR 0011 (`BSpline::from_periodic`), derived |
+//!
+//! # What is derived, and what that costs
+//!
+//! Three mappings store a number the record did not author, and each one says so in
+//! [`Artifact::derived`] with a bound, so the bit-for-bit check can be held to everything else:
+//!
+//! * a bulge arc: the centre, the radius, the start angle and the sweep come from the two vertices and
+//!   the bulge;
+//! * a rotated ellipse: the rotation is the angle of the authored major axis;
+//! * a periodic B-spline: the knots and control points of the clamped form come out of knot insertion.
+//!
+//! None of them calls the C library. The angles come from [`crate::detmath`], which uses basic
+//! arithmetic only and so gives the same bits on every machine, and the unwrap is basic arithmetic
+//! already. The production writer's own refusal of a rotated frame (WRT-08) is untouched: it has no such
+//! arithmetic, and the generator, being test support, supplies the angles to the hot-block calls itself.
 //!
 //! # What is refused, and why that is the point
 //!
 //! Anything the capability set cannot hold exactly is refused with the missing capability named
-//! ([`Cause::MissingCapability`]), never approximated: a bulge (an arc whose angles need atan2), a periodic
-//! B-spline, an ellipse or circle whose frame is rotated (its angle needs `atan2`, whose last bit
-//! belongs to the C library and not to the format), geometry off the drawing plane, layer state, and
-//! an instance with a transform. One entity that cannot be held refuses the whole fixture, so no
+//! ([`Cause::MissingCapability`]), never approximated: a polyline that mixes arcs with other
+//! segments (a composite), a rational periodic spline, a circle whose frame is rotated, geometry off
+//! the drawing plane, layer state, and an instance with a transform. One entity that cannot be held refuses the whole fixture, so no
 //! artifact ever claims to be a fixture it only partly is.
 
+use crate::detmath;
 use pvec_capabilities::{CapabilityId, Registry};
 use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, Header, LengthUnit, Manifest, Metadata};
@@ -43,8 +61,9 @@ use pvec_corpus::{Bundle, CorpusError, ExpectedMath, Fixture, FixtureRegistry};
 use pvec_entity::EntityId;
 use pvec_geometry::{
     BSpline, Bezier, Circle, Curve, Ellipse, GeometryError, Placement2, Point2, Polyline, RationalBSpline,
-    Vector2,
+    Trimmed, Vector2,
 };
+use std::f64::consts::TAU;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -55,6 +74,10 @@ pub const GENERATOR_VERSION: &str = "pvec-gen/1";
 pub const PRODUCER_PREFIX: &str = "pvec-gen:";
 
 const GENERATOR_PREFIX: &str = "pvec-gen/";
+
+/// 2^-52, the unit the stated bounds on derived numbers are counted in (one rounding of a value near 1).
+/// It is a unit of error analysis, not a tolerance: nothing is compared with it.
+const UNIT: f64 = f64::from_bits(0x3cb0_0000_0000_0000);
 
 /// One generated artifact.
 #[derive(Clone, Debug)]
@@ -67,6 +90,20 @@ pub struct Artifact {
     pub bytes: Vec<u8>,
     /// For each entity of the record, in record order: its id there and the `EntityId` it was given.
     pub ids: Vec<(String, u32)>,
+    /// Every stored number that is derived and not authored, with how far it may be from the exact
+    /// value. Empty when every stored real is the bit pattern the record authored.
+    pub derived: Vec<Derived>,
+}
+
+/// A stored number the record did not author.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Derived {
+    /// The entity of the record.
+    pub entity: String,
+    /// What was derived and how.
+    pub what: String,
+    /// A bound on the distance from the exact value (an angle in radians, a length in metres).
+    pub bound: f64,
 }
 
 impl Artifact {
@@ -156,6 +193,7 @@ pub struct Plan {
     corpus_revision: String,
     capabilities: Vec<CapabilityId>,
     ops: Vec<Op>,
+    derived: Vec<Derived>,
     options: WriterOptions,
 }
 
@@ -173,6 +211,11 @@ impl Plan {
     pub fn with_options(mut self, options: WriterOptions) -> Plan {
         self.options = options;
         self
+    }
+
+    /// The stored numbers the record did not author.
+    pub fn derived(&self) -> &[Derived] {
+        &self.derived
     }
 
     /// How many entities.
@@ -381,7 +424,9 @@ fn periodic(e: &Entity) -> bool {
     e.node.get("closure").and_then(|c| c.get("periodic")) == Some(&Node::Bool(true))
 }
 
-fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]), Refusal> {
+type Mapped = (Shape, &'static [&'static str], Vec<Derived>);
+
+fn shape_of(fixture: &str, e: &Entity) -> Result<Mapped, Refusal> {
     let cx = Ctx { fixture, entity: &e.id };
     let g = &e.geometry;
     let frame = Placement2::new;
@@ -391,17 +436,16 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
         EntityClass::Line => {
             let a = cx.plane("line", cx.triple(g.get("start"), "start")?, "start")?;
             let b = cx.plane("line", cx.triple(g.get("end"), "end")?, "end")?;
-            Ok((Shape::Line(a, b), &["line"]))
+            Ok((Shape::Line(a, b), &["line"], Vec::new()))
         }
         EntityClass::Polyline => {
             let bulges = g.get("bulges").and_then(Node::as_list).unwrap_or(&[]);
+            let mut bulge = Vec::with_capacity(bulges.len());
             for b in bulges {
-                if cx.real(Some(b), "bulges")? != 0.0 {
-                    return Err(cx.missing(
-                        "trimmed_curve",
-                        "a bulge is one circular arc between two vertices; storing it needs the arc's start angle and sweep, which come from atan2 (its last bit is the C library's, not the format's), so it stays refused until pvec-geometry has an exact constructor (#91, from_bulge)",
-                    ));
-                }
+                bulge.push(cx.real(Some(b), "bulges")?);
+            }
+            if bulge.iter().any(|b| *b != 0.0) {
+                return bulge_arc(&cx, e, &bulge);
             }
             let mut v = cx.points("polyline", g.get("vertices"), "vertices")?;
             if closed_by_endpoint(e) {
@@ -411,7 +455,7 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
                 }
             }
             let poly = Polyline::new(pts(&v)).map_err(|x| cx.geometry(x))?;
-            Ok((Shape::Curve(Box::new(Curve::Polyline(poly))), &["polyline"]))
+            Ok((Shape::Curve(Box::new(Curve::Polyline(poly))), &["polyline"], Vec::new()))
         }
         EntityClass::Circle | EntityClass::CircularArc => {
             let c = cx.plane("circle", cx.triple(g.get("center"), "center")?, "center")?;
@@ -420,25 +464,49 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
             let place = frame(origin(c), x_axis).map_err(|x| cx.geometry(x))?;
             let circle = Circle::new(place, r).map_err(|x| cx.geometry(x))?;
             if e.class == EntityClass::Circle {
-                Ok((Shape::Curve(Box::new(Curve::Circle(circle))), &["circle"]))
+                Ok((Shape::Curve(Box::new(Curve::Circle(circle))), &["circle"], Vec::new()))
             } else {
                 let start = cx.real(g.get("start_angle"), "start_angle")?;
                 let sweep = cx.real(g.get("sweep_angle"), "sweep_angle")?;
                 Ok((
                     Shape::Arc { centre: c, radius: circle.radius(), start_sweep: [start, sweep] },
                     &["circle", "trimmed_curve"],
+                    Vec::new(),
                 ))
             }
         }
         EntityClass::Ellipse | EntityClass::EllipticalArc => {
             let c = cx.plane("ellipse", cx.triple(g.get("center"), "center")?, "center")?;
-            cx.frame("ellipse", g, "major_axis")?;
+            let normal = cx.triple(g.get("normal"), "normal")?;
+            if normal != [0.0, 0.0, 1.0] {
+                return Err(cx.missing(
+                    "ellipse",
+                    "the normal is not +z: a tilted or flipped plane is not the drawing plane",
+                ));
+            }
+            let axis = cx.plane("ellipse", cx.triple(g.get("major_axis"), "major_axis")?, "major_axis")?;
             let (a, b) =
                 (cx.real(g.get("semi_major"), "semi_major")?, cx.real(g.get("semi_minor"), "semi_minor")?);
-            let place = frame(origin(c), x_axis).map_err(|x| cx.geometry(x))?;
+            // the model validates the frame (NP-10: a zero axis has no direction) and the semi-axes
+            let place = frame(origin(c), Vector2::new(axis[0], axis[1])).map_err(|x| cx.geometry(x))?;
             let ellipse = Ellipse::new(place, a, b).map_err(|x| cx.geometry(x))?;
+            let mut said = Vec::new();
+            let rotation = if axis[1] == 0.0 && axis[0] > 0.0 {
+                0.0
+            } else {
+                // the angle of the authored axis, from basic arithmetic so every machine stores the same bits
+                let r = detmath::atan2(axis[1], axis[0]);
+                said.push(Derived {
+                    entity: e.id.clone(),
+                    what: "the rotation of the ellipse: the angle of the authored major axis, by detmath::atan2 (within one ulp)"
+                        .to_string(),
+                    bound: UNIT * r.abs(),
+                });
+                r
+            };
             if e.class == EntityClass::Ellipse {
-                Ok((Shape::Curve(Box::new(Curve::Ellipse(ellipse))), &["ellipse"]))
+                let radii = [ellipse.semi_axis_1(), ellipse.semi_axis_2()];
+                Ok((Shape::EllipseArc { centre: c, radii, angles: [rotation, 0.0, TAU] }, &["ellipse"], said))
             } else {
                 let start = cx.real(g.get("start_angle"), "start_angle")?;
                 let sweep = cx.real(g.get("sweep_angle"), "sweep_angle")?;
@@ -446,25 +514,23 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
                     Shape::EllipseArc {
                         centre: c,
                         radii: [ellipse.semi_axis_1(), ellipse.semi_axis_2()],
-                        angles: [0.0, start, sweep],
+                        angles: [rotation, start, sweep],
                     },
                     &["ellipse", "trimmed_curve"],
+                    said,
                 ))
             }
         }
         EntityClass::Bezier => {
             let cps = cx.points("bezier_curve", g.get("control_points"), "control_points")?;
             let bez = Bezier::new(pts(&cps)).map_err(|x| cx.geometry(x))?;
-            Ok((Shape::Curve(Box::new(Curve::Bezier(bez))), &["bezier_curve"]))
+            Ok((Shape::Curve(Box::new(Curve::Bezier(bez))), &["bezier_curve"], Vec::new()))
         }
         EntityClass::Bspline | EntityClass::Nurbs => {
             let rational = e.class == EntityClass::Nurbs;
             let name: &'static str = if rational { "rational_b_spline_curve" } else { "b_spline_curve" };
             if periodic(e) {
-                return Err(cx.missing(
-                    name,
-                    "a periodic B-spline: the profile has no wrapped periodic form (an unclamped knot vector is not a clamped curve)",
-                ));
+                return periodic_spline(&cx, e, rational);
             }
             let degree = match g.get("degree") {
                 Some(Node::Int(d)) if (1..=16).contains(d) => *d as usize,
@@ -493,9 +559,102 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<(Shape, &'static [&'static str]
             };
             let needs: &'static [&'static str] =
                 if rational { &["rational_b_spline_curve"] } else { &["b_spline_curve"] };
-            Ok((Shape::Curve(Box::new(curve)), needs))
+            Ok((Shape::Curve(Box::new(curve)), needs, Vec::new()))
         }
     }
+}
+
+/// A polyline of two vertices with one bulge is one circular arc. Stored as the hot circle arc: the
+/// centre, the radius, the start angle and the signed sweep, formed with basic arithmetic and
+/// [`detmath`], so the numbers are the same on every machine.
+///
+/// The formulas are those of `Trimmed::from_bulge`, which this validates against first (NP-01, NP-02,
+/// NP-06, NP-07 and the zero-bulge rule): chord `L`, radius `(L / 4)(1 / |b| + |b|)`, centre at
+/// `(L / 4)(1 / b - b)` along the left normal of the chord from its midpoint, sweep `4 atan |b|`, start
+/// the angle of the first vertex from the centre. A negative bulge is a negative sweep from the same start.
+fn bulge_arc(cx: &Ctx<'_>, e: &Entity, bulge: &[f64]) -> Result<Mapped, Refusal> {
+    let g = &e.geometry;
+    let vertices = cx.points("polyline", g.get("vertices"), "vertices")?;
+    let one_arc = vertices.len() == 2
+        && bulge.len() == 2
+        && bulge[1] == 0.0
+        && bulge[0] != 0.0
+        && !closed_by_endpoint(e);
+    if !one_arc {
+        return Err(cx.missing(
+            "trimmed_curve",
+            "a polyline that mixes arcs with other segments is a composite curve; the generator holds a bulge only as a single arc (two vertices, one bulge, open), and a composite needs the container's composite storage with ids for its segments",
+        ));
+    }
+    let (p0, p1, b) = (vertices[0], vertices[1], bulge[0]);
+    // the model's constructor decides what is refused, and is the cross-check of the numbers below
+    Trimmed::from_bulge(Point2::new(p0[0], p0[1]), Point2::new(p1[0], p1[1]), b)
+        .map_err(|x| cx.geometry(x))?;
+    let (dx, dy) = (p1[0] - p0[0], p1[1] - p0[1]);
+    let chord = (dx * dx + dy * dy).sqrt();
+    let radius = (chord / 4.0) * (1.0 / b.abs() + b.abs());
+    let offset = (chord / 4.0) * (1.0 / b - b);
+    let (nx, ny) = (-dy / chord, dx / chord);
+    let centre = [0.5 * (p0[0] + p1[0]) + offset * nx, 0.5 * (p0[1] + p1[1]) + offset * ny];
+    let a0 = detmath::atan2(p0[1] - centre[1], p0[0] - centre[0]);
+    let mut start = a0.rem_euclid(TAU);
+    if start >= TAU {
+        start = 0.0;
+    }
+    let span = 4.0 * detmath::atan(b.abs());
+    let sweep = if b > 0.0 { span } else { -span };
+    // The error of the centre: a few roundings of numbers no larger than the coordinates and the
+    // radius (the offset is a difference whose terms are bounded by the radius), so 64 epsilons of
+    // their sum is generous. The angles carry that, seen from the radius, and the roundings of the
+    // arctangents.
+    let scale = p0.iter().chain(p1.iter()).fold(0.0_f64, |m, v| m.max(v.abs())) + radius;
+    let place = 64.0 * UNIT * scale;
+    let said = |what: &str, bound: f64| Derived { entity: e.id.clone(), what: what.to_string(), bound };
+    Ok((
+        Shape::Arc { centre, radius, start_sweep: [start, sweep] },
+        &["circle", "trimmed_curve"],
+        vec![
+            said(
+                "stored as the arc the bulge describes, and not as a bulge (the container has no bulge segment, so the structural claim that the vertices stay a bulge is not held); the centre and the radius come from the vertices and the bulge (+ - * / and sqrt)",
+                place,
+            ),
+            said(
+                "the start angle: the angle of the first vertex from the centre, by detmath::atan2",
+                place / radius + 4.0 * UNIT * TAU,
+            ),
+            said("the sweep: 4 atan |bulge|, by detmath::atan", 2.0 * UNIT * span),
+        ],
+    ))
+}
+
+/// A periodic B-spline, as the clamped closed curve of ADR 0011. The record lists the knots of one
+/// period, which is what `BSpline::from_periodic` takes. A rational one is refused: the ADR does not
+/// cover it.
+fn periodic_spline(cx: &Ctx<'_>, e: &Entity, rational: bool) -> Result<Mapped, Refusal> {
+    let g = &e.geometry;
+    if rational {
+        return Err(cx.missing(
+            "rational_b_spline_curve",
+            "a periodic rational B-spline: ADR 0011 unwraps the non-rational periodic form only, and the unwrap of a weighted one is not defined there",
+        ));
+    }
+    let degree = match g.get("degree") {
+        Some(Node::Int(d)) if (1..=16).contains(d) => *d as usize,
+        _ => return Err(cx.unsupported("the degree is not an integer from 1 to 16")),
+    };
+    let cps = pts(&cx.points("b_spline_curve", g.get("control_points"), "control_points")?);
+    let knots = cx.knots(g.get("knots"))?;
+    let u = BSpline::from_periodic(degree, cps, knots).map_err(|x| cx.geometry(x))?;
+    Ok((
+        Shape::Curve(Box::new(Curve::BSpline(u.curve))),
+        &["b_spline_curve"],
+        vec![Derived {
+            entity: e.id.clone(),
+            what: "the periodic B-spline unwrapped into the clamped closed form by knot insertion (ADR 0011); the bound is the distance from the exact periodic curve"
+                .to_string(),
+            bound: u.periodic_deviation_bound,
+        }],
+    ))
 }
 
 /// Maps one record onto writer calls. Refuses the whole record when any entity cannot be held.
@@ -529,6 +688,7 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
     };
     want("cartesian_point");
     let mut ops = Vec::with_capacity(math.entities.len());
+    let mut derived: Vec<Derived> = Vec::new();
     for (i, e) in math.entities.iter().enumerate() {
         let cx = Ctx { fixture, entity: &e.id };
         if e.node.get("structure") != Some(&Node::Str("CURVE_ONLY".to_string())) {
@@ -543,7 +703,8 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
                 "the `layer` capability exists, but its stream stores a name table and an index per entity and has no field for whether a layer is on or frozen, which this record carries",
             ));
         }
-        let (shape, needs) = shape_of(fixture, e)?;
+        let (shape, needs, mut said) = shape_of(fixture, e)?;
+        derived.append(&mut said);
         for n in needs {
             want(n);
         }
@@ -558,6 +719,7 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
         corpus_revision: corpus_revision.to_string(),
         capabilities: caps,
         ops,
+        derived,
         options: WriterOptions::default(),
     })
 }
@@ -580,6 +742,7 @@ pub fn generate_record_with(
         corpus_revision: corpus_revision.to_string(),
         bytes,
         ids: p.ids(),
+        derived: p.derived().to_vec(),
     })
 }
 
