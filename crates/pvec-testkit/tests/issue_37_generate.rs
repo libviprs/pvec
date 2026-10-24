@@ -506,8 +506,9 @@ fn artifacts_are_reproducible_from_the_bundle_alone() {
 /// CAD or PDF, or any `libviprs` crate.
 /// The crates outside this workspace the tree may hold, and why. Each is pure Rust (a test in
 /// `pvec-container` reads Cargo.lock to keep it so): the block codecs and the block checksum that ADR 0006
-/// chose, and the one checksum crate the deflate decoder needs.
-const EXTERNAL: [&str; 4] = ["lz4_flex", "miniz_oxide", "adler2", "xxhash-rust"];
+/// chose, and the one checksum crate the deflate decoder needs. `memmap2` and its one dependency `libc` are
+/// the memory map of `pvec-mmap` (ADR 0016): they map a file and read no CAD or PDF format.
+const EXTERNAL: [&str; 6] = ["lz4_flex", "miniz_oxide", "adler2", "xxhash-rust", "memmap2", "libc"];
 
 fn tree_problems(lock: &str, manifests: &[(&str, &str)], workspace_only: bool) -> Vec<String> {
     const BANNED: [&str; 14] = [

@@ -336,3 +336,29 @@ fn the_measurement_runs_on_a_tiny_fixture_and_the_codecs_round_trip_it() {
             .any(|r| r.kind == BlockKind::Components)
     );
 }
+
+fn row_with(decompress_us: u64, checksum_us: u64) -> Row {
+    Row {
+        fixture: "synthetic".to_string(),
+        kind: BlockKind::Hot,
+        codec: Codec::Lz4,
+        blocks: 1,
+        raw: 1000,
+        stored: 500,
+        compress: Duration::from_micros(10),
+        decompress: Duration::from_micros(decompress_us),
+        checksum: Duration::from_micros(checksum_us),
+    }
+}
+
+#[test]
+fn the_reversal_check_flags_a_block_checksum_over_a_quarter_of_decode_time() {
+    // ADR 0006: a block checksum that costs more than 25% of block decode time becomes opt-in per file.
+    let under = [row_with(100, 24), row_with(100, 5)];
+    let over = [row_with(100, 24), row_with(100, 26)];
+    assert!(reversal_check(&under).starts_with("under"), "{}", reversal_check(&under));
+    let verdict = reversal_check(&over);
+    assert!(verdict.starts_with("OVER"), "{verdict}");
+    assert!(verdict.contains("synthetic") && verdict.contains("26.0"), "{verdict}");
+    assert!(reversal_check(&[]).starts_with("no rows"));
+}

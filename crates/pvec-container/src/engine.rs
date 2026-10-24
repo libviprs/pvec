@@ -756,6 +756,9 @@ impl<'a> Validation<'a> {
                 self.streams = opened.skipped.iter().map(|s| s.capability.get()).collect();
                 self.streams.sort_unstable();
             }
+            // the layout of the spatial directory is `pvec-stream`'s; here it has been fetched, verified
+            // against its checksum and decoded, which is all the container knows how to check
+            Some(BlockKind::SpatialDirectory) => {}
             // a block of a kind nobody knows is skipped when the file is opened and never fed here
             None => return Err(internal()),
         }

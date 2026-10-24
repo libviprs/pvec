@@ -445,6 +445,16 @@ pub struct ContainerWriter {
     hot: Vec<HotItem>,
     advanced: Vec<AdvancedItem>,
     streams: Vec<(usize, Stream)>,
+    spatial: Option<SpatialItem>,
+}
+
+/// The spatial directory block as the caller built it.
+#[derive(Clone, Debug)]
+struct SpatialItem {
+    seq: usize,
+    nodes: u32,
+    bounds: Bounds,
+    bytes: Vec<u8>,
 }
 
 fn normal(v: f64) -> f64 {
@@ -510,6 +520,7 @@ impl ContainerWriter {
             hot: Vec::new(),
             advanced: Vec::new(),
             streams: Vec::new(),
+            spatial: None,
         }
     }
 
@@ -773,6 +784,25 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Sets the spatial directory block (`pvec-stream`'s `build_directory` makes it): `nodes` is its node
+    /// count, which becomes the entry's count, `bounds` is the box of the whole tree and `bytes` is the
+    /// block. A second call replaces the first. The block is optional (a reader that does not know it
+    /// skips it) and is stored as it is, whatever codec the policy names. The writer does not parse it:
+    /// that the cells the hot blocks name are the cells the directory has is checked by
+    /// `SpatialDirectory::open`.
+    pub fn set_spatial_directory(
+        &mut self,
+        nodes: u32,
+        bounds: Bounds,
+        bytes: Vec<u8>,
+    ) -> Result<(), WriteError> {
+        let bounds = checked_bounds(bounds).ok_or(WriteError::BadBounds { id: None })?;
+        u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
+        let seq = self.next_seq();
+        self.spatial = Some(SpatialItem { seq, nodes, bounds, bytes });
+        Ok(())
+    }
+
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
     fn declarations(&self) -> Result<(Vec<Declared>, Version), WriteError> {
         let mut wanted: Vec<CapabilityId> = Vec::new();
@@ -960,6 +990,17 @@ impl ContainerWriter {
         let mut blocks = self.hot_blocks()?;
         blocks.extend(self.advanced_blocks()?);
         blocks.extend(self.stream_block()?);
+        if let Some(s) = &self.spatial {
+            blocks.push(Planned {
+                first_seen: s.seq,
+                kind: BlockKind::SpatialDirectory,
+                cell: 0,
+                subtype: 0,
+                count: s.nodes,
+                bounds: Some(s.bounds),
+                bytes: s.bytes.clone(),
+            });
+        }
         // arrival order first, so that a key that is switched off falls back to it and nothing else
         blocks.sort_by_key(|b| b.first_seen);
         let by = |key: SortKey, a: Ordering| if self.sorts(key) { a } else { Ordering::Equal };
@@ -975,7 +1016,11 @@ impl ContainerWriter {
             let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
             // a block is stored compressed only if that is smaller, and an uncompressed block is legal
             let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
-            let mut flags = if b.kind == BlockKind::Components { 0 } else { FLAG_MUST_UNDERSTAND };
+            let mut flags = if matches!(b.kind, BlockKind::Components | BlockKind::SpatialDirectory) {
+                0
+            } else {
+                FLAG_MUST_UNDERSTAND
+            };
             if b.bounds.is_some() {
                 flags |= FLAG_HAS_BOUNDS;
             }
