@@ -861,3 +861,76 @@ fn an_arena_block_of_the_wrong_kind_in_a_slot_is_refused() {
     s.knots = good.weights.as_bytes();
     assert!(matches!(AdvancedView::parse(s), Err(ArenaError::UnknownKind { .. })));
 }
+
+// ---- review follow-ups: the cost of the nesting walk, and readable errors ------------------------
+
+#[test]
+fn checking_nesting_over_many_composites_that_share_one_long_list_is_not_quadratic() {
+    // 3000 composites all use the same 65536 entry segment list: scanning it once per composite is 200
+    // million comparisons, scanning it once is 65536
+    let n = 3000u32;
+    let mut rows = vec![spline_row(1, 3, 0, 0, NO_ENTRY, 0)];
+    for i in 0..n {
+        rows.push(composite_row(i + 2, 0, NO_ENTRY));
+    }
+    let mut h = Hand::new(rows);
+    h.knots.push(CUBIC_KNOTS.to_vec());
+    h.cps.push((CUBIC_X.to_vec(), CUBIC_Y.to_vec()));
+    h.segments = vec![vec![0u32; 65536]];
+    let blocks = h.build();
+    let v = view(&blocks);
+    let start = std::time::Instant::now();
+    v.check_nesting().expect("a spline under 3000 composites is depth 2");
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(2), "the nesting walk took {took:?}");
+}
+
+#[test]
+fn check_nesting_still_refuses_a_cycle_and_a_deep_chain_when_lists_are_shared() {
+    let mut h = Hand::new(vec![composite_row(1, 0, NO_ENTRY), composite_row(2, 0, NO_ENTRY)]);
+    h.segments = vec![vec![0, 1]];
+    let blocks = h.build();
+    assert!(matches!(view(&blocks).check_nesting().unwrap_err(), ArenaError::CompositeCycle { .. }));
+
+    let mut rows = vec![spline_row(1, 3, 0, 0, NO_ENTRY, 0)];
+    let mut segs = Vec::new();
+    for n in 1..=4u32 {
+        rows.push(composite_row(n + 1, n - 1, NO_ENTRY));
+        segs.push(vec![n - 1]);
+    }
+    let mut h = Hand::new(rows);
+    h.knots.push(CUBIC_KNOTS.to_vec());
+    h.cps.push((CUBIC_X.to_vec(), CUBIC_Y.to_vec()));
+    h.segments = segs;
+    let blocks = h.build();
+    assert!(matches!(view(&blocks).check_nesting().unwrap_err(), ArenaError::NestingTooDeep { .. }));
+}
+
+#[test]
+fn errors_display_as_sentences_that_name_the_rule_and_the_numbers_not_a_debug_dump() {
+    let cases: Vec<(ArenaError, Vec<&str>)> = vec![
+        (
+            ArenaError::KnotCount { knots: 8, control_points: 5, degree: 3 },
+            vec!["ARN-13", "8 knots", "5 control points", "degree 3"],
+        ),
+        (
+            ArenaError::RangeOutOfArena { start: 4, len: 3, arena_len: 6 },
+            vec!["ARN-11", "4", "3", "6", "arena"],
+        ),
+        (ArenaError::CompositeCycle { record: 7 }, vec!["ARN-21", "cycle", "7"]),
+        (ArenaError::Numeric(NumericError::BadKnots), vec!["ARN-24", "NP-14"]),
+        (ArenaError::Truncated { needed: 32, got: 8 }, vec!["ARN-01", "32", "8"]),
+        (
+            ArenaError::WeightCount { weights: 4, control_points: 5 },
+            vec!["ARN-14", "4 weights", "5 control points"],
+        ),
+        (ArenaError::PeriodicUnsupported, vec!["ARN-16", "periodic"]),
+    ];
+    for (e, needles) in cases {
+        let m = e.to_string();
+        for n in needles {
+            assert!(m.contains(n), "{m:?} lacks {n:?}");
+        }
+        assert!(!m.contains('{') && !m.contains("ArenaError"), "{m:?} is a debug dump");
+    }
+}

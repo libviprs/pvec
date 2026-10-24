@@ -750,7 +750,7 @@ impl<'a> AdvancedView<'a> {
     }
 
     /// `nesting_depth` of every record, sharing the work between them.
-    fn check_nesting(&self) -> Result<(), ArenaError> {
+    pub fn check_nesting(&self) -> Result<(), ArenaError> {
         let mut done = HashMap::new();
         for index in 0..self.len() {
             self.depth(index, 1, &mut done, &mut HashSet::new())?;
