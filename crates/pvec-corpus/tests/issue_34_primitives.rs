@@ -131,7 +131,7 @@ fn issue_34_tar_refuses_hostile_archives() {
     assert!(tar::parse(&good[..512 + 3]).is_err(), "a body that runs past the end");
 
     let mut lying = Vec::new();
-    lying.extend_from_slice(&header("r0-open/a", 1 << 40, b'0'));
+    lying.extend_from_slice(&header("r0-open/a", 1 << 30, b'0'));
     lying.extend_from_slice(&[0u8; 1024]);
     assert!(tar::parse(&lying).is_err(), "a size larger than the archive");
 

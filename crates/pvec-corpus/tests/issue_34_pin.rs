@@ -49,7 +49,12 @@ fn issue_34_a_bundle_recording_another_revision_is_refused_naming_both() {
 #[test]
 fn issue_34_a_bundle_with_the_wrong_digest_is_refused_naming_both_digests() {
     let mut tar = vendored_tar();
-    let at = tar.len() / 2;
+    // Flip a bit inside a DWG's bytes, so the tar still parses and only the digest can notice.
+    let at = {
+        let entries = pvec_corpus::tar::parse(&tar).unwrap();
+        let dwg = entries.iter().find(|e| e.path == "r0-open/fixtures/circle-001/source.dwg").unwrap();
+        dwg.data.as_ptr() as usize - tar.as_ptr() as usize + 3
+    };
     tar[at] ^= 0x01;
     let pin = vendored_pin();
     match Bundle::open(&tar, &pin) {
@@ -95,7 +100,13 @@ fn issue_34_a_manifest_that_is_not_the_pinned_one_is_refused() {
 #[test]
 fn issue_34_a_bundle_authored_against_another_numeric_policy_is_refused() {
     let (tar, pin) = mutated(|f| {
-        edit_text(f, "manifest.json", |t| t.replacen("PVec numeric policy v1", "PVec numeric policy v2", 1));
+        edit_text(f, "manifest.json", |t| {
+            t.replacen(
+                "\"numeric_policy_version\": \"PVec numeric policy v1\"",
+                "\"numeric_policy_version\": \"PVec numeric policy v2\"",
+                1,
+            )
+        });
     });
     match Bundle::open(&tar, &pin) {
         Err(e) => assert!(e.to_string().contains("numeric policy"), "{e}"),

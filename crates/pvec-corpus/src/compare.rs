@@ -1,6 +1,7 @@
 //! Comparison of a read value against the authored one, under the rules of `docs/NUMERIC_POLICY.md`.
 
 use crate::scalar::Scalar;
+use pvec_numeric::Policy;
 
 /// The two modes the corpus records per field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,13 +14,25 @@ pub enum Mode {
 
 impl Mode {
     /// Reads the manifest spelling.
-    pub fn parse(_text: &str) -> Option<Mode> {
-        todo!("Mode::parse")
+    pub fn parse(text: &str) -> Option<Mode> {
+        match text {
+            "EXACT" => Some(Mode::Exact),
+            "POLICY" => Some(Mode::Policy),
+            _ => None,
+        }
     }
 }
 
 /// Compares `actual` with the authored `expected`. `scale` is the size of the feature (NP-04); for
 /// `Exact` it is ignored.
-pub fn compare(_mode: Mode, _expected: &Scalar, _actual: f64, _scale: f64) -> bool {
-    todo!("compare::compare")
+pub fn compare(mode: Mode, expected: &Scalar, actual: f64, scale: f64) -> bool {
+    if !actual.is_finite() {
+        return false;
+    }
+    // NP-03: negative zero is positive zero. Adding +0.0 turns -0.0 into +0.0 and changes nothing else.
+    let (want, got) = (expected.value() + 0.0, actual + 0.0);
+    match mode {
+        Mode::Exact => want.to_bits() == got.to_bits(),
+        Mode::Policy => Policy::V1.near(want, got, scale),
+    }
 }
