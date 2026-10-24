@@ -22,10 +22,6 @@ pub enum Requires {
     Integrity,
     /// Skipping an optional block the reader does not know (P4.7).
     Negotiation,
-    /// The numeric policy applied to the values of a hot block (P4.5). The hot parsers refuse a NaN
-    /// or an infinity (`HOT-16`) and nothing else: a radius of zero, a coordinate past 2^40 and a
-    /// zero-length line all parse, so a safe reader has to check them as it uses them.
-    Semantics,
 }
 
 /// The case families of the issue, plus the ones it implies.
@@ -656,34 +652,49 @@ fn domains(b: &mut Builder, s: &At, c: &At, d: &At) {
     let (_, _, polys) = d.hot_parts(POLYLINE);
     b.refuse(F, "hot_polyline_vertex_nan", "drawing", vec![nan(polys[0] + 8)], &["HOT-16"]);
 
-    // What the hot parsers let through today, and a reader has to refuse (NP-01, NP-02, NP-06, NP-07).
-    let later = |b: &mut Builder, name: &str, ops: Vec<Op>, rule: &'static str| {
-        b.add(F, Requires::Semantics, name, "drawing", ops, Expect::Refuse(vec![rule]));
-    };
-    later(b, "hot_arc_radius_zero", vec![Op::f64(arcs[2], 0.0)], "NP-07");
-    later(b, "hot_arc_radius_negative", vec![Op::f64(arcs[2], -1.0)], "NP-07");
-    later(
-        b,
+    // The hot parsers apply the numeric policy themselves (#105): each refusal names the HOT rule and
+    // the NP rule behind it (HotError::np_rule), and a case pins the HOT rule, as the ARN cases above do.
+    // NP-07, a radius that is not positive
+    b.refuse(F, "hot_arc_radius_zero", "drawing", vec![Op::f64(arcs[2], 0.0)], &["HOT-24"]);
+    b.refuse(F, "hot_arc_radius_negative", "drawing", vec![Op::f64(arcs[2], -1.0)], &["HOT-24"]);
+    // NP-02, above 2^40
+    b.refuse(
+        F,
         "hot_coordinate_beyond_coordinate_range",
+        "drawing",
         vec![Op::f64(lines[0], 10_000_000_000_000.0)],
-        "NP-02",
+        &["HOT-22"],
     );
-    later(b, "hot_coordinate_subnormal", vec![Op::f64(lines[0], f64::MIN_POSITIVE / 4.0)], "NP-01");
+    // NP-01, a subnormal
+    b.refuse(
+        F,
+        "hot_coordinate_subnormal",
+        "drawing",
+        vec![Op::f64(lines[0], f64::MIN_POSITIVE / 4.0)],
+        &["HOT-21"],
+    );
     let copy = |from: usize| d.bytes[from..from + 8].to_vec();
-    later(
-        b,
+    // NP-06, a line of no length and a polyline that repeats a vertex
+    b.refuse(
+        F,
         "hot_line_zero_length",
+        "drawing",
         vec![
             Op::Put { at: lines[2], bytes: copy(lines[0]) },
             Op::Put { at: lines[3], bytes: copy(lines[1]) },
         ],
-        "NP-06",
+        &["HOT-25"],
     );
-    later(
-        b,
+    b.refuse(
+        F,
         "hot_polyline_repeated_vertex",
-        vec![Op::Put { at: polys[0] + 8, bytes: copy(polys[0]) }],
-        "NP-06",
+        "drawing",
+        // the second vertex of the first run becomes the first, in both columns
+        vec![
+            Op::Put { at: polys[0] + 8, bytes: copy(polys[0]) },
+            Op::Put { at: polys[1] + 8, bytes: copy(polys[1]) },
+        ],
+        &["HOT-25"],
     );
 }
 

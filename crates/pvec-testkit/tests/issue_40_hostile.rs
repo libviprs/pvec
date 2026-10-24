@@ -323,12 +323,11 @@ fn the_reference_reader_satisfies_every_case_it_provides() {
     // what a later issue has to provide is counted, not hidden
     assert_eq!(
         report.skipped.keys().copied().collect::<Vec<_>>(),
-        vec![Requires::Integrity, Requires::Negotiation, Requires::Semantics],
+        vec![Requires::Integrity, Requires::Negotiation],
         "the reference has parsers for everything else"
     );
     assert!(report.skipped[&Requires::Integrity] >= 3);
     assert!(report.skipped[&Requires::Negotiation] >= 1);
-    assert!(report.skipped[&Requires::Semantics] >= 5);
 }
 
 #[test]
@@ -365,13 +364,7 @@ impl Reader for AcceptsAnything {
         "accepts anything".into()
     }
     fn provides(&self) -> Vec<Requires> {
-        vec![
-            Requires::Parse,
-            Requires::Limits,
-            Requires::Integrity,
-            Requires::Negotiation,
-            Requires::Semantics,
-        ]
+        vec![Requires::Parse, Requires::Limits, Requires::Integrity, Requires::Negotiation]
     }
     fn read(&self, _: &[u8]) -> Verdict {
         Verdict::Accepted
@@ -742,18 +735,33 @@ fn a_reader_that_claims_negotiation_must_accept_the_optional_block_it_does_not_k
     assert!(matches!(&report.failures[0].1, Failure::Rejected(r) if r.rule == "NEGOTIATE-01"));
 }
 
+const HOT_NUMERIC: [(&str, &str, &str); 6] = [
+    ("domains/hot_arc_radius_zero", "HOT-24", "NP-07"),
+    ("domains/hot_arc_radius_negative", "HOT-24", "NP-07"),
+    ("domains/hot_coordinate_beyond_coordinate_range", "HOT-22", "NP-02"),
+    ("domains/hot_coordinate_subnormal", "HOT-21", "NP-01"),
+    ("domains/hot_line_zero_length", "HOT-25", "NP-06"),
+    ("domains/hot_polyline_repeated_vertex", "HOT-25", "NP-06"),
+];
+
 #[test]
-fn the_hot_parsers_let_semantically_hostile_values_through_so_a_reader_has_to_check_them() {
-    // This is the gap the Semantics cases exist for: each of these files parses today.
+fn the_hot_parsers_refuse_semantically_hostile_values_themselves_under_the_numeric_policy() {
+    // #105: these files used to parse and a reader had to check them as it used them. Now the parser
+    // refuses each, naming the HOT rule, and the rule's own text names the NP rule behind it.
     let (bases, cases) = corpus();
-    let gaps: Vec<&Case> = cases.iter().filter(|c| c.requires == Requires::Semantics).collect();
-    assert!(gaps.len() >= 6, "{}", gaps.len());
-    for c in gaps {
-        assert!(
-            read(&c.bytes(&bases[c.base])).is_ok(),
-            "{}: the parsers refuse it now, so the case moves to Parse",
-            c.name
-        );
+    for (name, hot, np) in HOT_NUMERIC {
+        let c = cases.iter().find(|c| c.name == name).unwrap_or_else(|| panic!("no case {name}"));
+        assert_eq!(c.requires, Requires::Parse, "{name}: the parsers refuse it, so it needs nothing else");
+        assert!(matches!(&c.expect, Expect::Refuse(r) if r == &[hot]), "{name}: {:?}", c.expect);
+        let refused = read(&c.bytes(&bases[c.base])).expect_err(name);
+        assert_eq!(refused.rule, hot, "{name}: {refused}");
+        assert!(refused.detail.contains(np), "{name}: the message does not name {np}: {}", refused.detail);
+        let text = pvec_container::blocks::hot::HOT_RULES
+            .iter()
+            .find(|(id, _)| *id == hot)
+            .unwrap_or_else(|| panic!("{hot} is not a hot rule"))
+            .1;
+        assert!(text.contains(np), "{hot} is pinned for {np} but its text says: {text}");
     }
 }
 
