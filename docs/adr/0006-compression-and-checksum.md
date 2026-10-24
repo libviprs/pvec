@@ -76,7 +76,7 @@ P4.6 (#7) re-benchmarked the codec as the Status line promised, on the fixtures 
   producer serving over HTTP passes.
 * **Block checksum, carried.** XXH3-64 over the stored bytes costs 0.1 to 5.1% of the time to decode them
   natively, against the reversal threshold of 25% in wasm, so decision 3 above stands. The wasm and arm64
-  numbers are #110.
+  numbers are #110 (below).
 * **Artifact digest, widened.** Decision 4 said SHA-256 "over the header, the directory and the per-block
   checksums". It is now the SHA-256 of the whole file with the digest's own 32 bytes read as zero. The
   narrower digest left the manifest and every block uncovered by anything but XXH3, which is not a security
@@ -87,3 +87,13 @@ P4.6 (#7) re-benchmarked the codec as the Status line promised, on the fixtures 
   the golden-file bless.
 * **Reversal threshold, unchanged.** Make verification opt-in per file if the wasm number for XXH3 passes 25%
   of block decode time for the codec in use.
+
+## Amendment 2026-10-24 (b): wasm and arm64 measured (#110)
+
+#110 ran the same measurement for wasm32 (under node 22's WASI) and on arm64 (mercury), the two columns the first
+amendment left open; the numbers are in `docs/spikes/04-6-compression.md`. The reversal threshold is not
+reached: the worst XXH3 share of LZ4 decode time in wasm on the generated fixtures (blocks of 10 to 640 KB) is
+13.7%, against the 21% estimate above and the 25% line, and deflate stays under 1.5%. Blocks of a few hundred
+bytes reach 17 to 25% in wasm for LZ4, which is a reason not to cut very small blocks and not a reason to
+reverse the decision. The safe SHA-256 does 218 to 383 MB/s in wasm and 199 MB/s on arm64, which is not slow
+enough for verify-on-request to need a faster implementation, so decision 4 stands as written.

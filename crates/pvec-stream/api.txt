@@ -67,3 +67,55 @@ directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
 directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
 directory.rs: impl Iterator for CellCursor<'_>
 lib.rs: pub use directory::*
+lib.rs: pub use viewport::*
+viewport.rs: pub const DEFAULT_PREFETCH_MARGIN_PX: f64
+viewport.rs: pub trait PlanSource
+viewport.rs: PlanSource::entries(&self) -> &[BlockEntry]
+viewport.rs: PlanSource::plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError>
+viewport.rs: PlanSource::is_cached(&self, id: BlockId) -> bool
+viewport.rs: impl<S: BlockSource> PlanSource for ContainerReader<S>
+viewport.rs: impl<S: AsyncBlockSource> PlanSource for AsyncContainerReader<S>
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportQuery
+viewport.rs: ViewportQuery.bounds: Aabb
+viewport.rs: ViewportQuery.scale: f64
+viewport.rs: ViewportQuery.tier_budget: u64
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportConfig
+viewport.rs: ViewportConfig.prefetch_margin_px: f64
+viewport.rs: impl Default for ViewportConfig
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Priority
+viewport.rs: Priority::Visible
+viewport.rs: Priority::Prefetch
+viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct PlannedRequest
+viewport.rs: PlannedRequest.request: RangeRequest
+viewport.rs: PlannedRequest.priority: Priority
+viewport.rs: PlannedRequest.gain: f64
+viewport.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct ClassMetrics
+viewport.rs: ClassMetrics.ranges: u32
+viewport.rs: ClassMetrics.bytes_requested: u64
+viewport.rs: ClassMetrics.bytes_wasted: u64
+viewport.rs: ClassMetrics.blocks: u32
+viewport.rs: ClassMetrics.blocks_cached: u32
+viewport.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct PlanMetrics
+viewport.rs: PlanMetrics.visible: ClassMetrics
+viewport.rs: PlanMetrics.prefetch: ClassMetrics
+viewport.rs: PlanMetrics.deferred_ranges: u32
+viewport.rs: PlanMetrics.deferred_bytes: u64
+viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct ReadPlan
+viewport.rs: ReadPlan.requests: Vec<PlannedRequest>
+viewport.rs: ReadPlan.deferred: Vec<PlannedRequest>
+viewport.rs: ReadPlan.advanced_in_view: bool
+viewport.rs: ReadPlan.metrics: PlanMetrics
+viewport.rs: ReadPlan::block_ids(&self) -> Vec<BlockId>
+viewport.rs: ReadPlan::visible_block_ids(&self) -> Vec<BlockId>
+viewport.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum ViewportError
+viewport.rs: ViewportError::BadScale
+viewport.rs: ViewportError::BadMargin
+viewport.rs: ViewportError::Read(ReadError)
+viewport.rs: ViewportError::rule(&self) -> &'static str
+viewport.rs: impl core::fmt::Display for ViewportError
+viewport.rs: impl std::error::Error for ViewportError {}
+viewport.rs: impl From<ReadError> for ViewportError
+viewport.rs: impl From<DirectoryError> for ViewportError
+viewport.rs: pub const VIEWPORT_RULES: &[(&str, &str)]
+viewport.rs: ViewportQuery::new(bounds: Aabb, scale: f64) -> ViewportQuery
+viewport.rs: ViewportQuery::plan<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>
