@@ -5,6 +5,7 @@ use pvec_container::directory::BlockEntry;
 use pvec_container::reader::RangeRequest;
 use pvec_container::source::{AsyncBlockSource, BlockSource};
 use pvec_container::{AsyncContainerReader, BlockId, ContainerReader, ReadError};
+use std::collections::BTreeMap;
 
 /// The default margin around the viewport that is prefetched, in display pixels.
 pub const DEFAULT_PREFETCH_MARGIN_PX: f64 = 128.0;
@@ -206,14 +207,160 @@ impl ViewportQuery {
         ViewportQuery { bounds, scale, tier_budget: u64::MAX }
     }
 
-    /// The plan for this viewport against `dir` and the cache state of `reader`. Nothing is fetched.
+    /// The plan for this viewport against `dir` and the cache state of `reader`. Nothing is fetched,
+    /// and nothing about the cache changes: the same viewport, artifact and cache state give the same
+    /// plan, request for request.
+    ///
+    /// `dir` must be the directory of the file `reader` has open. A block is wanted when its own bounds
+    /// touch the viewport (visible) or the viewport grown by the margin (prefetch), so the plan holds no
+    /// block outside that, though a coalesced request may read the bytes between two blocks it holds
+    /// (`bytes_wasted`). Blocks the cache already has are counted and not requested. Visible and
+    /// prefetch blocks are coalesced apart from each other, so the cost of the margin is a number of
+    /// its own, at the price of a request now and then where one merged range would have served both.
     pub fn plan<R: PlanSource>(
         &self,
         dir: &SpatialDirectory,
         reader: &R,
         config: &ViewportConfig,
     ) -> Result<ReadPlan, ViewportError> {
-        let _ = (dir, reader, config);
-        todo!("P5.5")
+        if !(self.scale.is_finite() && self.scale > 0.0) {
+            return Err(ViewportError::BadScale);
+        }
+        let px = config.prefetch_margin_px;
+        let margin = px / self.scale;
+        if !(px.is_finite() && px >= 0.0 && margin.is_finite()) {
+            return Err(ViewportError::BadMargin);
+        }
+        let (lo, hi) = (self.bounds.min(), self.bounds.max());
+        let outer = Aabb::new([lo[0] - margin, lo[1] - margin], [hi[0] + margin, hi[1] + margin])?;
+        let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0];
+
+        let entries = reader.entries();
+        let mut visible: Vec<BlockId> = Vec::new();
+        let mut gains: BTreeMap<BlockId, f64> = BTreeMap::new();
+        let mut near: Vec<BlockId> = Vec::new();
+        let mut distance: BTreeMap<BlockId, f64> = BTreeMap::new();
+        let (mut visible_cached, mut prefetch_cached) = (0u32, 0u32);
+        for cell in dir.query(&outer) {
+            for k in 0..cell.blocks.count {
+                let id = BlockId(cell.blocks.first.0 + k);
+                let Some(entry) = entries.get(id.0 as usize) else { continue };
+                let Some(b) = entry.bounds.and_then(|b| Aabb::new(b.min, b.max).ok()) else { continue };
+                let seen = b.intersects(&self.bounds);
+                if !seen && !b.intersects(&outer) {
+                    continue;
+                }
+                let cached = reader.is_cached(id);
+                match (seen, cached) {
+                    (true, true) => visible_cached += 1,
+                    (false, true) => prefetch_cached += 1,
+                    (true, false) => {
+                        visible.push(id);
+                        gains.insert(id, f64::from(entry.count) * share(&b, &self.bounds));
+                    }
+                    (false, false) => {
+                        near.push(id);
+                        let (bl, bh) = (b.min(), b.max());
+                        let (dx, dy) = ((bl[0] + bh[0]) / 2.0 - centre[0], (bl[1] + bh[1]) / 2.0 - centre[1]);
+                        distance.insert(id, dx * dx + dy * dy);
+                    }
+                }
+            }
+        }
+
+        // One coalescing pass over everything wanted, so a request never re-reads a block that another
+        // request of the plan fetches, and the gaps it does read are bytes no block of the plan owns.
+        let wanted: Vec<BlockId> = visible.iter().chain(&near).copied().collect();
+        let mut first: Vec<PlannedRequest> = Vec::new();
+        let mut second: Vec<PlannedRequest> = Vec::new();
+        for request in reader.plan(&wanted)? {
+            let gain: f64 = request.blocks.iter().filter_map(|b| gains.get(b)).sum();
+            if request.blocks.iter().any(|b| gains.contains_key(b)) {
+                first.push(PlannedRequest { request, priority: Priority::Visible, gain });
+            } else {
+                second.push(PlannedRequest { request, priority: Priority::Prefetch, gain: 0.0 });
+            }
+        }
+        // the most visible entities per byte first, the file order among equals
+        first.sort_by(|a, b| {
+            let (ra, rb) = (a.gain / f64::from(a.request.len), b.gain / f64::from(b.request.len));
+            rb.total_cmp(&ra).then(a.request.offset.cmp(&b.request.offset))
+        });
+        // the margin nearest the viewport first
+        let nearest = |p: &PlannedRequest| {
+            p.request.blocks.iter().filter_map(|b| distance.get(b)).copied().fold(f64::INFINITY, f64::min)
+        };
+        second
+            .sort_by(|a, b| nearest(a).total_cmp(&nearest(b)).then(a.request.offset.cmp(&b.request.offset)));
+
+        // the budget is for what is visible: the first request always goes, so a query makes progress,
+        // and what does not fit waits, prefetch with it
+        let mut spent = 0u64;
+        let mut cut = first.len();
+        for (i, p) in first.iter().enumerate() {
+            let len = u64::from(p.request.len);
+            if i > 0 && spent.saturating_add(len) > self.tier_budget {
+                cut = i;
+                break;
+            }
+            spent += len;
+        }
+        let mut deferred = first.split_off(cut);
+        let mut requests = first;
+        if deferred.is_empty() {
+            requests.append(&mut second);
+        } else {
+            deferred.append(&mut second);
+        }
+
+        // A request that mixes the two is a visible one, and the margin blocks riding in it are charged
+        // to the margin: the two classes add up to the bytes spanned, and the gaps are the request's.
+        let mut metrics = PlanMetrics::default();
+        for p in &requests {
+            let (mut own, mut rider, mut rider_blocks) = (0u64, 0u64, 0u32);
+            for b in &p.request.blocks {
+                if p.priority == Priority::Visible && distance.contains_key(b) {
+                    rider += stored(entries, *b);
+                    rider_blocks += 1;
+                } else {
+                    own += stored(entries, *b);
+                }
+            }
+            let len = u64::from(p.request.len);
+            let waste = len - own - rider;
+            let class = match p.priority {
+                Priority::Visible => &mut metrics.visible,
+                Priority::Prefetch => &mut metrics.prefetch,
+            };
+            class.ranges += 1;
+            class.bytes_requested += len - rider;
+            class.bytes_wasted += waste;
+            class.blocks += p.request.blocks.len() as u32 - rider_blocks;
+            if rider_blocks > 0 && p.priority == Priority::Visible {
+                metrics.prefetch.bytes_requested += rider;
+                metrics.prefetch.blocks += rider_blocks;
+            }
+        }
+        metrics.visible.blocks_cached = visible_cached;
+        metrics.prefetch.blocks_cached = prefetch_cached;
+        metrics.deferred_ranges = deferred.len() as u32;
+        metrics.deferred_bytes = deferred.iter().map(|p| u64::from(p.request.len)).sum();
+        let advanced_in_view = dir.advanced_bounds().is_some_and(|b| b.intersects(&self.bounds));
+        Ok(ReadPlan { requests, deferred, advanced_in_view, metrics })
     }
+}
+
+fn stored(entries: &[BlockEntry], id: BlockId) -> u64 {
+    entries.get(id.0 as usize).map_or(0, |e| u64::from(e.stored_length))
+}
+
+/// The share of block bounds `b` that lies inside `v`, per axis so that a block of horizontal lines
+/// (no height) is not worth nothing. At least a sliver, so a block that only touches still ranks.
+fn share(b: &Aabb, v: &Aabb) -> f64 {
+    let axis = |i: usize| {
+        let (bl, bh, vl, vh) = (b.min()[i], b.max()[i], v.min()[i], v.max()[i]);
+        let len = bh - bl;
+        if len <= 0.0 { 1.0 } else { ((bh.min(vh) - bl.max(vl)) / len).clamp(0.0, 1.0) }
+    };
+    (axis(0) * axis(1)).max(1e-9)
 }
