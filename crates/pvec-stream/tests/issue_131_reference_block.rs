@@ -248,7 +248,8 @@ fn the_new_rules_and_the_block_are_documented() {
         assert!(doc.contains(&format!("| {rule} | {meaning} |")), "docs/STREAMING.md lacks {rule}");
     }
     assert!(!doc.contains("A reference array is not a container block yet"), "section 2.3 is out of date");
-    let container = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/CONTAINER.md")).unwrap();
+    let container =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/CONTAINER.md")).unwrap();
     assert!(container.contains("| 6 | refs |"), "docs/CONTAINER.md lacks the block kind");
 }
 

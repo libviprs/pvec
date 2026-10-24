@@ -13,8 +13,8 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    DuplicationPolicy, EntityBox, PayloadRef, PlacedEntity, STRADDLER_FACTOR, SpatialDirectory, build_directory,
-    classify, payload_bytes, place, scan_payloads,
+    DuplicationPolicy, EntityBox, PayloadRef, PlacedEntity, STRADDLER_FACTOR, SpatialDirectory,
+    build_directory, classify, payload_bytes, place, scan_payloads,
 };
 use std::collections::HashMap;
 use support::fixtures::*;
@@ -93,7 +93,8 @@ fn measure(entities: &[Fx], ceiling: u32) -> Measured {
     let long_bytes: u64 = if c.long.is_empty() {
         0
     } else {
-        let sr = ContainerReader::open(MemorySource::new(sw.finish().unwrap()), ReaderConfig::default()).unwrap();
+        let sr =
+            ContainerReader::open(MemorySource::new(sw.finish().unwrap()), ReaderConfig::default()).unwrap();
         let entries: &[BlockEntry] = sr.entries();
         entries
             .iter()
@@ -136,7 +137,15 @@ fn after_p53_the_plan_like_fixtures_stay_under_the_lower_bound() {
         let m = measure(&f, 16);
         eprintln!(
             "{name}: entities {} straddlers {} refs {} mean {:.3} p99 {} max {} ref bytes {} payload bytes {} fraction {:.4}",
-            m.entities, m.straddlers, m.references, m.mean, m.p99, m.max, m.reference_bytes, m.payload_bytes, m.fraction()
+            m.entities,
+            m.straddlers,
+            m.references,
+            m.mean,
+            m.p99,
+            m.max,
+            m.reference_bytes,
+            m.payload_bytes,
+            m.fraction()
         );
         let bound = if name == "identical" { DEGENERATE_BOUND } else { PLAN_BOUND };
         assert!(m.fraction() < bound, "{name}: {:.4} of the payload bytes, bound {bound}", m.fraction());
@@ -148,19 +157,30 @@ fn classifying_first_is_what_brings_stress_long_down() {
     let stress = stress_long();
     let m = measure(&stress, 16);
     assert_eq!(m.straddlers, 24, "the 24 long polylines are the straddlers");
-    assert!(m.fraction() < 0.65, "stress-long {:.4}, it was 1.644 with the long polylines in the cells", m.fraction());
+    assert!(
+        m.fraction() < 0.65,
+        "stress-long {:.4}, it was 1.644 with the long polylines in the cells",
+        m.fraction()
+    );
     assert!(m.max <= 16);
 }
 
 #[test]
 fn section_2_4_states_the_numbers_this_pipeline_measures() {
-    let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/STREAMING.md")).unwrap();
+    let doc =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/STREAMING.md")).unwrap();
     assert!(doc.contains("after P5.3"), "section 2.4 does not say its second table is taken after P5.3");
     for (name, f) in fixtures() {
         let m = measure(&f, 16);
         let row = format!(
             "| {} | {} | {} | {:.2} | {} | {} | {:.3} |",
-            m.entities, m.straddlers, m.references, m.mean, m.p99, m.max, m.fraction()
+            m.entities,
+            m.straddlers,
+            m.references,
+            m.mean,
+            m.p99,
+            m.max,
+            m.fraction()
         );
         assert!(doc.contains(&row), "docs/STREAMING.md section 2.4 lacks the {name} row {row:?}");
     }

@@ -117,4 +117,3 @@ pub fn nine_cells() -> Vec<Fx> {
     v.push(Fx { id: eid(575), points });
     v
 }
-
