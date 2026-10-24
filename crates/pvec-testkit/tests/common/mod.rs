@@ -147,7 +147,8 @@ pub fn record(fixture_id: &str, entities: &[String]) -> ExpectedMath {
         sc(1.0),
         list(entities)
     );
-    ExpectedMath::parse(text.as_bytes()).unwrap_or_else(|e| panic!("the doctored record does not load: {e}\n{text}"))
+    ExpectedMath::parse(text.as_bytes())
+        .unwrap_or_else(|e| panic!("the doctored record does not load: {e}\n{text}"))
 }
 
 /// A record in another unit.

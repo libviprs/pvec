@@ -168,9 +168,7 @@ impl ReadEntity {
             ReadEntity::CircleArc { centre, radius, start_sweep, .. } => {
                 [f(centre), f(&[*radius]), f(start_sweep)].concat()
             }
-            ReadEntity::EllipseArc { centre, radii, angles, .. } => {
-                [f(centre), f(radii), f(angles)].concat()
-            }
+            ReadEntity::EllipseArc { centre, radii, angles, .. } => [f(centre), f(radii), f(angles)].concat(),
             ReadEntity::Spline { knots, x, y, weights, .. } => {
                 [f(knots), f(x), f(y), weights.as_deref().map(f).unwrap_or_default()].concat()
             }
@@ -203,15 +201,17 @@ fn slice(bytes: &[u8], start: u64, len: u64) -> Option<&[u8]> {
 pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
     let len = bytes.len() as u64;
     let prefix = &bytes[..bytes.len().min(4096)];
-    let header = Header::parse(prefix, len).map_err(|e| ReadError { stage: Stage::Header, detail: e.to_string() })?;
+    let header =
+        Header::parse(prefix, len).map_err(|e| ReadError { stage: Stage::Header, detail: e.to_string() })?;
     if header.manifest_offset != u64::from(header.header_len) {
         return refuse(
             Stage::Layout,
             format!("the manifest starts at {}, not straight after the header", header.manifest_offset),
         );
     }
-    let manifest_bytes = slice(bytes, header.manifest_offset, header.manifest_length)
-        .ok_or_else(|| ReadError { stage: Stage::Manifest, detail: "the manifest lies outside the file".into() })?;
+    let manifest_bytes = slice(bytes, header.manifest_offset, header.manifest_length).ok_or_else(|| {
+        ReadError { stage: Stage::Manifest, detail: "the manifest lies outside the file".into() }
+    })?;
     let manifest = Manifest::parse(manifest_bytes, &header, len)
         .map_err(|e| ReadError { stage: Stage::Manifest, detail: e.to_string() })?;
     if manifest.directories.len() != 1 || manifest.directories[0].kind != DirectoryPointer::KIND_BLOCK {
@@ -230,8 +230,10 @@ pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
             format!("the directory ends at {}, the file at {len}", ptr.offset.saturating_add(ptr.length)),
         );
     }
-    let table = slice(bytes, ptr.offset, ptr.length)
-        .ok_or_else(|| ReadError { stage: Stage::Directory, detail: "the directory lies outside the file".into() })?;
+    let table = slice(bytes, ptr.offset, ptr.length).ok_or_else(|| ReadError {
+        stage: Stage::Directory,
+        detail: "the directory lies outside the file".into(),
+    })?;
     let manifest_range = ByteRange { offset: header.manifest_offset, length: header.manifest_length };
     let directory_range = ByteRange { offset: ptr.offset, length: ptr.length };
     let entries =
@@ -256,15 +258,19 @@ pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
         if start < at {
             return refuse(Stage::Layout, format!("the block at {start} overlaps what comes before it"));
         }
-        let gap = slice(bytes, at, start - at)
-            .ok_or_else(|| ReadError { stage: Stage::Layout, detail: "a block lies outside the file".into() })?;
+        let gap = slice(bytes, at, start - at).ok_or_else(|| ReadError {
+            stage: Stage::Layout,
+            detail: "a block lies outside the file".into(),
+        })?;
         if gap.iter().any(|b| *b != 0) {
             return refuse(Stage::Layout, format!("non-zero padding before the block at {start}"));
         }
         at = end;
     }
-    let tail = slice(bytes, at, ptr.offset.saturating_sub(at))
-        .ok_or_else(|| ReadError { stage: Stage::Layout, detail: "the blocks run past the directory".into() })?;
+    let tail = slice(bytes, at, ptr.offset.saturating_sub(at)).ok_or_else(|| ReadError {
+        stage: Stage::Layout,
+        detail: "the blocks run past the directory".into(),
+    })?;
     if at > ptr.offset || tail.iter().any(|b| *b != 0) {
         return refuse(Stage::Layout, "non-zero padding before the directory");
     }
@@ -275,8 +281,10 @@ pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
     let mut record_count = 0usize;
     let mut stream_ids: Vec<u32> = Vec::new();
     for e in &entries {
-        let raw = slice(bytes, e.offset, u64::from(e.stored_length))
-            .ok_or_else(|| ReadError { stage: Stage::Layout, detail: "a block lies outside the file".into() })?;
+        let raw = slice(bytes, e.offset, u64::from(e.stored_length)).ok_or_else(|| ReadError {
+            stage: Stage::Layout,
+            detail: "a block lies outside the file".into(),
+        })?;
         let aligned = AlignedBytes::from_bytes(raw);
         match e.block_kind() {
             Some(BlockKind::Hot) => {
@@ -323,7 +331,8 @@ pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
         };
         let view = AdvancedView::parse(slices)
             .map_err(|x| ReadError { stage: Stage::Records, detail: x.to_string() })?;
-        view.check_nesting().map_err(|x| ReadError { stage: Stage::Records, detail: format!("nesting: {x}") })?;
+        view.check_nesting()
+            .map_err(|x| ReadError { stage: Stage::Records, detail: format!("nesting: {x}") })?;
         if view.len() != record_count {
             return refuse(Stage::Consistency, "record count differs from the directory");
         }
@@ -331,8 +340,9 @@ pub fn read(bytes: &[u8]) -> Result<Opened, ReadError> {
             let rec = view
                 .record(i)
                 .ok_or_else(|| ReadError { stage: Stage::Records, detail: "record missing".into() })?;
-            let curve =
-                view.curve(i).map_err(|x| ReadError { stage: Stage::Records, detail: format!("curve {i}: {x}") })?;
+            let curve = view
+                .curve(i)
+                .map_err(|x| ReadError { stage: Stage::Records, detail: format!("curve {i}: {x}") })?;
             entities.push(match curve {
                 CurveView::Spline(s) => ReadEntity::Spline {
                     id: rec.id,
@@ -368,12 +378,9 @@ fn hot_entity(v: &HotBlockView<'_>, i: usize) -> Result<ReadEntity, ReadError> {
     let (id, style) = (v.entity_ids()[i], v.styles()[i]);
     let col = |name: &str| v.column(name).and_then(|c| c.get(i)).copied().ok_or_else(missing);
     Ok(match v.kind() {
-        HotKind::Line => ReadEntity::Line {
-            id,
-            style,
-            a: [col("x0")?, col("y0")?],
-            b: [col("x1")?, col("y1")?],
-        },
+        HotKind::Line => {
+            ReadEntity::Line { id, style, a: [col("x0")?, col("y0")?], b: [col("x1")?, col("y1")?] }
+        }
         HotKind::Polyline => {
             let (x, y) = v.polyline(i).ok_or_else(missing)?;
             ReadEntity::Polyline { id, style, x: x.to_vec(), y: y.to_vec() }

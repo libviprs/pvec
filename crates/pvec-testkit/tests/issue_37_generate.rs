@@ -57,7 +57,7 @@ const MISSING: [(&str, &str); 13] = [
 ];
 
 fn outcomes() -> Vec<Outcome> {
-    generate_all(&bundle())
+    generate_all(&bundle()).expect("the bundle registers")
 }
 
 fn artifacts() -> BTreeMap<String, Artifact> {
@@ -343,8 +343,12 @@ fn written_with(producer_id: &str, producer_version: &str, revision: Option<&str
         capabilities: Vec::new(),
     });
     let b = Bounds { min: [0.0, 0.0], max: [1.0, 1.0] };
-    w.push_line(EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds: b }, [0.0, 0.0], [1.0, 1.0])
-        .unwrap();
+    w.push_line(
+        EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds: b },
+        [0.0, 0.0],
+        [1.0, 1.0],
+    )
+    .unwrap();
     w.finish().unwrap()
 }
 
@@ -393,11 +397,26 @@ fn geometry_the_capability_set_cannot_hold_is_refused_with_the_capability_named(
     missing(&record("r", &[ellipse("slanted", o, [0.96, 0.28, 0.0], 3.0, 2.0)]), "slanted", "ellipse");
     // arcs inside a polyline are a composite of lines and trimmed circles
     let verts = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 2.0, 0.0]];
-    missing(&record("r", &[polyline("bulged", &verts, &[0.0, 0.5, 0.0], false)]), "bulged", "composite_curve");
+    missing(
+        &record("r", &[polyline("bulged", &verts, &[0.0, 0.5, 0.0], false)]),
+        "bulged",
+        "composite_curve",
+    );
     // no wrapped periodic form
-    let cps = [[3.0, 0.0, 0.0], [1.5, 2.5, 0.0], [-1.5, 2.5, 0.0], [-3.0, 0.0, 0.0], [-1.5, -2.5, 0.0], [1.5, -2.5, 0.0]];
+    let cps = [
+        [3.0, 0.0, 0.0],
+        [1.5, 2.5, 0.0],
+        [-1.5, 2.5, 0.0],
+        [-3.0, 0.0, 0.0],
+        [-1.5, -2.5, 0.0],
+        [1.5, -2.5, 0.0],
+    ];
     let knots: Vec<(f64, u32)> = [0.0, 0.1, 0.25, 0.4, 0.6, 0.8, 1.0].iter().map(|k| (*k, 1)).collect();
-    missing(&record("r", &[bspline("wrapped", 3, &cps, &knots, None, PERIODIC)]), "wrapped", "b_spline_curve");
+    missing(
+        &record("r", &[bspline("wrapped", 3, &cps, &knots, None, PERIODIC)]),
+        "wrapped",
+        "b_spline_curve",
+    );
 }
 
 #[test]
@@ -429,7 +448,10 @@ fn a_unit_other_than_the_metre_is_refused_and_so_is_a_scale_other_than_one() {
 #[test]
 fn what_the_model_refuses_comes_back_as_its_typed_error_and_is_not_repaired() {
     // two vertices closer than the degenerate length (NP-06)
-    let m = record("r", &[polyline("short", &[[0.0, 0.0, 0.0], [0.0, 1e-13, 0.0]], &[0.0, 0.0], false)]);
+    let m = record(
+        "r",
+        &[polyline("short", &[[0.0, 0.0, 0.0], [0.0, 1.0 / 10_000_000_000_000.0, 0.0]], &[0.0, 0.0], false)],
+    );
     let r = refused(&m);
     assert_eq!(r.entity.as_deref(), Some("short"));
     assert!(matches!(r.cause, Cause::Geometry(_) | Cause::Write(_)), "{r}");
@@ -465,7 +487,7 @@ fn artifacts_are_reproducible_from_the_bundle_alone() {
     fs::remove_dir_all(&dir).unwrap();
     fs::create_dir_all(&dir).unwrap();
     assert!(digest_map(&dir).is_empty());
-    pvec_testkit::generate::emit(&dir, &generate_all(&bundle())).unwrap();
+    pvec_testkit::generate::emit(&dir, &generate_all(&bundle()).unwrap()).unwrap();
     assert_eq!(digest_map(&dir), before);
 }
 
@@ -473,8 +495,20 @@ fn artifacts_are_reproducible_from_the_bundle_alone() {
 /// CAD or PDF, or any `libviprs` crate.
 fn tree_problems(lock: &str, manifests: &[(&str, &str)]) -> Vec<String> {
     const BANNED: [&str; 14] = [
-        "libviprs", "dwg", "dxf", "acadrust", "acadsharp", "pdfium", "lopdf", "pdf-", "cadex", "teigha",
-        "opencascade", "occt", "oda", "step-",
+        "libviprs",
+        "dwg",
+        "dxf",
+        "acadrust",
+        "acadsharp",
+        "pdfium",
+        "lopdf",
+        "pdf-",
+        "cadex",
+        "teigha",
+        "opencascade",
+        "occt",
+        "oda",
+        "step-",
     ];
     let mut out = Vec::new();
     for line in lock.lines() {
