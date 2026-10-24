@@ -951,7 +951,7 @@ fn the_crate_has_no_sqlite_library_no_native_source_and_no_build_machine_discove
         .take_while(|l| !l.starts_with('['))
         .filter_map(|l| l.split('=').next())
         .map(str::trim)
-        .filter(|l| !l.is_empty())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();
     for d in &deps {
         assert!(d.starts_with("pvec-"), "{d}: the only dependencies are the workspace's own crates");
