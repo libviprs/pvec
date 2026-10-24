@@ -349,7 +349,7 @@ impl Manifest {
     }
 
     /// The canonical encoding.
-    pub fn encode(&self) -> Vec<u8> {
+    pub fn encode(&self) -> Result<Vec<u8>, ContainerError> {
         let mut b = vec![0u8; Manifest::FIXED_LEN];
         let put16 = |b: &mut Vec<u8>, at: usize, v: u16| b[at..at + 2].copy_from_slice(&v.to_le_bytes());
         let put32 = |b: &mut Vec<u8>, at: usize, v: u32| b[at..at + 4].copy_from_slice(&v.to_le_bytes());
@@ -406,7 +406,7 @@ impl Manifest {
         while b.len() % 8 != 0 {
             b.push(0);
         }
-        b
+        Ok(b)
     }
 
     /// The capability declaration P4.7 negotiates against.
