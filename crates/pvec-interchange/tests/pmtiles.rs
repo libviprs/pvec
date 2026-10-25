@@ -866,7 +866,7 @@ fn scratch(tag: &str) -> PathBuf {
 fn start(image: &str, work: &Path, command: &[&str]) -> Option<pvec_hermetic::Container> {
     use pvec_hermetic::{Config, Container, Decision, Policy};
     let cfg = Config { image: image.to_string(), mount: work.to_path_buf(), search_path: None };
-    match Container::start_with_command(&cfg, command) {
+    match Container::start_with_tmp(&cfg, command) {
         Ok(c) => Some(c),
         Err(e) => match Policy::from_env().decide(e) {
             Decision::Skip(why) => {
