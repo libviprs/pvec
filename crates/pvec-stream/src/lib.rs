@@ -10,9 +10,11 @@
 mod directory;
 mod ownership;
 mod straddler;
+mod tiers;
 mod viewport;
 
 pub use directory::*;
 pub use ownership::*;
 pub use straddler::*;
+pub use tiers::*;
 pub use viewport::*;
