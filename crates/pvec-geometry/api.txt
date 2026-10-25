@@ -51,6 +51,7 @@ curve.rs: Trimmed::new(basis: Curve, t1: f64, t2: f64, sense: bool) -> Result<Tr
 curve.rs: Trimmed::from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed>
 curve.rs: Trimmed::from_normalised(basis: Curve, trim: Trim) -> Result<Trimmed>
 curve.rs: Trimmed::is_full_period(&self) -> bool
+curve.rs: Trimmed::as_bspline(&self) -> Result<BSpline>
 curve.rs: Trimmed::basis(&self) -> &Curve
 curve.rs: Trimmed::trim(&self) -> Trim
 curve.rs: impl Curve2d for Trimmed
@@ -122,6 +123,7 @@ primitives.rs: CurveKind::const ALL: [CurveKind; 9]
 spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct BSpline(Core)
 spline.rs: BSpline::new(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<BSpline>
 spline.rs: BSpline::from_periodic(degree: usize, control_points: Vec<Point2>, knots: Vec<f64>) -> Result<Unwrapped>
+spline.rs: BSpline::sub_range(&self, t1: f64, t2: f64) -> Result<BSpline>
 spline.rs: BSpline::degree(&self) -> usize
 spline.rs: BSpline::control_points(&self) -> &[Point2]
 spline.rs: BSpline::knots(&self) -> &[f64]
@@ -145,6 +147,7 @@ spline.rs: #[derive(Clone, Debug, PartialEq)] pub struct Bezier
 spline.rs: Bezier::new(control_points: Vec<Point2>) -> Result<Bezier>
 spline.rs: Bezier::degree(&self) -> usize
 spline.rs: Bezier::control_points(&self) -> &[Point2]
+spline.rs: Bezier::as_bspline(&self) -> Result<BSpline>
 spline.rs: Bezier::is_declared_closed(&self) -> bool
 spline.rs: Bezier::declare_closed(mut self) -> Result<Bezier>
 spline.rs: impl Curve2d for Bezier
