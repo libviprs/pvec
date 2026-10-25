@@ -14,7 +14,9 @@ pvec-numeric = { path = "../pvec-numeric" }
 
 # The schema validation test runs a pinned validator in a hermetic container (pvec-hermetic).
 [dev-dependencies]
+pvec-container = { path = "../pvec-container" }
 pvec-hermetic = { path = "../pvec-hermetic" }
+pvec-testkit = { path = "../pvec-testkit" }
 
 [lints]
 workspace = true
