@@ -298,3 +298,32 @@ fn issue_16_run_slice_8ms_overshoot_p99_over_10000_slices_on_a_million_entities(
     assert!(p99 <= OVERSHOOT_P99_MAX, "p99 overshoot {p99:?}");
     assert!(s.queued() > 0, "the slices did not simply drain the queue");
 }
+
+#[test]
+fn issue_16_a_tier0_job_scoring_zero_is_not_held_at_idle() {
+    let mut s = Scheduler::new(big(), g0());
+    let mut zero = job(g0(), 1, 0, 0.0, us(100));
+    zero.error_need = 0.0;
+    s.submit(zero).unwrap();
+    s.submit(job(g0(), 2, 2, 0.5, us(100))).unwrap();
+    let clock = Manual::new();
+    let mut ran = Vec::new();
+    s.run_slice(Duration::from_secs(1), &clock, |j| {
+        ran.push(j.entity_set);
+        Step::Done
+    });
+    assert_eq!(ran, vec![1, 2], "a zero-scoring job at Idle runs, and does not stall the deeper tiers");
+    assert_eq!(s.queued(), 0);
+}
+
+#[test]
+fn issue_16_zero_cost_jobs_cannot_be_admitted_without_limit() {
+    let mut s = Scheduler::new(SchedulerConfig { max_in_flight_reads: 1, max_queued_cost: us(1000) }, g0());
+    for i in 0..100_000 {
+        let _ = s.submit(job(g0(), i, 1, 0.1, Duration::ZERO));
+    }
+    let m = s.metrics();
+    assert!(m.admitted <= 10, "a 1ms cap admitted {} zero-cost jobs", m.admitted);
+    assert_eq!(m.admitted + m.refused_queue, 100_000);
+    assert_eq!(s.queued() as u64, m.admitted);
+}
