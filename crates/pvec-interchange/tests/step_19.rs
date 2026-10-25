@@ -213,42 +213,6 @@ fn an_empty_export_is_a_valid_file() {
 
 // ---- structural exactness -----------------------------------------------------------------------------------
 
-fn extra_fixtures() -> Vec<(EntityId, Curve)> {
-    use pvec_geometry::{BSpline, Circle, Line, Placement2, Trimmed, Vector2};
-    let line = Line::new(pt(-3.5, 2.25), Vector2::new(3.0, 4.0)).unwrap();
-    let rotated = Circle::new(Placement2::new(pt(7.0, -2.0), Vector2::new(0.6, 0.8)).unwrap(), 3.25).unwrap();
-    vec![
-        (eid(20), Curve::Trimmed(Trimmed::new(Curve::Line(line), 5.0, 1.0, false).unwrap())),
-        (eid(21), Curve::Trimmed(Trimmed::new(Curve::Circle(rotated), 5.5, 1.0, true).unwrap())),
-        (eid(22), Curve::Trimmed(Trimmed::new(spline(), 0.2, 0.9, true).unwrap())),
-        (eid(23), Curve::Trimmed(Trimmed::new(cubic_bezier(), 0.9, 0.1, false).unwrap())),
-        (
-            eid(24),
-            Curve::Trimmed(Trimmed::new(rational(vec![1.0, 0.5, 2.0, 1.0, 1.5]), 0.1, 0.8, true).unwrap()),
-        ),
-        (eid(25), Curve::Circle(rotated)),
-        (
-            eid(26),
-            Curve::BSpline(
-                BSpline::new(
-                    2,
-                    vec![pt(0.0, 0.0), pt(1.0, 2.0), pt(2.0, 0.0), pt(1.0, -2.0), pt(0.0, 0.0)],
-                    vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
-                )
-                .unwrap()
-                .declare_closed()
-                .unwrap(),
-            ),
-        ),
-    ]
-}
-
-fn all_entities() -> Vec<(EntityId, Curve)> {
-    let mut v = fixtures();
-    v.extend(extra_fixtures());
-    v
-}
-
 fn assert_same_trim(a: &Curve, b: &Curve) {
     let (Curve::Trimmed(x), Curve::Trimmed(y)) = (a, b) else { panic!("both are trimmed curves") };
     assert_same(x.basis(), y.basis());
