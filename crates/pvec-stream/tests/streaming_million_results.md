@@ -59,7 +59,7 @@ along a diagonal each time). Two numbers, because either alone can be gamed:
 The issue asks for the throttled range source to run in a hermetic container. `pvec-hermetic` starts its
 container with `--network none`, so a source served over a socket from it is not possible without changing that
 crate. The source here is in process and deterministic about what it charges per range. That is a gap, filed as a
-follow-up.
+follow-up (pvec#158).
 
 ## native x86_64 (mars, release build)
 
