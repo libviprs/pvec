@@ -10,6 +10,10 @@ use pvec_interchange::gml::*;
 mod common;
 use common::*;
 
+/// Slack for comparing a knot-inserted spline with its source: a few rounded convex combinations on
+/// coordinates of size 10, far below any drawing tolerance.
+const ROUNDOFF_SLACK: f64 = 0.000_000_001;
+
 fn between<'a>(s: &'a str, open: &str, close: &str) -> Option<&'a str> {
     let a = s.find(open)? + open.len();
     let b = s[a..].find(close)? + a;
@@ -61,13 +65,16 @@ fn assert_same_curve(x: &GmlExport, source: &Curve) {
     let written = BSpline::new(degree, cps, knots.clone()).expect("the written spline is a valid spline");
     let d = source.domain();
     assert_eq!(knots[0].to_bits(), d.lo().to_bits(), "the spline starts at the trimmed curve's start");
-    assert!((written.domain().hi() - d.hi()).abs() <= 1e-12 * d.hi().max(1.0), "and ends at its end");
+    assert!(
+        (written.domain().hi() - d.hi()).abs() <= ROUNDOFF_SLACK * d.hi().max(1.0),
+        "and ends at its end"
+    );
     assert_eq!(knots.iter().filter(|&&k| k == knots[0]).count(), degree + 1, "clamped at the start");
     assert_eq!(knots.iter().filter(|&&k| k == *knots.last().unwrap()).count(), degree + 1, "and the end");
     for i in 0..=200 {
         let t = d.lo() + d.width() * (i as f64 / 200.0);
         let (a, b) = (source.eval(t).unwrap(), written.eval(t.min(written.domain().hi())).unwrap());
-        assert!(a.distance(b) <= 1e-9, "tau {t}: {a:?} vs {b:?}");
+        assert!(a.distance(b) <= ROUNDOFF_SLACK, "tau {t}: {a:?} vs {b:?}");
     }
 }
 
@@ -121,7 +128,10 @@ fn a_reversed_trim_is_written_in_the_direction_the_curve_runs() {
     assert_same_curve(&x, &c);
     let (_, cps, _) = read_bspline(&x.xml, 1);
     let start = c.eval(c.domain().lo()).unwrap();
-    assert!(cps[0].distance(start) <= 1e-12, "the first control point is where the trimmed curve starts");
+    assert!(
+        cps[0].distance(start) <= ROUNDOFF_SLACK,
+        "the first control point is where the trimmed curve starts"
+    );
 }
 
 #[test]

@@ -2,6 +2,10 @@
 
 use pvec_geometry::{BSpline, Bezier, Curve, Curve2d, Point2, Trimmed};
 
+/// Slack for comparing a knot-inserted spline with its source: a few rounded convex combinations on
+/// coordinates of size 10, far below any drawing tolerance.
+const ROUNDOFF_SLACK: f64 = 0.000_000_001;
+
 fn pt(x: f64, y: f64) -> Point2 {
     Point2::new(x, y)
 }
@@ -18,7 +22,7 @@ fn a_sub_range_traces_the_same_points_over_the_same_parameters() {
     assert_eq!((r.domain().lo(), r.domain().hi()), (0.1, 0.6));
     for i in 0..=100 {
         let t = 0.1 + 0.5 * i as f64 / 100.0;
-        assert!(s.eval(t).unwrap().distance(r.eval(t).unwrap()) <= 1e-12, "t = {t}");
+        assert!(s.eval(t).unwrap().distance(r.eval(t).unwrap()) <= ROUNDOFF_SLACK, "t = {t}");
     }
 }
 
@@ -54,7 +58,7 @@ fn an_unclamped_spline_is_cut_to_a_clamped_one() {
     let r = s.sub_range(2.5, 4.0).unwrap();
     for i in 0..=50 {
         let t = 2.5 + 1.5 * i as f64 / 50.0;
-        assert!(s.eval(t).unwrap().distance(r.eval(t).unwrap()) <= 1e-12, "t = {t}");
+        assert!(s.eval(t).unwrap().distance(r.eval(t).unwrap()) <= ROUNDOFF_SLACK, "t = {t}");
     }
 }
 
@@ -64,7 +68,7 @@ fn a_bezier_as_a_bspline_is_the_same_curve() {
     let s = b.as_bspline().unwrap();
     for i in 0..=20 {
         let t = i as f64 / 20.0;
-        assert!(b.eval(t).unwrap().distance(s.eval(t).unwrap()) <= 1e-12);
+        assert!(b.eval(t).unwrap().distance(s.eval(t).unwrap()) <= ROUNDOFF_SLACK);
     }
 }
 
@@ -77,7 +81,7 @@ fn a_trimmed_spline_as_a_bspline_runs_over_its_own_parameter_both_ways() {
         assert_eq!(s.domain().hi(), t.domain().hi());
         for i in 0..=100 {
             let tau = t.domain().hi() * i as f64 / 100.0;
-            assert!(t.eval(tau).unwrap().distance(s.eval(tau).unwrap()) <= 1e-12, "tau = {tau}");
+            assert!(t.eval(tau).unwrap().distance(s.eval(tau).unwrap()) <= ROUNDOFF_SLACK, "tau = {tau}");
         }
     }
 }
