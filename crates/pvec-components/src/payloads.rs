@@ -45,6 +45,9 @@ impl<'a> R<'a> {
         self.p += n;
         Ok(s)
     }
+    pub(crate) fn u8(&mut self) -> Res<u8> {
+        Ok(self.take(1)?[0])
+    }
     pub(crate) fn u32(&mut self) -> Res<u32> {
         let s = self.take(4)?;
         Ok(u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
@@ -84,6 +87,9 @@ impl<'a> R<'a> {
 pub(crate) struct W(pub(crate) Vec<u8>);
 
 impl W {
+    pub(crate) fn u8(&mut self, v: u8) {
+        self.0.push(v);
+    }
     pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
@@ -224,6 +230,16 @@ impl LayerStream {
 
 // ---------------------------------------------------------------- line style
 
+/// The stroke width of a line style. A style with no width at all is `None` in [`LineStyleDef::width`],
+/// which is not the same as a width of zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StrokeWidth {
+    /// The thinnest line the output can draw (PDF `w 0`).
+    Thinnest,
+    /// An explicit width, finite and not negative.
+    Width(f64),
+}
+
 /// A named dash pattern: alternating dash and gap lengths, empty for a continuous line.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineStyleDef {
@@ -231,6 +247,12 @@ pub struct LineStyleDef {
     pub name: String,
     /// Dash and gap lengths, each finite and not negative, at most 16.
     pub dashes: Vec<f64>,
+    /// The stroke width, absent when the style does not set one.
+    pub width: Option<StrokeWidth>,
+    /// Where in the pattern the line starts, finite. Must be zero when there are no dashes.
+    pub phase: f64,
+    /// Whether lines in this style are drawn.
+    pub visible: bool,
 }
 
 /// Line style definitions and the style of each entity.
@@ -266,6 +288,22 @@ impl LineStyleStream {
                 }
                 w.f64(*d);
             }
+            match s.width {
+                None => w.u8(0),
+                Some(StrokeWidth::Thinnest) => w.u8(1),
+                Some(StrokeWidth::Width(v)) => {
+                    if !v.is_finite() || v < 0.0 {
+                        return Err(E::BadNumber);
+                    }
+                    w.u8(2);
+                    w.f64(v);
+                }
+            }
+            if !s.phase.is_finite() || (s.dashes.is_empty() && s.phase != 0.0) {
+                return Err(E::BadNumber);
+            }
+            w.f64(s.phase);
+            w.u8(u8::from(s.visible));
         }
         for (e, i) in &self.assignments {
             if *i as usize >= self.styles.len() {
@@ -300,7 +338,27 @@ impl LineStyleStream {
                 }
                 dashes.push(d);
             }
-            styles.push(LineStyleDef { name, dashes });
+            let width = match r.u8()? {
+                0 => None,
+                1 => Some(StrokeWidth::Thinnest),
+                2 => {
+                    let v = r.f64()?;
+                    if !v.is_finite() || v < 0.0 {
+                        return Err(E::BadNumber);
+                    }
+                    Some(StrokeWidth::Width(v))
+                }
+                k => return Err(E::BadTag(u32::from(k))),
+            };
+            let phase = r.f64()?;
+            if !phase.is_finite() || (dashes.is_empty() && phase != 0.0) {
+                return Err(E::BadNumber);
+            }
+            let flags = r.u8()?;
+            if flags & !1 != 0 {
+                return Err(E::ReservedNotZero);
+            }
+            styles.push(LineStyleDef { name, dashes, width, phase, visible: flags & 1 == 1 });
         }
         if assign_n.checked_mul(8).is_none_or(|need| need > r.left()) {
             return Err(E::Truncated);

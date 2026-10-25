@@ -813,13 +813,16 @@ impl Registry {
                 "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
         ];
-        let mut registry =
-            Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it");
+        let mut entries = entries;
+        // line_style is at 2.0.0: width, dash phase and visibility are inline in each style (pvec#125)
+        if let Some(c) = entries.iter_mut().find(|c| c.id == ids::LINE_STYLE) {
+            c.version = Version::new(2, 0, 0);
+        }
         // the layer stream carries a flags byte per layer (issue #119, ADR 0014 amendment)
-        registry
-            .bump_component_version(ids::LAYER, Version::new(2, 0, 0))
-            .expect("the layer stream is a component and 2.0 is above 1.0");
-        registry
+        if let Some(c) = entries.iter_mut().find(|c| c.id == ids::LAYER) {
+            c.version = Version::new(2, 0, 0);
+        }
+        Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")
     }
 }
 

@@ -102,7 +102,7 @@ fn issue_119_the_registry_gives_the_layer_stream_version_2_and_nothing_else_move
     let r = Registry::v1();
     assert_eq!(r.get(ids::LAYER).unwrap().version, Version::new(2, 0, 0));
     for c in r.entries() {
-        if c.id != ids::LAYER {
+        if c.id != ids::LAYER && c.id != ids::LINE_STYLE {
             assert_eq!(c.version, Version::new(1, 0, 0), "{}", c.name);
         }
         if c.class == Class::Geometry {

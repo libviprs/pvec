@@ -530,7 +530,7 @@ fn tree_problems(lock: &str, manifests: &[(&str, &str)], workspace_only: bool) -
     let mut out = Vec::new();
     for line in lock.lines() {
         if let Some(name) = line.strip_prefix("name = \"").and_then(|r| r.strip_suffix('"')) {
-            if workspace_only && !name.starts_with("pvec-") && !EXTERNAL.contains(&name) {
+            if workspace_only && name != "pvec" && !name.starts_with("pvec-") && !EXTERNAL.contains(&name) {
                 out.push(format!("Cargo.lock: {name} is not a crate of this workspace"));
             }
             for b in BANNED {
