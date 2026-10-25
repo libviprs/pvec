@@ -6,7 +6,8 @@ crate.
 
 Chapter 1 is the STEP AP242 export (P6.2, pvec#19). Chapter 2 belongs to the round-trip validation (P6.3)
 and is added by that issue. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
-GeoPackage export (P6.5, pvec#22) and chapter 5 the vector tile export (P6.6, pvec#23).
+GeoPackage export (P6.5, pvec#22), chapter 5 the vector tile export (P6.6, pvec#23)
+and chapter 6 the PMTiles packaging (P6.7, pvec#24).
 
 ## 1. STEP AP242 export
 
@@ -551,5 +552,80 @@ Five stages, each a public function in `pvec_interchange::mvt`, each testable al
 
 ### Out of scope here
 
-PMTiles packaging (P6.7), MapLibre styling, raster tiles, polygon and fill output, and any use of an
+PMTiles packaging (chapter 6), MapLibre styling, raster tiles, polygon and fill output, and any use of an
 MVT as a source for comparison.
+
+## 6. PMTiles packaging
+
+A directory of tiles is not a deliverable, a single archive a client can stream with HTTP range
+requests is. `pvec_interchange::pmtiles::write_pmtiles` packs the tiles of chapter 5 into one PMTiles
+v3 archive per exported view. It packs them and nothing more: the archive stays a derivative of the
+`.pvec` artifact.
+
+### The non-canonicality rule
+
+* A PMTiles archive is display fidelity only. Everything in it is a chapter 5 tile, so every entity
+  in it is a bounded approximation or unsupported, and none is exact.
+* A PMTiles archive is not an input to any conformance comparison. No conformance result may cite
+  one, and no comparison, reference reader or container reader accepts one (a test feeds an archive
+  to the reference reader and the container header parse, and both refuse it).
+* A PMTiles archive is not re-imported as geometry. The module can write an archive and has no
+  function that reads one back into curves.
+* `libviprs/libviprs#1028` (EPIC L) already ships a vector PMTiles writer for its own tessellated
+  path. This writer neither changes nor depends on it, and the two archives are not interchangeable
+  evidence of anything.
+
+The rule is written down because the alternative was an assumption (panel finding 8).
+
+### Layout
+
+* One archive per view. A 127 byte header, the root directory, the JSON metadata, the leaf
+  directories if there are any, then the tile data in tile id order.
+* The header and the root directory sit in the first 16 KiB (16384 bytes), which is the one request a
+  client has to make before it can find any tile. If all the directory entries do not fit in what is
+  left after the header, the writer moves them into leaf directories of 1024 entries, doubling the
+  leaf size until the root fits.
+* Tile ids follow the specification: the Hilbert curve index inside a zoom, after the tiles of all
+  smaller zooms. Tile data and directories are stored uncompressed (compression none), so the writer
+  needs no codec. Tiles with nothing in them are not addressed.
+* The header bounds are the whole web mercator world square and the centre is its middle. The map of
+  a drawing is a plain square, not a place on Earth, and the archive does not pretend otherwise.
+
+### Metadata
+
+* `vector_layers` is derived from the tile bytes the writer is given, never from a list the caller
+  keeps: one entry per layer that some tile holds, with the attribute names and types that some
+  feature really uses (`entity_id` and `world_deviation` are `Number`, `display_only` is `Boolean`)
+  and the lowest and highest zoom the layer appears at. A layer nobody emitted is not declared.
+  Bytes that are not a vector tile, or a key used with two types in one layer, fail the writer.
+* `pvec` states what the archive approximated:
+  * the source artifact digest (`sha256:` and 64 hex digits, from P4.6);
+  * the tessellation tolerance, as the screen budget in pixels;
+  * the tested zoom range (`tested_zoom_min`, `tested_zoom_max`), and a tile outside it fails the writer;
+  * the fidelity summary: the number of ledger records of each of the five taxonomy values, the
+    total, and the largest error bound recorded;
+  * `display_only: true` and `canonical: false`.
+  A missing digest, tolerance or zoom range fails the writer.
+
+### Determinism
+
+The same tile set gives a byte-identical archive. Tiles are sorted by id before anything is written,
+so the order the caller passes them in does not matter, directories are built from that order alone,
+and metadata keys are written sorted. There is no timestamp unless the caller passes `created`,
+which is copied in as given. The writer never reads a clock.
+
+### Validation
+
+* An independent reader in the test suite (written from the specification, sharing no code with the
+  writer) finds every tile through the root and the leaf directories.
+* `go-pmtiles verify` (the protomaps project's own tool, in a container pinned by digest) accepts
+  the archive, and refuses two damaged copies.
+* The archive is put in an S3 compatible object store (a container pinned by digest, started and
+  removed inside the test, including when it fails) and read back with HTTP range requests, the first
+  16 KiB first and then each tile by the directory entry a client would decode. Both container tests
+  run in the `docker-tests` stage of the merge gate.
+
+### Not done
+
+Serving, CDN and cache headers, MapLibre style authoring, mobile offline packaging and raster
+pyramids. Identical tile contents are not deduplicated, so the archive has no run lengths above one.

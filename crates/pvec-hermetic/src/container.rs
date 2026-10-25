@@ -123,6 +123,16 @@ impl Container {
     /// As [`Container::start`], but runs `command` in place of the image's own, for an image that
     /// would otherwise exit at once (a validator that is driven by [`Container::exec`] afterwards).
     pub fn start_with_command(config: &Config, command: &[&str]) -> Result<Container, ContainerError> {
+        Container::launch(config, command, false)
+    }
+
+    /// As [`Container::start_with_command`], with an in-memory `/tmp` on top of the read-only root,
+    /// for a server that needs scratch space for its sockets and spool files. Nothing else is writable.
+    pub fn start_with_tmp(config: &Config, command: &[&str]) -> Result<Container, ContainerError> {
+        Container::launch(config, command, true)
+    }
+
+    fn launch(config: &Config, command: &[&str], tmp: bool) -> Result<Container, ContainerError> {
         if !pinned(&config.image) {
             return Err(ContainerError::UnpinnedImage(config.image.clone()));
         }
@@ -154,10 +164,11 @@ impl Container {
             "--network",
             "none",
             "--read-only",
-            "-v",
-            &volume,
-            &config.image,
         ];
+        if tmp {
+            args.extend_from_slice(&["--tmpfs", "/tmp"]);
+        }
+        args.extend_from_slice(&["-v", &volume, &config.image]);
         args.extend_from_slice(command);
         let failure = match docker(&c.docker, &c.path, &args) {
             Ok(o) if o.status.success() => return Ok(c),

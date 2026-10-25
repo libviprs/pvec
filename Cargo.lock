@@ -115,11 +115,13 @@ name = "pvec-interchange"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-container",
  "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
  "pvec-hermetic",
  "pvec-numeric",
+ "pvec-testkit",
 ]
 
 [[package]]

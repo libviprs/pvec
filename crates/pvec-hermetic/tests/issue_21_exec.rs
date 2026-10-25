@@ -96,3 +96,19 @@ fn the_container_is_still_removed_after_an_exec() {
     }
     assert!(f.calls().iter().any(|l| l.starts_with("rm -f pvec-hermetic-")), "{:?}", f.calls());
 }
+
+#[test]
+fn start_with_tmp_adds_only_an_in_memory_tmp_and_keeps_the_root_read_only() {
+    let f = Fake::new();
+    let c = Container::start_with_tmp(&f.config(), &["serve"]).unwrap();
+    let run = f.calls().into_iter().find(|l| l.starts_with("run ")).unwrap();
+    assert!(run.contains("--tmpfs /tmp"), "{run}");
+    assert!(run.contains("--read-only") && run.contains("--network none"), "{run}");
+    assert!(run.ends_with(&format!("{IMAGE} serve")), "{run}");
+    c.stop().unwrap();
+    // and the plain start never gets one
+    let g = Fake::new();
+    let d = Container::start_with_command(&g.config(), &["serve"]).unwrap();
+    assert!(!g.calls().into_iter().any(|l| l.contains("--tmpfs")));
+    d.stop().unwrap();
+}
