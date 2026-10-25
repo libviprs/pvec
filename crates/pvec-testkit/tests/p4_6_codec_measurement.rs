@@ -150,7 +150,7 @@ fn with_streams(n: u32) -> Vec<u8> {
     let names =
         ["WALLS", "DOORS", "WINDOWS", "FURNITURE", "ANNOTATION", "DIMENSIONS"].map(String::from).to_vec();
     let registry = Registry::v1();
-    w.push_stream(LayerStream { names, assignments: layers }.into_stream(&registry).expect("layers"))
+    w.push_stream(LayerStream { flags: vec![0; names.len()], names, assignments: layers }.into_stream(&registry).expect("layers"))
         .expect("a stream");
     w.push_stream(TextStream { records: texts }.into_stream(&registry).expect("text")).expect("a stream");
     w.finish().expect("the streams write")

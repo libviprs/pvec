@@ -115,11 +115,21 @@ pub(crate) fn into_stream(registry: &Registry, cap: CapabilityId, payload: Vec<u
 
 // ---------------------------------------------------------------- layer
 
-/// Layer names and the layer of each entity.
+/// Layer flag bit 0: the layer is off.
+pub const LAYER_OFF: u8 = 1;
+/// Layer flag bit 1: the layer is frozen.
+pub const LAYER_FROZEN: u8 = 2;
+/// Layer flag bit 2: the layer is locked.
+pub const LAYER_LOCKED: u8 = 4;
+
+/// Layer names, the state of each layer and the layer of each entity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayerStream {
     /// The layer table.
     pub names: Vec<String>,
+    /// One flags byte per entry of `names`: `LAYER_OFF`, `LAYER_FROZEN` and `LAYER_LOCKED`, all other
+    /// bits zero.
+    pub flags: Vec<u8>,
     /// Pairs of an entity and an index into `names`.
     pub assignments: Vec<(EntityId, u32)>,
 }
@@ -149,6 +159,12 @@ impl LayerStream {
         Ok(w.0)
     }
 
+    /// Reads a payload of the given stream version (2.0 layout carries flags, 1.0 reads as all zero).
+    pub fn decode_at(version: pvec_capabilities::Version, bytes: &[u8]) -> Res<LayerStream> {
+        let _ = version;
+        Self::decode(bytes)
+    }
+
     /// Reads a payload, which must be consumed exactly.
     pub fn decode(bytes: &[u8]) -> Res<LayerStream> {
         let mut r = R::new(bytes);
@@ -174,7 +190,8 @@ impl LayerStream {
             assignments.push((e, i));
         }
         r.done()?;
-        Ok(LayerStream { names, assignments })
+        let flags = vec![0; names.len()];
+        Ok(LayerStream { names, flags, assignments })
     }
 
     /// The stream, with the version the registry gives this capability.

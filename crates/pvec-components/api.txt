@@ -51,7 +51,7 @@ frame.rs: pub fn encode_streams(streams: &[Stream]) -> Result<Vec<u8>, StreamErr
 frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader) -> Result<Opened, StreamError>
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
-lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, TextRecord, TextStream, }
+lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, TextRecord, TextStream, }
 lib.rs: pub use semantic::{ ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord, SemanticClassStream, SemanticRead, SourceTag, }
 payloads.rs: pub const MAX_TABLE: usize
 payloads.rs: pub const MAX_NAME: usize
@@ -60,11 +60,16 @@ payloads.rs: pub const MAX_TEXT: usize
 payloads.rs: pub const MAX_BOUNDARY: usize
 payloads.rs: pub const MAX_HANDLE: usize
 payloads.rs: pub const MAX_RECORDS: usize
+payloads.rs: pub const LAYER_OFF: u8
+payloads.rs: pub const LAYER_FROZEN: u8
+payloads.rs: pub const LAYER_LOCKED: u8
 payloads.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct LayerStream
 payloads.rs: LayerStream.names: Vec<String>
+payloads.rs: LayerStream.flags: Vec<u8>
 payloads.rs: LayerStream.assignments: Vec<(EntityId, u32)>
 payloads.rs: LayerStream::const CAPABILITY: CapabilityId
 payloads.rs: LayerStream::encode(&self) -> Res<Vec<u8>>
+payloads.rs: LayerStream::decode_at(version: pvec_capabilities::Version, bytes: &[u8]) -> Res<LayerStream>
 payloads.rs: LayerStream::decode(bytes: &[u8]) -> Res<LayerStream>
 payloads.rs: LayerStream::into_stream(&self, registry: &Registry) -> Res<Stream>
 payloads.rs: #[derive(Clone, Debug, PartialEq)] pub struct LineStyleDef

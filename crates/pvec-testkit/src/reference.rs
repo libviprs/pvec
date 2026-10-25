@@ -239,6 +239,8 @@ pub struct Opened {
     pub entities: Vec<ReadEntity>,
     /// The capability ids of the component streams, ascending.
     pub stream_capabilities: Vec<u32>,
+    /// The component streams a reader that implements every component opened.
+    pub streams: Vec<pvec_components::Stream>,
 }
 
 fn slice(bytes: &[u8], start: u64, len: u64) -> Option<&[u8]> {
@@ -418,6 +420,7 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
     let mut advanced: Vec<(u16, AlignedBytes)> = Vec::new();
     let mut record_count = 0usize;
     let mut stream_ids: Vec<u32> = Vec::new();
+    let mut streams: Vec<pvec_components::Stream> = Vec::new();
     for e in &entries {
         let raw = slice(bytes, e.offset, u64::from(e.stored_length)).ok_or_else(|| outside("a block"))?;
         let aligned = match Codec::from_id(e.codec) {
@@ -465,15 +468,29 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
             // the straddler lists are `pvec-stream`'s to validate, like the directory
             Some(BlockKind::Straddlers) => {}
             Some(BlockKind::Components) => {
-                let reader = Reader { version: Version::new(1, 0, 0), implemented: Vec::new() };
+                let reader = Reader {
+                    version: Version::new(1, 0, 0),
+                    implemented: Registry::v1()
+                        .entries()
+                        .iter()
+                        .filter(|c| c.class == pvec_capabilities::Class::Component)
+                        .map(|c| c.id)
+                        .collect(),
+                };
                 let opened =
                     read_streams(aligned.as_bytes(), &Registry::v1(), &reader).map_err(|x| ReadError {
                         stage: Stage::Components,
                         rule: x.rule().to_string(),
                         detail: format!("{x:?}"),
                     })?;
-                stream_ids = opened.skipped.iter().map(|s| s.capability.get()).collect();
+                stream_ids = opened
+                    .skipped
+                    .iter()
+                    .map(|s| s.capability.get())
+                    .chain(opened.streams.iter().map(|s| s.capability.get()))
+                    .collect();
                 stream_ids.sort_unstable();
+                streams = opened.streams;
             }
             None => {
                 return refuse(
@@ -541,7 +558,7 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
         }
     }
     entities.sort_by_key(ReadEntity::id);
-    Ok(Opened { header, manifest, entries, entities, stream_capabilities: stream_ids })
+    Ok(Opened { header, manifest, entries, entities, stream_capabilities: stream_ids, streams })
 }
 
 fn hot_entity(v: &HotBlockView<'_>, i: usize) -> Result<ReadEntity, ReadError> {

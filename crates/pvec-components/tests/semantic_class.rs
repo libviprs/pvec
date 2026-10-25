@@ -302,7 +302,7 @@ fn damaged_set(payload: Vec<u8>, with_layer: bool) -> Vec<u8> {
         streams.push(Stream {
             capability: ids::LAYER,
             version: Version::new(1, 0, 0),
-            payload: LayerStream { names: vec![], assignments: vec![] }.encode().unwrap(),
+            payload: LayerStream { names: vec![], flags: vec![], assignments: vec![] }.encode().unwrap(),
         });
     }
     encode_streams(&streams).unwrap()
