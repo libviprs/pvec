@@ -2,7 +2,6 @@
 //! (OCCT 7.6 through the FreeCAD Python module of Debian bookworm's `freecad-python3`) in a container, and what
 //! it finds is compared with the PVec curves that were exported, structurally and geometrically.
 //!
-//! Red first: the harness is `pvec_interchange::step::verify`, and these tests describe it before it exists.
 //! The tests that need no container run everywhere, against evaluator reports built in the test. The one that
 //! drives the real evaluator needs a docker daemon, so it is `#[ignore]` and runs in the `docker-tests` stage of
 //! `gate-fleet.sh local-ci pvec` on mars (x64) and mercury (arm64), like `step_19_reader.rs`.
@@ -176,8 +175,8 @@ fn the_comparison_declares_no_tolerance_of_its_own() {
 
 // ---- the real evaluator ---------------------------------------------------------------------------------
 
-/// Set by the gate when the image is built from `tools/step-eval/Dockerfile` on the host, else the pinned
-/// digest of the org image below.
+/// Overrides the image, for trying a rebuild before its digest is pinned below. The hermetic fixture still
+/// insists on a digest.
 const IMAGE_ENV: &str = "PVEC_STEP_EVAL_IMAGE";
 
 /// The versions the suite is recorded against, as the container reports them.
@@ -187,7 +186,9 @@ fn image() -> String {
     std::env::var(IMAGE_ENV).unwrap_or_else(|_| EVAL_IMAGE.to_string())
 }
 
-const EVAL_IMAGE: &str = "ghcr.io/libviprs/pvec-step-eval@sha256:006fce189f5c7bd22421507bff590cbdc0bce4012a8def1dbaf4d1e0441c985d";
+/// The org image built from `tools/step-eval/Dockerfile` (`tools/step-eval/publish.sh`), pinned by the digest of its
+/// multi-platform index (amd64 and arm64).
+const EVAL_IMAGE: &str = "ghcr.io/libviprs/pvec-step-eval@sha256:957058fc03489500ae9866b795ba4ece8dc43305042c916731908d256c07c0dc";
 
 #[test]
 #[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]

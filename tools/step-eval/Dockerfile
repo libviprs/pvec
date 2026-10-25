@@ -4,7 +4,7 @@
 # both run as a separate process in this container and are never linked into pvec, and the licence
 # texts stay in /usr/share/doc/<package>/copyright inside the image.
 #
-# Build with tools/step-eval/build.sh. The base is pinned by digest (debian:bookworm-slim index).
+# Build and publish with tools/step-eval/publish.sh. The base is pinned by digest (debian:bookworm-slim index).
 FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 LABEL org.opencontainers.image.source="https://github.com/libviprs/pvec" \
       org.opencontainers.image.description="pvec STEP evaluator: OCCT through Debian freecad-python3" \
