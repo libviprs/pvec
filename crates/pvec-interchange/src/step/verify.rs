@@ -92,19 +92,22 @@ impl Report {
     pub fn parse(text: &str) -> Result<Report, String> {
         let mut lines = text.lines().filter(|l| !l.trim().is_empty());
         let head = lines.next().ok_or("the evaluator printed nothing")?;
-        let evaluator = head.strip_prefix("EVALUATOR ").ok_or_else(|| format!("no EVALUATOR line: `{head}`"))?;
+        let evaluator =
+            head.strip_prefix("EVALUATOR ").ok_or_else(|| format!("no EVALUATOR line: `{head}`"))?;
         let announced: usize = evaluator
             .split(' ')
             .find_map(|w| w.strip_prefix("edges="))
             .ok_or("the EVALUATOR line has no edges=")?
             .parse()
             .map_err(|e| format!("edges=: {e}"))?;
-        let mut report = Report { evaluator: evaluator.to_string(), edges: Vec::new(), samples: BTreeMap::new() };
+        let mut report =
+            Report { evaluator: evaluator.to_string(), edges: Vec::new(), samples: BTreeMap::new() };
         for line in lines {
             let mut w = line.split(' ');
             match w.next() {
                 Some("EDGE") => {
-                    let index: usize = w.next().and_then(|x| x.parse().ok()).ok_or("EDGE without an index")?;
+                    let index: usize =
+                        w.next().and_then(|x| x.parse().ok()).ok_or("EDGE without an index")?;
                     if index != report.edges.len() {
                         return Err(format!("EDGE {index} out of order"));
                     }
@@ -127,7 +130,10 @@ impl Report {
             }
         }
         if report.edges.len() != announced {
-            return Err(format!("the evaluator announced {announced} edges and printed {}", report.edges.len()));
+            return Err(format!(
+                "the evaluator announced {announced} edges and printed {}",
+                report.edges.len()
+            ));
         }
         Ok(report)
     }
@@ -237,7 +243,8 @@ pub fn requests(subjects: &[Subject<'_>], report: &Report) -> Result<String, Str
                 let (Some(a), Some(b)) = (a.and_then(|v| v.first()), b.and_then(|v| v.first())) else {
                     return Err(format!("edge {edge} has no parameter range"));
                 };
-                let us: Vec<String> = fractions(leaf).iter().map(|f| format!("{:?}", a + f * (b - a))).collect();
+                let us: Vec<String> =
+                    fractions(leaf).iter().map(|f| format!("{:?}", a + f * (b - a))).collect();
                 parts.push(format!("\"{edge}\":[{}]", us.join(",")));
             }
             edge += 1;
@@ -295,7 +302,9 @@ impl Ctx<'_> {
         let policy = Policy::V1;
         self.verdict.structural_checked += 1;
         let mag = pvec.iter().chain(step.into_iter().flatten()).fold(0.0_f64, |m, x| m.max(x.abs()));
-        let ok = step.is_some_and(|s| s.len() == pvec.len() && pvec.iter().zip(s).all(|(a, b)| policy.near(*a, *b, self.scale)));
+        let ok = step.is_some_and(|s| {
+            s.len() == pvec.len() && pvec.iter().zip(s).all(|(a, b)| policy.near(*a, *b, self.scale))
+        });
         if !ok {
             self.verdict.structural.push(Disagreement {
                 entity: self.id,
@@ -472,7 +481,9 @@ fn closed_form_length(leaf: &Leaf<'_>) -> Option<f64> {
         (Curve::Circle(c), Some(t)) => Some(c.radius() * t.span),
         (Curve::Circle(c), None) => Some(c.radius() * TAU),
         (Curve::Line(l), Some(t)) => Some(t.span * l.direction().x.hypot(l.direction().y)),
-        (Curve::Polyline(p), None) => Some(p.vertices().windows(2).map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y)).sum()),
+        (Curve::Polyline(p), None) => {
+            Some(p.vertices().windows(2).map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y)).sum())
+        }
         _ => None,
     }
 }
@@ -488,13 +499,22 @@ fn geometric(cx: &mut Ctx<'_>, leaf: &Leaf<'_>, e: &Edge, samples: &[Sample], bo
     let policy = Policy::V1;
     let class = if bound.is_some() { Class::Display } else { Class::Geometric };
     let d = leaf.curve.domain();
-    let (Some(first), Some(last)) = (e.fields.get("first").and_then(|v| v.first()), e.fields.get("last").and_then(|v| v.first())) else {
+    let (Some(first), Some(last)) =
+        (e.fields.get("first").and_then(|v| v.first()), e.fields.get("last").and_then(|v| v.first()))
+    else {
         return;
     };
     let step = policy.tol(1.0, 1.0);
     let knots: Vec<f64> = interior_knots(leaf).iter().map(|k| (k - d.lo()) / d.width()).collect();
-    let mut fail = |cx: &mut Ctx<'_>, what: String, pv: String, st: String, tol: f64| {
-        let v = Disagreement { entity: cx.id, class, pvec: pv, step: st, sample: format!("edge={} {what}", cx.edge), tolerance: tol };
+    let fail = |cx: &mut Ctx<'_>, what: String, pv: String, st: String, tol: f64| {
+        let v = Disagreement {
+            entity: cx.id,
+            class,
+            pvec: pv,
+            step: st,
+            sample: format!("edge={} {what}", cx.edge),
+            tolerance: tol,
+        };
         match class {
             Class::Display => cx.verdict.display.push(v),
             _ => cx.verdict.geometric.push(v),
@@ -520,7 +540,13 @@ fn geometric(cx: &mut Ctx<'_>, leaf: &Leaf<'_>, e: &Edge, samples: &[Sample], bo
         };
         if !near {
             let tag = format!("u={:?} f={f:?} off={off:?}", s.u);
-            fail(cx, tag, format!("point={:?},{:?}", p.x, p.y), format!("point={:?},{:?}", s.values[0], s.values[1]), tol);
+            fail(
+                cx,
+                tag,
+                format!("point={:?},{:?}", p.x, p.y),
+                format!("point={:?},{:?}", s.values[0], s.values[1]),
+                tol,
+            );
         }
         if bound.is_none() && !knots.iter().any(|k| (f - k).abs() <= step / 2.0) {
             let side = if f < 1.0 { Side::Right } else { Side::Left };
@@ -528,16 +554,30 @@ fn geometric(cx: &mut Ctx<'_>, leaf: &Leaf<'_>, e: &Edge, samples: &[Sample], bo
                 let want = unit([dv.x, dv.y]);
                 count(cx);
                 if !policy.near_point(want, [s.values[2], s.values[3]], 1.0) {
-                    fail(cx, format!("u={:?} f={f:?} tangent", s.u), format!("tangent={:?},{:?}", want[0], want[1]), format!("tangent={:?},{:?}", s.values[2], s.values[3]), policy.tol(1.0, 1.0));
+                    fail(
+                        cx,
+                        format!("u={:?} f={f:?} tangent", s.u),
+                        format!("tangent={:?},{:?}", want[0], want[1]),
+                        format!("tangent={:?},{:?}", s.values[2], s.values[3]),
+                        policy.tol(1.0, 1.0),
+                    );
                 }
             }
         }
     }
     if bound.is_none() {
-        if let (Some(len), Some(got)) = (closed_form_length(leaf), e.fields.get("length").and_then(|v| v.first())) {
+        if let (Some(len), Some(got)) =
+            (closed_form_length(leaf), e.fields.get("length").and_then(|v| v.first()))
+        {
             count(cx);
             if !policy.near(len, *got, len) {
-                fail(cx, "arc length".into(), format!("length={len:?}"), format!("length={got:?}"), policy.tol(len, len));
+                fail(
+                    cx,
+                    "arc length".into(),
+                    format!("length={len:?}"),
+                    format!("length={got:?}"),
+                    policy.tol(len, len),
+                );
             }
         }
     }
@@ -562,19 +602,26 @@ pub fn compare(subjects: &[Subject<'_>], report: &Report) -> Result<Verdict, Str
                         cx.verdict.structural_not_comparable.push((subject.id, why));
                     }
                     if sampled(leaf) {
-                        let s = report.samples.get(&edge).ok_or_else(|| format!("edge {edge} was not sampled"))?;
+                        let s = report
+                            .samples
+                            .get(&edge)
+                            .ok_or_else(|| format!("edge {edge} was not sampled"))?;
                         geometric(&mut cx, leaf, e, s, None);
                     }
                     checked += 1;
                 }
                 Fidelity::BoundedApproximation(b) => {
-                    let s = report.samples.get(&edge).ok_or_else(|| format!("edge {edge} was not sampled"))?;
+                    let s =
+                        report.samples.get(&edge).ok_or_else(|| format!("edge {edge} was not sampled"))?;
                     geometric(&mut cx, leaf, e, s, Some(b.get()));
                 }
                 // Not claimed exact in the structural class: the locus is still held to the geometric class.
                 _ => {
                     if sampled(leaf) {
-                        let s = report.samples.get(&edge).ok_or_else(|| format!("edge {edge} was not sampled"))?;
+                        let s = report
+                            .samples
+                            .get(&edge)
+                            .ok_or_else(|| format!("edge {edge} was not sampled"))?;
                         geometric(&mut cx, leaf, e, s, None);
                     }
                 }
