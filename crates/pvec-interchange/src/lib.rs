@@ -23,5 +23,6 @@ pub mod gml;
 pub mod gpkg;
 pub mod mvt;
 pub mod pmtiles;
+pub mod step;
 
 pub use fidelity::*;

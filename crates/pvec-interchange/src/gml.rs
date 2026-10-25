@@ -157,6 +157,8 @@ pub enum Case {
     TrimmedArc,
     /// A trimmed curve covering a whole circle.
     TrimmedFullCircle,
+    /// A trimmed Bezier or B-spline, cut out of the basis by knot insertion.
+    TrimmedSpline,
     /// A trimmed curve GML has no construct for.
     TrimmedTessellated,
     /// A composite curve.
@@ -297,11 +299,19 @@ pub const MAPPING: &[MappingRow] = &[
     ),
     row!(
         "trimmed_curve",
+        TrimmedSpline,
+        "gml:BSpline",
+        NATIVE,
+        ExactReparameterized,
+        "the basis with both trim parameters inserted as knots, then cut to a clamped spline over the trimmed curve's own parameter (tau = s - start, or start + span - s when reversed)"
+    ),
+    row!(
+        "trimmed_curve",
         TrimmedTessellated,
         "gml:LineStringSegment",
         TESS,
         BoundedApproximation,
-        "an ellipse or spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound"
+        "an ellipse or rational spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound"
     ),
     row!(
         "composite_curve",
@@ -595,6 +605,28 @@ fn map_trimmed(c: &Curve, t: &Trimmed, budget: Budget) -> Result<Vec<Segment>, U
             };
             circle_or_arc(c, "trimmed_curve", exact, tess, (o, circle.radius()), !t.is_full_period(), budget)
         }
+        Curve::Bezier(_) | Curve::BSpline(_) => match t.as_bspline() {
+            Ok(b) => {
+                let tr = t.trim();
+                let map = if tr.reversed {
+                    format!("tau = {} - s", num(tr.start + tr.span))
+                } else {
+                    format!("tau = s - {}", num(tr.start))
+                };
+                Ok(vec![b_spline(
+                    &b,
+                    "trimmed_curve",
+                    Case::TrimmedSpline,
+                    format!(
+                        "trim [{}, {}] of the basis parameter s cut by knot insertion; {map}",
+                        num(tr.start),
+                        num(tr.start + tr.span)
+                    ),
+                )])
+            }
+            // a trim the cut cannot represent keeps the measured polyline
+            Err(_) => tessellate_segment(c, "trimmed_curve", Case::TrimmedTessellated, budget),
+        },
         _ => tessellate_segment(c, "trimmed_curve", Case::TrimmedTessellated, budget),
     }
 }

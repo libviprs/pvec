@@ -4,9 +4,151 @@ What PVec writes into other formats, and what each export promises about the geo
 vocabulary every chapter uses is `docs/FIDELITY_TAXONOMY.md`; the code is the `pvec-interchange`
 crate.
 
-Chapters 1 and 2 belong to the exports that have not landed yet (P6.2 STEP, P6.3 round-trip
-validation) and are added by those issues. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
-GeoPackage export (P6.5, pvec#22) and chapter 5 the vector tile export (P6.6, pvec#23).
+Chapter 1 is the STEP AP242 export (P6.2, pvec#19). Chapter 2 belongs to the round-trip validation (P6.3)
+and is added by that issue. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
+GeoPackage export (P6.5, pvec#22), chapter 5 the vector tile export (P6.6, pvec#23)
+and chapter 6 the PMTiles packaging (P6.7, pvec#24).
+
+## 1. STEP AP242 export
+
+The STEP export is `pvec_interchange::step`. It turns a list of `StepEntity` (an id and an exact curve)
+into one ISO 10303-21:2016 file and a `FidelityLedger`. Every parameter comes off the curve model
+(`pvec-geometry`) and goes onto the Part 42 entity that `docs/ISO_PROFILE.md` names for it, so the file
+is the mathematics of the artifact and not a picture of it.
+
+### 1.1 Target profile
+
+The file declares the AP242 schema in `FILE_SCHEMA`
+(`AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }`) and uses the constructs of the
+2D profile only:
+
+- `#1` is the plane angle unit (radians, the only one the profile allows) and `#2` the 2D representation
+  context (`GEOMETRIC_REPRESENTATION_CONTEXT(2)`), so every item lives in a context whose coordinate
+  space dimension is 2.
+- Each entity's instances follow, children before their parent, and the parent carries the name `e<index>`
+  so a reader can find the PVec entity again. Everything else has an empty name.
+- A `GEOMETRIC_CURVE_SET` collects the parents and a `SHAPE_REPRESENTATION` ties the set to the context.
+
+I claim no more than the profile does: the curves are aligned to named ISO 10303-42 constructs and checked
+by reading them back, not certified against the standard (see the claims section of `ISO_PROFILE.md`).
+
+### 1.2 The mapping table
+
+This table is `pvec_interchange::step::mapping_table_markdown()`; a test compares it with this file byte
+for byte, and the writer takes each fidelity value and entity name from the same `MAPPING` constant. Every
+capability of the v1 registry has a row, and a capability that cannot be written has an `Unsupported` row
+with its reason, so nothing is dropped without saying so.
+
+| capability | case | Part 21 entity | fidelity | how |
+|---|---|---|---|---|
+| `cartesian_point` | Point | `CARTESIAN_POINT` | `Exact` | two coordinates, each the shortest decimal that reads back to the same f64 |
+| `direction_vector` | Direction | `DIRECTION, VECTOR` | `Exact` | the stored unit direction; a line's vector has magnitude 1 so the parameter stays arc length |
+| `axis_placement_2d` | Placement | `AXIS2_PLACEMENT_2D` | `Exact` | location and stored first axis; the reference direction is always written |
+| `line` | Line | `LINE` | `Exact` | origin and unit direction carried; the unbounded carrier is a valid STEP curve |
+| `polyline` | Polyline | `POLYLINE` | `Exact` | every vertex carried in order; a closed polyline repeats its first vertex, as in the container |
+| `circle` | Circle | `CIRCLE` | `Exact` | placement and radius carried |
+| `ellipse` | Ellipse | `ELLIPSE` | `Exact` | placement and both semi-axes carried, not reordered |
+| `trimmed_curve` | Trimmed | `TRIMMED_CURVE` | `ExactReparameterized` | the stored (start, span, reversed) becomes the trim pair (start, start + span) with sense .T., or (start + span, start) with sense .F.; basis and start are carried bit for bit and the end is one addition |
+| `composite_curve` | Composite | `COMPOSITE_CURVE` | `Exact` | one COMPOSITE_CURVE_SEGMENT per member in order, parents carried unchanged, .CONTINUOUS. transitions, self_intersect .U. |
+| `composite_curve` | CompositeTrimmed | `COMPOSITE_CURVE` | `ExactReparameterized` | as above, and at least one segment is a trimmed curve, so the entity takes the value of its weakest member |
+| `bezier_curve` | Bezier | `B_SPLINE_CURVE_WITH_KNOTS` | `Exact` | degree and control points carried; the clamped single span is the explicit knots (0, 1) with multiplicity degree + 1 |
+| `b_spline_curve` | BSpline | `B_SPLINE_CURVE_WITH_KNOTS` | `Exact` | degree, control points, knot values and multiplicities and the declared-closed flag carried |
+| `rational_b_spline_curve` | RationalBSpline | `B_SPLINE_CURVE_WITH_KNOTS, RATIONAL_B_SPLINE_CURVE` | `Exact` | a complex entity: the B-spline of the row above plus one weight per control point; equal weights stay rational |
+| `affine_transform_2d` | Transform | `none` | `Unsupported` | the only 2D operator in Part 42 carries one scale factor and is an instancing mechanism the profile leaves out; the map is applied to the geometry exactly (a circle becomes an ellipse where the promotion table says so) and the matrix is stated in FILE_DESCRIPTION |
+| `layer` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `line_style` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `text` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `hatch` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `source_provenance` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `dwg_semantics` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `semantic_class` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+
+### 1.3 What each value rests on
+
+Every curve case is `Exact` except two, and neither of those is an approximation.
+
+- `Exact` means the parameter list is carried bit for bit: degree, control points, knot values and
+  multiplicities, weights, radii, placements, vertices and the declared-closed flag. The only change is
+  that `-0.0` is `0.` (NP-03), which the curve model never stores anyway.
+- `ExactReparameterized` is the trimmed curve. PVec stores a trim as `(start, span, reversed)`, and
+  Part 42 wants two parameter values and a sense. The map is `(start, start + span)` with sense `.T.`, or
+  `(start + span, start)` with sense `.F.` when reversed. The basis and the start are bit for bit; the end
+  is one floating point addition, so it can differ from the end the author typed by a rounding. Reading the
+  file back normalises the trim again (NP-11), and the test compares the span inside the policy
+  tolerance. A composite with a trimmed segment takes the same value, because an entity carries the
+  value of its weakest member.
+- Bezier is written as `B_SPLINE_CURVE_WITH_KNOTS` with the explicit knots `(0, 1)` of multiplicity
+  `degree + 1`. That is the form the profile gives, and the parameters are the same, so it is `Exact`.
+  `BEZIER_CURVE` is never written, so the interchange form has one spelling.
+- `closed_curve` is `.T.` exactly when the curve was declared closed and the claim was checked (NP-20).
+  `self_intersect` is `.U.` because PVec does not compute it. The profile's table for the composite curve
+  shows `.F.` there; I wrote `.U.` for the same reason as for splines, and `ISO_PROFILE.md` should be
+  amended when someone with the standard checks it.
+- There is no periodic wrapped form. A periodic spline reaches the writer already unwrapped
+  (`BSpline::from_periodic`), clamped, with its locus and domain kept, which is what P3.8's table says.
+
+No row is a tessellation and no row is a `BoundedApproximation`; a test asserts both.
+
+### 1.4 Transforms
+
+`StepOptions::with_transform` applies a 2D affine map to every curve with `Curve2d::transform`, which
+returns the exact image or a typed refusal. A similarity keeps a circle a circle; any other map turns a
+circle into an ellipse, exactly as the promotion table in `ISO_PROFILE.md` says, and the ellipse is
+written as such, so the entity is still `Exact` for the curve it now is.
+
+I did not write `CARTESIAN_TRANSFORMATION_OPERATOR_2D`. It carries one scale, it is only meaningful inside
+a mapped item or an item defined transformation, and the profile puts instancing outside the geometry
+oracle. The transform row is therefore `Unsupported` with that reason, the matrix is stated in
+`FILE_DESCRIPTION` (so the file says what was done to the coordinates), and the curves in the file are the
+image. If the curve model refuses a transform for an entity (NP-07 for an ellipse that gets too eccentric,
+say), that entity gets an `Unsupported` record with the rule and nothing is written for it, and the counts
+still add up.
+
+### 1.5 Determinism
+
+The same input gives the same bytes:
+
+- Instance numbers start at 1, have no gaps, and follow the order entities are passed, children first.
+  Nothing is shared between entities, so a curve's instances do not change when another entity does.
+- A real is the shortest decimal that reads back to the same `f64` (Rust's `{:?}`), always with a decimal
+  point and an upper-case `E` for the exponent, so `1e-7` is `1.E-7`.
+- Strings double apostrophes and backslashes, and anything outside printable ASCII is written as
+  `\X2\hhhh\X0\` (or `\X4\` past the BMP), so the file is 7-bit.
+- The header has no clock. `FILE_NAME` carries the timestamp the caller passed (`YYYY-MM-DDThh:mm:ss`),
+  the file name the caller passed and the crate version. Nothing depends on the host, so the arm64 and
+  x86_64 lanes produce the same digest; `step_19.rs` pins the SHA-256 of the fixture export and the
+  `docker-tests` stage of the gate runs it on both.
+
+### 1.6 Nothing tessellated gets in
+
+The writer's input type is `StepEntity`. It is an id and a `Curve`, built either with `StepEntity::exact`
+or with `StepEntity::from_table`, which refuses an entity the entity table marks as `Preview`. `export`
+takes `&[StepEntity]`, so a list of sampled points, a bare `(EntityId, Curve)` pair or the output of a
+display export does not type-check. Two `compile_fail` doctests on `export` show it, next to a passing
+one with the same boilerplate so the failure can only be the type.
+
+### 1.7 Validation
+
+Three layers, from cheapest to most independent:
+
+1. The in-process round trip (`tests/step_19.rs`, with a small Part 21 reader in `tests/step_reader`)
+   parses the file back, rebuilds the PVec curves through the public constructors and compares them:
+   degree, control points, knots, multiplicities, weights, closed state and trim domain. This reader is
+   mine, so it proves what survives and says nothing about other implementations.
+2. The independent reader (`tests/step_19_reader.rs`) feeds the same files to a third-party Part 21
+   parser in a container, and checks that it accepts them, that it refuses a file that is not Part 21,
+   and that the entities it reports carry the parameters we wrote. The test prints the reader and its
+   version, and `READER` in that file is the record of which one it was.
+3. The digest test pins the bytes.
+
+The container tests need a docker daemon, so they are `#[ignore]` and run in the `docker-tests` stage of
+`tools/gate-fleet.sh local-ci pvec` on mars (x86_64) and mercury (arm64).
+
+### 1.8 Not covered
+
+Reading STEP into PVec, AP242 features outside the 2D profile (product structure, PMI, presentation, the
+component streams), `CARTESIAN_TRANSFORMATION_OPERATOR_2D`, the round-trip comparison against a CAD kernel
+(P6.3) and the GIS formats.
 
 ## 3. GML export
 
@@ -78,7 +220,8 @@ generated from `gml::MAPPING` and a test fails if this copy drifts
 | `trimmed_curve` | TrimmedLine | `gml:LineStringSegment` | `ExactReparameterized` | the two end points, evaluated by the shared evaluator; origin and direction become the end points |
 | `trimmed_curve` | TrimmedArc | `gml:Arc` | `EquivalentCompound` | start, middle and end point of the arc; checked against the source under NP-04 |
 | `trimmed_curve` | TrimmedFullCircle | `gml:Circle` | `EquivalentCompound` | as a circle; the start point and direction are kept |
-| `trimmed_curve` | TrimmedTessellated | `gml:LineStringSegment` | `BoundedApproximation` | an ellipse or spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound |
+| `trimmed_curve` | TrimmedSpline | `gml:BSpline` | `ExactReparameterized` | the basis with both trim parameters inserted as knots, then cut to a clamped spline over the trimmed curve's own parameter (tau = s - start, or start + span - s when reversed) |
+| `trimmed_curve` | TrimmedTessellated | `gml:LineStringSegment` | `BoundedApproximation` | an ellipse or rational spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound |
 | `composite_curve` | Composite | `gml:Curve` | `Exact` | the segment list keeps the order and the joins; each member has its own record |
 | `bezier_curve` | Bezier | `gml:Bezier` | `Exact` | degree and control points carried; the two knots are the fixed domain 0 to 1 |
 | `b_spline_curve` | BSpline | `gml:BSpline` | `Exact` | degree, control points and knots (value and multiplicity) carried |
@@ -108,6 +251,15 @@ does better than the column for those, and densifies only the rows marked `Tesse
   with multiplicities, which is how GML wants it and loses nothing.
 - **ExactReparameterized** (a trimmed line): the two end points come from the shared evaluator, so the
   origin and direction of the line become the segment's end points.
+- **ExactReparameterized** (a trimmed Bezier or B-spline, `TrimmedSpline`): both trim parameters are
+  inserted as knots up to multiplicity `degree + 1` (Boehm, `pvec_geometry::BSpline::sub_range`), and
+  the control points and knots outside the trim are cut away. A Bezier goes through its clamped B-spline
+  form first. The result is a `gml:BSpline` whose parameter is the trimmed curve's own one, so its first
+  knot is exactly 0 and its last is exactly the span. The map from the basis parameter `s` is written
+  into the record's note (`tau = s - start`, or `tau = start + span - s` for a reversed trim, in which
+  case the control points are written in reverse so the curve starts where the trimmed curve starts).
+  The only inexactness is the rounding of the insertions, which is bounded in the doc of `sub_range`,
+  so the tests compare the written spline with the trimmed source through the shared evaluator.
 - **EquivalentCompound** (circles, arcs, and a rational spline whose weights are all equal): a circle or
   arc is three points and GML defines the curve as the circle through them. The export reconstructs that
   circle from the three points it wrote and compares centre and radius with the source under NP-04
@@ -129,8 +281,16 @@ because half a curve would be worse than none.
 
 GML 3.2.1 has no ellipse, and no way to carry the weights of a rational B-spline: `gml:Knot` has a
 `weight`, but it is the ISO 19107 averaging weight of the knot, not a control point weight, so the
-export writes 1 there and it carries no information. A trimmed ellipse, a trimmed spline and a rational
-spline with unequal weights are therefore a `gml:LineStringSegment` with `BoundedApproximation`.
+export writes 1 there and it carries no information. A trimmed ellipse, a trimmed rational spline and a
+rational spline with unequal weights are therefore a `gml:LineStringSegment` with `BoundedApproximation`.
+A trimmed polynomial spline or Bezier is not in that list any more, see 3.4.
+
+On control point weights (pvec#134): the vendored 3.2.1 schemas have no control point weight on
+`gml:BSpline` (the only `weight` is the knot's), and I did not find an agreed newer profile or
+application schema that carries one, so I did not add a second declared profile. GML 3.2.1 stays the
+only (and so the default) profile. If a target that carries weights is agreed, it goes in here as a
+second declared profile and 3.2.1 stays the default. Where a rational spline is a conic, an
+`EquivalentCompound` of exact arcs is the other route, and it is not done here.
 
 The caller gives a deviation budget (`Budget`), in output CRS units. The export cuts the curve at its
 knots (a polyline must not cut across a corner) and subdivides every piece uniformly, doubling until the

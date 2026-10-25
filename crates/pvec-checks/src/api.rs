@@ -35,7 +35,8 @@ pub const API_CRATES: &[(&str, &[&str])] = &[
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),
     // P5.1: the spatial directory reads through the container's reader and does no I/O of its own
-    ("pvec-stream", &["pvec-container", "pvec-entity", "pvec-numeric"]),
+    // P5.4: the Tier 0 previews are measured against the exact curve, so the crate reads pvec-geometry
+    ("pvec-stream", &["pvec-container", "pvec-entity", "pvec-geometry", "pvec-numeric"]),
 ];
 
 /// Names that must never appear in a public signature or an API crate's manifest.

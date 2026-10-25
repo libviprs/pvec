@@ -372,6 +372,47 @@ impl Trimmed {
         matches!(*self.basis, Curve::Circle(_) | Curve::Ellipse(_)) && POLICY.is_full_period(&self.trim, TAU)
     }
 
+    /// A Bezier or B-spline trim as a clamped B-spline of its own, over this curve's own parameter:
+    /// the result's domain is `[0, span]` and `eval(tau)` of it is `eval(tau)` of the trimmed curve,
+    /// running the way the trimmed curve runs (a reversed trim comes back reversed).
+    ///
+    /// The cut is [`BSpline::sub_range`] (knot insertion at both trim parameters), so it is exact up to
+    /// the rounding of the insertions. The basis parameter `s` and the trimmed parameter `tau` are
+    /// related by `tau = s - start` for a forward trim and `tau = start + span - s` for a reversed one;
+    /// the first knot is written as exactly `0` and the last as exactly `span`.
+    ///
+    /// Refused: a line, circle, ellipse or rational basis (`BadBasis`, there is no polynomial spline
+    /// of the same locus in general), and whatever [`BSpline::sub_range`] refuses.
+    pub fn as_bspline(&self) -> Result<BSpline> {
+        let Trim { start, span, reversed } = self.trim;
+        let spline = match &*self.basis {
+            Curve::BSpline(b) => b.clone(),
+            Curve::Bezier(b) => b.as_bspline()?,
+            _ => return Err(GeometryError::BadBasis),
+        };
+        let d = spline.domain();
+        let (lo, hi) = (start.max(d.lo()), (start + span).min(d.hi()));
+        let cut = spline.sub_range(lo, hi)?;
+        let p = cut.degree();
+        let mut pts = cut.control_points().to_vec();
+        let mut knots: Vec<f64> = if reversed {
+            pts.reverse();
+            cut.knots().iter().rev().map(|k| (start + span) - k).collect()
+        } else {
+            cut.knots().iter().map(|k| k - start).collect()
+        };
+        // The two ends are the trimmed curve's own domain, bit for bit.
+        let n = knots.len();
+        for (i, k) in knots.iter_mut().enumerate() {
+            if i <= p {
+                *k = 0.0;
+            } else if i + p + 1 >= n {
+                *k = span;
+            }
+        }
+        BSpline::new(p, pts, knots)
+    }
+
     /// The curve being trimmed.
     pub fn basis(&self) -> &Curve {
         &self.basis
