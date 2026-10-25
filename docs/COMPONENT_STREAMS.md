@@ -3,7 +3,7 @@
 Style, text, hatch, provenance and the semantic class of what is drawn evolve on a different schedule from the geometry mathematics, so they
 are not geometry. Each is an independently versioned, independently skippable stream with its own registry
 capability (`docs/CAPABILITIES.md`, ids 14 to 20), and none of them can move a conformance verdict. The
-implementation is `crates/pvec-components`. This is the layout of the streams, version 1. The block
+implementation is `crates/pvec-components`. This is the layout of the streams, version 1 (`line_style` is at version 2, which a version 1 line style payload is skipped for by major version). The block
 framing, compression and negotiation around a stream set belong to phase 4.
 
 ## What a stream is
@@ -58,7 +58,7 @@ Each is consumed exactly. Strings are a u32 byte length and UTF-8 bytes, at most
 | id | stream | payload |
 |---|---|---|
 | 14 | `layer` | name count, assignment count, the names, then pairs of an entity and a layer index |
-| 15 | `line_style` | style count, assignment count, styles (name, dash count at most 16, dashes, each finite and not negative), then pairs of an entity and a style index |
+| 15 | `line_style` | version 2.0. Style count, assignment count, styles (name, dash count at most 16, dashes each finite and not negative, width kind u8 (0 absent, 1 thinnest, 2 explicit) and an f64 width only for 2, finite and not negative, phase f64 finite and zero when there are no dashes, flags u8 with bit 0 visible), then pairs of an entity and a style index |
 | 16 | `text` | record count, then per record: entity, x, y, height (positive), rotation, text |
 | 17 | `hatch` | record count, then per record: boundary kind (1, references), boundary count (1 to 4096), the entity ids, fill kind (1 solid with an RGBA word, 2 pattern with a name, an angle, a positive scale and an RGBA word) |
 | 18 | `source_provenance` | record count, then per record: entity, source kind (u16 in a u32), handle length (at most 64), handle bytes |
@@ -112,8 +112,8 @@ query by class.
 | COMP-08 | an entity id at or above the limit |
 | COMP-09 | a layer or style index with no entry |
 | COMP-10 | a hatch that embeds geometry |
-| COMP-11 | an undefined tag |
-| COMP-12 | a reserved field is not zero |
+| COMP-11 | an undefined tag (a line style width kind other than 0, 1 or 2 included) |
+| COMP-12 | a reserved field is not zero (a line style flag bit other than bit 0 included) |
 | COMP-13 | a capability the registry does not know |
 | COMP-14 | an entity classified twice |
 | COMP-15 | a confidence on an entry that is not inferred |

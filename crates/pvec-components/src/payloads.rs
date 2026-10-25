@@ -45,6 +45,9 @@ impl<'a> R<'a> {
         self.p += n;
         Ok(s)
     }
+    pub(crate) fn u8(&mut self) -> Res<u8> {
+        Ok(self.take(1)?[0])
+    }
     pub(crate) fn u32(&mut self) -> Res<u32> {
         let s = self.take(4)?;
         Ok(u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
@@ -84,6 +87,9 @@ impl<'a> R<'a> {
 pub(crate) struct W(pub(crate) Vec<u8>);
 
 impl W {
+    pub(crate) fn u8(&mut self, v: u8) {
+        self.0.push(v);
+    }
     pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
@@ -243,6 +249,22 @@ impl LineStyleStream {
                 }
                 w.f64(*d);
             }
+            match s.width {
+                None => w.u8(0),
+                Some(StrokeWidth::Thinnest) => w.u8(1),
+                Some(StrokeWidth::Width(v)) => {
+                    if !v.is_finite() || v < 0.0 {
+                        return Err(E::BadNumber);
+                    }
+                    w.u8(2);
+                    w.f64(v);
+                }
+            }
+            if !s.phase.is_finite() || (s.dashes.is_empty() && s.phase != 0.0) {
+                return Err(E::BadNumber);
+            }
+            w.f64(s.phase);
+            w.u8(u8::from(s.visible));
         }
         for (e, i) in &self.assignments {
             if *i as usize >= self.styles.len() {
@@ -277,7 +299,27 @@ impl LineStyleStream {
                 }
                 dashes.push(d);
             }
-            styles.push(LineStyleDef { name, dashes, width: None, phase: 0.0, visible: true });
+            let width = match r.u8()? {
+                0 => None,
+                1 => Some(StrokeWidth::Thinnest),
+                2 => {
+                    let v = r.f64()?;
+                    if !v.is_finite() || v < 0.0 {
+                        return Err(E::BadNumber);
+                    }
+                    Some(StrokeWidth::Width(v))
+                }
+                k => return Err(E::BadTag(u32::from(k))),
+            };
+            let phase = r.f64()?;
+            if !phase.is_finite() || (dashes.is_empty() && phase != 0.0) {
+                return Err(E::BadNumber);
+            }
+            let flags = r.u8()?;
+            if flags & !1 != 0 {
+                return Err(E::ReservedNotZero);
+            }
+            styles.push(LineStyleDef { name, dashes, width, phase, visible: flags & 1 == 1 });
         }
         if assign_n.checked_mul(8).is_none_or(|need| need > r.left()) {
             return Err(E::Truncated);
