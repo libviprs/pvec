@@ -8,12 +8,14 @@
 //! it reads through `pvec_container::ContainerReader`.
 
 mod directory;
+mod generation;
 mod ownership;
 mod straddler;
 mod tiers;
 mod viewport;
 
 pub use directory::*;
+pub use generation::*;
 pub use ownership::*;
 pub use straddler::*;
 pub use tiers::*;

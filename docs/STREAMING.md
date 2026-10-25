@@ -385,7 +385,7 @@ Then the exact runs (start `u32`, length `u32`, ascending, not touching an earli
 
 ### 4.5 Replacement
 
-A preview has no identity of its own: it is `replaces`, the id of the exact entity. `Scene` holds exactly one thing per entity. `Scene::refine(id, curve)` swaps a preview for the exact geometry, so refinement replaces and never overdraws (`drawn` is the entity count before and after). It checks the geometry against the preview's stored bound (`Mismatch`, TIER0-07, if it is further off than that) and is idempotent: refining twice with the same geometry gives the same scene (the second call reports `Unchanged`), different geometry for an entity that is already refined is `Conflict` (TIER0-08), and an entity that went out exact is never changed. Order does not matter. Tagging a replacement with a generation is P5.6, and the order Tier 1 and 2 arrive in is P5.7.
+A preview has no identity of its own: it is `replaces`, the id of the exact entity. `Scene` holds exactly one thing per entity. `Scene::refine(id, curve)` swaps a preview for the exact geometry, so refinement replaces and never overdraws (`drawn` is the entity count before and after). It checks the geometry against the preview's stored bound (`Mismatch`, TIER0-07, if it is further off than that) and is idempotent: refining twice with the same geometry gives the same scene (the second call reports `Unchanged`), different geometry for an entity that is already refined is `Conflict` (TIER0-08), and an entity that went out exact is never changed. Order does not matter. Tagging a replacement with a generation is section 4.8 (P5.6), and the order Tier 1 and 2 arrive in is P5.7.
 
 **Delivery.** ADR 0007 decided that Tier 0 is built and delivered per index leaf and not as one global first pass, because a global Tier 0 is nearly the whole artifact. This chapter defines what a Tier 0 stream is and how it is checked. Cutting it per leaf, and putting the stream in a container block, are the work of P5.5 and the tiered plan on top of it, and they build on `Tier0Builder` unchanged.
 
@@ -408,6 +408,17 @@ On the fixtures of P1.7 and the generated fixtures of the tests the list is **em
 | stream, 1,000,000 entities, 80,477 previews | 12,567,975 (12.0 MiB, about 156 bytes a preview) | 13 ms, release, arm64 (Apple silicon) |
 
 This is the stream of one global Tier 0 for the whole drawing and not the unit a reader fetches (section 4.5), and it does not include the exact geometry the plan names, which is in the hot blocks. Where the x64 numbers are, they are on the pull request.
+
+
+### 4.8 Cancellation and refinement generations
+
+While a read is in flight the user keeps panning, so results come back for views that no longer exist. Two things make showing one structurally impossible, not just unlikely.
+
+**Generations.** `Generation(u64)` is handed out by a `GenerationClock` and goes up by one on every viewport change (`advance`, which is safe to call from any thread: each caller gets a distinct, larger number). Every read plan, decode job and refinement result is started under one. A `RefinementResult` is the only thing `Scene::apply` takes, its fields are private, and both constructors (`preview`, `exact`) require a `Generation`, so a result without one does not type-check.
+
+**The barrier.** `Scene::apply` checks two things before it touches anything. A result with `generation < scene.generation()` is dropped as `StaleGeneration`. A result whose `Refinement` is below what the entity already holds (`TIER0` preview, `TIER2` exact; an entity that went out exact in Tier 0 starts at `TIER2`) is dropped as `StaleRefinement`, even when its generation is newer, because a Tier 0 preview must never overwrite exact geometry. A dropped result leaves the scene as it was and is counted (`Scene::dropped`). `Scene::advance(g)` tells the scene about a viewport change, and applying a result of a newer generation raises it too. The scene generation never goes back. The old checks of `refine` (`Unknown`, `Mismatch`, `Conflict`) still run after the barrier, and an error is not a drop.
+
+**Cancellation.** `GenerationClock::advance` cancels the token of the generation it replaces. A job checks its `CancelToken` at every checkpoint: `run_job` checks before each unit (a block) and again after it, so a cancelled job finishes at most `MAX_UNITS_AFTER_CANCEL` (one) unit, the one already in flight, and throws that unit's output away. An async reader calls `token.checkpoint()` after each await in the same places. `CancelMetrics` counts `jobs_cancelled` and `work_discarded`.
 
 ## 5. Viewport queries and read plans
 
