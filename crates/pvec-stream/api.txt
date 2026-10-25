@@ -235,7 +235,7 @@ scheduler.rs: SchedulerMetrics.refused_reads: u64
 scheduler.rs: SchedulerMetrics.refused_stale: u64
 scheduler.rs: SchedulerMetrics.cancelled: u64
 scheduler.rs: SchedulerMetrics.completed: u64
-scheduler.rs: pub fn priority(job: &Job, interaction: Interaction) -> f64
+scheduler.rs: pub fn priority(job: &Job) -> f64
 scheduler.rs: impl Ord for Entry
 scheduler.rs: impl PartialOrd for Entry
 scheduler.rs: impl PartialEq for Entry

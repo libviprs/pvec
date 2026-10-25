@@ -70,7 +70,7 @@ impl Rng {
 fn issue_16_forty_percent_beats_a_tenth_of_a_percent() {
     let big_job = job(g0(), 1, 2, 0.40, us(500));
     let small = job(g0(), 2, 2, 0.001, us(500));
-    assert!(priority(&big_job, Interaction::Idle) > priority(&small, Interaction::Idle));
+    assert!(priority(&big_job) > priority(&small));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn issue_16_invisible_work_ranks_below_visible_work() {
     let mut hidden = seen;
     hidden.visible = false;
     hidden.screen_coverage = 0.4;
-    assert!(priority(&seen, Interaction::Idle) > priority(&hidden, Interaction::Idle));
+    assert!(priority(&seen) > priority(&hidden));
 }
 
 #[test]
@@ -269,7 +269,8 @@ fn issue_16_order_and_counters_are_deterministic_for_a_fixed_input() {
 #[test]
 fn issue_16_run_slice_8ms_overshoot_p99_over_10000_slices_on_a_million_entities() {
     const JOBS: u32 = 200_000; // 5 entities each: one million entities
-    const OVERSHOOT_P99_MAX: Duration = Duration::from_millis(2);
+    // The issue allows 2ms; the measured p99 is 218us, so this ceiling catches a regression well before that.
+    const OVERSHOOT_P99_MAX: Duration = Duration::from_micros(500);
     let mut rng = Rng(1_000_000);
     let mut s = Scheduler::new(big(), g0());
     for i in 0..JOBS {
@@ -294,7 +295,6 @@ fn issue_16_run_slice_8ms_overshoot_p99_over_10000_slices_on_a_million_entities(
     }
     overshoots.sort();
     let p99 = overshoots[9_899];
-    println!("run_slice(8ms) overshoot over 10000 slices: p99 = {p99:?}, max = {:?}", overshoots[9_999]);
     assert!(p99 <= OVERSHOOT_P99_MAX, "p99 overshoot {p99:?}");
     assert!(s.queued() > 0, "the slices did not simply drain the queue");
 }

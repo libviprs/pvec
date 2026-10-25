@@ -6,7 +6,9 @@
 //! jobs deeper than `INTERACTIVE_MAX_TIER` are held, not dropped. `run_slice` performs whole jobs (or
 //! resumable chunks) and starts none whose estimate exceeds the time left, so it overshoots only by the
 //! estimate error of the last job. Admission is capped on queued cost and on in-flight reads, and every
-//! refusal is counted and hands the job back. All weights are placeholders until P8.6 tunes them.
+//! refusal is counted and hands the job back. In the simulated-clock spec (25% estimate error, 200,000 jobs)
+//! the run_slice(8ms) overshoot p99 over 10,000 slices is 218us, and the spec asserts a 500us ceiling. All
+//! weights are placeholders until P8.6 tunes them.
 
 use crate::Generation;
 use std::cmp::Ordering;
@@ -76,7 +78,7 @@ pub enum Step {
 pub struct SchedulerConfig {
     /// Most reads in flight at once.
     pub max_in_flight_reads: u32,
-    /// Most estimated decode cost queued at once.
+    /// Most estimated decode cost queued at once. Each job counts at least `COST_FLOOR`, so this also caps the job count.
     pub max_queued_cost: Duration,
 }
 
@@ -117,14 +119,18 @@ pub struct SchedulerMetrics {
     pub completed: u64,
 }
 
-/// The priority of a job: higher runs sooner. Zero means held under this interaction state.
-pub fn priority(job: &Job, interaction: Interaction) -> f64 {
-    if interaction != Interaction::Idle && job.tier > INTERACTIVE_MAX_TIER {
-        return 0.0;
-    }
+/// The priority of a job: higher runs sooner. Whether a job is held is decided by tier and interaction in
+/// `run_slice`, never by the score, because a legitimate job can score zero.
+pub fn priority(job: &Job) -> f64 {
     let need = W_COVERAGE * job.screen_coverage + W_ERROR * job.error_need.min(ERROR_NEED_CAP);
     let visible = if job.visible { 1.0 } else { INVISIBLE_FACTOR };
     visible * need / (job.estimated_cost.as_secs_f64() + COST_FLOOR)
+}
+
+/// What a job counts against the queue cap: its estimate, but never less than `COST_FLOOR`, so the cap
+/// also bounds how many jobs are queued and zero-cost jobs cannot be admitted without limit.
+fn charged(job: &Job) -> Duration {
+    job.estimated_cost.max(Duration::from_secs_f64(COST_FLOOR))
 }
 
 #[derive(Debug)]
@@ -196,7 +202,7 @@ impl Scheduler {
         for e in all {
             if e.job.generation < generation {
                 self.metrics.cancelled += 1;
-                self.queued_cost -= e.job.estimated_cost;
+                self.queued_cost -= charged(&e.job);
             } else {
                 self.queue.push(e);
             }
@@ -212,19 +218,15 @@ impl Scheduler {
             self.metrics.refused_stale += 1;
             return Err(Refused { job, reason: RefusalReason::StaleGeneration });
         }
-        if self.queued_cost + job.estimated_cost > self.config.max_queued_cost {
+        if self.queued_cost + charged(&job) > self.config.max_queued_cost {
             self.metrics.refused_queue += 1;
             return Err(Refused { job, reason: RefusalReason::QueueFull });
         }
-        self.queued_cost += job.estimated_cost;
+        self.queued_cost += charged(&job);
         self.metrics.admitted += 1;
-        self.push(job);
-        Ok(())
-    }
-    fn push(&mut self, job: Job) {
         self.seq += 1;
-        let score = priority(&job, Interaction::Idle);
-        self.queue.push(Entry { job, score, seq: self.seq });
+        self.queue.push(Entry { score: priority(&job), job, seq: self.seq });
+        Ok(())
     }
     /// Claim a read slot.
     pub fn try_begin_read(&mut self) -> Result<(), RefusalReason> {
@@ -252,7 +254,7 @@ impl Scheduler {
             }
             let Some(top) = self.queue.peek() else { break };
             // Tier is the primary key, so if the best job is held every other job is held too.
-            if priority(&top.job, self.interaction) == 0.0 {
+            if self.interaction != Interaction::Idle && top.job.tier > INTERACTIVE_MAX_TIER {
                 break;
             }
             if ran && top.job.estimated_cost > budget - elapsed {
@@ -262,7 +264,7 @@ impl Scheduler {
             ran = true;
             match run(&entry.job) {
                 Step::Done => {
-                    self.queued_cost -= entry.job.estimated_cost;
+                    self.queued_cost -= charged(&entry.job);
                     self.metrics.completed += 1;
                 }
                 Step::Continue => self.queue.push(entry),
