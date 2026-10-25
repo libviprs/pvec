@@ -66,7 +66,56 @@ directory.rs: SpatialDirectory::height(&self) -> u32
 directory.rs: SpatialDirectory::query(&self, q: &Aabb) -> CellCursor<'_>
 directory.rs: #[derive(Debug)] pub struct CellCursor<'a>
 directory.rs: impl Iterator for CellCursor<'_>
+generation.rs: pub const MAX_UNITS_AFTER_CANCEL: u32
+generation.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)] pub struct Generation(u64)
+generation.rs: Generation::const INITIAL: Generation
+generation.rs: Generation::value(self) -> u64
+generation.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)] pub struct Refinement(u8)
+generation.rs: Refinement::const TIER0: Refinement
+generation.rs: Refinement::const TIER1: Refinement
+generation.rs: Refinement::const TIER2: Refinement
+generation.rs: Refinement::tier(self) -> u8
+generation.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Cancelled
+generation.rs: Cancelled.generation: Generation
+generation.rs: impl core::fmt::Display for Cancelled
+generation.rs: impl std::error::Error for Cancelled {}
+generation.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct CancelMetrics
+generation.rs: CancelMetrics.jobs_cancelled: u64
+generation.rs: CancelMetrics.work_discarded: u64
+generation.rs: #[derive(Clone, Debug)] pub struct CancelToken
+generation.rs: CancelToken::generation(&self) -> Generation
+generation.rs: CancelToken::is_cancelled(&self) -> bool
+generation.rs: CancelToken::checkpoint(&self) -> Result<(), Cancelled>
+generation.rs: #[derive(Debug)] pub struct GenerationClock
+generation.rs: impl Default for GenerationClock
+generation.rs: GenerationClock::new() -> GenerationClock
+generation.rs: GenerationClock::current(&self) -> Generation
+generation.rs: GenerationClock::token(&self) -> CancelToken
+generation.rs: GenerationClock::advance(&self) -> CancelToken
+generation.rs: GenerationClock::metrics(&self) -> CancelMetrics
+generation.rs: #[derive(Clone, Debug, PartialEq)] pub enum JobOutcome<T>
+generation.rs: JobOutcome::Complete(Vec<T>)
+generation.rs: JobOutcome::Cancelled { done: Vec<T>, discarded: u32 }
+generation.rs: pub fn run_job<U, T, E>(token: &CancelToken, units: impl IntoIterator<Item = U>, mut work: impl FnMut(U) -> Result<T, E>) -> Result<JobOutcome<T>, E>
+generation.rs: #[derive(Clone, Debug, PartialEq)] pub struct RefinementResult
+generation.rs: RefinementResult::preview(generation: Generation, preview: Preview) -> RefinementResult
+generation.rs: RefinementResult::exact(generation: Generation, entity: EntityId, curve: Curve) -> RefinementResult
+generation.rs: RefinementResult::generation(&self) -> Generation
+generation.rs: RefinementResult::entity(&self) -> EntityId
+generation.rs: RefinementResult::refinement(&self) -> Refinement
+generation.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum DropReason
+generation.rs: DropReason::StaleGeneration
+generation.rs: DropReason::StaleRefinement
+generation.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Applied
+generation.rs: Applied::Replaced
+generation.rs: Applied::Unchanged
+generation.rs: Applied::Dropped(DropReason)
+generation.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct DropCounts
+generation.rs: DropCounts.stale_generation: u64
+generation.rs: DropCounts.stale_refinement: u64
+generation.rs: DropCounts::total(&self) -> u64
 lib.rs: pub use directory::*
+lib.rs: pub use generation::*
 lib.rs: pub use ownership::*
 lib.rs: pub use straddler::*
 lib.rs: pub use tiers::*
@@ -318,6 +367,12 @@ tiers.rs: #[derive(Clone, Debug, PartialEq)] pub struct Scene
 tiers.rs: Scene::from_plan(plan: &Tier0Plan) -> Scene
 tiers.rs: Scene::drawn(&self) -> usize
 tiers.rs: Scene::fidelity(&self, id: EntityId) -> Option<Fidelity>
+tiers.rs: Scene::generation(&self) -> Generation
+tiers.rs: Scene::advance(&mut self, _generation: Generation)
+tiers.rs: Scene::refinement(&self, id: EntityId) -> Option<Refinement>
+tiers.rs: Scene::dropped(&self) -> DropCounts
+tiers.rs: Scene::same_drawing(&self, other: &Scene) -> bool
+tiers.rs: Scene::apply(&mut self, result: RefinementResult) -> Result<Applied, Tier0Error>
 tiers.rs: Scene::refine(&mut self, id: EntityId, exact: &Curve) -> Result<Refined, Tier0Error>
 viewport.rs: pub const DEFAULT_PREFETCH_MARGIN_PX: f64
 viewport.rs: pub trait PlanSource

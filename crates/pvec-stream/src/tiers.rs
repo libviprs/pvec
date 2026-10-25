@@ -8,6 +8,7 @@
 //! reported as exact. The design, the stream layout and the infeasibility list are in
 //! `docs/STREAMING.md` chapter 4.
 
+use crate::generation::{Applied, DropCounts, Generation, Refinement, RefinementResult, Update};
 use pvec_entity::{EntityError, EntityId, check_dense};
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
 use pvec_numeric::MAX_ENTITIES;
@@ -1015,6 +1016,8 @@ enum Slot {
 pub struct Scene {
     entities: u32,
     slots: BTreeMap<u32, Slot>,
+    generation: Generation,
+    dropped: DropCounts,
 }
 
 impl Scene {
@@ -1027,7 +1030,12 @@ impl Scene {
         for i in &plan.infeasible {
             slots.insert(i.id.index(), Slot::Absent);
         }
-        Scene { entities: plan.entities, slots }
+        Scene {
+            entities: plan.entities,
+            slots,
+            generation: Generation::INITIAL,
+            dropped: DropCounts::default(),
+        }
     }
     /// The number of things drawn: one per entity that has anything, before and after any refinement.
     pub fn drawn(&self) -> usize {
@@ -1040,6 +1048,45 @@ impl Scene {
             Some(Slot::Refined(_)) => Some(Fidelity::Exact),
             Some(Slot::Absent) => None,
             None => (id.index() < self.entities).then_some(Fidelity::Exact),
+        }
+    }
+    /// The generation the scene holds.
+    pub fn generation(&self) -> Generation {
+        self.generation
+    }
+    /// A viewport change: results of older generations are refused from now on. Never goes back.
+    pub fn advance(&mut self, _generation: Generation) {
+        // RED STUB
+    }
+    /// How refined what stands for the entity is. `None` for an entity with nothing to draw.
+    pub fn refinement(&self, id: EntityId) -> Option<Refinement> {
+        match self.slots.get(&id.index()) {
+            Some(Slot::Preview(_)) => Some(Refinement::TIER0),
+            Some(Slot::Refined(_)) => Some(Refinement::TIER2),
+            Some(Slot::Absent) => None,
+            None => (id.index() < self.entities).then_some(Refinement::TIER2),
+        }
+    }
+    /// What the barrier has dropped.
+    pub fn dropped(&self) -> DropCounts {
+        self.dropped
+    }
+    /// Whether two scenes draw the same thing, whatever generation and counters they hold.
+    pub fn same_drawing(&self, other: &Scene) -> bool {
+        self.entities == other.entities && self.slots == other.slots
+    }
+    /// Applies a tagged result: the only way a read, decode or refinement result reaches the scene.
+    pub fn apply(&mut self, result: RefinementResult) -> Result<Applied, Tier0Error> {
+        // RED STUB: no barrier.
+        match result.update() {
+            Update::Preview(p) => {
+                self.slots.insert(p.replaces().index(), Slot::Preview(p.clone()));
+                Ok(Applied::Replaced)
+            }
+            Update::Exact { entity, curve } => Ok(match self.refine(*entity, curve)? {
+                Refined::Replaced => Applied::Replaced,
+                Refined::Unchanged => Applied::Unchanged,
+            }),
         }
     }
     /// Replaces the preview of `id` by its exact geometry. The curve must agree with the preview
