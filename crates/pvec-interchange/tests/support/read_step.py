@@ -48,8 +48,9 @@ def enum(x):
 
 def num(x):
     # PARAMETER_VALUE(t) arrives as a typed parameter; a plain real arrives as a float
-    if hasattr(x, "params"):
-        return num(x.params if not isinstance(x.params, (tuple, list)) else x.params[0])
+    if hasattr(x, "param"):
+        assert x.type_name == "PARAMETER_VALUE", x.type_name
+        return num(x.param)
     return float(x)
 
 
