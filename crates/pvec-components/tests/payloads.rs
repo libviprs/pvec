@@ -28,22 +28,22 @@ fn layer_streams_round_trip_and_check_their_indices() {
 fn line_style_streams_round_trip_and_refuse_bad_dashes() {
     let s = LineStyleStream {
         styles: vec![
-            LineStyleDef { name: "CONTINUOUS".into(), dashes: vec![] },
-            LineStyleDef { name: "DASHED".into(), dashes: vec![12.0, 6.0] },
-            LineStyleDef { name: "DOTDASH".into(), dashes: vec![0.5, 3.0, 12.0, 3.0] },
+            LineStyleDef { name: "CONTINUOUS".into(), dashes: vec![], width: None, phase: 0.0, visible: true },
+            LineStyleDef { name: "DASHED".into(), dashes: vec![12.0, 6.0], width: None, phase: 0.0, visible: true },
+            LineStyleDef { name: "DOTDASH".into(), dashes: vec![0.5, 3.0, 12.0, 3.0], width: None, phase: 0.0, visible: true },
         ],
         assignments: vec![(id(1), 1), (id(2), 2)],
     };
     assert_eq!(LineStyleStream::decode(&s.encode().unwrap()).unwrap(), s);
     for bad in [f64::NAN, f64::INFINITY, -1.0] {
         let b = LineStyleStream {
-            styles: vec![LineStyleDef { name: "X".into(), dashes: vec![bad, 1.0] }],
+            styles: vec![LineStyleDef { name: "X".into(), dashes: vec![bad, 1.0], width: None, phase: 0.0, visible: true }],
             assignments: vec![],
         };
         assert!(b.encode().is_err(), "{bad}");
     }
     let long = LineStyleStream {
-        styles: vec![LineStyleDef { name: "X".into(), dashes: vec![1.0; 17] }],
+        styles: vec![LineStyleDef { name: "X".into(), dashes: vec![1.0; 17], width: None, phase: 0.0, visible: true }],
         assignments: vec![],
     };
     assert_eq!(long.encode().unwrap_err(), ComponentError::TooMany);
@@ -171,7 +171,7 @@ fn every_truncation_of_every_payload_is_refused_and_counts_cannot_size_an_alloca
         (
             "line_style",
             LineStyleStream {
-                styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0, 2.0] }],
+                styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0, 2.0], width: None, phase: 0.0, visible: true }],
                 assignments: vec![(id(0), 0)],
             }
             .encode()
@@ -352,7 +352,7 @@ fn numbers_and_counts_are_checked_on_bytes_the_encoder_did_not_write() {
     assert_eq!(HatchStream::decode(&b).unwrap_err(), ComponentError::BadNumber);
     // line style dashes: negative and non-finite on the way in
     let ls = LineStyleStream {
-        styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0] }],
+        styles: vec![LineStyleDef { name: "D".into(), dashes: vec![1.0], width: None, phase: 0.0, visible: true }],
         assignments: vec![],
     }
     .encode()

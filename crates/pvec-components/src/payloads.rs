@@ -185,6 +185,16 @@ impl LayerStream {
 
 // ---------------------------------------------------------------- line style
 
+/// The stroke width of a line style. A style with no width at all is `None` in [`LineStyleDef::width`],
+/// which is not the same as a width of zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StrokeWidth {
+    /// The thinnest line the output can draw (PDF `w 0`).
+    Thinnest,
+    /// An explicit width, finite and not negative.
+    Width(f64),
+}
+
 /// A named dash pattern: alternating dash and gap lengths, empty for a continuous line.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineStyleDef {
@@ -192,6 +202,12 @@ pub struct LineStyleDef {
     pub name: String,
     /// Dash and gap lengths, each finite and not negative, at most 16.
     pub dashes: Vec<f64>,
+    /// The stroke width, absent when the style does not set one.
+    pub width: Option<StrokeWidth>,
+    /// Where in the pattern the line starts, finite. Must be zero when there are no dashes.
+    pub phase: f64,
+    /// Whether lines in this style are drawn.
+    pub visible: bool,
 }
 
 /// Line style definitions and the style of each entity.
@@ -261,7 +277,7 @@ impl LineStyleStream {
                 }
                 dashes.push(d);
             }
-            styles.push(LineStyleDef { name, dashes });
+            styles.push(LineStyleDef { name, dashes, width: None, phase: 0.0, visible: true });
         }
         if assign_n.checked_mul(8).is_none_or(|need| need > r.left()) {
             return Err(E::Truncated);

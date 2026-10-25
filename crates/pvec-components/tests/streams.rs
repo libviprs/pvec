@@ -42,7 +42,8 @@ fn the_six_component_streams_are_registered_optional_with_their_own_ids_and_vers
         assert_eq!(c.class, Class::Component, "{name}");
         assert_eq!(c.requirement, Requirement::Optional, "{name} is optional by construction");
         assert!(c.iso_construct.is_empty(), "{name} names no ISO construct");
-        assert_eq!(c.version, Version::new(1, 0, 0), "{name}");
+        let want = if c.id == ids::LINE_STYLE { Version::new(2, 0, 0) } else { Version::new(1, 0, 0) };
+        assert_eq!(c.version, want, "{name}");
     }
 }
 
