@@ -270,8 +270,8 @@ fn bumping_any_one_component_leaves_every_geometry_version_and_every_other_compo
     for bumped in ALL {
         let before = reg();
         let mut after = reg();
-        after.bump_component_version(bumped, Version::new(1, 3, 0)).unwrap();
-        assert_eq!(after.get(bumped).unwrap().version, Version::new(1, 3, 0));
+        after.bump_component_version(bumped, Version::new(2, 3, 0)).unwrap();
+        assert_eq!(after.get(bumped).unwrap().version, Version::new(2, 3, 0));
         for (a, b) in before.entries().iter().zip(after.entries()) {
             if a.id != bumped {
                 assert_eq!(a, b, "{} changed when {bumped:?} was bumped", a.name);

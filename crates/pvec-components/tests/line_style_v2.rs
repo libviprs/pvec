@@ -42,12 +42,8 @@ fn issue_125_the_bump_leaves_every_geometry_version_and_every_other_component_un
 
 #[test]
 fn issue_125_width_absent_thinnest_zero_and_explicit_round_trip_and_stay_distinct() {
-    let cases = [
-        None,
-        Some(StrokeWidth::Thinnest),
-        Some(StrokeWidth::Width(0.0)),
-        Some(StrokeWidth::Width(0.25)),
-    ];
+    let cases =
+        [None, Some(StrokeWidth::Thinnest), Some(StrokeWidth::Width(0.0)), Some(StrokeWidth::Width(0.25))];
     let mut encodings = Vec::new();
     for w in cases {
         let s = one(def("W", vec![], w, 0.0, true));

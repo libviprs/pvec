@@ -64,7 +64,13 @@ fn all_streams(r: &Registry) -> Vec<Stream> {
             .into_stream(r)
             .unwrap(),
         LineStyleStream {
-            styles: vec![LineStyleDef { name: "DASHED".into(), dashes: vec![4.0, 2.0], width: None, phase: 0.0, visible: true }],
+            styles: vec![LineStyleDef {
+                name: "DASHED".into(),
+                dashes: vec![4.0, 2.0],
+                width: None,
+                phase: 0.0,
+                visible: true,
+            }],
             assignments: vec![(id(2), 0)],
         }
         .into_stream(r)
