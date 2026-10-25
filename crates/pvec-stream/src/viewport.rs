@@ -346,7 +346,8 @@ impl ViewportQuery {
         // no block of the plan owns.
         let classify = |tier: Tier, seen: &[BlockId], margin: &[BlockId]| -> Result<_, ViewportError> {
             let wanted: Vec<BlockId> = seen.iter().chain(margin).copied().collect();
-            let (mut first, mut second): (Vec<PlannedRequest>, Vec<PlannedRequest>) = (Vec::new(), Vec::new());
+            let (mut first, mut second): (Vec<PlannedRequest>, Vec<PlannedRequest>) =
+                (Vec::new(), Vec::new());
             for request in reader.plan(&wanted)? {
                 let gain: f64 = request.blocks.iter().filter_map(|b| gains.get(b)).sum();
                 if request.blocks.iter().any(|b| gains.contains_key(b)) {

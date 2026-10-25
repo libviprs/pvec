@@ -13,8 +13,8 @@ use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, Rea
 use pvec_entity::EntityId;
 use pvec_stream::{
     Aabb, EntityBox, LongEntity, PayloadRef, Preview, PreviewForm, Priority, ReadPlan, SpatialDirectory,
-    Tier, Tier0Builder, Tier0Leaves, Tier0Params, ViewportConfig, ViewportQuery, build_directory,
-    classify, payload_cells, tier0_blocks,
+    Tier, Tier0Builder, Tier0Leaves, Tier0Params, ViewportConfig, ViewportQuery, build_directory, classify,
+    payload_cells, tier0_blocks,
 };
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -222,7 +222,8 @@ fn a_full_extent_view_of_rooms_1m_plans_complete_tier_0_in_a_stated_number_of_ra
         .filter(|b| kind_of(&r, *b) == Some(BlockKind::Tier0))
         .collect();
     assert_eq!(all.len(), leaves.len());
-    let planned: BTreeSet<BlockId> = tier_blocks(&r, &plan, Tier::Tier0, Priority::Visible).into_iter().collect();
+    let planned: BTreeSet<BlockId> =
+        tier_blocks(&r, &plan, Tier::Tier0, Priority::Visible).into_iter().collect();
     assert_eq!(planned, all);
     // and far fewer bytes than the exact blocks it stands in for
     assert!(t0.bytes_requested * 5 < exact.bytes_requested);
@@ -240,7 +241,8 @@ fn tier_0_requests_come_before_every_exact_request_and_the_exact_blocks_refine()
     assert!(last_t0 < first_exact, "{tiers:?}");
     // the exact blocks are the ones the untiered plan asks for
     let untiered = q.plan(&dir, &r, &no_margin()).unwrap();
-    let exact: BTreeSet<BlockId> = tier_blocks(&r, &plan, Tier::Exact, Priority::Visible).into_iter().collect();
+    let exact: BTreeSet<BlockId> =
+        tier_blocks(&r, &plan, Tier::Exact, Priority::Visible).into_iter().collect();
     let want: BTreeSet<BlockId> = untiered.visible_block_ids().into_iter().collect();
     assert_eq!(exact, want);
     // a Tier 0 block per visible leaf, and none for a leaf outside the view
@@ -357,7 +359,8 @@ fn straddlers_get_no_tier_0_block_and_are_not_planned_in_either_tier() {
     );
     let q = ViewportQuery::new(bx(0.0, 0.0, 6000.0, 6000.0), 1000.0 / 6000.0);
     let plan = q.plan_tiered(&dir, &r, &leaves, &ViewportConfig::default()).unwrap();
-    let planned: BTreeSet<BlockId> = plan.requests.iter().chain(&plan.deferred).flat_map(|p| p.request.blocks.iter().copied()).collect();
+    let planned: BTreeSet<BlockId> =
+        plan.requests.iter().chain(&plan.deferred).flat_map(|p| p.request.blocks.iter().copied()).collect();
     assert!(planned.is_disjoint(&payload), "the plan holds no straddler payload block");
     // the leaves are complete without them: one Tier 0 block per leaf, every leaf in view
     assert_eq!(tier_blocks(&r, &plan, Tier::Tier0, Priority::Visible).len(), leaves.len());
