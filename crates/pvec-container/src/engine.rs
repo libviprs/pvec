@@ -555,35 +555,43 @@ impl Core {
         Ok(DecodedBlock::new(id, entry, bytes, reservation))
     }
 
-    /// The six blocks of the advanced curves, or `None` when the file has none. A file with some of them
-    /// and not all is refused.
-    pub fn advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError> {
-        let find = |kind: BlockKind, subtype: u16| {
-            self.entries
-                .iter()
-                .position(|e| e.block_kind() == Some(kind) && e.subtype == subtype)
-                .map(|i| BlockId(i as u32))
-        };
-        let wanted = [
-            (BlockKind::Records, 0),
-            (BlockKind::Arena, 1),
-            (BlockKind::Arena, 2),
-            (BlockKind::Arena, 3),
-            (BlockKind::Arena, 4),
-            (BlockKind::Arena, 5),
-        ];
-        let found: Vec<Option<BlockId>> = wanted.iter().map(|(k, s)| find(*k, *s)).collect();
-        if found.iter().all(Option::is_none) {
-            return Ok(None);
-        }
-        let mut out = Vec::with_capacity(6);
-        for ((kind, subtype), f) in wanted.iter().zip(found) {
-            match f {
-                Some(id) => out.push(id),
-                None => return layout("CONSIST-04", format!("no block {}/{subtype}", kind.id())),
+    /// The chunks of the advanced curves, in ascending cell order: each is the record block and the five
+    /// arenas that share its cell, in subtype order. Empty when the file has none. A chunk with a block
+    /// missing, two record blocks in one cell, or an arena in a cell with no record block is refused.
+    pub fn advanced_chunks(&self) -> Result<Vec<[BlockId; 6]>, ReadError> {
+        let mut records: Vec<(u32, usize)> = Vec::new();
+        for (i, e) in self.entries.iter().enumerate() {
+            if e.block_kind() == Some(BlockKind::Records) {
+                records.push((e.cell, i));
             }
         }
-        Ok(Some(out))
+        records.sort_unstable();
+        if let Some(w) = records.windows(2).find(|w| w[0].0 == w[1].0) {
+            return layout("CONSIST-04", format!("two record blocks in cell {}", w[0].0));
+        }
+        let mut arena_at: std::collections::HashMap<(u32, u16), usize> = std::collections::HashMap::new();
+        let mut arena_count = 0usize;
+        for (i, e) in self.entries.iter().enumerate() {
+            if e.block_kind() == Some(BlockKind::Arena) {
+                arena_count += 1;
+                arena_at.insert((e.cell, e.subtype), i);
+            }
+        }
+        let mut out = Vec::with_capacity(records.len());
+        for (cell, at) in &records {
+            let mut six = [BlockId(*at as u32); 6];
+            for subtype in 1..=5u16 {
+                match arena_at.get(&(*cell, subtype)) {
+                    Some(i) => six[subtype as usize] = BlockId(*i as u32),
+                    None => return layout("CONSIST-04", format!("no block 2/{subtype} in cell {cell}")),
+                }
+            }
+            out.push(six);
+        }
+        if arena_count != 5 * out.len() {
+            return layout("CONSIST-04", "an arena is in a cell with no record block, or twice in one");
+        }
+        Ok(out)
     }
 }
 
@@ -657,7 +665,6 @@ pub(crate) struct Validation<'a> {
     expected_entities: u64,
     entities: u64,
     advanced: Vec<Arc<DecodedBlock>>,
-    record_count: usize,
     streams: Vec<u32>,
 }
 
@@ -714,7 +721,6 @@ impl<'a> Validation<'a> {
             expected_entities,
             entities: 0,
             advanced: Vec::new(),
-            record_count: 0,
             streams: Vec::new(),
         })
     }
@@ -744,9 +750,6 @@ impl<'a> Validation<'a> {
                 self.ids.extend_from_slice(view.entity_ids());
             }
             Some(BlockKind::Records) | Some(BlockKind::Arena) => {
-                if entry.block_kind() == Some(BlockKind::Records) {
-                    self.record_count = entry.count as usize;
-                }
                 self.advanced.push(block);
             }
             Some(BlockKind::Components) => {
@@ -769,36 +772,37 @@ impl<'a> Validation<'a> {
 
     pub fn finish(mut self) -> Result<Validated, ReadError> {
         if !self.advanced.is_empty() {
-            let ids = self.core.advanced_ids()?.ok_or_else(internal)?;
-            let mut six: Vec<Arc<DecodedBlock>> = Vec::with_capacity(6);
-            for id in ids {
-                let b = self.advanced.iter().find(|b| b.id() == id).ok_or_else(internal)?;
-                six.push(Arc::clone(b));
+            for ids in self.core.advanced_chunks()? {
+                let mut six: Vec<Arc<DecodedBlock>> = Vec::with_capacity(6);
+                for id in ids {
+                    let b = self.advanced.iter().find(|b| b.id() == id).ok_or_else(internal)?;
+                    six.push(Arc::clone(b));
+                }
+                let slices = BlockSlices {
+                    records: six[0].as_bytes(),
+                    knots: six[1].as_bytes(),
+                    weights: six[2].as_bytes(),
+                    control_points: six[3].as_bytes(),
+                    segments: six[4].as_bytes(),
+                    trims: six[5].as_bytes(),
+                };
+                let view = AdvancedView::parse(slices).map_err(ReadError::Arena)?;
+                check_nesting(&view, self.limits.max_nesting_depth as usize)?;
+                if view.len() != six[0].entry().count as usize {
+                    return layout("CONSIST-02", "record count differs from the directory");
+                }
+                for i in 0..view.len() {
+                    let rec = view.record(i).ok_or_else(|| {
+                        ReadError::Arena(ArenaError::EntryOutOfRange {
+                            index: i as u32,
+                            entries: view.len() as u32,
+                        })
+                    })?;
+                    checked_curve(&view, &self.limits, i)?;
+                    self.ids.push(rec.id);
+                }
+                self.entities += view.len() as u64;
             }
-            let slices = BlockSlices {
-                records: six[0].as_bytes(),
-                knots: six[1].as_bytes(),
-                weights: six[2].as_bytes(),
-                control_points: six[3].as_bytes(),
-                segments: six[4].as_bytes(),
-                trims: six[5].as_bytes(),
-            };
-            let view = AdvancedView::parse(slices).map_err(ReadError::Arena)?;
-            check_nesting(&view, self.limits.max_nesting_depth as usize)?;
-            if view.len() != self.record_count {
-                return layout("CONSIST-02", "record count differs from the directory");
-            }
-            for i in 0..view.len() {
-                let rec = view.record(i).ok_or_else(|| {
-                    ReadError::Arena(ArenaError::EntryOutOfRange {
-                        index: i as u32,
-                        entries: view.len() as u32,
-                    })
-                })?;
-                checked_curve(&view, &self.limits, i)?;
-                self.ids.push(rec.id);
-            }
-            self.entities += view.len() as u64;
         }
         if self.entities != self.expected_entities {
             return layout("CONSIST-02", "the entities found differ from the directory's counts");

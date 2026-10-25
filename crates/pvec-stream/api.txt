@@ -194,7 +194,7 @@ ownership.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ViewportRefs
 ownership.rs: ViewportRefs.raw: usize
 ownership.rs: ViewportRefs.refs: Vec<PayloadRef>
 ownership.rs: pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> ViewportRefs
-ownership.rs: pub fn advanced_rows<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs) -> Result<Vec<u32>, OwnershipError>
+ownership.rs: pub fn advanced_rows<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs) -> Result<Vec<(usize, Vec<u32>)>, OwnershipError>
 ownership.rs: pub fn read_viewport<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs, mut visit: impl FnMut(EntityId, &HotBlockView<'_>, usize)) -> Result<usize, OwnershipError>
 scheduler.rs: pub trait Clock
 scheduler.rs: Clock::now(&self) -> Duration

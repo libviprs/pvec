@@ -533,7 +533,7 @@ fn a_cached_block_is_the_same_bytes_and_costs_no_request() {
 fn the_decoded_curves_of_a_file_come_out_through_the_reader() {
     let art = art::splines();
     let reader = open(&art);
-    let set = reader.advanced().unwrap().expect("a file with splines has the advanced set");
+    let set = reader.advanced(0).unwrap().expect("a file with splines has the advanced set");
     let view = set.view().unwrap();
     assert_eq!(view.len(), 3);
     match view.curve(0).unwrap() {
@@ -542,7 +542,7 @@ fn the_decoded_curves_of_a_file_come_out_through_the_reader() {
         }
         other => panic!("{other:?}"),
     }
-    assert!(open(&art::lines(4, 1)).advanced().unwrap().is_none());
+    assert!(open(&art::lines(4, 1)).advanced(0).unwrap().is_none());
     let hot = open(&art::lines(4, 1)).read_block(BlockId(0)).unwrap();
     assert_eq!(hot.hot().unwrap().len(), 4);
 }

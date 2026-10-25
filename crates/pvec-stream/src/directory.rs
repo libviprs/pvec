@@ -746,9 +746,9 @@ impl SpatialDirectory {
         }
         let advanced = entries
             .iter()
-            .find(|e| e.block_kind() == Some(BlockKind::Records))
-            .and_then(|e| e.bounds)
-            .and_then(Aabb::from_container);
+            .filter(|e| e.block_kind() == Some(BlockKind::Records))
+            .filter_map(|e| e.bounds.and_then(Aabb::from_container))
+            .reduce(|a, b| a.union(&b));
         Ok(SpatialDirectory { nodes, blocks, leaves, height, entities: u64::from(total), advanced })
     }
 

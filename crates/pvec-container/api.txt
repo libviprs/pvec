@@ -338,7 +338,7 @@ engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'
 engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
 engine.rs: Core::in_flight(&self, entry: &BlockEntry) -> u64
 engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
-engine.rs: Core::advanced_ids(&self) -> Result<Option<Vec<BlockId>>, ReadError>
+engine.rs: Core::advanced_chunks(&self) -> Result<Vec<[BlockId; 6]>, ReadError>
 engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
 engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
 engine.rs: Validation<'a>::feed_gap(&mut self, offset: u64, bytes: &[u8]) -> Result<(), ReadError>
@@ -669,7 +669,9 @@ reader.rs: pub struct ContainerReader<S: BlockSource>
 reader.rs: ContainerReader<S>::open(source: S, config: ReaderConfig) -> Result<ContainerReader<S>, ReadError>
 reader.rs: ContainerReader<S>::read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
 reader.rs: ContainerReader<S>::read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
-reader.rs: ContainerReader<S>::advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: ContainerReader<S>::advanced_chunk_count(&self) -> Result<usize, ReadError>
+reader.rs: ContainerReader<S>::advanced_record_blocks(&self) -> Result<Vec<BlockId>, ReadError>
+reader.rs: ContainerReader<S>::advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError>
 reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: ContainerReader<S>::validate(&self) -> Result<Validated, ReadError>
@@ -677,7 +679,8 @@ reader.rs: pub struct AsyncContainerReader<S: AsyncBlockSource>
 reader.rs: AsyncContainerReader<S>::async fn open(source: S, config: ReaderConfig) -> Result<AsyncContainerReader<S>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_block(&self, id: BlockId) -> Result<Arc<DecodedBlock>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
-reader.rs: AsyncContainerReader<S>::async fn advanced(&self) -> Result<Option<AdvancedSet>, ReadError>
+reader.rs: AsyncContainerReader<S>::advanced_chunk_count(&self) -> Result<usize, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate(&self) -> Result<Validated, ReadError>
@@ -864,6 +867,7 @@ writer.rs: impl From<ArenaError> for WriteError
 writer.rs: impl From<StreamError> for WriteError
 writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
+writer.rs: pub const ADVANCED_CHUNK_BYTES: u32
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct Derived
 writer.rs: Derived.entity: EntityId
@@ -876,6 +880,7 @@ writer.rs: ContainerWriter::push_line(&mut self, meta: EntityMeta, a: [f64; 2], 
 writer.rs: ContainerWriter::push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_circle_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_ellipse_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), WriteError>
+writer.rs: ContainerWriter::advanced_chunk_bytes(&mut self, bytes: u32)
 writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>

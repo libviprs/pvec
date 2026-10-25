@@ -147,8 +147,68 @@ The container tests need a docker daemon, so they are `#[ignore]` and run in the
 ### 1.8 Not covered
 
 Reading STEP into PVec, AP242 features outside the 2D profile (product structure, PMI, presentation, the
-component streams), `CARTESIAN_TRANSFORMATION_OPERATOR_2D`, the round-trip comparison against a CAD kernel
-(P6.3) and the GIS formats.
+component streams), `CARTESIAN_TRANSFORMATION_OPERATOR_2D` and the GIS formats. The comparison against a CAD kernel is chapter 2.
+
+## 2. Independent STEP round-trip validation
+
+A writer checked by its own reader only proves it agrees with itself. This chapter is the check by something else.
+
+### 2.1 Independence statement
+
+The STEP files from chapter 1 are evaluated by OpenCASCADE (OCCT 7.6.3, the geometry kernel under FreeCAD), reached
+through the FreeCAD 0.20.2 Python module that Debian bookworm ships as `freecad-python3`. The suite prints both
+versions and asserts them (`EVALUATOR` in `tests/step_roundtrip.rs`). OCCT shares no source with
+`pvec-interchange/src/step/writer.rs`, with its mapping table or with the in-process reader of `tests/step_reader`.
+
+It runs out of process, in a container built from `tools/step-eval/Dockerfile` (Debian bookworm-slim pinned by digest,
+nothing else but `freecad-python3` and its dependencies), published as `ghcr.io/libviprs/pvec-step-eval` and pinned by
+the index digest in the test. The container has no network and a read-only root, is started for the run and removed
+afterwards, on a pass and on a failure (`pvec-hermetic`). Nothing links it. FreeCAD is LGPL-2 or later, OCCT is
+LGPL-2.1 with the OCCT exception, and the image carries their licence texts under `/usr/share/doc`.
+
+Both architectures come from the same apt line, so the write-up of a run says which it was: the `docker-tests` stage of
+`gate-fleet.sh local-ci pvec` runs it on mars and nas (native x86_64) and on mercury (native arm64).
+
+### 2.2 The one thing I do to the file first
+
+The writer's file is a 2D profile: a 2-dimensional representation context, two-component points and
+`AXIS2_PLACEMENT_2D`. OCCT's STEP reader only imports 3D representations that hang off a product, and given the 2D
+file it returns a null shape. So `tools/step-eval/evaluate.py` lifts the text before OCCT sees it: a zero third
+coordinate on points and directions, each `AXIS2_PLACEMENT_2D` becomes an `AXIS2_PLACEMENT_3D`, and the units and the
+product chain OCCT wants are added. No curve parameter (degree, knot, multiplicity, weight, radius, trim) is touched.
+The parsing, the parameterisation and the evaluation after that are OCCT's. The edge count is asserted against the
+number of curve pieces written (a composite is one edge per segment), so a merged or dropped edge fails.
+
+### 2.3 What is compared
+
+`step::verify` keeps three classes apart and reports each on its own, never as one verdict:
+
+- Structural: degree, control points, knots with multiplicities, weights, radius, centre and axis, and the trim domain,
+  for the edges where the parameters are directly comparable. Some are not, and the verdict lists them with the
+  reason: a closed spline (OCCT stores it periodic), a trim that runs backwards (OCCT re-parameterises it), an
+  ellipse written with the shorter semi-axis first. Rational weights are compared up to a common factor.
+- Geometric: PVec's own `eval` and `derivative` against OCCT's `value` and `tangent` at nine deterministic fractions of
+  the domain, at every interior knot (and polyline vertex) and one step either side of it, with the end points and the
+  arc length where a closed form exists (circle arcs, lines, polylines). An unbounded line has no domain to sample.
+- Display: only for an entity whose export was a `BoundedApproximation`, compared against its recorded bound. It is
+  never counted as an exact round trip (`Verdict::exact_passes`).
+
+Every tolerance comes from `pvec_numeric::Policy::V1`; the module declares none, and `step_roundtrip.rs` scans its
+source for a float constant or an exponent literal. A disagreement is a record with the entity, the PVec parameters, the
+evaluator's parameters, the deviating sample, the tolerance applied and the class that failed, and the suite fails on
+any of them.
+
+### 2.4 The corrupted mapping
+
+`occt_reads_every_fixture_back_and_a_corrupted_mapping_turns_it_red` also writes the fixture file twice with one
+change each: one knot multiplicity flipped on the cubic spline, one weight dropped on the rational curve. The evaluator
+must report both as disagreements in both classes. That is what shows the comparison is load-bearing.
+
+### 2.5 Not covered here
+
+Running the same harness over every phase 2 fixture and wiring its verdicts into the frozen gates is pvec#150. This
+chapter's run covers the P6.2 fixtures (`tests/common`), each written with the identity, a similarity and a general
+affine map.
 
 ## 3. GML export
 

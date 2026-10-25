@@ -450,3 +450,21 @@ fn two_leaves_with_swapped_blocks_pass_the_count_and_fail_the_full_check() {
     // an untouched leaf verifies
     assert!(leaves.verify(&r, blocks[10].cell).unwrap().is_some());
 }
+
+#[test]
+fn tier0_14_a_block_the_container_refuses_to_read_is_a_read_error() {
+    let w = written();
+    let r = reader(w.bytes.clone());
+    let dir = SpatialDirectory::open(&r).unwrap().unwrap();
+    let (_, e) = tier0_entries(&r).into_iter().nth(3).unwrap();
+    // a byte flipped inside the stored block: the directory still opens, the block checksum does not hold
+    let mut bytes = w.bytes.clone();
+    bytes[e.offset as usize + e.stored_length as usize / 2] ^= 0xFF;
+    let r = reader(bytes);
+    let leaves = Tier0Leaves::new(r.entries(), &dir).unwrap();
+    let cell = dir.query(&dir.bounds()).find(|c| c.id.get() == e.cell).unwrap();
+    let err = leaves.tier0(&r, cell.id).unwrap_err();
+    assert!(matches!(err, Tier0Error::Read(_)), "{err}");
+    assert_eq!(err.rule(), "TIER0-14");
+    assert!(leaves.verify(&r, cell.id).is_err());
+}

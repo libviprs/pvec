@@ -684,10 +684,23 @@ impl<S: BlockSource> ContainerReader<S> {
             .collect()
     }
 
-    /// The advanced curves (the record block and the five arenas), or `None` when the file has none.
-    pub fn advanced(&self) -> Result<Option<AdvancedSet>, ReadError> {
-        let Some(ids) = self.shared.core.advanced_ids()? else { return Ok(None) };
-        let blocks = self.read_blocks(&ids)?;
+    /// How many chunks the advanced curves are in (0 when the file has none).
+    pub fn advanced_chunk_count(&self) -> Result<usize, ReadError> {
+        self.shared.core.advanced_chunks().map(|c| c.len())
+    }
+
+    /// The record block of each chunk of the advanced curves, in chunk order: the `block_id` of a
+    /// `PayloadRef` to a row of that chunk.
+    pub fn advanced_record_blocks(&self) -> Result<Vec<BlockId>, ReadError> {
+        self.shared.core.advanced_chunks().map(|c| c.iter().map(|six| six[0]).collect())
+    }
+
+    /// Chunk `chunk` of the advanced curves (its record block and five arenas, one range when they are
+    /// adjacent), or `None` when the file has no such chunk. Each block is cached on its own.
+    pub fn advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError> {
+        let chunks = self.shared.core.advanced_chunks()?;
+        let Some(ids) = chunks.get(chunk) else { return Ok(None) };
+        let blocks = self.read_blocks(ids)?;
         self.shared.advanced_set(blocks).map(Some)
     }
 
@@ -805,10 +818,16 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
             .collect()
     }
 
+    /// As [`ContainerReader::advanced_chunk_count`].
+    pub fn advanced_chunk_count(&self) -> Result<usize, ReadError> {
+        self.shared.core.advanced_chunks().map(|c| c.len())
+    }
+
     /// As [`ContainerReader::advanced`].
-    pub async fn advanced(&self) -> Result<Option<AdvancedSet>, ReadError> {
-        let Some(ids) = self.shared.core.advanced_ids()? else { return Ok(None) };
-        let blocks = self.read_blocks(&ids).await?;
+    pub async fn advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError> {
+        let chunks = self.shared.core.advanced_chunks()?;
+        let Some(ids) = chunks.get(chunk) else { return Ok(None) };
+        let blocks = self.read_blocks(ids).await?;
         self.shared.advanced_set(blocks).map(Some)
     }
 
