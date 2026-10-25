@@ -270,6 +270,11 @@ pub enum WriteError {
     Container(ContainerError),
     /// The semantic model refused.
     Geometry(GeometryError),
+    /// A Tier 0 block in cell 0, in a straddler payload cell, or a second one for a cell.
+    Tier0Cell {
+        /// The cell.
+        cell: u32,
+    },
 }
 
 impl WriteError {
@@ -289,6 +294,7 @@ impl WriteError {
             WriteError::Stream(_) => "WRT-11",
             WriteError::Container(_) => "WRT-12",
             WriteError::Geometry(_) => "WRT-13",
+            WriteError::Tier0Cell { .. } => "WRT-14",
         }
     }
 }
@@ -308,6 +314,10 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
     ("WRT-11", "the component stream encoder refused"),
     ("WRT-12", "the manifest refused (the error carries its container error)"),
     ("WRT-13", "the semantic model refused"),
+    (
+        "WRT-14",
+        "a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell",
+    ),
 ];
 
 impl fmt::Display for WriteError {
@@ -334,6 +344,9 @@ impl fmt::Display for WriteError {
             WriteError::Stream(e) => write!(f, "{rule}: {e}"),
             WriteError::Container(e) => write!(f, "{rule}: {e}"),
             WriteError::Geometry(e) => write!(f, "{rule}: {e}"),
+            WriteError::Tier0Cell { cell } => {
+                write!(f, "{rule}: a Tier 0 block cannot be in cell {cell}, or twice")
+            }
         }
     }
 }
@@ -454,6 +467,7 @@ pub struct ContainerWriter {
     derived: Vec<Derived>,
     cell_refs: Option<RefsItem>,
     straddlers: Option<SpatialItem>,
+    tier0: Vec<Tier0Item>,
 }
 
 /// A stored number the caller did not hand over: the writer derived it, within `bound` of the exact
@@ -466,6 +480,16 @@ pub struct Derived {
     pub what: &'static str,
     /// A bound on the distance from the exact value, in radians.
     pub bound: f64,
+}
+
+/// The Tier 0 block of one leaf as the caller built it.
+#[derive(Debug)]
+struct Tier0Item {
+    seq: usize,
+    cell: u32,
+    count: u32,
+    bounds: Bounds,
+    bytes: Vec<u8>,
 }
 
 /// The spatial directory block as the caller built it.
@@ -556,6 +580,7 @@ impl ContainerWriter {
             derived: Vec::new(),
             cell_refs: None,
             straddlers: None,
+            tier0: Vec::new(),
         }
     }
 
@@ -883,6 +908,31 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Adds the Tier 0 block of one index leaf (`pvec-stream`'s `tier0_blocks` makes them): `cell` is the
+    /// leaf id, `count` the entities it covers, `bounds` the leaf's box and `bytes` the block. Optional
+    /// like the spatial directory, and the writer does not parse it; `Tier0Leaves` checks the block against
+    /// the directory when a reader opens it. Cell 0, the straddler payload cells and a second block for one
+    /// cell are refused (`WRT-14`).
+    pub fn push_tier0_leaf(
+        &mut self,
+        cell: u32,
+        count: u32,
+        bounds: Bounds,
+        bytes: Vec<u8>,
+    ) -> Result<(), WriteError> {
+        if cell == 0
+            || cell >= crate::directory::STRADDLER_CELL_FIRST
+            || self.tier0.iter().any(|t| t.cell == cell)
+        {
+            return Err(WriteError::Tier0Cell { cell });
+        }
+        let bounds = checked_bounds(bounds).ok_or(WriteError::BadBounds { id: None })?;
+        u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
+        let seq = self.next_seq();
+        self.tier0.push(Tier0Item { seq, cell, count, bounds, bytes });
+        Ok(())
+    }
+
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
     fn declarations(&self) -> Result<(Vec<Declared>, Version), WriteError> {
         let mut wanted: Vec<CapabilityId> = Vec::new();
@@ -1154,6 +1204,17 @@ impl ContainerWriter {
                 bytes: s.bytes.clone(),
             });
         }
+        for t in &self.tier0 {
+            blocks.push(Planned {
+                first_seen: t.seq,
+                kind: BlockKind::Tier0,
+                cell: t.cell,
+                subtype: 0,
+                count: t.count,
+                bounds: Some(t.bounds),
+                bytes: t.bytes.clone(),
+            });
+        }
         // arrival order first, so that a key that is switched off falls back to it and nothing else
         blocks.sort_by_key(|b| b.first_seen);
         let by = |key: SortKey, a: Ordering| if self.sorts(key) { a } else { Ordering::Equal };
@@ -1175,6 +1236,7 @@ impl ContainerWriter {
                     | BlockKind::SpatialDirectory
                     | BlockKind::CellRefs
                     | BlockKind::Straddlers
+                    | BlockKind::Tier0
             ) {
                 0
             } else {

@@ -48,3 +48,14 @@ a form qualifies. Previews are display fidelity everywhere in the specification.
 Revisit if P8.5 shows that per-leaf Tier 0 does not reach complete coverage of a viewport in less than a
 fifth of the time of fetching the viewport's exact payload, or if any fixture in the real-drawing corpus has
 entities in neither class (today: 0 of 1,151,000), or if the 0.5 px budget changes.
+
+## Amendment 2026-10-25: Tier 0 per leaf is block kind 8 (#149)
+
+The decision above said Tier 0 is delivered per index leaf and left the container side open. It is now a
+block kind: `tier0`, id 8, one block for each leaf of the spatial directory with `cell` set to the leaf id,
+`count` to the entities it covers and `bounds` to the leaf's. The stream is the Tier 0 stream at version 2,
+cut to the leaf. It is optional (an older reader skips it), it is always LZ4, and it has its own refusal
+rules, TIER0-10 to TIER0-14 (`docs/STREAMING.md` section 4.5). The codec was measured and not assumed: on a
+million entities cut into 15,625 leaves, LZ4 stores 0.795 of the raw bytes for under a microsecond a leaf and deflate
+0.666 at about ten times the LZ4 decode time, so LZ4 (`docs/STREAMING.md` section 4.7). Straddlers are in no leaf and
+have no Tier 0 block. The tier-aware planner that selects these blocks is #129.

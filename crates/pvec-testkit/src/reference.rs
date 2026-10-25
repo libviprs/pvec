@@ -464,7 +464,7 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
                 advanced.push(((e.cell, (e.kind << 8) | e.subtype), aligned));
             }
             // the spatial directory is `pvec-stream`'s to validate; here it is a block that decoded
-            Some(BlockKind::SpatialDirectory | BlockKind::CellRefs) => {}
+            Some(BlockKind::SpatialDirectory | BlockKind::CellRefs | BlockKind::Tier0) => {}
             // the straddler lists are `pvec-stream`'s to validate, like the directory
             Some(BlockKind::Straddlers) => {}
             Some(BlockKind::Components) => {

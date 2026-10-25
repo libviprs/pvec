@@ -90,6 +90,10 @@ pub enum BlockKind {
     /// opaque bytes, stored as they are so that a reader gets the index in one range and pages in
     /// further ranges; `pvec-stream` defines and validates the layout.
     Straddlers,
+    /// The Tier 0 stream of one index leaf (`docs/STREAMING.md` section 4.5, issue P5.4b). The block's
+    /// cell is the leaf id. The container carries it as opaque bytes; `pvec-stream` defines and
+    /// validates the layout.
+    Tier0,
 }
 
 /// The first cell id of the straddlers' payloads. A hot block in a cell at or above this id holds the
@@ -99,7 +103,7 @@ pub const STRADDLER_CELL_FIRST: u32 = 0xF000_0000;
 
 impl BlockKind {
     /// Every kind, in id order.
-    pub const ALL: [BlockKind; 7] = [
+    pub const ALL: [BlockKind; 8] = [
         BlockKind::Hot,
         BlockKind::Records,
         BlockKind::Arena,
@@ -107,6 +111,7 @@ impl BlockKind {
         BlockKind::SpatialDirectory,
         BlockKind::CellRefs,
         BlockKind::Straddlers,
+        BlockKind::Tier0,
     ];
 
     /// The id stored in the file.
@@ -119,6 +124,7 @@ impl BlockKind {
             BlockKind::SpatialDirectory => 5,
             BlockKind::CellRefs => 6,
             BlockKind::Straddlers => 7,
+            BlockKind::Tier0 => 8,
         }
     }
 
@@ -137,6 +143,7 @@ impl BlockKind {
             BlockKind::SpatialDirectory => "spatial",
             BlockKind::CellRefs => "refs",
             BlockKind::Straddlers => "straddlers",
+            BlockKind::Tier0 => "tier0",
         }
     }
 }

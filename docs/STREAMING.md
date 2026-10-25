@@ -376,7 +376,7 @@ All integers are little-endian. The header is 24 bytes:
 | offset | size | field |
 |---|---|---|
 | 0 | 4 | magic `PVT0` |
-| 4 | 1 | version, 1 |
+| 4 | 1 | version: 1 for the stream of the whole artifact, 2 for the stream of one leaf (section 4.5) |
 | 5 | 3 | zero |
 | 8 | 4 | entities in the artifact |
 | 12 | 4 | exact runs |
@@ -391,7 +391,21 @@ Then the exact runs (start `u32`, length `u32`, ascending, not touching an earli
 
 A preview has no identity of its own: it is `replaces`, the id of the exact entity. `Scene` holds exactly one thing per entity. `Scene::refine(id, curve)` swaps a preview for the exact geometry, so refinement replaces and never overdraws (`drawn` is the entity count before and after). It checks the geometry against the preview's stored bound (`Mismatch`, TIER0-07, if it is further off than that) and is idempotent: refining twice with the same geometry gives the same scene (the second call reports `Unchanged`), different geometry for an entity that is already refined is `Conflict` (TIER0-08), and an entity that went out exact is never changed. Order does not matter. Tagging a replacement with a generation is section 4.8 (P5.6), and the order Tier 1 and 2 arrive in is P5.7.
 
-**Delivery.** ADR 0007 decided that Tier 0 is built and delivered per index leaf and not as one global first pass, because a global Tier 0 is nearly the whole artifact. This chapter defines what a Tier 0 stream is and how it is checked. Cutting it per leaf, and putting the stream in a container block, are the work of P5.5 and the tiered plan on top of it, and they build on `Tier0Builder` unchanged.
+**Delivery.** ADR 0007 decided that Tier 0 is built and delivered per index leaf and not as one global first pass, because a global Tier 0 is nearly the whole artifact. It is stored that way: container block kind 8 (`tier0`, `docs/CONTAINER.md` section 4.2), one block for each leaf of the spatial directory, in the leaf's cell. The entry's count is the leaf's entity count and its bounds are the leaf's. The block is the plan's stream of section 4.4 at version 2, cut to the entities of the leaf: the same header, runs, previews and infeasible records, where the header's entity count is still the artifact's (it bounds the ids) and the records cover the leaf's entities and nothing else. A version 2 stream does not have to be dense, so the coverage rule of section 4.3 becomes: every entity of the leaf is in exactly one of the three lists and no other is. Every entity of a cell is a hot entity of that leaf, so the leaves between them cover the hot entities of the artifact once. The straddlers (chapter 3) are in no leaf, so they have no Tier 0 block; a viewport gets them from their lists, and tiering them is the planner's business (#129).
+
+`tier0_blocks(plan, entities, cells)` is the writer's cut: it takes the whole plan, the boxes the directory was built from and the cells it answered, and gives one `Tier0Block` for each leaf, ascending by cell, ready for `ContainerWriter::push_tier0_leaf`. `Tier0Leaves::new(entries, dir)` is the reader's check of the entries against the directory, and `Tier0Leaves::tier0(reader, leaf)` is the read: one range, the block as stored, and the leaf's plan. `Tier0Leaves::verify` also reads the leaf's hot blocks and compares the ids. The block is optional, so a reader that does not know kind 8 skips it, and a file without it is still valid: the planner then falls back to the exact blocks.
+
+| rule | meaning |
+|---|---|
+| TIER0-10 | a Tier 0 block in a cell the spatial directory does not have |
+| TIER0-11 | a Tier 0 block in cell 0 or in a straddler payload cell (0xF0000000 and up) |
+| TIER0-12 | more than one Tier 0 block for one leaf |
+| TIER0-13 | an entry whose count is not the leaf's entity count, whose bounds are not the leaf's, or whose stream covers a different number of entities than the entry says |
+| TIER0-14 | the container refused to read the block |
+
+A leaf whose stream does not cover the leaf's entity set is `Gap` (TIER0-01, an entity of the leaf has no entry) or `OutOfRange` (TIER0-03, an entry for an entity that is not the leaf's), the same rules as for the whole plan; an id twice in a leaf stream is `Duplicate` (TIER0-02), and a version 1 stream where a leaf's is expected, or the other way round, is TIER0-05. The writer refuses cell 0, a straddler payload cell and a second block for a cell (`WRT-14`). The tests are `tests/issue_149_tier0_block.rs`.
+
+**Compression.** The block is LZ4 whatever the codec policy says about the other kinds, and is stored as it is when that is not smaller (`docs/CONTAINER.md` section 4.7). Section 4.7 below has the measurement the choice rests on.
 
 ### 4.6 Infeasibility
 
@@ -412,6 +426,16 @@ On the fixtures of P1.7 and the generated fixtures of the tests the list is **em
 | stream, 1,000,000 entities, 80,477 previews | 12,567,975 (12.0 MiB, about 156 bytes a preview) | 13 ms, release, arm64 (Apple silicon) |
 
 This is the stream of one global Tier 0 for the whole drawing and not the unit a reader fetches (section 4.5), and it does not include the exact geometry the plan names, which is in the hot blocks. Where the x64 numbers are, they are on the pull request.
+
+**Per leaf, and which codec.** `measurement_million_entities_per_leaf_compressed_or_not` in `tests/issue_149_tier0_block.rs` (an `#[ignore]` measurement, release build) builds the same shape of plan, 1,000,000 entities with 8% previews of 3 to 8 vertices, cuts it by the leaves of a directory over a 1,000 by 1,000 grid of boxes (15,625 leaves of 64 entities) and, for each codec, stores every leaf, then decompresses and decodes every leaf. The leaves add up to more than the global stream (7,747,413 bytes against 6,244,333) because each carries a 24 byte header and the exact runs of a leaf are short: a leaf's ids are scattered in id order, and a run is eight bytes however short.
+
+| codec | stored bytes | stored over raw | decompress and decode all 15,625 leaves, x64 (MARS) | per leaf | same, arm64 (Apple silicon) | per leaf |
+|---|---|---|---|---|---|---|
+| none | 7,747,413 | 1.000 | 7.3 ms | 0.46 us | 86 ms | 5.5 us |
+| lz4 | 6,161,891 | 0.795 | 10.1 ms | 0.65 us | 78 ms | 5.0 us |
+| deflate | 5,161,071 | 0.666 | 81 ms | 5.2 us | 369 ms | 23.6 us |
+
+The byte counts are the same on both (they do not depend on the machine). The timings are one release run each, native x64 on MARS and arm64 on the MacBook, which was not idle, so read them as ratios. LZ4 stores a fifth less than raw and costs under a microsecond a leaf on x64 (about 0.2 us more than not compressing); deflate stores a third less and costs about ten times the LZ4 time, 5 us a leaf on x64 and 24 us on arm64, so a viewport of fifty leaves would spend about a quarter of a millisecond on x64 and a millisecond on arm64. The choice is LZ4, because it is the codec ADR 0006 recommends for anything served over HTTP and because the bytes that deflate saves over it (about 13% of raw) are not worth ten times the decode on a path that runs on every pan. The fixture is synthetic, so P8.3 revisits the codec against real drawings, as it does for the other kinds.
 
 
 ### 4.8 Cancellation and refinement generations

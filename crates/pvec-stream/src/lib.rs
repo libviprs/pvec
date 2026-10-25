@@ -12,6 +12,7 @@ mod generation;
 mod ownership;
 mod scheduler;
 mod straddler;
+mod tier0_leaf;
 mod tiers;
 mod viewport;
 
@@ -20,5 +21,6 @@ pub use generation::*;
 pub use ownership::*;
 pub use scheduler::*;
 pub use straddler::*;
+pub use tier0_leaf::*;
 pub use tiers::*;
 pub use viewport::*;

@@ -119,6 +119,7 @@ lib.rs: pub use generation::*
 lib.rs: pub use ownership::*
 lib.rs: pub use scheduler::*
 lib.rs: pub use straddler::*
+lib.rs: pub use tier0_leaf::*
 lib.rs: pub use tiers::*
 lib.rs: pub use viewport::*
 ownership.rs: pub const REF_BUDGET: usize
@@ -343,6 +344,18 @@ straddler.rs: CongestionReport.index_bytes: u64
 straddler.rs: CongestionReport.coarsest_bytes: u64
 straddler.rs: pub fn congestion(dir: &SpatialDirectory, long: Option<&StraddlerLists>) -> CongestionReport
 straddler.rs: pub fn ancestor_placement(built: &BuiltDirectory, entities: &[EntityBox]) -> Vec<u64>
+tier0_leaf.rs: #[derive(Clone, Debug, PartialEq)] pub struct Tier0Block
+tier0_leaf.rs: Tier0Block.cell: CellId
+tier0_leaf.rs: Tier0Block.count: u32
+tier0_leaf.rs: Tier0Block.bounds: Aabb
+tier0_leaf.rs: Tier0Block.bytes: Vec<u8>
+tier0_leaf.rs: pub fn tier0_blocks(plan: &Tier0Plan, entities: &[EntityBox], cells: &[CellId]) -> Result<Vec<Tier0Block>, Tier0Error>
+tier0_leaf.rs: #[derive(Clone, Debug)] pub struct Tier0Leaves
+tier0_leaf.rs: Tier0Leaves::new(entries: &[BlockEntry], dir: &SpatialDirectory) -> Result<Tier0Leaves, Tier0Error>
+tier0_leaf.rs: Tier0Leaves::len(&self) -> usize
+tier0_leaf.rs: Tier0Leaves::is_empty(&self) -> bool
+tier0_leaf.rs: Tier0Leaves::tier0<S: BlockSource>(&self, reader: &ContainerReader<S>, leaf: CellId) -> Result<Option<Tier0Plan>, Tier0Error>
+tier0_leaf.rs: Tier0Leaves::verify<S: BlockSource>(&self, reader: &ContainerReader<S>, leaf: CellId) -> Result<Option<Tier0Plan>, Tier0Error>
 tiers.rs: pub const MAX_PREVIEW_VERTICES: usize
 tiers.rs: pub const EXACT_POLYLINE_VERTICES: usize
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub enum PreviewForm
@@ -370,6 +383,11 @@ tiers.rs: Tier0Error::Mismatch(EntityId)
 tiers.rs: Tier0Error::Conflict(EntityId)
 tiers.rs: Tier0Error::Unknown(EntityId)
 tiers.rs: Tier0Error::Geometry(GeometryError)
+tiers.rs: Tier0Error::NoLeaf(u32)
+tiers.rs: Tier0Error::BadCell(u32)
+tiers.rs: Tier0Error::DuplicateLeaf(u32)
+tiers.rs: Tier0Error::LeafMismatch(u32)
+tiers.rs: Tier0Error::Read(String)
 tiers.rs: Tier0Error::rule(&self) -> &'static str
 tiers.rs: impl core::fmt::Display for Tier0Error
 tiers.rs: impl std::error::Error for Tier0Error {}
@@ -409,6 +427,9 @@ tiers.rs: Tier0Plan::build<I>(entities: u32, curves: I, params: Tier0Params) -> 
 tiers.rs: Tier0Plan::artifact_entities(&self) -> usize
 tiers.rs: Tier0Plan::tier0_entities(&self) -> usize
 tiers.rs: Tier0Plan::check_coverage(&self, artifact: &[EntityId]) -> Result<(), Tier0Error>
+tiers.rs: Tier0Plan::covered(&self) -> usize
+tiers.rs: Tier0Plan::check_covers(&self, ids: &[EntityId]) -> Result<(), Tier0Error>
+tiers.rs: Tier0Plan::cut(&self, ids: &[EntityId]) -> Result<Tier0Plan, Tier0Error>
 tiers.rs: Tier0Plan::exact_count(&self) -> usize
 tiers.rs: Tier0Plan::exact_ids(&self) -> impl Iterator<Item = EntityId> + '_
 tiers.rs: Tier0Plan::previews(&self) -> &[Preview]
@@ -417,6 +438,7 @@ tiers.rs: Tier0Plan::entry(&self, id: EntityId) -> Option<Tier0Entry<'_>>
 tiers.rs: Tier0Plan::conformance(&self) -> Conformance
 tiers.rs: Tier0Plan::encode(&self) -> Vec<u8>
 tiers.rs: Tier0Plan::decode(bytes: &[u8]) -> Result<Tier0Plan, Tier0Error>
+tiers.rs: Tier0Plan::decode_leaf(bytes: &[u8]) -> Result<Tier0Plan, Tier0Error>
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Refined
 tiers.rs: Refined::Replaced
 tiers.rs: Refined::Unchanged
