@@ -123,7 +123,8 @@ fn advanced_rows_come_grouped_by_chunk_and_a_viewport_names_only_the_chunks_it_t
     let at: HashMap<_, PayloadRef> = scan_payloads(&r).unwrap().iter().map(|s| (s.id, s.payload)).collect();
     let mut placed: Vec<PlacedEntity> =
         lines.iter().map(|e| PlacedEntity { id: e.id, bounds: e.bounds(), payload: at[&e.id] }).collect();
-    let adv_at: HashMap<_, PayloadRef> = scan_advanced(&r).unwrap().iter().map(|s| (s.id, s.payload)).collect();
+    let adv_at: HashMap<_, PayloadRef> =
+        scan_advanced(&r).unwrap().iter().map(|s| (s.id, s.payload)).collect();
     for (id, b) in &adv {
         placed.push(PlacedEntity { id: eid(*id), bounds: *b, payload: adv_at[&eid(*id)] });
     }
@@ -134,10 +135,7 @@ fn advanced_rows_come_grouped_by_chunk_and_a_viewport_names_only_the_chunks_it_t
     let named: Vec<usize> = groups.iter().map(|(chunk, _)| *chunk).collect();
     assert!(named.windows(2).all(|w| w[0] < w[1]), "ascending by chunk: {named:?}");
     assert!(named.len() < 5, "the left viewport must not name every chunk: {named:?}");
-    let composite_chunk = chunk_records(&r)
-        .iter()
-        .position(|b| *b == adv_at[&eid(9200)].block_id)
-        .unwrap();
+    let composite_chunk = chunk_records(&r).iter().position(|b| *b == adv_at[&eid(9200)].block_id).unwrap();
     assert!(named.contains(&composite_chunk), "the composite reaches the left");
     let right_only = chunk_records(&r).iter().position(|b| *b == adv_at[&eid(9102)].block_id).unwrap();
     assert!(!named.contains(&right_only), "9102 is far to the right");
@@ -155,7 +153,10 @@ fn the_directory_reports_the_union_of_the_chunks_bounds_and_each_chunk_its_own()
         .entries()
         .iter()
         .filter(|e| e.block_kind() == Some(BlockKind::Records))
-        .map(|e| { let b = e.bounds.unwrap(); Aabb::new(b.min, b.max).unwrap() })
+        .map(|e| {
+            let b = e.bounds.unwrap();
+            Aabb::new(b.min, b.max).unwrap()
+        })
         .collect();
     assert_eq!(per_chunk.len(), 5);
     assert!(per_chunk.iter().any(|b| *b != dir.advanced_bounds().unwrap()), "the chunks differ");

@@ -120,31 +120,31 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
         }
     }
     for (cell, record_count) in record_counts {
-            let get = |k: u16, s: u16| {
-                advanced
-                    .iter()
-                    .find(|(key, _)| *key == (cell, (k << 8) | s))
-                    .map(|(_, b)| b.as_bytes())
-                    .ok_or(format!("no block {k}/{s}"))
-            };
-            let slices = BlockSlices {
-                records: get(2, 0)?,
-                knots: get(3, 1)?,
-                weights: get(3, 2)?,
-                control_points: get(3, 3)?,
-                segments: get(3, 4)?,
-                trims: get(3, 5)?,
-            };
-            let view = AdvancedView::parse(slices).map_err(|x| format!("advanced blocks: {x}"))?;
-            view.check_nesting().map_err(|x| format!("nesting: {x}"))?;
-            if view.len() != record_count {
-                return Err("record count differs from the directory".to_string());
-            }
-            for i in 0..view.len() {
-                let id = view.record(i).ok_or("record missing")?.id;
-                insert(id)?;
-                view.curve(i).map_err(|x| format!("curve {i}: {x}"))?;
-            }
+        let get = |k: u16, s: u16| {
+            advanced
+                .iter()
+                .find(|(key, _)| *key == (cell, (k << 8) | s))
+                .map(|(_, b)| b.as_bytes())
+                .ok_or(format!("no block {k}/{s}"))
+        };
+        let slices = BlockSlices {
+            records: get(2, 0)?,
+            knots: get(3, 1)?,
+            weights: get(3, 2)?,
+            control_points: get(3, 3)?,
+            segments: get(3, 4)?,
+            trims: get(3, 5)?,
+        };
+        let view = AdvancedView::parse(slices).map_err(|x| format!("advanced blocks: {x}"))?;
+        view.check_nesting().map_err(|x| format!("nesting: {x}"))?;
+        if view.len() != record_count {
+            return Err("record count differs from the directory".to_string());
+        }
+        for i in 0..view.len() {
+            let id = view.record(i).ok_or("record missing")?.id;
+            insert(id)?;
+            view.curve(i).map_err(|x| format!("curve {i}: {x}"))?;
+        }
     }
     let wanted: BTreeSet<u32> = input.entities().map(Ent::id).collect();
     if ids != wanted {

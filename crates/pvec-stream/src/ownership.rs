@@ -620,7 +620,11 @@ pub fn scan_advanced<S: BlockSource>(
                 block: records.0,
                 reason: "an entity id is out of range",
             })?;
-            out.push(PayloadSlot { id, payload: PayloadRef { block_id: records, slot: row as u32 }, cell: 0 });
+            out.push(PayloadSlot {
+                id,
+                payload: PayloadRef { block_id: records, slot: row as u32 },
+                cell: 0,
+            });
         }
     }
     Ok(out)
