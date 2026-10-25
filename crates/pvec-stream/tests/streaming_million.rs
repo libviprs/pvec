@@ -10,7 +10,7 @@
 //! fixture the resident bytes carry one term that grows with N. The memory criterion is therefore
 //! asserted as `resident - advanced_set_bytes` for all three fixtures, with `advanced_set_bytes`
 //! recorded per fixture in the results file, until pvec#148 (chunk the advanced set) removes the term
-//! and the plain criterion returns. Mixed and straddler-heavy assert the plain criterion already.
+//! and the plain criterion returns. Mixed and straddler-heavy have no advanced set, so nothing is subtracted from what they pin.
 //!
 //! The cancellation claim is two numbers, not one: `shed_rate = units_discarded / units_superseded`
 //! (superseded work is dropped rather than applied) and `useful_fraction = 1 - units_discarded /
@@ -183,28 +183,23 @@ fn what_a_viewport_pins_does_not_grow_between_100k_and_1m_with_the_advanced_set_
 }
 
 #[test]
-fn mixed_and_straddler_heavy_hold_the_plain_criterion_with_nothing_subtracted() {
+fn mixed_and_straddler_heavy_have_no_advanced_set_so_what_they_pin_is_compared_with_nothing_subtracted() {
     for kind in [Kind::Mixed, Kind::StraddlerHeavy] {
         for scale in scales() {
             let small = harness::measure(kind, SMALL, scale);
             let big = harness::measure(kind, MILLION, scale);
-            assert_eq!(
-                (small.advanced_set_bytes, big.advanced_set_bytes),
-                (0, 0),
-                "{} has no advanced set",
-                kind.name()
-            );
-            // Peak minus the indexes (which are per entity, budgeted above) is the viewport's own cost.
-            let grown = |m: &harness::Measured| m.peak_resident - m.index_bytes;
-            let (s, b) = (grown(&small), grown(&big));
-            // The open reads the directory through a buffer that is a multiple of it, so a small viewport's
-            // peak is that transient, not the viewport: the bound is the slope of the index plus the tolerance.
-            let allowed = s as f64 * (1.0 + RESIDENT_TOLERANCE)
-                + RESIDENT_SLACK
-                + 0.25 * (big.index_bytes - small.index_bytes) as f64;
+            for m in [&small, &big] {
+                assert_eq!(m.advanced_set_bytes, 0, "{} has no advanced set", kind.name());
+                assert_eq!(m.resident_without_advanced(), m.peak_resident);
+            }
+            // `held` is already free of the indexes and of the advanced set. The reader's peak is not
+            // compared between the two sizes: the open reads the directory through a buffer that is
+            // about 1.2 bytes per entity beyond the index, and that transient is the peak of a small
+            // viewport (mixed tight: 77,584 bytes above the index at 100k, 774,352 at 1M).
+            let (s, b) = (small.held as f64, big.held as f64);
             assert!(
-                b as f64 <= allowed,
-                "{} {}: {s} -> {b} bytes (allowed {allowed})",
+                b <= s * (1.0 + RESIDENT_TOLERANCE) + RESIDENT_SLACK,
+                "{} {}: held {s} -> {b} bytes",
                 kind.name(),
                 scale.name()
             );

@@ -29,7 +29,7 @@ advanced_set_bytes`. `advanced_set_bytes` is what reading the set added to the r
 and the coalesced request they arrive in, about 1.7 times their decoded size. It is 51 MB on the 1,000,000
 entity spline-heavy fixture (30 MB of blocks), 0 on the other two. The follow-up that removes the term is
 pvec#148 (chunk the advanced curve set by record block); when it lands the subtraction goes and the plain
-criterion returns. Mixed and straddler-heavy assert the plain criterion with nothing subtracted.
+criterion returns. Mixed and straddler-heavy have no advanced set, so the growth criterion on `held` is asserted with nothing subtracted.
 
 Taking only that term out is not enough on its own, and I want that to be visible: the spatial directory is
 read whole when a file opens (STREAMING chapter 1), it is about 4 bytes per entity, and the reader holds it
@@ -38,6 +38,11 @@ twice (the cached block and the parsed copy). That is the `index bytes` column (
 as a slope (at most 6 bytes per entity) and asserts the growth criterion on `held`, the bytes the viewport pins
 besides the indexes and before the advanced set is read, which stays within 35% plus 64 KiB between the two sizes (worst measured: +23% on the mid viewport; the tight
 one differs by a few blocks at its edge).
+
+The reader's peak itself is not compared between 100,000 and 1,000,000 entities. Opening reads the directory
+through a buffer that costs about 1.2 bytes per entity beyond the index, and that transient is the peak of a small
+viewport (mixed tight: 77,584 bytes above the index at 100k, 774,352 at 1M), so a peak comparison could not tell the
+viewport from the open. The absolute peak is budgeted instead (16 MiB).
 
 ## Cancellation (load shed)
 

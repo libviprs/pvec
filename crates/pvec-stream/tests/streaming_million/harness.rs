@@ -329,11 +329,6 @@ pub fn counts(bytes: &[u8]) -> Counts {
 
 // ---------------------------------------------------------------- the viewport driver
 
-fn window(scale: Scale) -> Aabb {
-    let (o, s) = (2.0 * ROOM, f64::from(scale.side()) * ROOM);
-    bx(o, o, o + s, o + s)
-}
-
 fn query(window: Aabb) -> ViewportQuery {
     ViewportQuery::new(window, 1000.0 / (window.max()[0] - window.min()[0]))
 }
@@ -412,7 +407,8 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
 
     let acct = r.accountant();
     let (requests0, work0, live_open) = (r.source().requests().len(), acct.work(), acct.live());
-    let win = window(scale);
+    let (o, side) = (2.0 * ROOM, f64::from(scale.side()) * ROOM);
+    let win = bx(o, o, o + side, o + side);
     let t1 = Instant::now();
     let plan = query(win).plan(&dir, &r, &no_margin()).expect("plan");
     let mut ids = plan.block_ids();
