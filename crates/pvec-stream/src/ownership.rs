@@ -598,33 +598,34 @@ pub fn scan_payloads<S: BlockSource>(
     Ok(out)
 }
 
-/// Every advanced curve of the file, in record order (ascending entity id), each as a reference to its
-/// row of the record block. The advanced set stays one set in cell 0, because a composite names other
-/// records of its own block; what a cell gets is a reference to the row, like a hot payload, and a
-/// reader that finds such a row in a viewport fetches the whole set once ([`advanced_rows`]). Empty when
-/// the file has no advanced curves.
+/// Every advanced curve of the file, chunk by chunk and in row order within a chunk (ascending entity
+/// id), each as a reference to its row of its chunk's record block. A chunk is whole, because a composite
+/// and everything it names are in one chunk; what a cell gets is a reference to the row, like a hot
+/// payload, and a reader that finds such a row in a viewport fetches that chunk once ([`advanced_rows`]).
+/// Empty when the file has no advanced curves.
 pub fn scan_advanced<S: BlockSource>(
     reader: &ContainerReader<S>,
 ) -> Result<Vec<PayloadSlot>, OwnershipError> {
-    let Some(set) = reader.advanced()? else { return Ok(Vec::new()) };
-    let records = reader.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Records)).ok_or(
-        OwnershipError::Block { block: 0, reason: "the file has advanced curves and no record block" },
-    )?;
-    let view = set.view()?;
-    let mut out = Vec::with_capacity(view.len());
-    for row in 0..view.len() {
-        let rec = view
-            .record(row)
-            .ok_or(OwnershipError::Block { block: records as u32, reason: "a record is missing" })?;
-        let id = EntityId::new(rec.id).map_err(|_| OwnershipError::Block {
-            block: records as u32,
-            reason: "an entity id is out of range",
-        })?;
-        out.push(PayloadSlot {
-            id,
-            payload: PayloadRef { block_id: BlockId(records as u32), slot: row as u32 },
-            cell: 0,
-        });
+    let mut out = Vec::new();
+    for (chunk, records) in reader.advanced_record_blocks()?.into_iter().enumerate() {
+        let set = reader
+            .advanced(chunk)?
+            .ok_or(OwnershipError::Block { block: records.0, reason: "a chunk is missing" })?;
+        let view = set.view()?;
+        for row in 0..view.len() {
+            let rec = view
+                .record(row)
+                .ok_or(OwnershipError::Block { block: records.0, reason: "a record is missing" })?;
+            let id = EntityId::new(rec.id).map_err(|_| OwnershipError::Block {
+                block: records.0,
+                reason: "an entity id is out of range",
+            })?;
+            out.push(PayloadSlot {
+                id,
+                payload: PayloadRef { block_id: records, slot: row as u32 },
+                cell: 0,
+            });
+        }
     }
     Ok(out)
 }
@@ -651,24 +652,38 @@ pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> Viewp
     ViewportRefs { raw, refs: all }
 }
 
-/// The rows of the advanced record block that `gathered` names, ascending: when this is not empty the
-/// viewport needs the advanced set (`ContainerReader::advanced`), and which curves of it are in view is
-/// these rows. A row past the end of the record block, or a reference into a block that is neither hot nor
-/// the record block, is refused (OWN-08). This reads no block.
+/// The rows of the advanced record blocks that `gathered` names, grouped by chunk: `(chunk, rows)`, chunks
+/// ascending and rows ascending in each. A chunk in the list is one to fetch with
+/// `ContainerReader::advanced(chunk)`, and which of its curves are in view is its rows. A row past the end
+/// of its record block, or a reference into a block that is neither hot nor a record block, is refused
+/// (OWN-08). This reads no block.
 pub fn advanced_rows<S: BlockSource>(
     reader: &ContainerReader<S>,
     gathered: &ViewportRefs,
-) -> Result<Vec<u32>, OwnershipError> {
-    let mut rows = Vec::new();
+) -> Result<Vec<(usize, Vec<u32>)>, OwnershipError> {
+    let chunks = reader.advanced_record_blocks()?;
+    let mut rows: Vec<(usize, u32)> = Vec::new();
     for r in &gathered.refs {
         let entry = check_payload(reader.entries(), r)?;
         if entry.block_kind() == Some(BlockKind::Records) {
-            rows.push(r.slot);
+            let chunk = chunks.iter().position(|b| *b == r.block_id).ok_or(OwnershipError::NoPayload {
+                block: r.block_id.0,
+                slot: r.slot,
+                reason: "not a chunk of the advanced set",
+            })?;
+            rows.push((chunk, r.slot));
         }
     }
     rows.sort_unstable();
     rows.dedup();
-    Ok(rows)
+    let mut out: Vec<(usize, Vec<u32>)> = Vec::new();
+    for (chunk, row) in rows {
+        match out.last_mut() {
+            Some((c, v)) if *c == chunk => v.push(row),
+            _ => out.push((chunk, vec![row])),
+        }
+    }
+    Ok(out)
 }
 
 /// The entry a reference names, if it names a row of a hot block or of the record block.

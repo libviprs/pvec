@@ -421,6 +421,10 @@ struct AdvancedItem {
     shape: AdvancedShape,
 }
 
+/// The default size of one chunk of the advanced curves, in bytes of records and arena data
+/// (`docs/STREAMING.md` section 2.8). Like a hot leaf it is tuned against real drawings in P8.6.
+pub const ADVANCED_CHUNK_BYTES: u32 = 64 * 1024;
+
 /// A block ready to be placed.
 struct Planned {
     first_seen: usize,
@@ -444,6 +448,7 @@ pub struct ContainerWriter {
     seq: usize,
     hot: Vec<HotItem>,
     advanced: Vec<AdvancedItem>,
+    advanced_chunk: u32,
     streams: Vec<(usize, Stream)>,
     spatial: Option<SpatialItem>,
     derived: Vec<Derived>,
@@ -545,6 +550,7 @@ impl ContainerWriter {
             seq: 0,
             hot: Vec::new(),
             advanced: Vec::new(),
+            advanced_chunk: ADVANCED_CHUNK_BYTES,
             streams: Vec::new(),
             spatial: None,
             derived: Vec::new(),
@@ -631,7 +637,14 @@ impl ContainerWriter {
         Ok(())
     }
 
-    /// Adds a B-spline. Its cell must be 0: advanced curves share one set of blocks.
+    /// Sets the size, in bytes of record and arena data, at which the advanced curves are cut into
+    /// chunks (default [`ADVANCED_CHUNK_BYTES`]). A composite and every curve it names always share a
+    /// chunk, so one component bigger than this is still one chunk.
+    pub fn advanced_chunk_bytes(&mut self, bytes: u32) {
+        self.advanced_chunk = bytes;
+    }
+
+    /// Adds a B-spline. Its cell must be 0: the advanced curves have no spatial cell.
     pub fn push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), WriteError> {
         let shape = AdvancedShape::Spline {
             degree: spec.degree,
@@ -945,55 +958,106 @@ impl ContainerWriter {
         Ok(out)
     }
 
+    /// The advanced curves as chunks. A composite and everything it names are one component and never
+    /// split; components are ordered by their lowest id and packed into a chunk until it holds
+    /// `advanced_chunk` bytes. Chunk `k` is a record block and five arenas in cell `k`, rows ascending by id.
     fn advanced_blocks(&self) -> Result<Vec<Planned>, WriteError> {
-        let Some(first) = self.advanced.first() else {
+        if self.advanced.is_empty() {
             return Ok(Vec::new());
-        };
-        let mut items: Vec<&AdvancedItem> = self.advanced.iter().collect();
-        // The advanced builder sorts by id itself, so this sort is a second line of defence and is not
-        // what the mutation check relies on (that is the hot path); the writer still owns the order.
-        if self.sorts(SortKey::EntityId) {
-            items.sort_by_key(|i| i.meta.id);
         }
-        let mut builder = AdvancedBuilder::new();
-        for i in &items {
-            let (id, style) = (i.meta.id, i.meta.style);
-            match &i.shape {
-                AdvancedShape::Spline { degree, knots, x, y, weights, closed } => builder.push_spline(
-                    id,
-                    style,
-                    SplineSpec {
-                        degree: *degree,
-                        knots,
-                        x,
-                        y,
-                        weights: weights.as_deref(),
-                        closed: *closed,
-                        periodic: false,
-                    },
-                )?,
-                AdvancedShape::Composite { segments, trims, closed } => {
-                    builder.push_composite(id, style, segments, trims.as_deref(), *closed)?
+        let mut items: Vec<&AdvancedItem> = self.advanced.iter().collect();
+        items.sort_by_key(|i| i.meta.id);
+        let at = |id: EntityId| items.binary_search_by_key(&id, |i| i.meta.id).ok();
+        // union-find over the sorted items; the root of a component is its lowest index
+        let mut parent: Vec<usize> = (0..items.len()).collect();
+        fn root(parent: &mut [usize], mut i: usize) -> usize {
+            while parent[i] != i {
+                parent[i] = parent[parent[i]];
+                i = parent[i];
+            }
+            i
+        }
+        for (i, item) in items.iter().enumerate() {
+            if let AdvancedShape::Composite { segments, .. } = &item.shape {
+                for s in segments.iter().filter_map(|s| at(*s)) {
+                    let (a, b) = (root(&mut parent, i), root(&mut parent, s));
+                    parent[a.max(b)] = a.min(b);
                 }
             }
         }
-        let blocks = builder.finish()?;
-        let s = blocks.slices();
-        let bounds = items.iter().map(|i| i.meta.bounds).reduce(union);
-        let first_seen = first.seq;
-        let mut out = Vec::with_capacity(6);
-        let parts: [(BlockKind, u16, &[u8], Option<Bounds>); 6] = [
-            (BlockKind::Records, 0, s.records, bounds),
-            (BlockKind::Arena, PayloadKind::Knots.id(), s.knots, None),
-            (BlockKind::Arena, PayloadKind::Weights.id(), s.weights, None),
-            (BlockKind::Arena, PayloadKind::ControlPoints.id(), s.control_points, None),
-            (BlockKind::Arena, PayloadKind::Segments.id(), s.segments, None),
-            (BlockKind::Arena, PayloadKind::Trims.id(), s.trims, None),
-        ];
-        for (kind, subtype, bytes, bounds) in parts {
-            // every block of the six starts with its magic, version and kind, then the entry count
-            let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-            out.push(Planned { first_seen, kind, cell: 0, subtype, count, bounds, bytes: bytes.to_vec() });
+        let mut members: Vec<Vec<usize>> = vec![Vec::new(); items.len()];
+        for i in 0..items.len() {
+            let r = root(&mut parent, i);
+            members[r].push(i);
+        }
+        let size = |i: usize| -> u64 {
+            32 + match &items[i].shape {
+                AdvancedShape::Spline { knots, x, weights, .. } => {
+                    8 * (knots.len() + weights.as_ref().map_or(0, Vec::len)) as u64 + 16 * x.len() as u64
+                }
+                AdvancedShape::Composite { segments, trims, .. } => {
+                    4 * segments.len() as u64 + 16 * trims.as_ref().map_or(0, Vec::len) as u64
+                }
+            }
+        };
+        let mut chunks: Vec<Vec<usize>> = Vec::new();
+        let mut filled = 0u64;
+        for component in members.iter().filter(|m| !m.is_empty()) {
+            let bytes: u64 = component.iter().map(|i| size(*i)).sum();
+            match chunks.last_mut() {
+                Some(last) if filled + bytes <= u64::from(self.advanced_chunk) => {
+                    last.extend(component);
+                    filled += bytes;
+                }
+                _ => {
+                    chunks.push(component.clone());
+                    filled = bytes;
+                }
+            }
+        }
+        let mut out = Vec::with_capacity(6 * chunks.len());
+        for (k, mut chunk) in chunks.into_iter().enumerate() {
+            chunk.sort_unstable();
+            let cell = u32::try_from(k).map_err(|_| WriteError::TooLarge)?;
+            let mut builder = AdvancedBuilder::new();
+            for i in &chunk {
+                let (id, style) = (items[*i].meta.id, items[*i].meta.style);
+                match &items[*i].shape {
+                    AdvancedShape::Spline { degree, knots, x, y, weights, closed } => builder.push_spline(
+                        id,
+                        style,
+                        SplineSpec {
+                            degree: *degree,
+                            knots,
+                            x,
+                            y,
+                            weights: weights.as_deref(),
+                            closed: *closed,
+                            periodic: false,
+                        },
+                    )?,
+                    AdvancedShape::Composite { segments, trims, closed } => {
+                        builder.push_composite(id, style, segments, trims.as_deref(), *closed)?
+                    }
+                }
+            }
+            let blocks = builder.finish()?;
+            let s = blocks.slices();
+            let bounds = chunk.iter().map(|i| items[*i].meta.bounds).reduce(union);
+            let first_seen = chunk.iter().map(|i| items[*i].seq).min().unwrap_or(0);
+            let parts: [(BlockKind, u16, &[u8], Option<Bounds>); 6] = [
+                (BlockKind::Records, 0, s.records, bounds),
+                (BlockKind::Arena, PayloadKind::Knots.id(), s.knots, None),
+                (BlockKind::Arena, PayloadKind::Weights.id(), s.weights, None),
+                (BlockKind::Arena, PayloadKind::ControlPoints.id(), s.control_points, None),
+                (BlockKind::Arena, PayloadKind::Segments.id(), s.segments, None),
+                (BlockKind::Arena, PayloadKind::Trims.id(), s.trims, None),
+            ];
+            for (kind, subtype, bytes, bounds) in parts {
+                // every block of the six starts with its magic, version and kind, then the entry count
+                let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+                out.push(Planned { first_seen, kind, cell, subtype, count, bounds, bytes: bytes.to_vec() });
+            }
         }
         Ok(out)
     }
