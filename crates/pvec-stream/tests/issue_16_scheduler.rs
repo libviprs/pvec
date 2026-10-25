@@ -7,8 +7,8 @@
 #![allow(missing_docs)]
 
 use pvec_stream::{
-    Clock, Generation, GenerationClock, Interaction, Job, RefusalReason, Scheduler, SchedulerConfig,
-    Step, priority,
+    Clock, Generation, GenerationClock, Interaction, Job, RefusalReason, Scheduler, SchedulerConfig, Step,
+    priority,
 };
 use std::cell::Cell;
 use std::time::Duration;
@@ -146,10 +146,7 @@ fn issue_16_in_flight_reads_never_exceed_the_cap_over_100_viewport_changes() {
 
 #[test]
 fn issue_16_refusal_is_counted_and_hands_the_job_back() {
-    let mut s = Scheduler::new(
-        SchedulerConfig { max_in_flight_reads: 1, max_queued_cost: us(1000) },
-        g0(),
-    );
+    let mut s = Scheduler::new(SchedulerConfig { max_in_flight_reads: 1, max_queued_cost: us(1000) }, g0());
     let mut refused = Vec::new();
     for i in 0..10 {
         if let Err(r) = s.submit(job(g0(), i, 1, 0.1, us(300))) {
