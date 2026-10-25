@@ -289,7 +289,9 @@ impl File {
             let cps = list(&bs.args[1]).iter().map(|v| self.point(r(v))).collect();
             let knots = File::knots(&wk.args[0], &wk.args[1]);
             let w = list(&rat.args[0]).iter().map(num).collect();
-            return Curve::RationalBSpline(RationalBSpline::new(degree, cps, knots, w).unwrap());
+            let curve = RationalBSpline::new(degree, cps, knots, w).unwrap();
+            let closed = matches!(&bs.args[3], Val::Enum(e) if e == "T");
+            return Curve::RationalBSpline(if closed { curve.declare_closed().unwrap() } else { curve });
         }
         let p = &inst.parts[0];
         match p.name.as_str() {
@@ -312,7 +314,9 @@ impl File {
                 let Val::Int(d) = p.args[1] else { panic!("degree") };
                 let cps: Vec<Point2> = list(&p.args[2]).iter().map(|v| self.point(r(v))).collect();
                 let knots = File::knots(&p.args[6], &p.args[7]);
-                Curve::BSpline(BSpline::new(d as usize, cps, knots).unwrap())
+                let curve = BSpline::new(d as usize, cps, knots).unwrap();
+                let closed = matches!(&p.args[4], Val::Enum(e) if e == "T");
+                Curve::BSpline(if closed { curve.declare_closed().unwrap() } else { curve })
             }
             "TRIMMED_CURVE" => {
                 let basis = self.curve(r(&p.args[1]));

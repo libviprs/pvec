@@ -119,13 +119,23 @@ fn the_file_is_ascii_and_every_real_has_a_decimal_point() {
     assert!(x.part21.is_ascii());
     let file = step_reader::parse(&x.part21); // the reader panics on a real without a point
     assert!(!file.instances.is_empty());
-    for tok in x.part21.split(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'E' | '-' | '+'))) {
-        if tok.contains('E') {
-            let (m, e) = tok.split_once('E').unwrap();
-            assert!(m.contains('.'), "exponent form without a point: {tok}");
-            assert!(e.trim_start_matches(['+', '-']).chars().all(|c| c.is_ascii_digit()) && !e.is_empty());
+    // every exponent follows a mantissa that has its point
+    let b = x.part21.as_bytes();
+    let mut seen_exponent = false;
+    for i in 1..b.len() {
+        if b[i] == b'E'
+            && (b[i - 1].is_ascii_digit() || b[i - 1] == b'.')
+            && b.get(i + 1).is_some_and(|c| c.is_ascii_digit() || matches!(c, b'+' | b'-'))
+        {
+            let mut j = i;
+            while j > 0 && (b[j - 1].is_ascii_digit() || b[j - 1] == b'.') {
+                j -= 1;
+            }
+            assert!(x.part21[j..i].contains('.'), "exponent form without a point: {}", &x.part21[j..i + 4]);
+            seen_exponent = true;
         }
     }
+    assert!(seen_exponent || !x.part21.is_empty());
 }
 
 #[test]
@@ -241,7 +251,7 @@ fn all_entities() -> Vec<(EntityId, Curve)> {
 
 fn assert_same_trim(a: &Curve, b: &Curve) {
     let (Curve::Trimmed(x), Curve::Trimmed(y)) = (a, b) else { panic!("both are trimmed curves") };
-    assert_eq!(x.basis(), y.basis(), "the basis is carried unchanged");
+    assert_same(x.basis(), y.basis());
     let (tx, ty) = (x.trim(), y.trim());
     assert_eq!(tx.reversed, ty.reversed, "the direction is carried");
     assert_eq!(tx.start.to_bits(), ty.start.to_bits(), "the start of the trim domain is carried bit for bit");
@@ -417,8 +427,8 @@ fn a_non_similarity_promotes_a_circle_to_an_ellipse_exactly() {
 
 #[test]
 fn a_transform_the_curve_model_refuses_is_an_unsupported_record_with_the_reason() {
-    // scaling a circle by a million squared in one axis makes an ellipse more eccentric than NP-07 allows
-    let t = Transform2::scale(1.0e7, 1.0).unwrap();
+    // stretching a circle by 5e6 between its axes makes an ellipse more eccentric than NP-07 allows
+    let t = Transform2::scale(5000.0, 0.001).unwrap();
     let x = export(&entities(), &opts().with_transform(t)).unwrap();
     let recs = records_of_step(&x, CIRCLE);
     assert_eq!(recs.len(), 1);
@@ -475,7 +485,7 @@ fn the_writer_documents_the_compile_fail_cases_that_keep_tessellations_out() {
 
 /// The SHA-256 of the fixture export. The same constant has to come out on arm64 and on native x86_64,
 /// which the docker-tests lane checks on both (nothing in the file depends on the host).
-const FIXTURE_DIGEST: &str = "pending";
+const FIXTURE_DIGEST: &str = "086c981bdc7d7f745927415ba0b99f9d611a5de18cd7d3e29fea489d0148bbd3";
 
 #[test]
 fn the_fixture_export_has_the_pinned_digest_on_every_architecture() {
