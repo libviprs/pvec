@@ -64,7 +64,8 @@ fn with_samples(curve: &Curve, edge: Vec<String>, requests: &str, bend: f64) -> 
     }
     for u in us {
         let p = curve.eval(u).unwrap();
-        let t = curve.derivative(u, 1, pvec_geometry::Side::Right).unwrap();
+        let side = if u >= curve.domain().hi() { pvec_geometry::Side::Left } else { pvec_geometry::Side::Right };
+        let t = curve.derivative(u, 1, side).unwrap();
         let n = (t.x * t.x + t.y * t.y).sqrt();
         let _ = writeln!(s, "SAMPLE 0 {u:?} {:?},{:?},{:?},{:?}", p.x, p.y + bend, t.x / n, t.y / n);
     }
@@ -108,10 +109,8 @@ fn a_flipped_knot_multiplicity_is_a_structural_disagreement_with_all_six_fields(
 fn a_dropped_weight_is_a_structural_disagreement() {
     let c = rational(vec![1.0, 0.5, 2.0, 1.0, 1.5]);
     let Curve::RationalBSpline(r) = &c else { unreachable!() };
-    let mut edge = mirror(&Curve::BSpline(pvec_geometry::BSpline::new(r.degree(), r.control_points().to_vec(), r.knots().to_vec()).unwrap()));
-    // the mirror writes unit weights; the rational curve has 0.5, 2.0 and 1.5, so the weights are already
-    // dropped on the evaluator side
-    edge[0] = edge[0].replace("BSplineCurve", "BSplineCurve");
+    let edge = mirror(&Curve::BSpline(pvec_geometry::BSpline::new(r.degree(), r.control_points().to_vec(), r.knots().to_vec()).unwrap()));
+    // the mirror writes unit weights where the rational curve has 0.5, 2.0 and 1.5: the weights are dropped
     let v = judge(RATIONAL, &c, Fidelity::Exact, edge, 0.0);
     assert!(v.structural.iter().any(|d| d.pvec.contains("weight")), "{v:#?}");
 }
@@ -188,7 +187,7 @@ fn image() -> String {
     std::env::var(IMAGE_ENV).unwrap_or_else(|_| EVAL_IMAGE.to_string())
 }
 
-const EVAL_IMAGE: &str = "ghcr.io/libviprs/pvec-step-eval@sha256:0000000000000000000000000000000000000000000000000000000000000000";
+const EVAL_IMAGE: &str = "ghcr.io/libviprs/pvec-step-eval@sha256:006fce189f5c7bd22421507bff590cbdc0bce4012a8def1dbaf4d1e0441c985d";
 
 #[test]
 #[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
