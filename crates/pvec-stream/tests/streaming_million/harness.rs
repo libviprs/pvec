@@ -423,7 +423,7 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
     let drawn: usize = blocks.iter().map(|b| b.hot().map_or(0, |h| h.len())).sum();
     let (peak_before, live_before) = (acct.peak(), acct.live());
 
-    let set = if plan.advanced_in_view { r.advanced().expect("advanced set") } else { None };
+    let set = if plan.advanced_in_view { r.advanced(0).expect("advanced set") } else { None };
     if let Some(set) = &set {
         let view = set.view().expect("view");
         assert_eq!((0..view.len()).filter(|i| view.record(*i).is_some()).count(), view.len());
