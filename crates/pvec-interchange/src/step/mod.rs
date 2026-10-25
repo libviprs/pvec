@@ -10,3 +10,4 @@ mod writer;
 
 pub use mapping::*;
 pub use writer::*;
+pub mod verify;
