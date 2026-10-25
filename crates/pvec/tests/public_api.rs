@@ -138,7 +138,10 @@ fn issue_52_the_crate_denies_missing_docs() {
 #[test]
 fn issue_52_changing_one_parameter_type_turns_the_snapshot_red() {
     let committed = fs::read_to_string(root().join("public-api.txt")).unwrap_or_default();
-    let push = committed.lines().find(|l| l.contains("PvecWriter::push(")).expect("PvecWriter::push is in the snapshot");
+    let push = committed
+        .lines()
+        .find(|l| l.contains("PvecWriter::push("))
+        .expect("PvecWriter::push is in the snapshot");
     let mutated = committed.replace(push, &push.replace("&Curve", "&mut Curve"));
     assert_ne!(mutated, committed, "the mutation must change the snapshot");
 }

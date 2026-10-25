@@ -1,14 +1,14 @@
 //! Issue #52: the same semantic type list under every feature combination of the matrix.
 
 #[allow(unused_imports)]
-use pvec::{
-    Bounds2, CapabilityId, Curve, CurveRef, Domain, EntityId, Manifest, PvecError, PvecReader, PvecWriter,
-    Transform2,
-};
-#[allow(unused_imports)]
 use pvec::components::{
     Fill, HatchStream, LayerStream, LineStyleStream, ProvenanceStream, SemanticClassStream, Skipped, Stream,
     TextStream,
+};
+#[allow(unused_imports)]
+use pvec::{
+    Bounds2, CapabilityId, Curve, CurveRef, Domain, EntityId, Manifest, PvecError, PvecReader, PvecWriter,
+    Transform2,
 };
 
 #[test]
@@ -22,5 +22,7 @@ fn issue_52_the_frozen_core_resolves_under_this_feature_combination() {
 #[test]
 fn issue_52_the_unstable_stream_types_resolve_with_the_feature() {
     #[allow(unused_imports)]
-    use pvec::unstable::{CancelToken, Generation, GenerationClock, ReadPlan, Scene, Tier0Plan, ViewportQuery};
+    use pvec::unstable::{
+        CancelToken, Generation, GenerationClock, ReadPlan, Scene, Tier0Plan, ViewportQuery,
+    };
 }
