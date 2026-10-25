@@ -805,7 +805,7 @@ fn issue_24_no_timestamp_unless_the_caller_gives_one() {
 #[test]
 fn issue_24_no_comparison_or_reader_of_the_artifact_accepts_a_pmtiles_archive() {
     let (_, a) = archive();
-    // the reference reader the conformance work holds readers to
+    // the reference reader that the hostile-container tests use
     let err = pvec_testkit::reference::read(&a).expect_err("the reference reader accepted a PMTiles archive");
     assert!(!format!("{err:?}").is_empty());
     // the container reader's own header parse
