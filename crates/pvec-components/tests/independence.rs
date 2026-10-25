@@ -60,9 +60,13 @@ fn verdict(block: &[u8]) -> Vec<u64> {
 
 fn all_streams(r: &Registry) -> Vec<Stream> {
     vec![
-        LayerStream { names: vec!["WALLS".into()], flags: vec![0], assignments: vec![(id(0), 0), (id(1), 0)] }
-            .into_stream(r)
-            .unwrap(),
+        LayerStream {
+            names: vec!["WALLS".into()],
+            flags: vec![0],
+            assignments: vec![(id(0), 0), (id(1), 0)],
+        }
+        .into_stream(r)
+        .unwrap(),
         LineStyleStream {
             styles: vec![LineStyleDef { name: "DASHED".into(), dashes: vec![4.0, 2.0] }],
             assignments: vec![(id(2), 0)],

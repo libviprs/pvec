@@ -32,7 +32,8 @@ fn issue_119_flags_round_trip_for_every_allowed_combination() {
 
 #[test]
 fn issue_119_the_flags_byte_follows_each_name_in_the_table() {
-    let s = LayerStream { names: vec!["A".into(), "B".into()], flags: vec![5, 2], assignments: vec![(id(3), 1)] };
+    let s =
+        LayerStream { names: vec!["A".into(), "B".into()], flags: vec![5, 2], assignments: vec![(id(3), 1)] };
     let mut want = Vec::new();
     want.extend_from_slice(&2u32.to_le_bytes()); // names
     want.extend_from_slice(&1u32.to_le_bytes()); // assignments
@@ -51,7 +52,11 @@ fn issue_119_a_reserved_bit_is_refused_on_write_and_on_read() {
         let mut b = stream(vec![0]).encode().unwrap();
         let at = 8 + 4 + "SHOWN_L".len();
         b[at] = 1 << bit;
-        assert_eq!(LayerStream::decode(&b).unwrap_err(), ComponentError::ReservedNotZero, "bit {bit} on read");
+        assert_eq!(
+            LayerStream::decode(&b).unwrap_err(),
+            ComponentError::ReservedNotZero,
+            "bit {bit} on read"
+        );
     }
     assert_eq!(ComponentError::ReservedNotZero.rule(), "COMP-12");
 }

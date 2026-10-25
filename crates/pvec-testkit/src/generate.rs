@@ -293,9 +293,9 @@ impl Plan {
             }
         }
         if let Some(l) = &self.layers {
-            let stream = l
-                .into_stream(&Registry::v1())
-                .map_err(|e| self.refuse(None, Cause::Unsupported { what: format!("the layer stream: {e}") }))?;
+            let stream = l.into_stream(&Registry::v1()).map_err(|e| {
+                self.refuse(None, Cause::Unsupported { what: format!("the layer stream: {e}") })
+            })?;
             w.push_stream(stream).map_err(|e| self.refuse(None, Cause::Write(e)))?;
         }
         Ok(w)
@@ -716,7 +716,9 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
             let flags = if *on { 0 } else { LAYER_OFF } | if *frozen { LAYER_FROZEN } else { 0 };
             let at = match layers.names.iter().position(|n| n == name) {
                 Some(i) if layers.flags[i] == flags => i,
-                Some(_) => return Err(cx.unsupported(format!("the layer `{name}` is given two different states"))),
+                Some(_) => {
+                    return Err(cx.unsupported(format!("the layer `{name}` is given two different states")));
+                }
                 None => {
                     layers.names.push(name.clone());
                     layers.flags.push(flags);

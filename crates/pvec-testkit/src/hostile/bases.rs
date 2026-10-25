@@ -104,8 +104,11 @@ fn composites() -> Vec<u8> {
 fn streams() -> Vec<u8> {
     let mut w = writer(config("streams"));
     w.push_line(meta(0), [0.0, 0.0], [3.0, 4.0]).expect("a line");
-    let layers =
-        LayerStream { names: vec!["WALLS".to_string(), "DOORS".to_string()], flags: vec![0, 0], assignments: vec![(id(0), 1)] };
+    let layers = LayerStream {
+        names: vec!["WALLS".to_string(), "DOORS".to_string()],
+        flags: vec![0, 0],
+        assignments: vec![(id(0), 1)],
+    };
     w.push_stream(layers.into_stream(&Registry::v1()).expect("a layer stream")).expect("a stream");
     w.finish().expect("the streams base writes")
 }
