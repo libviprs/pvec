@@ -301,7 +301,7 @@ fn damaged_set(payload: Vec<u8>, with_layer: bool) -> Vec<u8> {
     if with_layer {
         streams.push(Stream {
             capability: ids::LAYER,
-            version: Version::new(1, 0, 0),
+            version: Version::new(2, 0, 0),
             payload: LayerStream { names: vec![], flags: vec![], assignments: vec![] }.encode().unwrap(),
         });
     }

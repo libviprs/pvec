@@ -100,8 +100,8 @@ The corpus spells some capabilities differently from the registry in `crates/pve
 That table (`CORPUS_NAMES` in `registry.rs`) is the only translation, a registry name is also accepted as
 itself, and a name in neither column fails registration naming the fixture and the capability. A geometry
 capability also needs its numbered section in `docs/ISO_PROFILE.md`; without one the fixture fails with the
-capability named. `layer-state-001` exercises no capability: the 2D profile has none for layer state, and the
-manifest says so.
+capability named. `layer-state-001` exercises no geometry capability, and the manifest says so: its layer state
+travels in the layer component stream (2.0, ADR 0014 amendment), which the generator writes.
 
 Two things the corpus and the profile do not line up on, which matter to the tasks this feeds (P2.3 to P2.8):
 

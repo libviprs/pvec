@@ -122,6 +122,8 @@ pub const LAYER_FROZEN: u8 = 2;
 /// Layer flag bit 2: the layer is locked.
 pub const LAYER_LOCKED: u8 = 4;
 
+const LAYER_FLAGS: u8 = LAYER_OFF | LAYER_FROZEN | LAYER_LOCKED;
+
 /// Layer names, the state of each layer and the layer of each entity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayerStream {
@@ -143,11 +145,18 @@ impl LayerStream {
         if self.names.len() > MAX_TABLE || self.assignments.len() > MAX_RECORDS {
             return Err(E::TooMany);
         }
+        if self.flags.len() != self.names.len() {
+            return Err(E::BadCount);
+        }
         let mut w = W::default();
         w.u32(self.names.len() as u32);
         w.u32(self.assignments.len() as u32);
-        for n in &self.names {
+        for (n, f) in self.names.iter().zip(&self.flags) {
+            if f & !LAYER_FLAGS != 0 {
+                return Err(E::ReservedNotZero);
+            }
             w.string(n, MAX_NAME)?;
+            w.0.push(*f);
         }
         for (e, i) in &self.assignments {
             if *i as usize >= self.names.len() {
@@ -159,23 +168,37 @@ impl LayerStream {
         Ok(w.0)
     }
 
-    /// Reads a payload of the given stream version (2.0 layout carries flags, 1.0 reads as all zero).
+    /// Reads a payload written at `version`: the 2.0 layout, or the 1.0 layout (no flags byte), which
+    /// reads as every flag zero. Any other major has no layout here and is refused.
     pub fn decode_at(version: pvec_capabilities::Version, bytes: &[u8]) -> Res<LayerStream> {
-        let _ = version;
-        Self::decode(bytes)
+        match version.major {
+            1 => Self::read(bytes, false),
+            2 => Self::read(bytes, true),
+            _ => Err(E::UnsupportedVersion(version.major)),
+        }
     }
 
-    /// Reads a payload, which must be consumed exactly.
+    /// Reads a 2.0 payload, which must be consumed exactly.
     pub fn decode(bytes: &[u8]) -> Res<LayerStream> {
+        Self::read(bytes, true)
+    }
+
+    fn read(bytes: &[u8], with_flags: bool) -> Res<LayerStream> {
         let mut r = R::new(bytes);
-        let names_n = r.count(MAX_TABLE, 4)?;
+        let names_n = r.count(MAX_TABLE, if with_flags { 5 } else { 4 })?;
         let assign_n = r.u32()? as usize;
         if assign_n > MAX_RECORDS {
             return Err(E::TooMany);
         }
         let mut names = Vec::with_capacity(names_n);
+        let mut flags = Vec::with_capacity(names_n);
         for _ in 0..names_n {
             names.push(r.string(MAX_NAME)?);
+            let f = if with_flags { r.take(1)?[0] } else { 0 };
+            if f & !LAYER_FLAGS != 0 {
+                return Err(E::ReservedNotZero);
+            }
+            flags.push(f);
         }
         if assign_n.checked_mul(8).is_none_or(|need| need > r.left()) {
             return Err(E::Truncated);
@@ -190,7 +213,6 @@ impl LayerStream {
             assignments.push((e, i));
         }
         r.done()?;
-        let flags = vec![0; names.len()];
         Ok(LayerStream { names, flags, assignments })
     }
 

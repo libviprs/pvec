@@ -57,13 +57,19 @@ Each is consumed exactly. Strings are a u32 byte length and UTF-8 bytes, at most
 
 | id | stream | payload |
 |---|---|---|
-| 14 | `layer` | name count, assignment count, the names, then pairs of an entity and a layer index |
+| 14 | `layer` (2.0) | name count, assignment count, then per layer: the name and a flags byte (bit 0 off, bit 1 frozen, bit 2 locked, bits 3 to 7 zero), then pairs of an entity and a layer index |
 | 15 | `line_style` | style count, assignment count, styles (name, dash count at most 16, dashes, each finite and not negative), then pairs of an entity and a style index |
 | 16 | `text` | record count, then per record: entity, x, y, height (positive), rotation, text |
 | 17 | `hatch` | record count, then per record: boundary kind (1, references), boundary count (1 to 4096), the entity ids, fill kind (1 solid with an RGBA word, 2 pattern with a name, an angle, a positive scale and an RGBA word) |
 | 18 | `source_provenance` | record count, then per record: entity, source kind (u16 in a u32), handle length (at most 64), handle bytes |
 | 19 | `dwg_semantics` | opaque: reserved space for future DWG semantics, never interpreted here |
 | 20 | `semantic_class` | element entries, then region records, see below |
+
+The layer flags say what the layer table said and nothing about drawing: whether an off or frozen layer is
+drawn is the consumer's policy. A set bit above bit 2 is refused on write and on read, so the byte cannot
+become a dumping ground. The layer stream is at 2.0 (it was 1.0 without the flags byte). `LayerStream::decode_at`
+reads a 1.0 payload as all-zero flags; the set reader still reports a 1.0 layer stream as skipped for its major
+version, like any other stream from a different major.
 
 A hatch boundary kind other than 1 is refused. Kind 2 is the word an inline curve would use, and it is
 refused as embedded geometry: curve parameters in a hatch stream fail validation.
@@ -113,7 +119,7 @@ query by class.
 | COMP-09 | a layer or style index with no entry |
 | COMP-10 | a hatch that embeds geometry |
 | COMP-11 | an undefined tag |
-| COMP-12 | a reserved field is not zero |
+| COMP-12 | a reserved field is not zero (including a layer flags bit above bit 2) |
 | COMP-13 | a capability the registry does not know |
 | COMP-14 | an entity classified twice |
 | COMP-15 | a confidence on an entry that is not inferred |
@@ -121,6 +127,7 @@ query by class.
 | COMP-17 | a region ring that does not close (validation) |
 | COMP-18 | an entity that appears twice in the rings of one region (validation) |
 | COMP-19 | a closure tolerance that is not finite and non-negative (validation) |
+| COMP-20 | a stream major version the decoder has no layout for |
 
 ## What this does not decide
 

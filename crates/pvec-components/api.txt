@@ -28,6 +28,7 @@ error.rs: ComponentError::ReservedNotZero
 error.rs: ComponentError::UnknownCapability(CapabilityId)
 error.rs: ComponentError::Duplicate(EntityId)
 error.rs: ComponentError::ConfidenceNotAllowed
+error.rs: ComponentError::UnsupportedVersion(u16)
 error.rs: ComponentError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ComponentError
 error.rs: impl std::error::Error for ComponentError {}

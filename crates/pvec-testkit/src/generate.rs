@@ -53,6 +53,7 @@
 
 use crate::detmath;
 use pvec_capabilities::{CapabilityId, Registry};
+use pvec_components::{LAYER_FROZEN, LAYER_OFF, LayerStream};
 use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, Header, LengthUnit, Manifest, Metadata};
 use pvec_corpus::expected::{Entity, EntityClass, Node};
@@ -193,6 +194,7 @@ pub struct Plan {
     corpus_revision: String,
     capabilities: Vec<CapabilityId>,
     ops: Vec<Op>,
+    layers: Option<LayerStream>,
     derived: Vec<Derived>,
     options: WriterOptions,
 }
@@ -289,6 +291,12 @@ impl Plan {
                 }
                 Shape::Curve(c) => w.push_curve(op.id, 0, 0, c).map_err(at)?,
             }
+        }
+        if let Some(l) = &self.layers {
+            let stream = l
+                .into_stream(&Registry::v1())
+                .map_err(|e| self.refuse(None, Cause::Unsupported { what: format!("the layer stream: {e}") }))?;
+            w.push_stream(stream).map_err(|e| self.refuse(None, Cause::Write(e)))?;
         }
         Ok(w)
     }
@@ -689,6 +697,8 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
     want("cartesian_point");
     let mut ops = Vec::with_capacity(math.entities.len());
     let mut derived: Vec<Derived> = Vec::new();
+    let mut layers = LayerStream { names: Vec::new(), flags: Vec::new(), assignments: Vec::new() };
+    let mut pending: Vec<(usize, u32)> = Vec::new();
     for (i, e) in math.entities.iter().enumerate() {
         let cx = Ctx { fixture, entity: &e.id };
         if e.node.get("structure") != Some(&Node::Str("CURVE_ONLY".to_string())) {
@@ -697,11 +707,24 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
                 "the record keeps an instance plus a transform, and the container stores neither; emitting the world-space result would pass a geometry check and fail the structural one",
             ));
         }
-        if e.node.get("layer").is_some() {
-            return Err(cx.missing(
-                "layer (on/frozen state)",
-                "the `layer` capability exists, but its stream stores a name table and an index per entity and has no field for whether a layer is on or frozen, which this record carries",
-            ));
+        if let Some(l) = e.node.get("layer") {
+            let (Some(Node::Str(name)), Some(Node::Bool(on)), Some(Node::Bool(frozen))) =
+                (l.get("name"), l.get("on"), l.get("frozen"))
+            else {
+                return Err(cx.unsupported("the layer block lacks a name, an `on` flag or a `frozen` flag"));
+            };
+            let flags = if *on { 0 } else { LAYER_OFF } | if *frozen { LAYER_FROZEN } else { 0 };
+            let at = match layers.names.iter().position(|n| n == name) {
+                Some(i) if layers.flags[i] == flags => i,
+                Some(_) => return Err(cx.unsupported(format!("the layer `{name}` is given two different states"))),
+                None => {
+                    layers.names.push(name.clone());
+                    layers.flags.push(flags);
+                    layers.names.len() - 1
+                }
+            };
+            pending.push((i, at as u32));
+            want("layer");
         }
         let (shape, needs, mut said) = shape_of(fixture, e)?;
         derived.append(&mut said);
@@ -714,11 +737,13 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
             .ok_or_else(|| cx.unsupported("too many entities for the id space"))?;
         ops.push(Op { id, name: e.id.clone(), shape });
     }
+    layers.assignments = pending.iter().map(|(i, at)| (ops[*i].id, *at)).collect();
     Ok(Plan {
         fixture: fixture.to_string(),
         corpus_revision: corpus_revision.to_string(),
         capabilities: caps,
         ops,
+        layers: (!layers.names.is_empty()).then_some(layers),
         derived,
         options: WriterOptions::default(),
     })

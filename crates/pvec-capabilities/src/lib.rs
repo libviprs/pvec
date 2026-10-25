@@ -813,7 +813,13 @@ impl Registry {
                 "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
         ];
-        Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")
+        let mut registry =
+            Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it");
+        // the layer stream carries a flags byte per layer (issue #119, ADR 0014 amendment)
+        registry
+            .bump_component_version(ids::LAYER, Version::new(2, 0, 0))
+            .expect("the layer stream is a component and 2.0 is above 1.0");
+        registry
     }
 }
 
