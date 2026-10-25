@@ -291,7 +291,7 @@ fn with_advanced(b: &Build) -> (Vec<u8>, Vec<(u32, Aabb)>) {
 }
 
 #[test]
-fn the_advanced_set_stays_one_set_and_its_records_are_found_by_row() {
+fn a_small_advanced_set_is_one_chunk_and_its_records_are_found_by_row() {
     let b = build(lines());
     let (bytes, _) = with_advanced(&b);
     let r = open(bytes);
@@ -320,9 +320,9 @@ fn a_cell_references_the_advanced_curves_that_reach_it_and_a_viewport_names_the_
 
     let left = bx(0.0, 0.0, 1000.0, 600.0);
     let rows = advanced_rows(&r, &gather(&dir, &p.refs, &left)).unwrap();
-    assert_eq!(rows, vec![0, 2], "the left curve and the composite, not the right curve");
+    assert_eq!(rows, vec![(0, vec![0, 2])], "the left curve and the composite, not the right curve");
     let right = bx(3000.0, 0.0, 4000.0, 600.0);
-    assert_eq!(advanced_rows(&r, &gather(&dir, &p.refs, &right)).unwrap(), vec![1, 2]);
+    assert_eq!(advanced_rows(&r, &gather(&dir, &p.refs, &right)).unwrap(), vec![(0, vec![1, 2])]);
     let far = bx(1500.0, 3500.0, 2000.0, 3900.0);
     let g = gather(&dir, &p.refs, &far);
     assert!(advanced_rows(&r, &g).unwrap().is_empty(), "nothing of the advanced set is needed over there");

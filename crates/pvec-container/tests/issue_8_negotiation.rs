@@ -271,7 +271,7 @@ fn skipping_a_block_reads_zero_bytes_of_its_payload() {
     let plan = r.plan(&ids).unwrap();
     assert!(plan.iter().all(|q| !q.blocks.contains(&BlockId(i as u32))), "the plan does not ask for it");
     r.read_blocks(&ids.iter().copied().filter(|b| b.0 as usize != i).collect::<Vec<_>>()).unwrap();
-    let _ = r.advanced().unwrap();
+    let _ = r.advanced(0).unwrap();
     assert!(
         !r.source().touched(offset, len),
         "a request touched the payload of a skipped block: {:?}",

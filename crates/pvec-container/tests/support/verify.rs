@@ -81,8 +81,8 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
     }
 
     let mut ids: BTreeSet<u32> = BTreeSet::new();
-    let mut advanced: Vec<(u16, AlignedBytes)> = Vec::new();
-    let mut record_count = 0;
+    let mut advanced: Vec<((u32, u16), AlignedBytes)> = Vec::new();
+    let mut record_counts: Vec<(u32, usize)> = Vec::new();
     let mut stream_ids: Vec<u32> = Vec::new();
     let mut insert = |id: u32| -> Result<(), String> {
         if ids.insert(id) { Ok(()) } else { Err(format!("entity {id} is in two blocks")) }
@@ -102,9 +102,9 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
             }
             Some(BlockKind::Records) | Some(BlockKind::Arena) => {
                 if e.block_kind() == Some(BlockKind::Records) {
-                    record_count = e.count as usize;
+                    record_counts.push((e.cell, e.count as usize));
                 }
-                advanced.push(((e.kind << 8) | e.subtype, aligned));
+                advanced.push(((e.cell, (e.kind << 8) | e.subtype), aligned));
             }
             Some(BlockKind::Components) => {
                 let reader = Reader { version: Version::new(1, 0, 0), implemented: Vec::new() };
@@ -119,32 +119,32 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
             None => return Err(format!("unknown block kind {}", e.kind)),
         }
     }
-    if !advanced.is_empty() {
-        let get = |k: u16, s: u16| {
-            advanced
-                .iter()
-                .find(|(key, _)| *key == ((k << 8) | s))
-                .map(|(_, b)| b.as_bytes())
-                .ok_or(format!("no block {k}/{s}"))
-        };
-        let slices = BlockSlices {
-            records: get(2, 0)?,
-            knots: get(3, 1)?,
-            weights: get(3, 2)?,
-            control_points: get(3, 3)?,
-            segments: get(3, 4)?,
-            trims: get(3, 5)?,
-        };
-        let view = AdvancedView::parse(slices).map_err(|x| format!("advanced blocks: {x}"))?;
-        view.check_nesting().map_err(|x| format!("nesting: {x}"))?;
-        if view.len() != record_count {
-            return Err("record count differs from the directory".to_string());
-        }
-        for i in 0..view.len() {
-            let id = view.record(i).ok_or("record missing")?.id;
-            insert(id)?;
-            view.curve(i).map_err(|x| format!("curve {i}: {x}"))?;
-        }
+    for (cell, record_count) in record_counts {
+            let get = |k: u16, s: u16| {
+                advanced
+                    .iter()
+                    .find(|(key, _)| *key == (cell, (k << 8) | s))
+                    .map(|(_, b)| b.as_bytes())
+                    .ok_or(format!("no block {k}/{s}"))
+            };
+            let slices = BlockSlices {
+                records: get(2, 0)?,
+                knots: get(3, 1)?,
+                weights: get(3, 2)?,
+                control_points: get(3, 3)?,
+                segments: get(3, 4)?,
+                trims: get(3, 5)?,
+            };
+            let view = AdvancedView::parse(slices).map_err(|x| format!("advanced blocks: {x}"))?;
+            view.check_nesting().map_err(|x| format!("nesting: {x}"))?;
+            if view.len() != record_count {
+                return Err("record count differs from the directory".to_string());
+            }
+            for i in 0..view.len() {
+                let id = view.record(i).ok_or("record missing")?.id;
+                insert(id)?;
+                view.curve(i).map_err(|x| format!("curve {i}: {x}"))?;
+            }
     }
     let wanted: BTreeSet<u32> = input.entities().map(Ent::id).collect();
     if ids != wanted {

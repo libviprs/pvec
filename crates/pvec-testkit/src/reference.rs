@@ -415,8 +415,8 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
     }
 
     let mut entities: Vec<ReadEntity> = Vec::new();
-    let mut advanced: Vec<(u16, AlignedBytes)> = Vec::new();
-    let mut record_count = 0usize;
+    let mut advanced: Vec<((u32, u16), AlignedBytes)> = Vec::new();
+    let mut record_counts: Vec<(u32, usize)> = Vec::new();
     let mut stream_ids: Vec<u32> = Vec::new();
     for e in &entries {
         let raw = slice(bytes, e.offset, u64::from(e.stored_length)).ok_or_else(|| outside("a block"))?;
@@ -456,9 +456,9 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
             }
             Some(BlockKind::Records) | Some(BlockKind::Arena) => {
                 if e.block_kind() == Some(BlockKind::Records) {
-                    record_count = e.count as usize;
+                    record_counts.push((e.cell, e.count as usize));
                 }
-                advanced.push(((e.kind << 8) | e.subtype, aligned));
+                advanced.push(((e.cell, (e.kind << 8) | e.subtype), aligned));
             }
             // the spatial directory is `pvec-stream`'s to validate; here it is a block that decoded
             Some(BlockKind::SpatialDirectory | BlockKind::CellRefs) => {}
@@ -484,55 +484,55 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
             }
         }
     }
-    if !advanced.is_empty() {
-        let records_err =
-            |rule: &str, detail: String| ReadError { stage: Stage::Records, rule: rule.into(), detail };
-        let get = |k: u16, s: u16| {
-            advanced
-                .iter()
-                .find(|(key, _)| *key == ((k << 8) | s))
-                .map(|(_, b)| b.as_bytes())
-                .ok_or_else(|| records_err("CONSIST-04", format!("no block {k}/{s}")))
-        };
-        let slices = BlockSlices {
-            records: get(2, 0)?,
-            knots: get(3, 1)?,
-            weights: get(3, 2)?,
-            control_points: get(3, 3)?,
-            segments: get(3, 4)?,
-            trims: get(3, 5)?,
-        };
-        let arena = |x: pvec_container::blocks::arena::ArenaError| records_err(x.rule(), x.to_string());
-        let view = AdvancedView::parse(slices).map_err(arena)?;
-        if options.check_nesting {
-            view.check_nesting().map_err(arena)?;
-        }
-        if view.len() != record_count {
-            return refuse(Stage::Consistency, "CONSIST-02", "record count differs from the directory");
-        }
-        for i in 0..view.len() {
-            let rec = view.record(i).ok_or_else(|| records_err("ARN-10", "record missing".into()))?;
-            let curve = view.curve(i).map_err(arena)?;
-            entities.push(match curve {
-                CurveView::Spline(s) => ReadEntity::Spline {
-                    id: rec.id,
-                    style: rec.style,
-                    degree: s.degree,
-                    closed: s.closed,
-                    knots: s.knots.to_vec(),
-                    x: s.x.to_vec(),
-                    y: s.y.to_vec(),
-                    weights: s.weights.map(<[f64]>::to_vec),
-                },
-                CurveView::Composite(c) => ReadEntity::Composite {
-                    id: rec.id,
-                    style: rec.style,
-                    closed: c.closed,
-                    segments: c.segments.to_vec(),
-                    trims: c.trims.map(<[f64]>::to_vec),
-                },
-            });
-        }
+    for (cell, record_count) in record_counts {
+            let records_err =
+                |rule: &str, detail: String| ReadError { stage: Stage::Records, rule: rule.into(), detail };
+            let get = |k: u16, s: u16| {
+                advanced
+                    .iter()
+                    .find(|(key, _)| *key == (cell, (k << 8) | s))
+                    .map(|(_, b)| b.as_bytes())
+                    .ok_or_else(|| records_err("CONSIST-04", format!("no block {k}/{s}")))
+            };
+            let slices = BlockSlices {
+                records: get(2, 0)?,
+                knots: get(3, 1)?,
+                weights: get(3, 2)?,
+                control_points: get(3, 3)?,
+                segments: get(3, 4)?,
+                trims: get(3, 5)?,
+            };
+            let arena = |x: pvec_container::blocks::arena::ArenaError| records_err(x.rule(), x.to_string());
+            let view = AdvancedView::parse(slices).map_err(arena)?;
+            if options.check_nesting {
+                view.check_nesting().map_err(arena)?;
+            }
+            if view.len() != record_count {
+                return refuse(Stage::Consistency, "CONSIST-02", "record count differs from the directory");
+            }
+            for i in 0..view.len() {
+                let rec = view.record(i).ok_or_else(|| records_err("ARN-10", "record missing".into()))?;
+                let curve = view.curve(i).map_err(arena)?;
+                entities.push(match curve {
+                    CurveView::Spline(s) => ReadEntity::Spline {
+                        id: rec.id,
+                        style: rec.style,
+                        degree: s.degree,
+                        closed: s.closed,
+                        knots: s.knots.to_vec(),
+                        x: s.x.to_vec(),
+                        y: s.y.to_vec(),
+                        weights: s.weights.map(<[f64]>::to_vec),
+                    },
+                    CurveView::Composite(c) => ReadEntity::Composite {
+                        id: rec.id,
+                        style: rec.style,
+                        closed: c.closed,
+                        segments: c.segments.to_vec(),
+                        trims: c.trims.map(<[f64]>::to_vec),
+                    },
+                });
+            }
     }
     let mut ids: BTreeSet<u32> = BTreeSet::new();
     for e in &entities {

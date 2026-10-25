@@ -155,7 +155,7 @@ fn the_directory_reports_the_union_of_the_chunks_bounds_and_each_chunk_its_own()
         .entries()
         .iter()
         .filter(|e| e.block_kind() == Some(BlockKind::Records))
-        .map(|e| Aabb::from_container(e.bounds.unwrap()).unwrap())
+        .map(|e| { let b = e.bounds.unwrap(); Aabb::new(b.min, b.max).unwrap() })
         .collect();
     assert_eq!(per_chunk.len(), 5);
     assert!(per_chunk.iter().any(|b| *b != dir.advanced_bounds().unwrap()), "the chunks differ");

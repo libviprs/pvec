@@ -113,18 +113,21 @@ fn a_composite_and_everything_it_names_are_in_one_chunk() {
 }
 
 #[test]
-fn a_chunk_is_a_record_block_and_five_arenas_in_one_run() {
+fn a_chunk_is_a_record_block_and_five_arenas_in_one_cell_and_the_arenas_are_one_run() {
     let r = open(writer(&ids()).finish().unwrap());
     let rec = records(&r);
     for (c, at) in rec.iter().enumerate() {
-        let run = &r.entries()[*at..*at + 6];
-        assert_eq!(run[0].block_kind(), Some(BlockKind::Records));
-        assert!(run[1..].iter().all(|e| e.block_kind() == Some(BlockKind::Arena) && e.cell == run[0].cell));
-        let subtypes: Vec<u16> = run[1..].iter().map(|e| e.subtype).collect();
-        assert_eq!(subtypes, vec![1, 2, 3, 4, 5], "chunk {c}");
-        for w in run.windows(2) {
+        let cell = r.entries()[*at].cell;
+        assert_eq!(cell as usize, c, "chunk k is in cell k");
+        let arenas: Vec<_> = r
+            .entries()
+            .iter()
+            .filter(|e| e.block_kind() == Some(BlockKind::Arena) && e.cell == cell)
+            .collect();
+        assert_eq!(arenas.iter().map(|e| e.subtype).collect::<Vec<_>>(), vec![1, 2, 3, 4, 5], "chunk {c}");
+        for w in arenas.windows(2) {
             let end = w[0].offset + u64::from(w[0].stored_length);
-            assert!(w[1].offset >= end && w[1].offset - end < 8, "chunk {c} is not contiguous");
+            assert!(w[1].offset >= end && w[1].offset - end < 8, "chunk {c} arenas are not contiguous");
         }
     }
 }
