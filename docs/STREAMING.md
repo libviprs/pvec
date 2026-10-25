@@ -325,7 +325,7 @@ Congestion metrics for each fixture of the phase 5 set (`local`, `long`, root re
 
 ### 3.7 Out of scope here
 
-Previews (P5.4), read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry. The reference arrays of P5.2 are not a block yet (#131).
+Read planning (P5.5, P5.7), the per-entity references inside a cell (#117), tuning the factor and the page size against real drawings (P8.6), and splitting a long entity into pieces, which would change its identity and its geometry. The reference arrays of P5.2 are not a block yet (#131).
 
 ### 3.8 In the container (issue P5.3b)
 
@@ -338,6 +338,76 @@ The lists are a block of their own kind, `straddlers` (id 7; id 6 is the referen
 **Writer order.** Classify, build the directory over the local entities, write the local entities in their cells and each straddler in the cell `payload_cells` names, lay the file out once to learn the block ids (`scan_payloads`; hot blocks sort before the lists, so their ids do not move when the lists are added), build the lists over those ids, and write the file again with `set_straddler_lists`. P5.2's `place` over the directory of the local entities hands nothing over (section 3.4), and the test asserts it on the written file.
 
 **Reading.** `StraddlerIndex::open` reads the 96 byte header and the page descriptors, which is all a viewport needs to choose pages, and `StraddlerIndex::query` reads the entries of the pages the box touches, neighbouring pages in one range, and checks each payload it returns against the block directory (STR-11: a hot block, in the payload cell of its page, with the slot inside it). A range read is not covered by a whole-block checksum; `validate` and `StraddlerLists::parse` over the whole block are the full check.
+
+## 4. Tier 0: complete first-paint coverage
+
+A reader that paints the cheap entities first leaves holes where the expensive geometry will be, and nobody looking at the screen can tell a missing wall from an absent one. So Tier 0 (issue P5.4, ADR 0007) is defined as complete: every entity of the artifact is in it at first paint, either exactly or as a bounded-error preview that names the entity it stands for. The code is `crates/pvec-stream/src/tiers.rs`.
+
+**Previews are display fidelity only.** A preview is never geometrically or structurally exact, `Preview::is_exact` is always false, and conformance output labels it `display-fidelity` (`Fidelity::label`) and counts it apart from the exact entities (`Tier0Plan::conformance`). Nothing in this chapter claims a preview is mathematically equivalent to its entity.
+
+### 4.1 The plan
+
+`Tier0Plan` assigns every entity one of:
+
+* `Exact`: cheap geometry, emitted in full. That is a full circle, a line segment or circular arc (a trimmed line or circle), and a polyline of at most 64 vertices (`is_cheap_exact`). The geometry itself stays in its hot block (chapter 2 keeps one payload per entity), and the plan names the entity by id, so Tier 0 does not copy it.
+* `Preview`: everything else (ellipse arcs, splines, Bezier curves, composites, long polylines). It carries `replaces`, the entity's own `EntityId`, the `error_bound` the writer measured, the form, and the vertices.
+* declared infeasible (section 4.6), which the artifact lists and does not hide.
+
+`Tier0Builder` takes entities in any order (`add_exact`, `add_preview`, `add_curve`) and `finish` returns the plan. `Tier0Plan::build` is the same thing over an iterator of curves.
+
+### 4.2 The coverage invariant
+
+The set of `EntityId`s reachable from Tier 0, plus the ones declared infeasible, equals the artifact's entity set, and a gap is a writer error: `finish` returns `Tier0Error::Gap` (TIER0-01) naming the smallest missing id, an id twice is `Duplicate` (TIER0-02), an id outside the artifact is `OutOfRange` (TIER0-03). `check_coverage` checks a finished plan against the artifact's id list the same way. A reader runs the same check on a stream (section 4.4), so a file whose Tier 0 has a hole is refused, not painted with the hole.
+
+### 4.3 Previews and their bounds
+
+The form follows the decision of ADR 0007, per curve class. An ellipse arc gets a chord polyline. A spline, Bezier curve or composite gets its control polygon where that is measured to be within the budget, and a chord polyline otherwise. A long polyline gets a Douglas-Peucker simplification of itself, because its control polygon is itself. A control polygon is not a bound by construction (the spike's worst was 9.1 units against a budget of 5.2), so the writer never assumes a form qualifies.
+
+The bound is measured, not derived. `measure_deviation` takes the two-sided maximum distance between the preview and the exact curve: samples of the curve, taken through `pvec-geometry` (the only evaluator), against the preview, and samples of the preview against a dense polyline through the curve. The curve is sampled at least 512 times and 128 times per piece, and at the joints of polylines and composites so a corner is never cut. The preview is measured after its `f32` quantisation. The stored `error_bound` is the measurement times 1.1, plus a sliver for rounding, rounded up to an `f32`. The writer refuses a preview whose bound is over the budget (`Tier0Params::max_error`, in world units), and a consumer reads the bound from the stream and never infers it. The budget is the caller's: 0.5 px at the fit zoom is `0.5 / scale` world units (P1.7). I did not derive a curvature bound for rational splines, so their previews are verified by sampling, which can in principle miss a narrow excursion between samples. The 10% margin is the allowance for that, and it is not a proof.
+
+### 4.4 The stream
+
+All integers are little-endian. The header is 24 bytes:
+
+| offset | size | field |
+|---|---|---|
+| 0 | 4 | magic `PVT0` |
+| 4 | 1 | version, 1 |
+| 5 | 3 | zero |
+| 8 | 4 | entities in the artifact |
+| 12 | 4 | exact runs |
+| 16 | 4 | previews |
+| 20 | 4 | infeasible records |
+
+Then the exact runs (start `u32`, length `u32`, ascending, not touching an earlier run), the previews in ascending order of the entity they replace, and the infeasible records in ascending order. A preview is `replaces` (`u32`), form (`u8`: 0 control polygon, 1 chord polyline), vertex count (`u16`, 1 to 4096), `error_bound` (`f32`), the origin (two `f64`) and the vertices as `f32` offsets from it. An infeasible record is the id and a reason (`u8`: 0 evaluator refused, 1 vertex cap, 2 bound not met).
+
+`Tier0Plan::decode` checks every count against the bytes that remain before it allocates, refuses a stream whose runs, previews and infeasible records do not cover the entities exactly once, and refuses trailing bytes, unknown codes, and a bound that is not finite and above zero. The exact ids are held as runs, so a small stream cannot ask for an allocation the size of its entity count.
+
+### 4.5 Replacement
+
+A preview has no identity of its own: it is `replaces`, the id of the exact entity. `Scene` holds exactly one thing per entity. `Scene::refine(id, curve)` swaps a preview for the exact geometry, so refinement replaces and never overdraws (`drawn` is the entity count before and after). It checks the geometry against the preview's stored bound (`Mismatch`, TIER0-07, if it is further off than that) and is idempotent: refining twice with the same geometry gives the same scene (the second call reports `Unchanged`), different geometry for an entity that is already refined is `Conflict` (TIER0-08), and an entity that went out exact is never changed. Order does not matter. Tagging a replacement with a generation is P5.6, and the order Tier 1 and 2 arrive in is P5.7.
+
+**Delivery.** ADR 0007 decided that Tier 0 is built and delivered per index leaf and not as one global first pass, because a global Tier 0 is nearly the whole artifact. This chapter defines what a Tier 0 stream is and how it is checked. Cutting it per leaf, and putting the stream in a container block, are the work of P5.5 and the tiered plan on top of it, and they build on `Tier0Builder` unchanged.
+
+### 4.6 Infeasibility
+
+An entity for which no bounded preview can be made is named in the plan, with its reason, and the artifact declares it. It is not dropped, and it is not counted in `tier0_entities`. The reasons, all of them:
+
+* `EvaluatorRefused`: the exact evaluator refused the curve under the numeric policy, so there is nothing to measure a preview against.
+* `VertexCap`: no form meets the budget within 4,096 vertices. An ellipse arc a million units wide at a bound of a thousandth of a unit is the test's example.
+* `BoundNotMet`: a preview can be drawn but its measured deviation, after quantisation, is over the budget.
+
+On the fixtures of P1.7 and the generated fixtures of the tests the list is **empty**: no entity is infeasible. A class is infeasible only by one of the reasons above, never by its kind, and every curve kind of the profile has a preview form.
+
+### 4.7 Measurements
+
+`issue_13_the_million_entity_tier0_stays_within_its_byte_and_decode_budget` builds the plan of 1,000,000 entities, 8% of them deferred (the share P1.7 measured on `million`), and reads it back. The 80,477 previews are copies of a few hundred previews verified against the evaluator, re-identified, because verifying 80,000 of them is a writer cost the test does not need to repeat. The budget is stated in the test: 14 MiB and, for decode, 250 ms in a release build (10 s in a debug build).
+
+| | bytes | decode |
+|---|---|---|
+| stream, 1,000,000 entities, 80,477 previews | 12,567,975 (12.0 MiB, about 156 bytes a preview) | 13 ms, release, arm64 (Apple silicon) |
+
+This is the stream of one global Tier 0 for the whole drawing and not the unit a reader fetches (section 4.5), and it does not include the exact geometry the plan names, which is in the hot blocks. Where the x64 numbers are, they are on the pull request.
 
 ## 5. Viewport queries and read plans
 
@@ -360,7 +430,7 @@ Visible requests come first, the one that brings the most visible entities per b
 
 ### 5.3 Budget, metrics, and what the plan does not cover
 
-`tier_budget` caps the bytes of visible requests in one plan. The first request always goes, so a query makes progress even under a budget of zero, requests past the budget move to `deferred` in the order they would have come (the prefetch with them), and `deferred_ranges` and `deferred_bytes` say what was left. P5.4 (tiers) has not landed, so there is no tier selection here: the budget applies to the exact hot blocks, and a tiered plan is that task's to add on top of this one.
+`tier_budget` caps the bytes of visible requests in one plan. The first request always goes, so a query makes progress even under a budget of zero, requests past the budget move to `deferred` in the order they would have come (the prefetch with them), and `deferred_ranges` and `deferred_bytes` say what was left. Tier selection (chapter 4) is not in the plan yet: the budget applies to the exact hot blocks, and a tiered plan is a later task's to add on top of this one.
 
 `PlanMetrics` has a `ClassMetrics` each for visible and prefetch: `ranges`, `bytes_requested`, `bytes_wasted` (the request's length less the stored length of the blocks it holds, which is what the gaps cost), `blocks` and `blocks_cached`. The two classes add up to the bytes the requests span. The advanced curve set is one set in cell 0 that no leaf holds, so it is not in the plan; `advanced_in_view` says when it touches the viewport, and a cell reaches it by reference (section 2.8).
 
