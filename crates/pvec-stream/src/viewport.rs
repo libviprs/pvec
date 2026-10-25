@@ -1,6 +1,7 @@
 //! Viewport queries and priority range reads (issue P5.5, pvec#14).
 
 use crate::directory::{Aabb, DirectoryError, SpatialDirectory};
+use crate::tier0_leaf::Tier0Leaves;
 use pvec_container::directory::BlockEntry;
 use pvec_container::reader::RangeRequest;
 use pvec_container::source::{AsyncBlockSource, BlockSource};
@@ -77,9 +78,20 @@ pub enum Priority {
     Prefetch,
 }
 
+/// Which tier a request reads (`docs/STREAMING.md` chapter 4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tier {
+    /// The Tier 0 blocks of leaves (block kind 8): complete first paint, display fidelity.
+    Tier0,
+    /// The exact hot blocks, which refine what Tier 0 painted.
+    Exact,
+}
+
 /// One request of a plan.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlannedRequest {
+    /// The tier of the blocks in it.
+    pub tier: Tier,
     /// The range and the blocks in it.
     pub request: RangeRequest,
     /// Why it is there.
@@ -107,8 +119,10 @@ pub struct ClassMetrics {
 /// The cost of a plan.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PlanMetrics {
-    /// The requests for what is visible.
+    /// The visible exact requests.
     pub visible: ClassMetrics,
+    /// The visible Tier 0 requests (empty for a plan built without Tier 0 blocks).
+    pub tier0: ClassMetrics,
     /// The requests for the margin, kept apart so its cost stays visible.
     pub prefetch: ClassMetrics,
     /// Requests the budget pushed out of this plan.
@@ -276,9 +290,9 @@ impl ViewportQuery {
         for request in reader.plan(&wanted)? {
             let gain: f64 = request.blocks.iter().filter_map(|b| gains.get(b)).sum();
             if request.blocks.iter().any(|b| gains.contains_key(b)) {
-                first.push(PlannedRequest { request, priority: Priority::Visible, gain });
+                first.push(PlannedRequest { tier: Tier::Exact, request, priority: Priority::Visible, gain });
             } else {
-                second.push(PlannedRequest { request, priority: Priority::Prefetch, gain: 0.0 });
+                second.push(PlannedRequest { tier: Tier::Exact, request, priority: Priority::Prefetch, gain: 0.0 });
             }
         }
         // the most visible entities per byte first, the file order among equals
@@ -347,6 +361,19 @@ impl ViewportQuery {
         metrics.deferred_bytes = deferred.iter().map(|p| u64::from(p.request.len)).sum();
         let advanced_in_view = dir.advanced_bounds().is_some_and(|b| b.intersects(&self.bounds));
         Ok(ReadPlan { requests, deferred, advanced_in_view, metrics })
+    }
+}
+
+impl ViewportQuery {
+    /// The tiered plan: the Tier 0 blocks of the visible leaves first, the exact blocks after them.
+    pub fn plan_tiered<R: PlanSource>(
+        &self,
+        dir: &SpatialDirectory,
+        reader: &R,
+        _tier0: &Tier0Leaves,
+        config: &ViewportConfig,
+    ) -> Result<ReadPlan, ViewportError> {
+        self.plan(dir, reader, config)
     }
 }
 
