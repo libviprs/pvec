@@ -1,0 +1,38 @@
+bounds.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Bounds2
+bounds.rs: Bounds2.min: [f64; 2]
+bounds.rs: Bounds2.max: [f64; 2]
+bounds.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct CurveRef
+bounds.rs: CurveRef.entity: EntityId
+components.rs: pub use pvec_components::{ Fill, HatchStream, LayerStream, LineStyleStream, ProvenanceStream, SemanticClassStream, Skipped, Stream, TextStream, }
+error.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum PvecError
+error.rs: PvecError::Read { rule: String }
+error.rs: PvecError::Write { rule: String }
+error.rs: PvecError::UnknownUnit { metres_per_unit: f64 }
+error.rs: impl fmt::Display for PvecError
+error.rs: impl std::error::Error for PvecError {}
+lib.rs: pub mod components
+lib.rs: pub mod unstable
+lib.rs: pub use bounds::{Bounds2, CurveRef}
+lib.rs: pub use error::PvecError
+lib.rs: pub use manifest::Manifest
+lib.rs: pub use pvec_capabilities::CapabilityId
+lib.rs: pub use pvec_entity::EntityId
+lib.rs: pub use pvec_geometry::{Curve, Domain, Transform2}
+lib.rs: pub use reader::PvecReader
+lib.rs: pub use writer::PvecWriter
+manifest.rs: #[derive(Clone, Debug, PartialEq)] pub struct Manifest
+manifest.rs: Manifest.metres_per_unit: f64
+manifest.rs: Manifest.bounds: Bounds2
+manifest.rs: Manifest.capabilities: Vec<CapabilityId>
+manifest.rs: Manifest.producer_id: String
+manifest.rs: Manifest.producer_version: String
+reader.rs: pub struct PvecReader
+reader.rs: PvecReader::open(bytes: Vec<u8>) -> Result<PvecReader, PvecError>
+reader.rs: PvecReader::manifest(&self) -> &Manifest
+reader.rs: PvecReader::entity_count(&self) -> Result<u64, PvecError>
+writer.rs: #[derive(Debug)] pub struct PvecWriter
+writer.rs: PvecWriter::new(manifest: Manifest) -> Result<PvecWriter, PvecError>
+writer.rs: PvecWriter::push(&mut self, id: EntityId, curve: &Curve) -> Result<(), PvecError>
+writer.rs: PvecWriter::push_composite(&mut self, id: EntityId, segments: &[CurveRef], bounds: Bounds2, closed: bool) -> Result<(), PvecError>
+writer.rs: PvecWriter::components(&mut self, stream: Stream) -> Result<(), PvecError>
+writer.rs: PvecWriter::finish(self) -> Result<Vec<u8>, PvecError>
