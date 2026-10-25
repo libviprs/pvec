@@ -42,7 +42,8 @@ fn the_six_component_streams_are_registered_optional_with_their_own_ids_and_vers
         assert_eq!(c.class, Class::Component, "{name}");
         assert_eq!(c.requirement, Requirement::Optional, "{name} is optional by construction");
         assert!(c.iso_construct.is_empty(), "{name} names no ISO construct");
-        assert_eq!(c.version, Version::new(1, 0, 0), "{name}");
+        let want = if c.id == ids::LINE_STYLE { Version::new(2, 0, 0) } else { Version::new(1, 0, 0) };
+        assert_eq!(c.version, want, "{name}");
     }
 }
 
@@ -269,8 +270,8 @@ fn bumping_any_one_component_leaves_every_geometry_version_and_every_other_compo
     for bumped in ALL {
         let before = reg();
         let mut after = reg();
-        after.bump_component_version(bumped, Version::new(1, 3, 0)).unwrap();
-        assert_eq!(after.get(bumped).unwrap().version, Version::new(1, 3, 0));
+        after.bump_component_version(bumped, Version::new(2, 3, 0)).unwrap();
+        assert_eq!(after.get(bumped).unwrap().version, Version::new(2, 3, 0));
         for (a, b) in before.entries().iter().zip(after.entries()) {
             if a.id != bumped {
                 assert_eq!(a, b, "{} changed when {bumped:?} was bumped", a.name);

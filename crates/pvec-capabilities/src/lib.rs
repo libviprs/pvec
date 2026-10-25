@@ -813,6 +813,11 @@ impl Registry {
                 "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
         ];
+        let mut entries = entries;
+        // line_style is at 2.0.0: width, dash phase and visibility are inline in each style (pvec#125)
+        if let Some(c) = entries.iter_mut().find(|c| c.id == ids::LINE_STYLE) {
+            c.version = Version::new(2, 0, 0);
+        }
         Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")
     }
 }
