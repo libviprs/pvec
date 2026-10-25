@@ -5,15 +5,17 @@
 //! writer and reads it back through a recording source, so what is counted is range reads.
 #![allow(missing_docs)]
 
-use pvec_container::directory::{BlockEntry, BlockKind, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND, STRADDLER_CELL_FIRST};
+use pvec_container::directory::{
+    BlockEntry, BlockKind, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND, STRADDLER_CELL_FIRST,
+};
 use pvec_container::source::{MemorySource, Recording};
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Ellipse, Placement2, Point2, Trimmed, Vector2};
 use pvec_stream::{
-    Aabb, EntityBox, Preview, PreviewForm, SpatialDirectory, Tier0Builder, Tier0Error, Tier0Leaves, Tier0Params,
-    Tier0Plan, build_directory, tier0_blocks,
+    Aabb, EntityBox, Preview, PreviewForm, SpatialDirectory, Tier0Builder, Tier0Error, Tier0Leaves,
+    Tier0Params, Tier0Plan, build_directory, tier0_blocks,
 };
 use std::collections::BTreeSet;
 
@@ -161,9 +163,9 @@ fn a_file_with_tier0_validates_and_has_one_optional_block_per_leaf() {
     }
     // compressed with LZ4 whatever the policy (default: none), and smaller for it
     assert!(entries.iter().all(|(_, e)| e.codec == 0 || e.codec == 1));
-    let (stored, raw): (u64, u64) = entries
-        .iter()
-        .fold((0, 0), |(s, r), (_, e)| (s + u64::from(e.stored_length), r + u64::from(e.uncompressed_length)));
+    let (stored, raw): (u64, u64) = entries.iter().fold((0, 0), |(s, r), (_, e)| {
+        (s + u64::from(e.stored_length), r + u64::from(e.uncompressed_length))
+    });
     assert!(entries.iter().filter(|(_, e)| e.codec == 1).count() > entries.len() / 2);
     assert!(stored < raw, "{stored} stored of {raw}");
     // the block directory orders blocks by kind and then cell
@@ -186,13 +188,8 @@ fn each_leaf_plan_covers_exactly_its_leaf_and_together_they_are_the_global_plan(
     let (mut exact, mut previews, mut infeasible) = (0, 0, 0);
     let mut seen = BTreeSet::new();
     for cell in dir.query(&dir.bounds()) {
-        let in_leaf: BTreeSet<u32> = w
-            .cells
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| **c == cell.id.get())
-            .map(|(i, _)| i as u32)
-            .collect();
+        let in_leaf: BTreeSet<u32> =
+            w.cells.iter().enumerate().filter(|(_, c)| **c == cell.id.get()).map(|(i, _)| i as u32).collect();
         let got = leaves.tier0(&r, cell.id).unwrap().expect("a plan for the leaf");
         let ids: Vec<EntityId> = in_leaf.iter().map(|i| eid(*i)).collect();
         got.check_covers(&ids).expect("covers the leaf's entity set");
@@ -207,7 +204,10 @@ fn each_leaf_plan_covers_exactly_its_leaf_and_together_they_are_the_global_plan(
         infeasible += got.infeasible().len();
     }
     assert_eq!(seen.len(), ENTITIES as usize);
-    assert_eq!((exact, previews, infeasible), (w.plan.exact_count(), w.plan.previews().len(), w.plan.infeasible().len()));
+    assert_eq!(
+        (exact, previews, infeasible),
+        (w.plan.exact_count(), w.plan.previews().len(), w.plan.infeasible().len())
+    );
     assert_eq!(infeasible, 1, "the impossible arc is declared, not dropped");
 }
 
@@ -412,7 +412,13 @@ fn measurement_million_entities_per_leaf_compressed_or_not() {
             let out = decompress(codec, p, b.bytes.len()).unwrap();
             let _ = Tier0Plan::decode_leaf(&out).unwrap();
         }
-        println!("{:8} stored {:>10} ratio {:.3} fetch+decode {:?}", codec.name(), stored, stored as f64 / raw as f64, t.elapsed());
+        println!(
+            "{:8} stored {:>10} ratio {:.3} fetch+decode {:?}",
+            codec.name(),
+            stored,
+            stored as f64 / raw as f64,
+            t.elapsed()
+        );
     }
 }
 

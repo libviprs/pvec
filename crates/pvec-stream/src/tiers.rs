@@ -212,7 +212,9 @@ impl core::fmt::Display for Tier0Error {
             Tier0Error::NoLeaf(c) => write!(f, "a Tier 0 block is in cell {c}, which is no leaf ({rule})"),
             Tier0Error::BadCell(c) => write!(f, "a Tier 0 block cannot be in cell {c} ({rule})"),
             Tier0Error::DuplicateLeaf(c) => write!(f, "leaf {c} has more than one Tier 0 block ({rule})"),
-            Tier0Error::LeafMismatch(c) => write!(f, "the Tier 0 block of leaf {c} is not its leaf's ({rule})"),
+            Tier0Error::LeafMismatch(c) => {
+                write!(f, "the Tier 0 block of leaf {c} is not its leaf's ({rule})")
+            }
             Tier0Error::Read(e) => write!(f, "the container refused a Tier 0 block: {e} ({rule})"),
         }
     }
@@ -1048,7 +1050,9 @@ impl Tier0Plan {
                 return Err(fmt_err("a leaf stream covers nothing"));
             }
             if let Some(w) = spans.windows(2).find(|w| w[1].0 < w[0].1) {
-                return Err(Tier0Error::Duplicate(EntityId::new(w[1].0 as u32).map_err(|_| Tier0Error::Limit)?));
+                return Err(Tier0Error::Duplicate(
+                    EntityId::new(w[1].0 as u32).map_err(|_| Tier0Error::Limit)?,
+                ));
             }
             return Ok(Tier0Plan { entities, runs, previews, infeasible, partial: true });
         }

@@ -93,7 +93,11 @@ impl Tier0Leaves {
         self.leaves.is_empty()
     }
 
-    fn read<S: BlockSource>(&self, reader: &ContainerReader<S>, leaf: CellId) -> Result<Option<(Tier0Plan, Cell)>, Tier0Error> {
+    fn read<S: BlockSource>(
+        &self,
+        reader: &ContainerReader<S>,
+        leaf: CellId,
+    ) -> Result<Option<(Tier0Plan, Cell)>, Tier0Error> {
         let Some((id, cell)) = self.leaves.get(&leaf.get()) else { return Ok(None) };
         let block = reader.read_block(*id).map_err(|e| Tier0Error::Read(e.to_string()))?;
         Ok(Some((Tier0Plan::decode_leaf(block.as_bytes())?, *cell)))

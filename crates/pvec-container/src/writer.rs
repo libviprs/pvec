@@ -314,7 +314,10 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
     ("WRT-11", "the component stream encoder refused"),
     ("WRT-12", "the manifest refused (the error carries its container error)"),
     ("WRT-13", "the semantic model refused"),
-    ("WRT-14", "a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell"),
+    (
+        "WRT-14",
+        "a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell",
+    ),
 ];
 
 impl fmt::Display for WriteError {
@@ -341,7 +344,9 @@ impl fmt::Display for WriteError {
             WriteError::Stream(e) => write!(f, "{rule}: {e}"),
             WriteError::Container(e) => write!(f, "{rule}: {e}"),
             WriteError::Geometry(e) => write!(f, "{rule}: {e}"),
-            WriteError::Tier0Cell { cell } => write!(f, "{rule}: a Tier 0 block cannot be in cell {cell}, or twice"),
+            WriteError::Tier0Cell { cell } => {
+                write!(f, "{rule}: a Tier 0 block cannot be in cell {cell}, or twice")
+            }
         }
     }
 }
@@ -902,7 +907,9 @@ impl ContainerWriter {
         bounds: Bounds,
         bytes: Vec<u8>,
     ) -> Result<(), WriteError> {
-        if cell == 0 || cell >= crate::directory::STRADDLER_CELL_FIRST || self.tier0.iter().any(|t| t.cell == cell)
+        if cell == 0
+            || cell >= crate::directory::STRADDLER_CELL_FIRST
+            || self.tier0.iter().any(|t| t.cell == cell)
         {
             return Err(WriteError::Tier0Cell { cell });
         }
