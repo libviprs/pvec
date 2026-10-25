@@ -3,7 +3,7 @@
 //! While a read is in flight the user keeps panning, so results arrive for views that no longer exist.
 //! Every unit of work therefore carries the [`Generation`] it was started for, the apply path
 //! (`Scene::apply`) refuses anything older than what it already holds, and a superseded job stops at its
-//! next checkpoint. The design is in `docs/STREAMING.md` section 4.7.
+//! next checkpoint. The design is in `docs/STREAMING.md` section 4.8.
 
 use crate::tiers::Preview;
 use pvec_entity::EntityId;
@@ -135,7 +135,7 @@ impl GenerationClock {
     /// cancelled.
     pub fn advance(&self) -> CancelToken {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        // RED STUB: the superseded token is not cancelled yet.
+        state.flag.store(true, Ordering::Release);
         let next = CancelToken {
             generation: Generation(state.generation.0 + 1),
             flag: Arc::new(AtomicBool::new(false)),
@@ -168,18 +168,29 @@ pub enum JobOutcome<T> {
     },
 }
 
-/// Runs `work` over `units` in order, with a checkpoint before each unit and one after it.
+/// Runs `work` over `units` in order, with a checkpoint before each unit and one after it, so a job
+/// finishes at most [`MAX_UNITS_AFTER_CANCEL`] unit after its token is cancelled and throws that unit's
+/// output away. An error from `work` ends the job and is not counted as a cancel.
 pub fn run_job<U, T, E>(
     token: &CancelToken,
     units: impl IntoIterator<Item = U>,
     mut work: impl FnMut(U) -> Result<T, E>,
 ) -> Result<JobOutcome<T>, E> {
-    // RED STUB: no checkpoint.
     let mut done = Vec::new();
     for u in units {
-        done.push(work(u)?);
+        if token.is_cancelled() {
+            token.counters.jobs_cancelled.fetch_add(1, Ordering::Relaxed);
+            return Ok(JobOutcome::Cancelled { done, discarded: 0 });
+        }
+        let out = work(u)?;
+        if token.is_cancelled() {
+            // The unit that was in flight when the cancel came: its output is for a view that is gone.
+            token.counters.jobs_cancelled.fetch_add(1, Ordering::Relaxed);
+            token.counters.work_discarded.fetch_add(1, Ordering::Relaxed);
+            return Ok(JobOutcome::Cancelled { done, discarded: 1 });
+        }
+        done.push(out);
     }
-    let _ = token;
     Ok(JobOutcome::Complete(done))
 }
 

@@ -368,7 +368,7 @@ tiers.rs: Scene::from_plan(plan: &Tier0Plan) -> Scene
 tiers.rs: Scene::drawn(&self) -> usize
 tiers.rs: Scene::fidelity(&self, id: EntityId) -> Option<Fidelity>
 tiers.rs: Scene::generation(&self) -> Generation
-tiers.rs: Scene::advance(&mut self, _generation: Generation)
+tiers.rs: Scene::advance(&mut self, generation: Generation)
 tiers.rs: Scene::refinement(&self, id: EntityId) -> Option<Refinement>
 tiers.rs: Scene::dropped(&self) -> DropCounts
 tiers.rs: Scene::same_drawing(&self, other: &Scene) -> bool

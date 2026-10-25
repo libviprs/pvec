@@ -8,7 +8,7 @@
 //! reported as exact. The design, the stream layout and the infeasibility list are in
 //! `docs/STREAMING.md` chapter 4.
 
-use crate::generation::{Applied, DropCounts, Generation, Refinement, RefinementResult, Update};
+use crate::generation::{Applied, DropCounts, DropReason, Generation, Refinement, RefinementResult, Update};
 use pvec_entity::{EntityError, EntityId, check_dense};
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
 use pvec_numeric::MAX_ENTITIES;
@@ -1055,8 +1055,8 @@ impl Scene {
         self.generation
     }
     /// A viewport change: results of older generations are refused from now on. Never goes back.
-    pub fn advance(&mut self, _generation: Generation) {
-        // RED STUB
+    pub fn advance(&mut self, generation: Generation) {
+        self.generation = self.generation.max(generation);
     }
     /// How refined what stands for the entity is. `None` for an entity with nothing to draw.
     pub fn refinement(&self, id: EntityId) -> Option<Refinement> {
@@ -1077,17 +1077,33 @@ impl Scene {
     }
     /// Applies a tagged result: the only way a read, decode or refinement result reaches the scene.
     pub fn apply(&mut self, result: RefinementResult) -> Result<Applied, Tier0Error> {
-        // RED STUB: no barrier.
-        match result.update() {
+        let entity = result.entity();
+        if entity.index() >= self.entities {
+            return Err(Tier0Error::Unknown(entity));
+        }
+        // The barrier. Nothing below this point runs for a result of a superseded view, or for one that
+        // would put something less refined over something more refined.
+        if result.generation() < self.generation {
+            self.dropped.stale_generation += 1;
+            return Ok(Applied::Dropped(DropReason::StaleGeneration));
+        }
+        if self.refinement(entity).is_some_and(|held| result.refinement() < held) {
+            self.dropped.stale_refinement += 1;
+            return Ok(Applied::Dropped(DropReason::StaleRefinement));
+        }
+        let applied = match result.update() {
             Update::Preview(p) => {
-                self.slots.insert(p.replaces().index(), Slot::Preview(p.clone()));
-                Ok(Applied::Replaced)
+                let same = matches!(self.slots.get(&entity.index()), Some(Slot::Preview(held)) if held == p);
+                self.slots.insert(entity.index(), Slot::Preview(p.clone()));
+                if same { Applied::Unchanged } else { Applied::Replaced }
             }
-            Update::Exact { entity, curve } => Ok(match self.refine(*entity, curve)? {
+            Update::Exact { entity, curve } => match self.refine(*entity, curve)? {
                 Refined::Replaced => Applied::Replaced,
                 Refined::Unchanged => Applied::Unchanged,
-            }),
-        }
+            },
+        };
+        self.generation = result.generation();
+        Ok(applied)
     }
     /// Replaces the preview of `id` by its exact geometry. The curve must agree with the preview
     /// (within its stored bound). Applying the same refinement again changes nothing.

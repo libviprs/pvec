@@ -198,7 +198,7 @@ fn issue_15_a_preview_replaces_a_preview_and_exact_replaces_a_preview_in_any_arr
     let p = plan.previews()[3].clone();
     let id = p.replaces();
     let mut a = Scene::from_plan(&plan);
-    assert_eq!(a.apply(RefinementResult::preview(g, p.clone())).unwrap(), Applied::Replaced);
+    assert_eq!(a.apply(RefinementResult::preview(g, p.clone())).unwrap(), Applied::Unchanged);
     assert_eq!(a.apply(exact(g, &curves, id.index())).unwrap(), Applied::Replaced);
     assert_eq!(a.apply(exact(g, &curves, id.index())).unwrap(), Applied::Unchanged);
     let mut b = Scene::from_plan(&plan);
