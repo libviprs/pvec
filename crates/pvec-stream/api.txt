@@ -117,6 +117,7 @@ generation.rs: DropCounts::total(&self) -> u64
 lib.rs: pub use directory::*
 lib.rs: pub use generation::*
 lib.rs: pub use ownership::*
+lib.rs: pub use scheduler::*
 lib.rs: pub use straddler::*
 lib.rs: pub use tiers::*
 lib.rs: pub use viewport::*
@@ -194,6 +195,62 @@ ownership.rs: ViewportRefs.refs: Vec<PayloadRef>
 ownership.rs: pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> ViewportRefs
 ownership.rs: pub fn advanced_rows<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs) -> Result<Vec<u32>, OwnershipError>
 ownership.rs: pub fn read_viewport<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs, mut visit: impl FnMut(EntityId, &HotBlockView<'_>, usize)) -> Result<usize, OwnershipError>
+scheduler.rs: pub trait Clock
+scheduler.rs: Clock::now(&self) -> Duration
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Interaction
+scheduler.rs: Interaction::Panning
+scheduler.rs: Interaction::Zooming
+scheduler.rs: Interaction::Idle
+scheduler.rs: pub const W_COVERAGE: f64
+scheduler.rs: pub const W_ERROR: f64
+scheduler.rs: pub const COST_FLOOR: f64
+scheduler.rs: pub const INVISIBLE_FACTOR: f64
+scheduler.rs: pub const ERROR_NEED_CAP: f64
+scheduler.rs: pub const INTERACTIVE_MAX_TIER: u8
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Job
+scheduler.rs: Job.generation: Generation
+scheduler.rs: Job.entity_set: u32
+scheduler.rs: Job.visible: bool
+scheduler.rs: Job.screen_coverage: f64
+scheduler.rs: Job.estimated_cost: Duration
+scheduler.rs: Job.error_need: f64
+scheduler.rs: Job.tier: u8
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Step
+scheduler.rs: Step::Done
+scheduler.rs: Step::Continue
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct SchedulerConfig
+scheduler.rs: SchedulerConfig.max_in_flight_reads: u32
+scheduler.rs: SchedulerConfig.max_queued_cost: Duration
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum RefusalReason
+scheduler.rs: RefusalReason::QueueFull
+scheduler.rs: RefusalReason::ReadsInFlight
+scheduler.rs: RefusalReason::StaleGeneration
+scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Refused
+scheduler.rs: Refused.job: Job
+scheduler.rs: Refused.reason: RefusalReason
+scheduler.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct SchedulerMetrics
+scheduler.rs: SchedulerMetrics.admitted: u64
+scheduler.rs: SchedulerMetrics.refused_queue: u64
+scheduler.rs: SchedulerMetrics.refused_reads: u64
+scheduler.rs: SchedulerMetrics.refused_stale: u64
+scheduler.rs: SchedulerMetrics.cancelled: u64
+scheduler.rs: SchedulerMetrics.completed: u64
+scheduler.rs: pub fn priority(job: &Job, interaction: Interaction) -> f64
+scheduler.rs: impl Ord for Entry
+scheduler.rs: impl PartialOrd for Entry
+scheduler.rs: impl PartialEq for Entry
+scheduler.rs: impl Eq for Entry {}
+scheduler.rs: #[derive(Debug)] pub struct Scheduler
+scheduler.rs: Scheduler::new(config: SchedulerConfig, generation: Generation) -> Scheduler
+scheduler.rs: Scheduler::advance(&mut self, generation: Generation)
+scheduler.rs: Scheduler::set_interaction(&mut self, interaction: Interaction)
+scheduler.rs: Scheduler::submit(&mut self, job: Job) -> Result<(), Refused>
+scheduler.rs: Scheduler::try_begin_read(&mut self) -> Result<(), RefusalReason>
+scheduler.rs: Scheduler::finish_read(&mut self)
+scheduler.rs: Scheduler::run_slice(&mut self, budget: Duration, clock: &impl Clock, mut run: impl FnMut(&Job) -> Step)
+scheduler.rs: Scheduler::queued(&self) -> usize
+scheduler.rs: Scheduler::in_flight_reads(&self) -> u32
+scheduler.rs: Scheduler::metrics(&self) -> SchedulerMetrics
 straddler.rs: pub const STRADDLER_FACTOR: f64
 straddler.rs: pub const STRADDLER_HEADER_LEN: usize
 straddler.rs: pub const PAGE_LEN: usize

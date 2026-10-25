@@ -1,6 +1,16 @@
-//! Bounded CPU scheduler (issue P5.7, pvec#16). Stub: the types and signatures only, bodies land with the fix.
+//! Bounded CPU scheduler (issue P5.7, pvec#16).
+//!
+//! Work is ordered by tier first (complete Tier 0 coverage before any deeper refinement), then by a score
+//! of what the job buys per unit of cost: `(W_COVERAGE * coverage + W_ERROR * error_need) / (cost +
+//! COST_FLOOR)`, scaled down by `INVISIBLE_FACTOR` when the set is off screen. While the camera moves,
+//! jobs deeper than `INTERACTIVE_MAX_TIER` are held, not dropped. `run_slice` performs whole jobs (or
+//! resumable chunks) and starts none whose estimate exceeds the time left, so it overshoots only by the
+//! estimate error of the last job. Admission is capped on queued cost and on in-flight reads, and every
+//! refusal is counted and hands the job back. All weights are placeholders until P8.6 tunes them.
 
 use crate::Generation;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::time::Duration;
 
 /// A monotonic clock the host injects, so tests never depend on wall-clock time.
@@ -109,60 +119,166 @@ pub struct SchedulerMetrics {
 
 /// The priority of a job: higher runs sooner. Zero means held under this interaction state.
 pub fn priority(job: &Job, interaction: Interaction) -> f64 {
-    let _ = (job, interaction);
-    unimplemented!("P5.7")
+    if interaction != Interaction::Idle && job.tier > INTERACTIVE_MAX_TIER {
+        return 0.0;
+    }
+    let need = W_COVERAGE * job.screen_coverage + W_ERROR * job.error_need.min(ERROR_NEED_CAP);
+    let visible = if job.visible { 1.0 } else { INVISIBLE_FACTOR };
+    visible * need / (job.estimated_cost.as_secs_f64() + COST_FLOOR)
 }
+
+#[derive(Debug)]
+struct Entry {
+    job: Job,
+    score: f64,
+    seq: u64,
+}
+
+impl Ord for Entry {
+    fn cmp(&self, other: &Entry) -> Ordering {
+        other
+            .job
+            .tier
+            .cmp(&self.job.tier)
+            .then(self.score.total_cmp(&other.score))
+            .then(other.seq.cmp(&self.seq))
+    }
+}
+
+impl PartialOrd for Entry {
+    fn partial_cmp(&self, other: &Entry) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Entry) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Entry {}
 
 /// The scheduler.
 #[derive(Debug)]
 pub struct Scheduler {
-    _config: SchedulerConfig,
+    config: SchedulerConfig,
+    generation: Generation,
+    interaction: Interaction,
+    queue: BinaryHeap<Entry>,
+    queued_cost: Duration,
+    reads: u32,
+    seq: u64,
+    metrics: SchedulerMetrics,
 }
 
 impl Scheduler {
     /// A scheduler with the given caps, at the given generation.
     pub fn new(config: SchedulerConfig, generation: Generation) -> Scheduler {
-        let _ = generation;
-        Scheduler { _config: config }
+        Scheduler {
+            config,
+            generation,
+            interaction: Interaction::Idle,
+            queue: BinaryHeap::new(),
+            queued_cost: Duration::ZERO,
+            reads: 0,
+            seq: 0,
+            metrics: SchedulerMetrics::default(),
+        }
     }
     /// Begin a newer generation: queued older jobs are dropped and counted.
     pub fn advance(&mut self, generation: Generation) {
-        let _ = generation;
-        unimplemented!("P5.7")
+        if generation <= self.generation {
+            return;
+        }
+        self.generation = generation;
+        let all = std::mem::take(&mut self.queue).into_vec();
+        for e in all {
+            if e.job.generation < generation {
+                self.metrics.cancelled += 1;
+                self.queued_cost -= e.job.estimated_cost;
+            } else {
+                self.queue.push(e);
+            }
+        }
     }
     /// Set the interaction state.
     pub fn set_interaction(&mut self, interaction: Interaction) {
-        let _ = interaction;
-        unimplemented!("P5.7")
+        self.interaction = interaction;
     }
     /// Admit a job or hand it back.
     pub fn submit(&mut self, job: Job) -> Result<(), Refused> {
-        let _ = job;
-        unimplemented!("P5.7")
+        if job.generation < self.generation {
+            self.metrics.refused_stale += 1;
+            return Err(Refused { job, reason: RefusalReason::StaleGeneration });
+        }
+        if self.queued_cost + job.estimated_cost > self.config.max_queued_cost {
+            self.metrics.refused_queue += 1;
+            return Err(Refused { job, reason: RefusalReason::QueueFull });
+        }
+        self.queued_cost += job.estimated_cost;
+        self.metrics.admitted += 1;
+        self.push(job);
+        Ok(())
+    }
+    fn push(&mut self, job: Job) {
+        self.seq += 1;
+        let score = priority(&job, Interaction::Idle);
+        self.queue.push(Entry { job, score, seq: self.seq });
     }
     /// Claim a read slot.
     pub fn try_begin_read(&mut self) -> Result<(), RefusalReason> {
-        unimplemented!("P5.7")
+        if self.reads >= self.config.max_in_flight_reads {
+            self.metrics.refused_reads += 1;
+            return Err(RefusalReason::ReadsInFlight);
+        }
+        self.reads += 1;
+        Ok(())
     }
     /// Release a read slot.
     pub fn finish_read(&mut self) {
-        unimplemented!("P5.7")
+        self.reads = self.reads.saturating_sub(1);
     }
     /// Run jobs until the budget is spent, starting no job whose estimate exceeds what is left.
-    pub fn run_slice(&mut self, budget: Duration, clock: &impl Clock, run: impl FnMut(&Job) -> Step) {
-        let _ = (budget, clock, run);
-        unimplemented!("P5.7")
+    ///
+    /// The first job of a slice always runs, so a job costlier than the budget cannot starve.
+    pub fn run_slice(&mut self, budget: Duration, clock: &impl Clock, mut run: impl FnMut(&Job) -> Step) {
+        let start = clock.now();
+        let mut ran = false;
+        loop {
+            let elapsed = clock.now().saturating_sub(start);
+            if elapsed >= budget {
+                break;
+            }
+            let Some(top) = self.queue.peek() else { break };
+            // Tier is the primary key, so if the best job is held every other job is held too.
+            if priority(&top.job, self.interaction) == 0.0 {
+                break;
+            }
+            if ran && top.job.estimated_cost > budget - elapsed {
+                break;
+            }
+            let Some(entry) = self.queue.pop() else { break };
+            ran = true;
+            match run(&entry.job) {
+                Step::Done => {
+                    self.queued_cost -= entry.job.estimated_cost;
+                    self.metrics.completed += 1;
+                }
+                Step::Continue => self.queue.push(entry),
+            }
+        }
     }
     /// Jobs still queued, held ones included.
     pub fn queued(&self) -> usize {
-        unimplemented!("P5.7")
+        self.queue.len()
     }
     /// Reads in flight.
     pub fn in_flight_reads(&self) -> u32 {
-        unimplemented!("P5.7")
+        self.reads
     }
     /// The counters.
     pub fn metrics(&self) -> SchedulerMetrics {
-        unimplemented!("P5.7")
+        self.metrics
     }
 }
