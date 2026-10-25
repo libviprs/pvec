@@ -425,13 +425,13 @@ This is the stream of one global Tier 0 for the whole drawing and not the unit a
 
 **Per leaf, and which codec.** `measurement_million_entities_per_leaf_compressed_or_not` in `tests/issue_149_tier0_block.rs` (an `#[ignore]` measurement, release build) builds the same shape of plan, 1,000,000 entities with 8% previews of 3 to 8 vertices, cuts it by the leaves of a directory over a 1,000 by 1,000 grid of boxes (15,625 leaves of 64 entities) and, for each codec, stores every leaf, then decompresses and decodes every leaf. The leaves add up to more than the global stream (7,747,413 bytes against 6,244,333) because each carries a 24 byte header and the exact runs of a leaf are short: a leaf's ids are scattered in id order, and a run is eight bytes however short.
 
-| codec | stored bytes | stored over raw | decompress and decode, all 15,625 leaves | per leaf |
-|---|---|---|---|---|
-| none | 7,747,413 | 1.000 | 86 ms | 5.5 us |
-| lz4 | 6,161,891 | 0.795 | 78 ms | 5.0 us |
-| deflate | 5,161,071 | 0.666 | 369 ms | 23.6 us |
+| codec | stored bytes | stored over raw | decompress and decode all 15,625 leaves, x64 (MARS) | per leaf | same, arm64 (Apple silicon) | per leaf |
+|---|---|---|---|---|---|---|
+| none | 7,747,413 | 1.000 | 7.3 ms | 0.46 us | 86 ms | 5.5 us |
+| lz4 | 6,161,891 | 0.795 | 10.1 ms | 0.65 us | 78 ms | 5.0 us |
+| deflate | 5,161,071 | 0.666 | 81 ms | 5.2 us | 369 ms | 23.6 us |
 
-Measured native arm64 (Apple silicon, release). The x64 rows are on the pull request. LZ4 stores a fifth less than raw at no decode cost (the decode is the same parse, and less is copied), and deflate stores a third less and costs four times as much, which is still 24 microseconds a leaf, so a viewport of fifty leaves would spend about a millisecond. The choice is LZ4, because it is the codec ADR 0006 recommends for anything served over HTTP and because the bytes that deflate saves over it (about 13% of raw) are not worth four times the decode on a path that runs on every pan. The fixture is synthetic, so P8.3 revisits the codec against real drawings, as it does for the other kinds.
+The byte counts are the same on both (they do not depend on the machine). The timings are one release run each, native x64 on MARS and arm64 on the MacBook, which was not idle, so read them as ratios. LZ4 stores a fifth less than raw and costs under a microsecond a leaf on x64 (about 0.2 us more than not compressing); deflate stores a third less and costs about ten times the LZ4 time, 5 us a leaf on x64 and 24 us on arm64, so a viewport of fifty leaves would spend about a quarter of a millisecond on x64 and a millisecond on arm64. The choice is LZ4, because it is the codec ADR 0006 recommends for anything served over HTTP and because the bytes that deflate saves over it (about 13% of raw) are not worth ten times the decode on a path that runs on every pan. The fixture is synthetic, so P8.3 revisits the codec against real drawings, as it does for the other kinds.
 
 
 ### 4.8 Cancellation and refinement generations

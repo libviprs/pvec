@@ -153,7 +153,7 @@ kind of block and per file, and an uncompressed block (codec 0) is always legal.
 | 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |\n\
 | 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |\n\n\
 The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is \
-smaller than it was, so a block that does not shrink stays at codec 0. The Tier 0 blocks (kind 8) are the one kind whose codec the policy does not choose: they are always LZ4, because a leaf's stream is fetched whole in one range and the measurement of `docs/STREAMING.md` section 4.5 (a million entities, 15,625 leaves) stored 0.795 of the raw bytes with LZ4 at no decode cost against 0.666 with deflate at four times the decode time. Both codecs are pure Rust, and the same \
+smaller than it was, so a block that does not shrink stays at codec 0. The Tier 0 blocks (kind 8) are the one kind whose codec the policy does not choose: they are always LZ4, because a leaf's stream is fetched whole in one range and the measurement of `docs/STREAMING.md` section 4.7 (a million entities, 15,625 leaves) stored 0.795 of the raw bytes with LZ4 at under a microsecond a leaf against 0.666 with deflate at about ten times the LZ4 decode time. Both codecs are pure Rust, and the same \
 input gives the same bytes for the version of the codec crate that `Cargo.lock` pins and the same pointer width (LZ4's \
 match finder differs on 32-bit targets, so a wasm32 writer's LZ4 is not a 64-bit writer's, and deflate has no such \
 difference); a compressed artifact is canonical for that version and width, and a change of codec version is a change \

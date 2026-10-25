@@ -56,6 +56,6 @@ block kind: `tier0`, id 8, one block for each leaf of the spatial directory with
 `count` to the entities it covers and `bounds` to the leaf's. The stream is the Tier 0 stream at version 2,
 cut to the leaf. It is optional (an older reader skips it), it is always LZ4, and it has its own refusal
 rules, TIER0-10 to TIER0-14 (`docs/STREAMING.md` section 4.5). The codec was measured and not assumed: on a
-million entities cut into 15,625 leaves, LZ4 stores 0.795 of the raw bytes at no decode cost and deflate
-0.666 at four times the decode cost, so LZ4 (`docs/STREAMING.md` section 4.7). Straddlers are in no leaf and
+million entities cut into 15,625 leaves, LZ4 stores 0.795 of the raw bytes for under a microsecond a leaf and deflate
+0.666 at about ten times the LZ4 decode time, so LZ4 (`docs/STREAMING.md` section 4.7). Straddlers are in no leaf and
 have no Tier 0 block. The tier-aware planner that selects these blocks is #129.
