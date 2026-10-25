@@ -44,3 +44,15 @@ future DWG semantics, is opaque on purpose.
 Move to self-describing payloads if a stream appears whose records cannot be skipped by a length prefix. Move
 the size limits if EPIC N's first real drawing exceeds one of them (the first to watch is the 255 byte layer
 name).
+
+## Amendment 2026-10-25: layer state travels in the layer stream (#119)
+
+The layer stream stored a name table and one index per entity, so a drawing with every entity on an off layer
+converted to an artifact that looked the same as one with everything shown. The panel added one flags byte per
+layer-table entry: bit 0 off, bit 1 frozen, bit 2 locked, the other five bits zero and refused on read and on
+write (COMP-12). The byte is state, not policy: PVec records what the layer table said and the consumer decides
+what to draw. The layer stream moves from 1.0 to 2.0 through `Registry::bump_component_version`, because the
+decoder consumes its payload exactly and a trailing byte is not tolerated. Nothing outside this workspace had
+read layer 1.0, so the bump is a major one, and `LayerStream::decode_at` still reads a 1.0 payload as all-zero
+flags. The geometry capability versions do not move. One panel member dissented on principle, that drawing
+policy should stay out of the format; the closed bit layout is the answer to that.

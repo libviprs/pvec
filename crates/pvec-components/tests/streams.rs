@@ -42,7 +42,11 @@ fn the_six_component_streams_are_registered_optional_with_their_own_ids_and_vers
         assert_eq!(c.class, Class::Component, "{name}");
         assert_eq!(c.requirement, Requirement::Optional, "{name} is optional by construction");
         assert!(c.iso_construct.is_empty(), "{name} names no ISO construct");
-        let want = if c.id == ids::LINE_STYLE { Version::new(2, 0, 0) } else { Version::new(1, 0, 0) };
+        let want = if c.id == ids::LINE_STYLE || c.id == ids::LAYER {
+            Version::new(2, 0, 0)
+        } else {
+            Version::new(1, 0, 0)
+        };
         assert_eq!(c.version, want, "{name}");
     }
 }
@@ -73,8 +77,8 @@ fn no_component_stream_declares_a_geometry_capability_id() {
 fn bumping_a_component_streams_version_leaves_every_geometry_capability_version_unchanged() {
     let before = reg();
     let mut after = reg();
-    after.bump_component_version(ids::LAYER, Version::new(1, 1, 0)).unwrap();
-    assert_eq!(after.get(ids::LAYER).unwrap().version, Version::new(1, 1, 0));
+    after.bump_component_version(ids::LAYER, Version::new(2, 1, 0)).unwrap();
+    assert_eq!(after.get(ids::LAYER).unwrap().version, Version::new(2, 1, 0));
     for (a, b) in before.entries().iter().zip(after.entries()) {
         if a.id != ids::LAYER {
             assert_eq!(a, b, "{} changed", a.name);
@@ -84,16 +88,17 @@ fn bumping_a_component_streams_version_leaves_every_geometry_capability_version_
         assert_eq!(c.version, Version::new(1, 0, 0), "{}", c.name);
     }
     // only a component can be bumped this way, and only upwards
-    assert!(after.bump_component_version(ids::LINE, Version::new(1, 1, 0)).is_err());
+    assert!(after.bump_component_version(ids::LINE, Version::new(2, 1, 0)).is_err());
     assert!(after.bump_component_version(ids::LAYER, Version::new(1, 0, 5)).is_err());
-    assert!(after.bump_component_version(ids::LAYER, Version::new(1, 1, 0)).is_err(), "equal is not a bump");
+    assert!(after.bump_component_version(ids::LAYER, Version::new(2, 1, 0)).is_err(), "equal is not a bump");
     assert!(after.bump_component_version(CapabilityId::new(9999), Version::new(2, 0, 0)).is_err());
 }
 
 // ---------------------------------------------------------------- framing
 
 fn stream(cap: CapabilityId, payload: &[u8]) -> Stream {
-    Stream { capability: cap, version: Version::new(1, 0, 0), payload: payload.to_vec() }
+    let version = reg().get(cap).map_or(Version::new(1, 0, 0), |c| c.version);
+    Stream { capability: cap, version, payload: payload.to_vec() }
 }
 
 /// Bytes before the first frame, from docs/COMPONENT_STREAMS.md.
@@ -138,14 +143,14 @@ fn a_known_stream_the_reader_does_not_implement_is_skipped_too() {
 
 #[test]
 fn a_stream_from_a_newer_major_version_is_skipped_not_misread() {
-    let mut s = stream(ids::LAYER, b"x");
+    let mut s = stream(ids::TEXT, b"x");
     s.version = Version::new(2, 0, 0);
     let b = encode_streams(&[s]).unwrap();
     let opened = read_streams(&b, &reg(), &reader_knowing(&ALL)).unwrap();
     assert!(opened.streams.is_empty());
     assert_eq!(opened.skipped[0].reason, SkipReason::IncompatibleVersion);
     // a newer minor of the same major is read
-    let mut s = stream(ids::LAYER, b"x");
+    let mut s = stream(ids::TEXT, b"x");
     s.version = Version::new(1, 4, 0);
     let opened = read_streams(&encode_streams(&[s]).unwrap(), &reg(), &reader_knowing(&ALL)).unwrap();
     assert_eq!(opened.streams.len(), 1);
