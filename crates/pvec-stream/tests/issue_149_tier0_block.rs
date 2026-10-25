@@ -10,7 +10,7 @@ use pvec_container::source::{MemorySource, Recording};
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
-use pvec_geometry::{Circle, Curve, Ellipse, Placement2, Point2, Trimmed, Vector2};
+use pvec_geometry::{Curve, Ellipse, Placement2, Point2, Trimmed, Vector2};
 use pvec_stream::{
     Aabb, EntityBox, Preview, PreviewForm, SpatialDirectory, Tier0Builder, Tier0Error, Tier0Leaves, Tier0Params,
     Tier0Plan, build_directory, tier0_blocks,
