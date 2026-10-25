@@ -22,8 +22,10 @@ pub const EXACT_POLYLINE_VERTICES: usize = 64;
 
 /// The magic of a Tier 0 stream.
 const MAGIC: [u8; 4] = *b"PVT0";
-/// The stream version.
+/// The stream version of a whole-artifact plan.
 const VERSION: u8 = 1;
+/// The stream version of the plan of one leaf: the same layout, covering some of the artifact's entities.
+const LEAF_VERSION: u8 = 2;
 /// Header: magic, version, three zero bytes, then four little-endian `u32` counts.
 const HEADER_LEN: usize = 24;
 /// Bytes of a preview record before its vertices: id, form, count, bound, origin.
@@ -158,6 +160,16 @@ pub enum Tier0Error {
     Unknown(EntityId),
     /// The exact evaluator refused.
     Geometry(GeometryError),
+    /// A Tier 0 block is in a cell the spatial directory does not have.
+    NoLeaf(u32),
+    /// A Tier 0 block is in cell 0 or in a straddler payload cell.
+    BadCell(u32),
+    /// More than one Tier 0 block for one leaf.
+    DuplicateLeaf(u32),
+    /// A Tier 0 block's entry disagrees with its leaf: the entity count or the bounds.
+    LeafMismatch(u32),
+    /// The container refused to read a Tier 0 block.
+    Read(String),
 }
 
 impl Tier0Error {
@@ -173,6 +185,11 @@ impl Tier0Error {
             Tier0Error::Mismatch(_) => "TIER0-07",
             Tier0Error::Conflict(_) => "TIER0-08",
             Tier0Error::Unknown(_) => "TIER0-09",
+            Tier0Error::NoLeaf(_) => "TIER0-10",
+            Tier0Error::BadCell(_) => "TIER0-11",
+            Tier0Error::DuplicateLeaf(_) => "TIER0-12",
+            Tier0Error::LeafMismatch(_) => "TIER0-13",
+            Tier0Error::Read(_) => "TIER0-14",
             Tier0Error::Geometry(e) => e.rule(),
         }
     }
@@ -192,6 +209,11 @@ impl core::fmt::Display for Tier0Error {
             Tier0Error::Conflict(id) => write!(f, "{id} is already exact with different geometry ({rule})"),
             Tier0Error::Unknown(id) => write!(f, "no entity {id} in the scene ({rule})"),
             Tier0Error::Geometry(e) => write!(f, "the evaluator refused: {e} ({rule})"),
+            Tier0Error::NoLeaf(c) => write!(f, "a Tier 0 block is in cell {c}, which is no leaf ({rule})"),
+            Tier0Error::BadCell(c) => write!(f, "a Tier 0 block cannot be in cell {c} ({rule})"),
+            Tier0Error::DuplicateLeaf(c) => write!(f, "leaf {c} has more than one Tier 0 block ({rule})"),
+            Tier0Error::LeafMismatch(c) => write!(f, "the Tier 0 block of leaf {c} is not its leaf's ({rule})"),
+            Tier0Error::Read(e) => write!(f, "the container refused a Tier 0 block: {e} ({rule})"),
         }
     }
 }
@@ -339,6 +361,8 @@ pub struct Tier0Plan {
     runs: Vec<(u32, u32)>,
     previews: Vec<Preview>,
     infeasible: Vec<Infeasible>,
+    /// Covers the entities of one leaf and not the artifact (stream version 2).
+    partial: bool,
 }
 
 /// Assembles a plan and checks coverage when it finishes.
@@ -437,7 +461,13 @@ impl Tier0Builder {
                 _ => runs.push((id, 1)),
             }
         }
-        Ok(Tier0Plan { entities: self.entities, runs, previews: self.previews, infeasible: self.infeasible })
+        Ok(Tier0Plan {
+            entities: self.entities,
+            runs,
+            previews: self.previews,
+            infeasible: self.infeasible,
+            partial: false,
+        })
     }
 }
 
@@ -777,6 +807,67 @@ impl Tier0Plan {
             }
         }
     }
+    /// The entities this plan has an entry for or declares infeasible: the artifact's for a whole plan, the
+    /// leaf's for the plan of one leaf.
+    pub fn covered(&self) -> usize {
+        self.exact_count() + self.previews.len() + self.infeasible.len()
+    }
+    /// Checks that the plan covers exactly `ids`, in any order: an id with no entry is `Gap`, an id twice
+    /// `Duplicate`, and an entry for an id that is not listed `OutOfRange`.
+    pub fn check_covers(&self, ids: &[EntityId]) -> Result<(), Tier0Error> {
+        let mut sorted = ids.to_vec();
+        sorted.sort_unstable();
+        if let Some(w) = sorted.windows(2).find(|w| w[0] == w[1]) {
+            return Err(Tier0Error::Duplicate(w[0]));
+        }
+        let held = |id: EntityId| {
+            self.entry(id).is_some() || self.infeasible.binary_search_by_key(&id, |i| i.id).is_ok()
+        };
+        if let Some(id) = sorted.iter().copied().find(|id| !held(*id)) {
+            return Err(Tier0Error::Gap(id));
+        }
+        if self.covered() != sorted.len() {
+            let listed = |id: &EntityId| sorted.binary_search(id).is_ok();
+            let stray = self
+                .exact_ids()
+                .chain(self.previews.iter().map(Preview::replaces))
+                .chain(self.infeasible.iter().map(|i| i.id))
+                .find(|id| !listed(id))
+                .ok_or(Tier0Error::Limit)?;
+            return Err(Tier0Error::OutOfRange(stray));
+        }
+        Ok(())
+    }
+    /// The plan of the entities `ids` alone, as one leaf's stream: each entity keeps the entry it has here,
+    /// exact, preview or infeasible. An id this plan has no entry for is `Gap`.
+    pub fn cut(&self, ids: &[EntityId]) -> Result<Tier0Plan, Tier0Error> {
+        let mut sorted = ids.to_vec();
+        sorted.sort_unstable();
+        if let Some(w) = sorted.windows(2).find(|w| w[0] == w[1]) {
+            return Err(Tier0Error::Duplicate(w[0]));
+        }
+        let mut cut = Tier0Plan {
+            entities: self.entities,
+            runs: Vec::new(),
+            previews: Vec::new(),
+            infeasible: Vec::new(),
+            partial: true,
+        };
+        for id in sorted {
+            match self.entry(id) {
+                Some(Tier0Entry::Exact { .. }) => match cut.runs.last_mut() {
+                    Some((start, len)) if *start + *len == id.index() => *len += 1,
+                    _ => cut.runs.push((id.index(), 1)),
+                },
+                Some(Tier0Entry::Preview(p)) => cut.previews.push(p.clone()),
+                None => match self.infeasible.binary_search_by_key(&id, |i| i.id) {
+                    Ok(k) => cut.infeasible.push(self.infeasible[k]),
+                    Err(_) => return Err(Tier0Error::Gap(id)),
+                },
+            }
+        }
+        Ok(cut)
+    }
     /// How many entities go out exact.
     pub fn exact_count(&self) -> usize {
         self.runs.iter().map(|&(_, len)| len as usize).sum()
@@ -827,7 +918,7 @@ impl Tier0Plan {
             + self.infeasible.len() * INFEASIBLE_LEN;
         let mut out = Vec::with_capacity(size);
         out.extend_from_slice(&MAGIC);
-        out.extend_from_slice(&[VERSION, 0, 0, 0]);
+        out.extend_from_slice(&[if self.partial { LEAF_VERSION } else { VERSION }, 0, 0, 0]);
         for n in
             [self.entities, self.runs.len() as u32, self.previews.len() as u32, self.infeasible.len() as u32]
         {
@@ -859,11 +950,22 @@ impl Tier0Plan {
     /// Reads a Tier 0 stream. Every count is checked against the bytes that remain before anything is
     /// allocated, and a stream that does not cover its entities exactly once is refused.
     pub fn decode(bytes: &[u8]) -> Result<Tier0Plan, Tier0Error> {
+        Tier0Plan::parse(bytes, false)
+    }
+    /// Reads the stream of one leaf (version 2, `docs/STREAMING.md` section 4.5): the same records, for the
+    /// entities of the leaf only. Every count is checked against the bytes first, ids must lie in the
+    /// artifact and be listed once, and nothing is said about which entities belong to the leaf: that is
+    /// [`Tier0Plan::check_covers`], against the ids of the leaf's hot blocks. A whole-artifact stream is
+    /// refused here and a leaf stream by [`Tier0Plan::decode`].
+    pub fn decode_leaf(bytes: &[u8]) -> Result<Tier0Plan, Tier0Error> {
+        Tier0Plan::parse(bytes, true)
+    }
+    fn parse(bytes: &[u8], leaf: bool) -> Result<Tier0Plan, Tier0Error> {
         let mut r = Reader { bytes, at: 0 };
         if r.take(4)? != MAGIC {
             return Err(fmt_err("bad magic"));
         }
-        if r.take(1)?[0] != VERSION {
+        if r.take(1)?[0] != if leaf { LEAF_VERSION } else { VERSION } {
             return Err(fmt_err("unknown version"));
         }
         if r.take(3)? != [0, 0, 0] {
@@ -941,6 +1043,15 @@ impl Tier0Plan {
             return Err(fmt_err("trailing bytes"));
         }
         spans.sort_unstable();
+        if leaf {
+            if spans.is_empty() {
+                return Err(fmt_err("a leaf stream covers nothing"));
+            }
+            if let Some(w) = spans.windows(2).find(|w| w[1].0 < w[0].1) {
+                return Err(Tier0Error::Duplicate(EntityId::new(w[1].0 as u32).map_err(|_| Tier0Error::Limit)?));
+            }
+            return Ok(Tier0Plan { entities, runs, previews, infeasible, partial: true });
+        }
         let mut expect = 0u64;
         for (start, end) in spans {
             match start.cmp(&expect) {
@@ -960,7 +1071,7 @@ impl Tier0Plan {
         if expect != u64::from(entities) {
             return Err(Tier0Error::Gap(EntityId::new(expect as u32).map_err(|_| Tier0Error::Limit)?));
         }
-        Ok(Tier0Plan { entities, runs, previews, infeasible })
+        Ok(Tier0Plan { entities, runs, previews, infeasible, partial: leaf })
     }
 }
 

@@ -113,7 +113,7 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
                 stream_ids = opened.skipped.iter().map(|s| s.capability.get()).collect();
             }
             // the spatial directory is `pvec-stream`'s to validate; here it is a block that decoded
-            Some(BlockKind::SpatialDirectory | BlockKind::CellRefs) => {}
+            Some(BlockKind::SpatialDirectory | BlockKind::CellRefs | BlockKind::Tier0) => {}
             // the straddler lists are `pvec-stream`'s to validate, like the directory
             Some(BlockKind::Straddlers) => {}
             None => return Err(format!("unknown block kind {}", e.kind)),

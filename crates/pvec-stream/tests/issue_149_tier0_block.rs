@@ -41,7 +41,7 @@ fn lines(n: u32) -> Vec<EntityBox> {
     (0..n)
         .map(|i| {
             let (x, y) = ((rng.unit() * 10_000.0).round(), (rng.unit() * 10_000.0).round());
-            let (w, h) = ((rng.unit() * 20.0).round(), (rng.unit() * 20.0).round());
+            let (w, h) = (1.0 + (rng.unit() * 20.0).round(), 1.0 + (rng.unit() * 20.0).round());
             EntityBox { id: eid(i), bounds: Aabb::new([x, y], [x + w, y + h]).unwrap() }
         })
         .collect()
@@ -53,7 +53,7 @@ const BUDGET: f64 = 5.0;
 /// An ellipse arc a billion units wide: no bounded preview fits in 4,096 vertices.
 fn impossible() -> Curve {
     let p = Placement2::new(Point2::new(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap();
-    let e = Ellipse::new(p, 1.0e9, 5.0e8).unwrap();
+    let e = Ellipse::new(p, 1_000_000_000.0, 500_000_000.0).unwrap();
     Curve::Trimmed(Trimmed::new(Curve::Ellipse(e), 0.0, 5.0, true).unwrap())
 }
 
@@ -159,6 +159,13 @@ fn a_file_with_tier0_validates_and_has_one_optional_block_per_leaf() {
         assert_ne!(e.cell, 0);
         assert!(e.cell < STRADDLER_CELL_FIRST);
     }
+    // compressed with LZ4 whatever the policy (default: none), and smaller for it
+    assert!(entries.iter().all(|(_, e)| e.codec == 0 || e.codec == 1));
+    let (stored, raw): (u64, u64) = entries
+        .iter()
+        .fold((0, 0), |(s, r), (_, e)| (s + u64::from(e.stored_length), r + u64::from(e.uncompressed_length)));
+    assert!(entries.iter().filter(|(_, e)| e.codec == 1).count() > entries.len() / 2);
+    assert!(stored < raw, "{stored} stored of {raw}");
     // the block directory orders blocks by kind and then cell
     assert!(entries.windows(2).all(|p| p[0].1.cell < p[1].1.cell));
     // each block is its leaf's: cell, entity count and the leaf's bounds
@@ -407,4 +414,33 @@ fn measurement_million_entities_per_leaf_compressed_or_not() {
         }
         println!("{:8} stored {:>10} ratio {:.3} fetch+decode {:?}", codec.name(), stored, stored as f64 / raw as f64, t.elapsed());
     }
+}
+
+#[test]
+fn two_leaves_with_swapped_blocks_pass_the_count_and_fail_the_full_check() {
+    let all = lines(ENTITIES);
+    let built = build_directory(&all).unwrap();
+    let mut blocks = tier0_blocks(&plan(), &all, &built.cells).unwrap();
+    assert_eq!(blocks[2].count, blocks[3].count);
+    let swapped = blocks[3].bytes.clone();
+    blocks[3].bytes = std::mem::replace(&mut blocks[2].bytes, swapped);
+    let mut w = ContainerWriter::new(config());
+    for (e, cell) in all.iter().zip(&built.cells) {
+        let meta = EntityMeta { id: e.id, style: 0, cell: cell.get(), bounds: to_bounds(e.bounds) };
+        w.push_line(meta, e.bounds.min(), e.bounds.max()).unwrap();
+    }
+    w.set_spatial_directory(built.nodes, to_bounds(built.bounds), built.bytes.clone()).unwrap();
+    for b in blocks.iter() {
+        w.push_tier0_leaf(b.cell.get(), b.count, to_bounds(b.bounds), b.bytes.clone()).unwrap();
+    }
+    let r = reader(w.finish().unwrap());
+    let dir = SpatialDirectory::open(&r).unwrap().unwrap();
+    let leaves = Tier0Leaves::new(r.entries(), &dir).unwrap();
+    let cell = blocks[2].cell;
+    assert!(leaves.tier0(&r, cell).is_ok(), "the cheap read only holds the count");
+    let e = leaves.verify(&r, cell).unwrap_err();
+    assert!(matches!(e, Tier0Error::Gap(_)), "{e}");
+    assert_eq!(e.rule(), "TIER0-01");
+    // an untouched leaf verifies
+    assert!(leaves.verify(&r, blocks[10].cell).unwrap().is_some());
 }

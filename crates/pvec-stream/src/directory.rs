@@ -303,7 +303,7 @@ impl Aabb {
             && other.max[1] <= self.max[1]
     }
 
-    fn union(&self, other: &Aabb) -> Aabb {
+    pub(crate) fn union(&self, other: &Aabb) -> Aabb {
         Aabb {
             min: [self.min[0].min(other.min[0]), self.min[1].min(other.min[1])],
             max: [self.max[0].max(other.max[0]), self.max[1].max(other.max[1])],

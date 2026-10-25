@@ -71,14 +71,20 @@ its descriptor alone (chapter 5), fit in the same 64 bytes.\n\n",
             "0",
             "listed entities",
         ),
+        (
+            BlockKind::Tier0,
+            "the Tier 0 stream of one index leaf (`docs/STREAMING.md` section 4.5)",
+            "0",
+            "entities the leaf's Tier 0 covers",
+        ),
     ] {
         s.push_str(&format!("| {} | {} | {} | {} | {} |\n", kind.id(), kind.name(), holds, subtype, count));
     }
     s.push_str(&format!(
         "\nFlag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). \
-Geometry blocks carry it; the component stream set, the spatial directory, the reference arrays and the straddler lists do not, so a reader that does not know them skips them. \
+Geometry blocks carry it; the component stream set, the spatial directory, the reference arrays, the straddler lists and the Tier 0 blocks do not, so a reader that does not know them skips them. \
 Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds \
-the caller gave their entities, the spatial directory carries the box of its root, the straddler lists carry the union of the boxes they list, an arena or a component set carries none and its four bounds are zero. The \
+the caller gave their entities, the spatial directory carries the box of its root, the straddler lists carry the union of the boxes they list, a Tier 0 block carries the bounds of its leaf, an arena or a component set carries none and its four bounds are zero. The \
 codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an \
 optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does \
 not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:\n\n\
@@ -95,7 +101,7 @@ Every order below is decided by the writer from the content, never from the orde
 is one group of entities that share a block kind, a spatial cell id and a geometry type; the writer does \
 not split a group by size (that is tuning, P8.6), so a group is one block.\n\n\
 | key | orders | ascending by |\n|---|---|---|\n\
-| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first, then the spatial directory, the reference arrays and the straddler lists, when there are any, last |\n\
+| block kind | the blocks of the file | the kind id of section 4.2, so hot blocks come first, then the spatial directory, the reference arrays, the straddler lists and the Tier 0 blocks, when there are any, last |\n\
 | spatial cell id | the blocks of one kind | the cell id the caller gave the entity (a leaf of the spatial directory, `docs/STREAMING.md` chapter 1; the writer only orders by it) |\n\
 | geometry type | the blocks of one kind and cell | the hot geometry type or the payload kind |\n\
 | `EntityId` | the entities inside a block | the id, so a block's id column ascends and equal sets of entities give equal columns |\n\
@@ -103,7 +109,7 @@ not split a group by size (that is tuning, P8.6), so a group is one block.\n\n\
 | stream id | the streams of the component set | the capability id, which is the id of a stream (P3.7) |\n\n\
 The advanced curves are one set of six blocks (the record block and the five arenas) in cell 0, because a \
 composite names other records of its own block, so a curve cannot be split from its segments by cell; an \
-advanced curve given another cell is refused. A cell can still reference a curve of the set by the row of the record block (`docs/STREAMING.md` section 2.8), so the set stays whole and a reader still knows which cells need it. Cell 0 means no cell: it is the cell of the advanced set, the component set, the spatial directory and the reference arrays, and the spatial directory reserves it, so no leaf of the directory is cell 0 and a file that carries a spatial directory is refused if a hot block is in cell 0 (`SPD-10`). A hot block written without a spatial directory may still be in cell 0, and the block kind says what a block in cell 0 is. The payloads of the straddler lists are hot blocks too, but no leaf of the directory holds them: they are in the cells from `STRADDLER_CELL_FIRST` (0xF0000000) up, one cell for each page of the lists, and the spatial directory neither numbers a leaf that high (`SPD-09`) nor counts a hot block in such a cell against its leaves (`SPD-10`). The straddler lists are stored as they are, whatever codec the policy names for the other kinds, so a reader fetches their index in one range and a page in another. A reader older than this change skips the lists at this layer, since the block is optional, but its spatial directory refuses a file that has straddler payloads at `SPD-10` (a hot block in a cell the directory does not have), so a writer emits them only for readers that know these cells. The records are in ascending `EntityId` order and the \
+advanced curve given another cell is refused. A cell can still reference a curve of the set by the row of the record block (`docs/STREAMING.md` section 2.8), so the set stays whole and a reader still knows which cells need it. Cell 0 means no cell: it is the cell of the advanced set, the component set, the spatial directory and the reference arrays, and the spatial directory reserves it, so no leaf of the directory is cell 0 and a file that carries a spatial directory is refused if a hot block is in cell 0 (`SPD-10`). A hot block written without a spatial directory may still be in cell 0, and the block kind says what a block in cell 0 is. The payloads of the straddler lists are hot blocks too, but no leaf of the directory holds them: they are in the cells from `STRADDLER_CELL_FIRST` (0xF0000000) up, one cell for each page of the lists, and the spatial directory neither numbers a leaf that high (`SPD-09`) nor counts a hot block in such a cell against its leaves (`SPD-10`). The straddler lists are stored as they are, whatever codec the policy names for the other kinds, so a reader fetches their index in one range and a page in another. A reader older than this change skips the lists at this layer, since the block is optional, but its spatial directory refuses a file that has straddler payloads at `SPD-10` (a hot block in a cell the directory does not have), so a writer emits them only for readers that know these cells. A Tier 0 block is in the cell of its leaf, one block for each leaf, so the blocks of kind 8 ascend by leaf id; cell 0, a straddler payload cell and a second block for one cell are refused by the writer (`WRT-14`). The block is compressed with LZ4 whatever codec the policy names for the other kinds, and stored as it is when that is not smaller (section 4.7). The records are in ascending `EntityId` order and the \
 arenas number their entries in the order the writer first needs them, which is the same order, so shared \
 payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities \
 are those the caller listed plus those of the streams pushed, each once, and each is declared with the \
@@ -147,7 +153,7 @@ kind of block and per file, and an uncompressed block (codec 0) is always legal.
 | 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |\n\
 | 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |\n\n\
 The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is \
-smaller than it was, so a block that does not shrink stays at codec 0. Both codecs are pure Rust, and the same \
+smaller than it was, so a block that does not shrink stays at codec 0. The Tier 0 blocks (kind 8) are the one kind whose codec the policy does not choose: they are always LZ4, because a leaf's stream is fetched whole in one range and the measurement of `docs/STREAMING.md` section 4.5 (a million entities, 15,625 leaves) stored 0.795 of the raw bytes with LZ4 at no decode cost against 0.666 with deflate at four times the decode time. Both codecs are pure Rust, and the same \
 input gives the same bytes for the version of the codec crate that `Cargo.lock` pins and the same pointer width (LZ4's \
 match finder differs on 32-bit targets, so a wasm32 writer's LZ4 is not a 64-bit writer's, and deflate has no such \
 difference); a compressed artifact is canonical for that version and width, and a change of codec version is a change \
