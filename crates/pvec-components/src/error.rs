@@ -107,6 +107,8 @@ pub enum ComponentError {
     Duplicate(EntityId),
     /// A confidence on an entry whose source is not `inferred`.
     ConfidenceNotAllowed,
+    /// A stream major version this decoder has no layout for.
+    UnsupportedVersion(u16),
 }
 
 impl ComponentError {
@@ -128,6 +130,7 @@ impl ComponentError {
             ComponentError::UnknownCapability(_) => "COMP-13",
             ComponentError::Duplicate(_) => "COMP-14",
             ComponentError::ConfidenceNotAllowed => "COMP-15",
+            ComponentError::UnsupportedVersion(_) => "COMP-20",
         }
     }
 }

@@ -19,9 +19,9 @@ mod semantic;
 pub use error::{ComponentError, StreamError};
 pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams};
 pub use payloads::{
-    Fill, HatchRecord, HatchStream, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES,
-    MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream,
-    ReservedStream, StrokeWidth, TextRecord, TextStream,
+    Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef,
+    LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT,
+    ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream,
 };
 pub use semantic::{
     ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord,

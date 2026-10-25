@@ -34,7 +34,11 @@ fn issue_125_the_bump_leaves_every_geometry_version_and_every_other_component_un
     for c in r.entries().iter().filter(|c| c.class == Class::Geometry) {
         assert_eq!(c.version, Version::new(1, 0, 0), "{}", c.name);
     }
-    for c in r.entries().iter().filter(|c| c.class == Class::Component && c.id != ids::LINE_STYLE) {
+    for c in r
+        .entries()
+        .iter()
+        .filter(|c| c.class == Class::Component && c.id != ids::LINE_STYLE && c.id != ids::LAYER)
+    {
         assert_eq!(c.version.major, 1, "{} moved", c.name);
     }
     assert_eq!(r.get(ids::LINE_STYLE).unwrap().version.major, 2);

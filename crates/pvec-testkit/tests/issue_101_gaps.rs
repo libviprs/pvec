@@ -321,15 +321,12 @@ fn the_gaps_that_remain_are_refused_with_the_capability_named_and_nothing_is_app
             other => panic!("{id}: {other:?}"),
         }
     }
-    match &refused["layer-state-001"] {
-        Cause::MissingCapability { capability, .. } => assert_eq!(capability, "layer (on/frozen state)"),
-        other => panic!("{other:?}"),
-    }
+    assert!(!refused.contains_key("layer-state-001"), "layer state travels in the layer stream (#119)");
     assert_eq!(refused["near-singular-001"], Cause::NotEmitted);
     assert_eq!(
         refused.len(),
-        8 + 1 + 3,
-        "eight capability gaps, the deliberate refusal and the three quarantined"
+        7 + 1 + 3,
+        "seven capability gaps, the deliberate refusal and the three quarantined"
     );
 }
 

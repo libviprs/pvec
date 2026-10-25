@@ -818,6 +818,10 @@ impl Registry {
         if let Some(c) = entries.iter_mut().find(|c| c.id == ids::LINE_STYLE) {
             c.version = Version::new(2, 0, 0);
         }
+        // the layer stream carries a flags byte per layer (issue #119, ADR 0014 amendment)
+        if let Some(c) = entries.iter_mut().find(|c| c.id == ids::LAYER) {
+            c.version = Version::new(2, 0, 0);
+        }
         Registry::new(entries, Vec::new()).expect("the built-in registry is valid; a test pins it")
     }
 }

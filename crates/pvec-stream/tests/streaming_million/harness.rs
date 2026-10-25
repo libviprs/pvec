@@ -341,6 +341,8 @@ pub struct Measured {
     pub directory_ready: Duration,
     pub first_drawing: Duration,
     pub ranges: u64,
+    /// Of those, the ranges that read the advanced chunks (one per chunk, or fewer when chunks are adjacent).
+    pub advanced_ranges: u64,
     /// Bytes asked of the source for the viewport (the advanced set included, when it is read).
     pub bytes: u64,
     pub blocks: u64,
@@ -366,6 +368,10 @@ impl Measured {
     /// The panel's quantity (Q11): resident bytes with the advanced set taken out.
     pub fn resident_without_advanced(&self) -> u64 {
         self.peak_resident - self.advanced_set_bytes
+    }
+    /// Range requests besides the advanced chunks, the number the old single-set read was added to.
+    pub fn ranges_without_advanced(&self) -> u64 {
+        self.ranges - self.advanced_ranges
     }
     /// Bytes the viewport asked for besides the advanced set.
     pub fn bytes_without_advanced(&self) -> u64 {
@@ -423,20 +429,24 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
     let drawn: usize = blocks.iter().map(|b| b.hot().map_or(0, |h| h.len())).sum();
     let (peak_before, live_before) = (acct.peak(), acct.live());
 
-    let set = if plan.advanced_in_view { r.advanced(0).expect("advanced set") } else { None };
-    if let Some(set) = &set {
+    // The whole set is read when it touches the viewport (STREAMING 2.8), chunk by chunk.
+    let requests_before_advanced = r.source().requests().len();
+    let chunks = if plan.advanced_in_view { r.advanced_chunk_count().expect("chunk count") } else { 0 };
+    let sets: Vec<_> =
+        (0..chunks).map(|c| r.advanced(c).expect("advanced chunk").expect("chunk exists")).collect();
+    for set in &sets {
         let view = set.view().expect("view");
         assert_eq!((0..view.len()).filter(|i| view.record(*i).is_some()).count(), view.len());
     }
     let first_drawing = t1.elapsed();
-    assert!(drawn > 0 || set.is_some(), "the viewport drew nothing");
+    assert!(drawn > 0 || !sets.is_empty(), "the viewport drew nothing");
 
     let advanced: Vec<_> = r
         .entries()
         .iter()
         .filter(|e| matches!(e.block_kind(), Some(BlockKind::Records | BlockKind::Arena)))
         .collect();
-    let read_advanced = set.is_some();
+    let read_advanced = !sets.is_empty();
     let (advanced_stored, advanced_decoded) = if read_advanced {
         (
             advanced.iter().map(|e| u64::from(e.stored_length)).sum(),
@@ -457,6 +467,7 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
         directory_ready,
         first_drawing,
         ranges: (log.len() - requests0) as u64,
+        advanced_ranges: (log.len() - requests_before_advanced) as u64,
         bytes: log[requests0..].iter().map(|q| u64::from(q.len)).sum(),
         blocks: blocks.len() as u64,
         decode_work: acct.work() - work0,

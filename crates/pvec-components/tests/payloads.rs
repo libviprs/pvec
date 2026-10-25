@@ -12,10 +12,11 @@ fn id(n: u32) -> EntityId {
 fn layer_streams_round_trip_and_check_their_indices() {
     let s = LayerStream {
         names: vec!["WALLS".into(), "Dimensions".into(), "caf\u{e9}".into()],
+        flags: vec![0, 0, 0],
         assignments: vec![(id(0), 0), (id(5), 2), (id(9), 1)],
     };
     assert_eq!(LayerStream::decode(&s.encode().unwrap()).unwrap(), s);
-    let bad = LayerStream { names: vec!["A".into()], assignments: vec![(id(0), 1)] };
+    let bad = LayerStream { names: vec!["A".into()], flags: vec![0], assignments: vec![(id(0), 1)] };
     assert_eq!(bad.encode().unwrap_err(), ComponentError::IndexOutOfRange);
     // the decoder checks the same thing on bytes the encoder did not write
     let mut b = s.encode().unwrap();
@@ -180,7 +181,9 @@ fn typed_streams_know_their_registry_capability_and_take_their_version_from_it()
     assert_eq!(ProvenanceStream::CAPABILITY, ids::SOURCE_PROVENANCE);
     assert_eq!(ReservedStream::CAPABILITY, ids::DWG_SEMANTICS);
     let r = Registry::v1();
-    let s = LayerStream { names: vec!["A".into()], assignments: vec![(id(0), 0)] }.into_stream(&r).unwrap();
+    let s = LayerStream { names: vec!["A".into()], flags: vec![0], assignments: vec![(id(0), 0)] }
+        .into_stream(&r)
+        .unwrap();
     assert_eq!(s.capability, ids::LAYER);
     assert_eq!(s.version, r.get(ids::LAYER).unwrap().version);
 }
@@ -193,9 +196,13 @@ fn every_truncation_of_every_payload_is_refused_and_counts_cannot_size_an_alloca
     let payloads: Vec<Case> = vec![
         (
             "layer",
-            LayerStream { names: vec!["A".into(), "B".into()], assignments: vec![(id(0), 1)] }
-                .encode()
-                .unwrap(),
+            LayerStream {
+                names: vec!["A".into(), "B".into()],
+                flags: vec![0, 0],
+                assignments: vec![(id(0), 1)],
+            }
+            .encode()
+            .unwrap(),
             |b| LayerStream::decode(b).is_ok(),
         ),
         (
@@ -280,7 +287,8 @@ fn entity_ids_above_the_limit_and_invalid_utf8_are_refused() {
     .unwrap();
     b[4..8].copy_from_slice(&(1u32 << 28).to_le_bytes());
     assert_eq!(TextStream::decode(&b).unwrap_err(), ComponentError::BadEntityId(1 << 28));
-    let mut b = LayerStream { names: vec!["ab".into()], assignments: vec![] }.encode().unwrap();
+    let mut b =
+        LayerStream { names: vec!["ab".into()], flags: vec![0], assignments: vec![] }.encode().unwrap();
     let n = b.len();
     b[n - 2..].copy_from_slice(&[0xff, 0xfe]);
     assert_eq!(LayerStream::decode(&b).unwrap_err(), ComponentError::BadUtf8);
@@ -289,7 +297,9 @@ fn entity_ids_above_the_limit_and_invalid_utf8_are_refused() {
 #[test]
 fn random_corruption_of_payloads_never_panics() {
     let good = vec![
-        LayerStream { names: vec!["A".into(), "B".into()], assignments: vec![(id(0), 1)] }.encode().unwrap(),
+        LayerStream { names: vec!["A".into(), "B".into()], flags: vec![0, 0], assignments: vec![(id(0), 1)] }
+            .encode()
+            .unwrap(),
         HatchStream {
             records: vec![HatchRecord {
                 boundary: vec![id(0)],
