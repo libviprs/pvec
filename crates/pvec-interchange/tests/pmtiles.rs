@@ -987,7 +987,7 @@ fn issue_24_http_range_reads_of_the_archive_in_an_object_store_return_the_right_
         let mut checked = 0;
         for t in nonempty(&tiles) {
             let id = tile_id(t.tile);
-            let e = root.iter().filter(|e| e.id <= id).next_back().expect("an entry at or below the id");
+            let e = root.iter().rfind(|e| e.id <= id).expect("an entry at or below the id");
             assert!(e.run > 0, "the fixture fits in the root, no leaves");
             let got = get(h.data.0 + e.offset, e.length);
             assert_eq!(got, t.bytes, "tile {:?}", t.tile);
