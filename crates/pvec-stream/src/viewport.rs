@@ -237,6 +237,42 @@ impl ViewportQuery {
         reader: &R,
         config: &ViewportConfig,
     ) -> Result<ReadPlan, ViewportError> {
+        self.build(dir, reader, None, config)
+    }
+
+    /// The tiered plan (`docs/STREAMING.md` section 5.3): what [`ViewportQuery::plan`] does, with the
+    /// Tier 0 block of each leaf that has one planned first and the leaf's exact blocks after it, as the
+    /// refinement.
+    ///
+    /// * A visible leaf with a Tier 0 block contributes that block as a [`Tier::Tier0`] request, ranked
+    ///   by gain per byte like the exact ones, and all of them come before any [`Tier::Exact`] request.
+    ///   `tier_budget` is spent in that order, so a tight budget buys complete first paint and defers
+    ///   the refinement, and the first request, which always goes, is a Tier 0 one.
+    /// * A leaf that only touches the margin is prefetched through its Tier 0 block alone.
+    /// * A leaf with no Tier 0 block is planned through its exact blocks, as in `plan`. With an empty
+    ///   `tier0` the result is `plan`'s, request for request.
+    /// * Straddlers get no Tier 0 block and the plan does not hold them in either tier: their payload
+    ///   blocks sit in cells no leaf has, and a viewport reaches them through the straddler lists,
+    ///   always exact. The advanced curve set is reported by `advanced_in_view`, as before.
+    ///
+    /// `tier0` must have been opened over the same entries as `reader` and `dir`.
+    pub fn plan_tiered<R: PlanSource>(
+        &self,
+        dir: &SpatialDirectory,
+        reader: &R,
+        tier0: &Tier0Leaves,
+        config: &ViewportConfig,
+    ) -> Result<ReadPlan, ViewportError> {
+        self.build(dir, reader, Some(tier0), config)
+    }
+
+    fn build<R: PlanSource>(
+        &self,
+        dir: &SpatialDirectory,
+        reader: &R,
+        tier0: Option<&Tier0Leaves>,
+        config: &ViewportConfig,
+    ) -> Result<ReadPlan, ViewportError> {
         if !(self.scale.is_finite() && self.scale > 0.0) {
             return Err(ViewportError::BadScale);
         }
@@ -254,8 +290,33 @@ impl ViewportQuery {
         let mut gains: BTreeMap<BlockId, f64> = BTreeMap::new();
         let mut near: Vec<BlockId> = Vec::new();
         let mut distance: BTreeMap<BlockId, f64> = BTreeMap::new();
-        let (mut visible_cached, mut prefetch_cached) = (0u32, 0u32);
+        let (mut visible_cached, mut prefetch_cached, mut tier0_cached) = (0u32, 0u32, 0u32);
+        let (mut t0_visible, mut t0_near): (Vec<BlockId>, Vec<BlockId>) = (Vec::new(), Vec::new());
+        let dist2 = |b: &Aabb| {
+            let (bl, bh) = (b.min(), b.max());
+            let (dx, dy) = ((bl[0] + bh[0]) / 2.0 - centre[0], (bl[1] + bh[1]) / 2.0 - centre[1]);
+            dx * dx + dy * dy
+        };
         for cell in dir.query(&outer) {
+            let leaf_seen = cell.bounds.intersects(&self.bounds);
+            if let Some(id) = tier0.and_then(|l| l.block(cell.id)) {
+                match (leaf_seen, reader.is_cached(id)) {
+                    (true, true) => tier0_cached += 1,
+                    (false, true) => prefetch_cached += 1,
+                    (true, false) => {
+                        t0_visible.push(id);
+                        gains.insert(id, f64::from(cell.entities) * share(&cell.bounds, &self.bounds));
+                    }
+                    (false, false) => {
+                        t0_near.push(id);
+                        distance.insert(id, dist2(&cell.bounds));
+                    }
+                }
+                // a leaf that only touches the margin is prefetched through its Tier 0 block alone
+                if !leaf_seen {
+                    continue;
+                }
+            }
             for k in 0..cell.blocks.count {
                 let id = BlockId(cell.blocks.first.0 + k);
                 let Some(entry) = entries.get(id.0 as usize) else { continue };
@@ -274,31 +335,40 @@ impl ViewportQuery {
                     }
                     (false, false) => {
                         near.push(id);
-                        let (bl, bh) = (b.min(), b.max());
-                        let (dx, dy) = ((bl[0] + bh[0]) / 2.0 - centre[0], (bl[1] + bh[1]) / 2.0 - centre[1]);
-                        distance.insert(id, dx * dx + dy * dy);
+                        distance.insert(id, dist2(&b));
                     }
                 }
             }
         }
 
-        // One coalescing pass over everything wanted, so a request never re-reads a block that another
-        // request of the plan fetches, and the gaps it does read are bytes no block of the plan owns.
-        let wanted: Vec<BlockId> = visible.iter().chain(&near).copied().collect();
-        let mut first: Vec<PlannedRequest> = Vec::new();
-        let mut second: Vec<PlannedRequest> = Vec::new();
-        for request in reader.plan(&wanted)? {
-            let gain: f64 = request.blocks.iter().filter_map(|b| gains.get(b)).sum();
-            if request.blocks.iter().any(|b| gains.contains_key(b)) {
-                first.push(PlannedRequest { tier: Tier::Exact, request, priority: Priority::Visible, gain });
-            } else {
-                second.push(PlannedRequest { tier: Tier::Exact, request, priority: Priority::Prefetch, gain: 0.0 });
+        // One coalescing pass per tier over everything wanted, so a request never re-reads a block that
+        // another request of the plan fetches, never mixes the tiers, and the gaps it does read are bytes
+        // no block of the plan owns.
+        let classify = |tier: Tier, seen: &[BlockId], margin: &[BlockId]| -> Result<_, ViewportError> {
+            let wanted: Vec<BlockId> = seen.iter().chain(margin).copied().collect();
+            let (mut first, mut second): (Vec<PlannedRequest>, Vec<PlannedRequest>) = (Vec::new(), Vec::new());
+            for request in reader.plan(&wanted)? {
+                let gain: f64 = request.blocks.iter().filter_map(|b| gains.get(b)).sum();
+                if request.blocks.iter().any(|b| gains.contains_key(b)) {
+                    first.push(PlannedRequest { tier, request, priority: Priority::Visible, gain });
+                } else {
+                    second.push(PlannedRequest { tier, request, priority: Priority::Prefetch, gain: 0.0 });
+                }
             }
-        }
-        // the most visible entities per byte first, the file order among equals
+            Ok((first, second))
+        };
+        let (mut first, mut second) = classify(Tier::Tier0, &t0_visible, &t0_near)?;
+        let (exact_first, exact_second) = classify(Tier::Exact, &visible, &near)?;
+        first.extend(exact_first);
+        second.extend(exact_second);
+        // Tier 0 before the refinement, and within a tier the most visible entities per byte first, the
+        // file order among equals
         first.sort_by(|a, b| {
             let (ra, rb) = (a.gain / f64::from(a.request.len), b.gain / f64::from(b.request.len));
-            rb.total_cmp(&ra).then(a.request.offset.cmp(&b.request.offset))
+            (a.tier != Tier::Tier0)
+                .cmp(&(b.tier != Tier::Tier0))
+                .then(rb.total_cmp(&ra))
+                .then(a.request.offset.cmp(&b.request.offset))
         });
         // the margin nearest the viewport first
         let nearest = |p: &PlannedRequest| {
@@ -342,9 +412,10 @@ impl ViewportQuery {
             }
             let len = u64::from(p.request.len);
             let waste = len - own - rider;
-            let class = match p.priority {
-                Priority::Visible => &mut metrics.visible,
-                Priority::Prefetch => &mut metrics.prefetch,
+            let class = match (p.tier, p.priority) {
+                (Tier::Tier0, Priority::Visible) => &mut metrics.tier0,
+                (_, Priority::Visible) => &mut metrics.visible,
+                (_, Priority::Prefetch) => &mut metrics.prefetch,
             };
             class.ranges += 1;
             class.bytes_requested += len - rider;
@@ -356,24 +427,12 @@ impl ViewportQuery {
             }
         }
         metrics.visible.blocks_cached = visible_cached;
+        metrics.tier0.blocks_cached = tier0_cached;
         metrics.prefetch.blocks_cached = prefetch_cached;
         metrics.deferred_ranges = deferred.len() as u32;
         metrics.deferred_bytes = deferred.iter().map(|p| u64::from(p.request.len)).sum();
         let advanced_in_view = dir.advanced_bounds().is_some_and(|b| b.intersects(&self.bounds));
         Ok(ReadPlan { requests, deferred, advanced_in_view, metrics })
-    }
-}
-
-impl ViewportQuery {
-    /// The tiered plan: the Tier 0 blocks of the visible leaves first, the exact blocks after them.
-    pub fn plan_tiered<R: PlanSource>(
-        &self,
-        dir: &SpatialDirectory,
-        reader: &R,
-        _tier0: &Tier0Leaves,
-        config: &ViewportConfig,
-    ) -> Result<ReadPlan, ViewportError> {
-        self.plan(dir, reader, config)
     }
 }
 
