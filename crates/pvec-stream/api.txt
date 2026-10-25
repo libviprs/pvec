@@ -354,6 +354,7 @@ tier0_leaf.rs: #[derive(Clone, Debug)] pub struct Tier0Leaves
 tier0_leaf.rs: Tier0Leaves::new(entries: &[BlockEntry], dir: &SpatialDirectory) -> Result<Tier0Leaves, Tier0Error>
 tier0_leaf.rs: Tier0Leaves::len(&self) -> usize
 tier0_leaf.rs: Tier0Leaves::is_empty(&self) -> bool
+tier0_leaf.rs: Tier0Leaves::block(&self, leaf: CellId) -> Option<BlockId>
 tier0_leaf.rs: Tier0Leaves::tier0<S: BlockSource>(&self, reader: &ContainerReader<S>, leaf: CellId) -> Result<Option<Tier0Plan>, Tier0Error>
 tier0_leaf.rs: Tier0Leaves::verify<S: BlockSource>(&self, reader: &ContainerReader<S>, leaf: CellId) -> Result<Option<Tier0Plan>, Tier0Error>
 tiers.rs: pub const MAX_PREVIEW_VERTICES: usize
@@ -470,7 +471,11 @@ viewport.rs: impl Default for ViewportConfig
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Priority
 viewport.rs: Priority::Visible
 viewport.rs: Priority::Prefetch
+viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Tier
+viewport.rs: Tier::Tier0
+viewport.rs: Tier::Exact
 viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct PlannedRequest
+viewport.rs: PlannedRequest.tier: Tier
 viewport.rs: PlannedRequest.request: RangeRequest
 viewport.rs: PlannedRequest.priority: Priority
 viewport.rs: PlannedRequest.gain: f64
@@ -482,6 +487,7 @@ viewport.rs: ClassMetrics.blocks: u32
 viewport.rs: ClassMetrics.blocks_cached: u32
 viewport.rs: #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)] pub struct PlanMetrics
 viewport.rs: PlanMetrics.visible: ClassMetrics
+viewport.rs: PlanMetrics.tier0: ClassMetrics
 viewport.rs: PlanMetrics.prefetch: ClassMetrics
 viewport.rs: PlanMetrics.deferred_ranges: u32
 viewport.rs: PlanMetrics.deferred_bytes: u64
@@ -504,3 +510,4 @@ viewport.rs: impl From<DirectoryError> for ViewportError
 viewport.rs: pub const VIEWPORT_RULES: &[(&str, &str)]
 viewport.rs: ViewportQuery::new(bounds: Aabb, scale: f64) -> ViewportQuery
 viewport.rs: ViewportQuery::plan<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>
+viewport.rs: ViewportQuery::plan_tiered<R: PlanSource>(&self, dir: &SpatialDirectory, reader: &R, tier0: &Tier0Leaves, config: &ViewportConfig) -> Result<ReadPlan, ViewportError>

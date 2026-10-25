@@ -93,6 +93,11 @@ impl Tier0Leaves {
         self.leaves.is_empty()
     }
 
+    /// The block that holds the Tier 0 plan of `leaf`, when it has one.
+    pub fn block(&self, leaf: CellId) -> Option<BlockId> {
+        self.leaves.get(&leaf.get()).map(|(id, _)| *id)
+    }
+
     /// The Tier 0 plan of `leaf`: one range read, the block as stored. `None` when the leaf has no block.
     /// The stream is parsed and held to the leaf's entity count (TIER0-13); that it names the leaf's own
     /// entities is [`Tier0Leaves::verify`], which reads the leaf's hot blocks.
