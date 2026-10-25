@@ -447,12 +447,19 @@ fn structural(cx: &mut Ctx<'_>, leaf: &Leaf<'_>, e: &Edge) -> Option<&'static st
             cx.param("poles", &xy(r.control_points()), f("poles"));
             cx.param("knots", &values, f("knots"));
             cx.param("multiplicities", &mults, f("mults"));
-            cx.param("weights", r.weights(), f("weights"));
+            // Weights are homogeneous: scaling all of them is the same curve, and the evaluator stores equal
+            // weights as 1, so both sides are put on the first weight.
+            let (w, theirs) = (relative(r.weights()), f("weights").map(|v| relative(v)));
+            cx.param("weights", &w, theirs.as_ref());
             cx.param("range", &range((values[0], values[values.len() - 1])), range_of(e).as_ref());
         }
         _ => return Some("a curve kind that has no edge of its own"),
     }
     None
+}
+
+fn relative(w: &[f64]) -> Vec<f64> {
+    w.iter().map(|x| x / w[0]).collect()
 }
 
 fn range_of(e: &Edge) -> Option<Vec<f64>> {
