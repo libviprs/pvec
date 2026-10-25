@@ -78,7 +78,8 @@ generated from `gml::MAPPING` and a test fails if this copy drifts
 | `trimmed_curve` | TrimmedLine | `gml:LineStringSegment` | `ExactReparameterized` | the two end points, evaluated by the shared evaluator; origin and direction become the end points |
 | `trimmed_curve` | TrimmedArc | `gml:Arc` | `EquivalentCompound` | start, middle and end point of the arc; checked against the source under NP-04 |
 | `trimmed_curve` | TrimmedFullCircle | `gml:Circle` | `EquivalentCompound` | as a circle; the start point and direction are kept |
-| `trimmed_curve` | TrimmedTessellated | `gml:LineStringSegment` | `BoundedApproximation` | an ellipse or spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound |
+| `trimmed_curve` | TrimmedSpline | `gml:BSpline` | `ExactReparameterized` | the basis with both trim parameters inserted as knots, then cut to a clamped spline over the trimmed curve's own parameter (tau = s - start, or start + span - s when reversed) |
+| `trimmed_curve` | TrimmedTessellated | `gml:LineStringSegment` | `BoundedApproximation` | an ellipse or rational spline trim, or an arc that failed the three-point check; a sampled polyline with a measured bound |
 | `composite_curve` | Composite | `gml:Curve` | `Exact` | the segment list keeps the order and the joins; each member has its own record |
 | `bezier_curve` | Bezier | `gml:Bezier` | `Exact` | degree and control points carried; the two knots are the fixed domain 0 to 1 |
 | `b_spline_curve` | BSpline | `gml:BSpline` | `Exact` | degree, control points and knots (value and multiplicity) carried |
@@ -108,6 +109,15 @@ does better than the column for those, and densifies only the rows marked `Tesse
   with multiplicities, which is how GML wants it and loses nothing.
 - **ExactReparameterized** (a trimmed line): the two end points come from the shared evaluator, so the
   origin and direction of the line become the segment's end points.
+- **ExactReparameterized** (a trimmed Bezier or B-spline, `TrimmedSpline`): both trim parameters are
+  inserted as knots up to multiplicity `degree + 1` (Boehm, `pvec_geometry::BSpline::sub_range`), and
+  the control points and knots outside the trim are cut away. A Bezier goes through its clamped B-spline
+  form first. The result is a `gml:BSpline` whose parameter is the trimmed curve's own one, so its first
+  knot is exactly 0 and its last is exactly the span. The map from the basis parameter `s` is written
+  into the record's note (`tau = s - start`, or `tau = start + span - s` for a reversed trim, in which
+  case the control points are written in reverse so the curve starts where the trimmed curve starts).
+  The only inexactness is the rounding of the insertions, which is bounded in the doc of `sub_range`,
+  so the tests compare the written spline with the trimmed source through the shared evaluator.
 - **EquivalentCompound** (circles, arcs, and a rational spline whose weights are all equal): a circle or
   arc is three points and GML defines the curve as the circle through them. The export reconstructs that
   circle from the three points it wrote and compares centre and radius with the source under NP-04
@@ -129,8 +139,16 @@ because half a curve would be worse than none.
 
 GML 3.2.1 has no ellipse, and no way to carry the weights of a rational B-spline: `gml:Knot` has a
 `weight`, but it is the ISO 19107 averaging weight of the knot, not a control point weight, so the
-export writes 1 there and it carries no information. A trimmed ellipse, a trimmed spline and a rational
-spline with unequal weights are therefore a `gml:LineStringSegment` with `BoundedApproximation`.
+export writes 1 there and it carries no information. A trimmed ellipse, a trimmed rational spline and a
+rational spline with unequal weights are therefore a `gml:LineStringSegment` with `BoundedApproximation`.
+A trimmed polynomial spline or Bezier is not in that list any more, see 3.4.
+
+On control point weights (pvec#134): the vendored 3.2.1 schemas have no control point weight on
+`gml:BSpline` (the only `weight` is the knot's), and I did not find an agreed newer profile or
+application schema that carries one, so I did not add a second declared profile. GML 3.2.1 stays the
+only (and so the default) profile. If a target that carries weights is agreed, it goes in here as a
+second declared profile and 3.2.1 stays the default. Where a rational spline is a conic, an
+`EquivalentCompound` of exact arcs is the other route, and it is not done here.
 
 The caller gives a deviation budget (`Budget`), in output CRS units. The export cuts the curve at its
 knots (a polyline must not cut across a corner) and subdivides every piece uniformly, doubling until the
