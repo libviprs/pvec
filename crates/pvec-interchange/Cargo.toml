@@ -12,8 +12,10 @@ pvec-entity = { path = "../pvec-entity" }
 pvec-geometry = { path = "../pvec-geometry" }
 pvec-numeric = { path = "../pvec-numeric" }
 
-# The schema validation test runs a pinned validator in a hermetic container (pvec-hermetic).
+# The schema validation test runs a pinned validator in a hermetic container (pvec-hermetic); the STEP
+# digest test hashes the export with the corpus crate's SHA-256.
 [dev-dependencies]
+pvec-corpus = { path = "../pvec-corpus" }
 pvec-hermetic = { path = "../pvec-hermetic" }
 
 [lints]
