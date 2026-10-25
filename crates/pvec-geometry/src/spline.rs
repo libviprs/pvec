@@ -278,6 +278,41 @@ impl BSpline {
         unwrap_periodic(degree, control_points, knots)
     }
 
+    /// The sub-range `[t1, t2]` of the domain as a clamped spline of its own, keeping the parameter:
+    /// the result's domain is exactly `[t1, t2]` and it traces the same locus point for point.
+    ///
+    /// Both parameters are inserted as knots up to multiplicity `degree + 1` (Boehm), then what lies
+    /// outside is cut away. Knot insertion changes the representation and not the curve, so the only
+    /// inexactness is the rounding of the insertions: every new point is a convex combination of two
+    /// old ones, at most `15 u m` per insertion in each coordinate for `u = 2^-53` and `m` the
+    /// largest coordinate magnitude, and an earlier error is not amplified. The knots of the result
+    /// are `t1`, `t2` and knots of the source, never recomputed. A parameter within the NP-08
+    /// tolerance outside the domain is clamped to it. The closed flag is not carried over.
+    ///
+    /// Refused: a non-finite parameter (NP-01), a parameter outside the domain (`OutsideDomain`) and
+    /// `t1 >= t2` (`CollapsedTrim`).
+    pub fn sub_range(&self, t1: f64, t2: f64) -> Result<BSpline> {
+        let (t1, t2) = (self.0.param(t1)?, self.0.param(t2)?);
+        if t1 >= t2 {
+            return Err(NumericError::CollapsedTrim.into());
+        }
+        let p = self.0.degree;
+        let mut pts: Vec<[f64; 2]> = self.0.cps.iter().map(|q| q.arr()).collect();
+        let mut u = self.0.knots.clone();
+        for t in [t1, t2] {
+            let have = u.iter().filter(|&&v| v == t).count();
+            for _ in have..=p {
+                insert_knot(p, &mut pts, &mut u, t);
+            }
+        }
+        let a = u.partition_point(|&v| v < t1);
+        let last_hi = u.partition_point(|&v| v <= t2);
+        let first_hi = u.partition_point(|&v| v < t2);
+        let cut = u[a..last_hi].to_vec();
+        let kept = pts[a..first_hi].iter().map(|q| Point2::new(q[0], q[1])).collect();
+        BSpline::new(p, kept, cut)
+    }
+
     /// The degree.
     pub fn degree(&self) -> usize {
         self.0.degree
@@ -453,6 +488,15 @@ impl Bezier {
     /// The control points.
     pub fn control_points(&self) -> &[Point2] {
         &self.cps
+    }
+
+    /// The same curve as a clamped B-spline over `[0, 1]`: the control points unchanged and the knot
+    /// vector `0` and `1`, each `degree + 1` times. Nothing is computed, so the locus is the same.
+    pub fn as_bspline(&self) -> Result<BSpline> {
+        let n = self.cps.len();
+        let mut knots = vec![0.0; n];
+        knots.extend(std::iter::repeat_n(1.0, n));
+        BSpline::new(n - 1, self.cps.clone(), knots)
     }
 
     /// True when the curve was declared closed and the claim was checked (NP-20).
