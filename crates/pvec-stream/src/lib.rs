@@ -10,6 +10,7 @@
 mod directory;
 mod generation;
 mod ownership;
+mod scheduler;
 mod straddler;
 mod tiers;
 mod viewport;
@@ -17,6 +18,7 @@ mod viewport;
 pub use directory::*;
 pub use generation::*;
 pub use ownership::*;
+pub use scheduler::*;
 pub use straddler::*;
 pub use tiers::*;
 pub use viewport::*;
