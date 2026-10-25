@@ -29,8 +29,9 @@ use harness::{Kind, MILLION, SMALL, Scale};
 const MAX_DIRECTORY_READY_SECS: f64 = 5.0;
 /// Time to the first useful drawing (complete Tier 0 for the viewport), debug build, seconds.
 const MAX_FIRST_DRAWING_SECS: f64 = 30.0;
-/// Range requests for complete Tier 0 of a viewport, per scale (wide, mid, tight), the advanced set's
-/// own ranges included.
+/// Range requests for complete Tier 0 of a viewport, per scale (wide, mid, tight), besides the advanced
+/// chunks' own ranges (one per chunk since #153, so they grow with the curves and not with the viewport).
+/// The old single-set read was one more range, so each cap still has that one in it.
 const MAX_RANGES: [u64; 3] = [16, 12, 10];
 /// Bytes transferred for a viewport besides the advanced set, per scale (wide, mid, tight).
 const MAX_BYTES: [u64; 3] = [4 << 20, 1 << 20, 256 << 10];
@@ -123,7 +124,11 @@ fn every_measured_quantity_is_under_its_threshold_on_the_million_entity_artifact
                 "{name}: first drawing {:?}",
                 m.first_drawing
             );
-            assert!(m.ranges <= MAX_RANGES[i], "{name}: {} ranges", m.ranges);
+            assert!(
+                m.ranges_without_advanced() + u64::from(m.advanced_ranges > 0) <= MAX_RANGES[i],
+                "{name}: {} ranges",
+                m.ranges_without_advanced()
+            );
             assert!(
                 m.bytes_without_advanced() <= MAX_BYTES[i],
                 "{name}: {} bytes",
