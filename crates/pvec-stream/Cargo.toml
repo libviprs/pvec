@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Viewport streaming over a PVec container: the spatial directory over source-space bounds"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]
