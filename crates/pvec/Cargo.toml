@@ -20,6 +20,7 @@ unstable-stream = ["dep:pvec-stream"]
 
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-codec = { path = "../pvec-codec" }
 pvec-components = { path = "../pvec-components" }
 pvec-container = { path = "../pvec-container" }
 pvec-entity = { path = "../pvec-entity" }
@@ -28,6 +29,7 @@ pvec-stream = { path = "../pvec-stream", optional = true }
 
 [dev-dependencies]
 pvec-checks = { path = "../pvec-checks" }
+pvec-stream = { path = "../pvec-stream" }
 
 [lints]
 workspace = true

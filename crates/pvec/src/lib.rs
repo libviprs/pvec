@@ -12,6 +12,7 @@
 mod bounds;
 mod error;
 mod manifest;
+mod pick;
 mod reader;
 mod writer;
 
@@ -24,6 +25,7 @@ pub use error::PvecError;
 pub use manifest::Manifest;
 pub use pvec_capabilities::CapabilityId;
 pub use pvec_entity::EntityId;
-pub use pvec_geometry::{Curve, Domain, Transform2};
+pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode};
+pub use pvec_geometry::{Curve, Domain, Point2, Transform2};
 pub use reader::PvecReader;
 pub use writer::PvecWriter;

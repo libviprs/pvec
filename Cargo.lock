@@ -44,6 +44,7 @@ version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
  "pvec-checks",
+ "pvec-codec",
  "pvec-components",
  "pvec-container",
  "pvec-entity",
