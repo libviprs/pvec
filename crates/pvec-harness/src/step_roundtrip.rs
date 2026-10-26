@@ -9,8 +9,8 @@
 use crate::error::Result;
 use crate::gates::{Gate, GateVerdict, Runner};
 use pvec_capabilities::EvidenceClass;
-use pvec_corpus::expected::{Entity, EntityClass, Node};
 use pvec_corpus::ExpectedMath;
+use pvec_corpus::expected::{Entity, EntityClass, Node};
 use pvec_entity::EntityId;
 use pvec_geometry::{
     BSpline, Bezier, Circle, Composite, Curve, Ellipse, Line, Placement2, Point2, Polyline, RationalBSpline,
@@ -87,7 +87,9 @@ fn spline(e: &Entity, g: &Node) -> std::result::Result<Curve, String> {
     if periodic && e.class == EntityClass::Bspline {
         // the record keeps the wrapped form (one knot per control point and one more); the exchange form is the
         // clamped one, which `from_periodic` makes with the same locus and domain
-        return BSpline::from_periodic(degree, cps, knots).map(|u| Curve::BSpline(u.curve)).map_err(|e| e.to_string());
+        return BSpline::from_periodic(degree, cps, knots)
+            .map(|u| Curve::BSpline(u.curve))
+            .map_err(|e| e.to_string());
     }
     let curve = if e.class == EntityClass::Nurbs {
         let w = list(g.get("weights"), "weights")?
@@ -114,7 +116,8 @@ fn bulged(e: &Entity, g: &Node) -> std::result::Result<Curve, String> {
     if b.len() != v.len() {
         return Err("a bulge for each vertex is expected".to_string());
     }
-    let closed = matches!(e.node.get("closure").and_then(|c| c.get("closed_by_endpoint")), Some(Node::Bool(true)));
+    let closed =
+        matches!(e.node.get("closure").and_then(|c| c.get("closed_by_endpoint")), Some(Node::Bool(true)));
     let segments = if closed { v.len() } else { v.len() - 1 };
     let mut pieces: Vec<Curve> = Vec::new();
     let mut run: Vec<Point2> = Vec::new();
@@ -164,13 +167,16 @@ fn curve_of(e: &Entity) -> std::result::Result<Curve, String> {
         EntityClass::Polyline => bulged(e, g),
         EntityClass::Circle | EntityClass::CircularArc => {
             let r = scalar(g.get("radius"), "radius")?;
-            let circle = Circle::new(placement(g, "x_axis")?, r).map(Curve::Circle).map_err(|e| e.to_string())?;
+            let circle =
+                Circle::new(placement(g, "x_axis")?, r).map(Curve::Circle).map_err(|e| e.to_string())?;
             if e.class == EntityClass::Circle { Ok(circle) } else { arc(circle, g) }
         }
         EntityClass::Ellipse | EntityClass::EllipticalArc => {
-            let (a, b) = (scalar(g.get("semi_major"), "semi_major")?, scalar(g.get("semi_minor"), "semi_minor")?);
-            let ellipse =
-                Ellipse::new(placement(g, "major_axis")?, a, b).map(Curve::Ellipse).map_err(|e| e.to_string())?;
+            let (a, b) =
+                (scalar(g.get("semi_major"), "semi_major")?, scalar(g.get("semi_minor"), "semi_minor")?);
+            let ellipse = Ellipse::new(placement(g, "major_axis")?, a, b)
+                .map(Curve::Ellipse)
+                .map_err(|e| e.to_string())?;
             if e.class == EntityClass::Ellipse { Ok(ellipse) } else { arc(ellipse, g) }
         }
         EntityClass::Bezier | EntityClass::Bspline | EntityClass::Nurbs => {
@@ -220,7 +226,9 @@ pub fn transform_of(expected: &ExpectedMath) -> std::result::Result<Transform2, 
             (None, None) => Transform2::IDENTITY,
         };
         match found {
-            Some(prev) if prev != t => return Err("the entities of one fixture sit under different maps".to_string()),
+            Some(prev) if prev != t => {
+                return Err("the entities of one fixture sit under different maps".to_string());
+            }
             _ => found = Some(t),
         }
     }
