@@ -229,4 +229,10 @@ impl PvecReader {
         out.sort_by_key(|(id, _)| id.index());
         Ok(out)
     }
+
+    /// The style reference of every entity, in ascending entity id order: an opaque index the style
+    /// component stream resolves, `0` where the writer gave none.
+    pub fn styles(&self) -> Result<Vec<(EntityId, u32)>, PvecError> {
+        Err(PvecError::Read { rule: "not implemented".to_string() })
+    }
 }
