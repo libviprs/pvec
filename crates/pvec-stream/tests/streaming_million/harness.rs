@@ -511,6 +511,10 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
 
 // ---------------------------------------------------------------- the load-shed scenario
 
+/// What the throttled source charges per range: a latency and a bandwidth.
+const SHED_LATENCY: Duration = Duration::from_millis(8);
+const SHED_BYTES_PER_SEC: u64 = 100 << 20;
+
 /// A source that answers like a slow link: a fixed latency and a bandwidth, per range.
 struct Throttled<S> {
     inner: S,
@@ -588,9 +592,14 @@ pub fn load_shed(changes: u32, seconds: u64) -> Shed {
     let bytes = artifact(Kind::Mixed, MILLION);
     let source = Throttled {
         inner: MemorySource::new(bytes),
-        latency: Duration::from_millis(8),
-        bytes_per_sec: 100 << 20,
+        latency: SHED_LATENCY,
+        bytes_per_sec: SHED_BYTES_PER_SEC,
     };
+    load_shed_over(source, changes, seconds)
+}
+
+/// The scenario over `source`, which has to charge for every range itself.
+fn load_shed_over<S: BlockSource + Send + Sync + 'static>(source: S, changes: u32, seconds: u64) -> Shed {
     // No cache: every unit is a range read, so a unit is what the throttle charges for.
     let cfg = ReaderConfig { cache_bytes: 0, ..ReaderConfig::default() };
     let reader = Arc::new(ContainerReader::open(source, cfg).expect("opens"));
@@ -698,6 +707,148 @@ pub fn load_shed(changes: u32, seconds: u64) -> Shed {
         stale_applied: stale_applied.load(Ordering::Relaxed),
         final_matches_last_viewport: final_matches,
     }
+}
+
+// ---------------------------------------------------------------- the hermetic range source
+
+/// The image the range source runs in: the multi-platform index of `python:3.12-slim` (CPython 3.12.15),
+/// pinned by digest as `pvec-interchange`'s STEP reader test pins it. The server is `range_server.py`,
+/// mounted read-only beside the artifact.
+const RANGE_SOURCE_IMAGE: &str =
+    "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1";
+
+/// The pipes of the one `docker exec -i` that talks to `range_server.py`, and the artifact's length.
+/// Cloning is cheap; the helper is killed when the last clone is dropped.
+#[derive(Clone)]
+pub struct HermeticSource {
+    inner: Arc<Pipes>,
+}
+
+struct Pipes {
+    io: Mutex<(std::process::ChildStdin, std::io::BufReader<std::process::ChildStdout>)>,
+    child: Mutex<std::process::Child>,
+    len: u64,
+}
+
+impl Drop for Pipes {
+    fn drop(&mut self) {
+        let child = self.child.get_mut().unwrap_or_else(|e| e.into_inner());
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
+fn io_err(e: impl std::fmt::Display) -> SourceError {
+    SourceError::Io(e.to_string())
+}
+
+/// One request line and its answer: `OK <n>` then `n` bytes, or `ERR <reason>`.
+fn ask(
+    io: &mut (std::process::ChildStdin, std::io::BufReader<std::process::ChildStdout>),
+    request: &str,
+) -> Result<Vec<u8>, SourceError> {
+    use std::io::{BufRead, Read, Write};
+    writeln!(io.0, "{request}").and_then(|()| io.0.flush()).map_err(io_err)?;
+    let mut head = String::new();
+    if io.1.read_line(&mut head).map_err(io_err)? == 0 {
+        return Err(SourceError::Io("the range source closed".into()));
+    }
+    let head = head.trim_end();
+    let Some(n) = head.strip_prefix("OK ").and_then(|n| n.parse::<usize>().ok()) else {
+        return Err(SourceError::RangeNotHonoured { detail: head.to_string() });
+    };
+    if request == "L" {
+        return Ok(n.to_string().into_bytes());
+    }
+    let mut body = vec![0u8; n];
+    io.1.read_exact(&mut body).map_err(io_err)?;
+    Ok(body)
+}
+
+impl BlockSource for HermeticSource {
+    fn len(&self) -> u64 {
+        self.inner.len
+    }
+    fn read_range(&self, offset: u64, len: u32) -> Result<Bytes, SourceError> {
+        if offset.saturating_add(u64::from(len)) > self.inner.len {
+            return Err(SourceError::OutOfRange { offset, len: u64::from(len), source_len: self.inner.len });
+        }
+        let mut io = self.inner.io.lock().unwrap_or_else(|e| e.into_inner());
+        let body = ask(&mut io, &format!("R {offset} {len}"))?;
+        if body.len() != len as usize {
+            return Err(SourceError::Short { wanted: u64::from(len), got: body.len() as u64 });
+        }
+        Ok(Bytes::new(body))
+    }
+}
+
+/// The scratch directory the container mounts, removed on drop.
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        // The test's own scratch, named in full.
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Runs `f` with a range source whose throttle runs inside a hermetic container (`pvec-hermetic`: no
+/// network, a read-only root, the artifact mounted read-only), and gives it the container's name. The
+/// container is removed when `f` returns or panics. `None` when Docker is not there and this is a
+/// developer run (`PVEC_DEV_RUN`); anywhere else a container that cannot start fails.
+pub fn with_hermetic_source<R>(
+    bytes: &[u8],
+    latency: Duration,
+    bytes_per_sec: u64,
+    f: impl FnOnce(&HermeticSource, &str) -> R,
+) -> Option<R> {
+    use pvec_hermetic::{Config, Container, Decision, Policy};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "pvec-range-source-{}-{}",
+        std::process::id(),
+        N.fetch_add(1, Ordering::SeqCst)
+    ));
+    std::fs::create_dir_all(&dir).expect("scratch");
+    let scratch = Scratch(dir);
+    std::fs::write(scratch.0.join("artifact"), bytes).expect("artifact");
+    std::fs::write(scratch.0.join("range_server.py"), include_str!("range_server.py")).expect("script");
+    let cfg = Config { image: RANGE_SOURCE_IMAGE.to_string(), mount: scratch.0.clone(), search_path: None };
+    // `sleep` keeps the container alive; the server is one `exec -i` into it.
+    let container = match Container::start_with_command(&cfg, &["sleep", "3600"]) {
+        Ok(c) => c,
+        Err(e) => match Policy::from_env().decide(e) {
+            Decision::Skip(why) => {
+                eprintln!("skipped: {why}");
+                return None;
+            }
+            Decision::Fail(e) => panic!("the range source container could not start: {e}"),
+        },
+    };
+    let millis = latency.as_millis().to_string();
+    let rate = bytes_per_sec.to_string();
+    let mut child = container
+        .exec_stream(&["python3", "/corpus/range_server.py", &millis, &rate])
+        .expect("the range server starts");
+    let mut io =
+        (child.stdin.take().expect("stdin"), std::io::BufReader::new(child.stdout.take().expect("stdout")));
+    let len =
+        String::from_utf8(ask(&mut io, "L").expect("the length")).expect("text").parse().expect("number");
+    assert_eq!(len, bytes.len() as u64, "the container serves the artifact it was given");
+    let source =
+        HermeticSource { inner: Arc::new(Pipes { io: Mutex::new(io), child: Mutex::new(child), len }) };
+    let r = f(&source, container.name());
+    drop(source);
+    container.stop().expect("the container is removed");
+    Some(r)
+}
+
+/// As [`load_shed`], with the throttle in a hermetic container. `None` when the run is skipped.
+pub fn load_shed_hermetic(changes: u32, seconds: u64) -> Option<Shed> {
+    let bytes = artifact(Kind::Mixed, MILLION);
+    with_hermetic_source(&bytes, SHED_LATENCY, SHED_BYTES_PER_SEC, |source, _| {
+        load_shed_over(source.clone(), changes, seconds)
+    })
 }
 
 // ---------------------------------------------------------------- the results file
