@@ -15,6 +15,15 @@ remove, rename or re-sign turns it red and has to be reviewed. After P8.7 a chan
 Each component stream carries its own stream version (ADR 0014), and that is its versioning unit.
 `PvecError` is `#[non_exhaustive]` and carries rules as text, so no container type is reachable.
 
+## Picking (issue P7.5)
+
+`PickIndex`, `PickTolerance`, `Pick`, `RectMode`, `EntityIdBatch` and `Point2` answer spatial queries with
+file-local `EntityId`s and source-space bounds. Hit testing on exact geometry is analytic, never against a
+tessellation, and a Tier 0 preview and its exact replacement answer with the same id and bounds. The
+tolerance is in screen pixels and converts through the scale of a `Transform2`. `EntityIdBatch` is one
+flat `u32` array. The index is filled by the caller for now, because the facade reader does not decode
+curves yet, and it refuses any id the file's entity count does not cover. The anisotropic screen context of
+P7.2 and the full packed layout of P7.3 are not here yet.
 ## Reading curves back
 
 `PvecReader::entities()` returns every entity as `(EntityId, Curve)` in ascending id order. A curve

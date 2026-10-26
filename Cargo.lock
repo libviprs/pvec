@@ -71,6 +71,7 @@ version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
  "pvec-checks",
+ "pvec-codec",
  "pvec-components",
  "pvec-container",
  "pvec-corpus",
@@ -113,6 +114,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-conformance"
+version = "0.0.0"
+dependencies = [
+ "pvec",
+ "pvec-capabilities",
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-geometry",
+ "pvec-interchange",
+ "pvec-numeric",
+ "pvec-testkit",
+]
+
+[[package]]
 name = "pvec-container"
 version = "0.0.0"
 dependencies = [
@@ -143,10 +159,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-fuzz"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-components",
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-geometry",
+ "pvec-testkit",
+]
+
+[[package]]
 name = "pvec-geometry"
 version = "0.0.0"
 dependencies = [
  "pvec-numeric",
+]
+
+[[package]]
+name = "pvec-harness"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-corpus",
 ]
 
 [[package]]

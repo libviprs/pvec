@@ -1,3 +1,43 @@
+compat.rs: pub const FORMAT_VERSION: Version
+compat.rs: pub const DEPRECATED_MIN_MINORS: u16
+compat.rs: pub const WRITE_DISABLED_MIN_MINORS: u16
+compat.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)] pub enum Status
+compat.rs: Status::Active
+compat.rs: Status::Deprecated
+compat.rs: Status::WriteDisabled
+compat.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct SnapshotEntry
+compat.rs: SnapshotEntry.id: u32
+compat.rs: SnapshotEntry.name: String
+compat.rs: SnapshotEntry.class: String
+compat.rs: SnapshotEntry.version: Version
+compat.rs: SnapshotEntry.requirement: String
+compat.rs: SnapshotEntry.min_reader: Version
+compat.rs: SnapshotEntry.status: Status
+compat.rs: SnapshotEntry.status_since: Version
+compat.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Snapshot
+compat.rs: Snapshot.format_version: Version
+compat.rs: Snapshot.entries: Vec<SnapshotEntry>
+compat.rs: Snapshot.retired: Vec<(u32, String)>
+compat.rs: Snapshot::from_registry(registry: &Registry) -> Snapshot
+compat.rs: Snapshot::parse(text: &str) -> Result<Snapshot, String>
+compat.rs: Snapshot::render(&self) -> String
+compat.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Breaking
+compat.rs: Breaking::Removal
+compat.rs: Breaking::MajorBump
+compat.rs: Breaking::RequirementTightened
+compat.rs: Breaking::MinReaderRaised
+compat.rs: Breaking::ClassChanged
+compat.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum LintFinding
+compat.rs: LintFinding::FormatVersionWentDown { old: Version, new: Version }
+compat.rs: LintFinding::RemovedWithoutLifecycle { id: u32, last_status: Status }
+compat.rs: LintFinding::RemovedNotRetired { id: u32 }
+compat.rs: LintFinding::StatusSkipped { id: u32, from: Status, to: Status }
+compat.rs: LintFinding::StatusRegressed { id: u32, from: Status, to: Status }
+compat.rs: LintFinding::LeftStatusTooEarly { id: u32, status: Status, since: Version, needed_minors: u16 }
+compat.rs: LintFinding::BreakingOnMinor { id: u32, change: Breaking }
+compat.rs: LintFinding::VersionWentDown { id: u32, old: Version, new: Version }
+compat.rs: LintFinding::RetiredIdReused { id: u32 }
+compat.rs: pub fn lint_transition(old: &Snapshot, new: &Snapshot) -> Vec<LintFinding>
 extension.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum EvidenceClass
 extension.rs: EvidenceClass::KnownTruthExact
 extension.rs: EvidenceClass::DualOracleEquivalent
@@ -39,6 +79,7 @@ extension.rs: impl fmt::Display for ExtensionError
 extension.rs: impl std::error::Error for ExtensionError {}
 extension.rs: Registry::next_id(&self) -> CapabilityId
 extension.rs: Registry::register_extension(&mut self, capability: Capability, proposal: &str) -> Result<ProposalSummary, ExtensionError>
+lib.rs: pub use compat::{ Breaking, DEPRECATED_MIN_MINORS, FORMAT_VERSION, LintFinding, Snapshot, SnapshotEntry, Status, WRITE_DISABLED_MIN_MINORS, lint_transition, }
 lib.rs: pub use extension::{ EvidenceClass, ExtensionError, ExtensionFixture, MissingArtifact, ProposalProblem, ProposalSummary, check_proposal, }
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct CapabilityId(u32)
 lib.rs: CapabilityId::new(id: u32) -> CapabilityId

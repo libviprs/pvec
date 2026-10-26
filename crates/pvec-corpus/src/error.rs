@@ -111,6 +111,22 @@ pub enum CorpusError {
         /// The mode text.
         mode: String,
     },
+    /// A fixture cannot carry dual-oracle evidence because one STEP output is missing.
+    DualOracleUnavailable {
+        /// The fixture id.
+        fixture: String,
+        /// The class it belongs under instead, `REAL_WORLD_DIFFERENTIAL` or `QUARANTINED`.
+        route: String,
+    },
+    /// The two STEP paths did not go through the same evaluator.
+    EvaluatorMismatch {
+        /// The fixture id.
+        fixture: String,
+        /// The evaluator identity on the primary path.
+        primary: String,
+        /// The evaluator identity on the secondary path.
+        secondary: String,
+    },
 }
 
 impl fmt::Display for CorpusError {
@@ -162,6 +178,16 @@ impl fmt::Display for CorpusError {
             CorpusError::UnknownMode { fixture, mode } => {
                 write!(f, "fixture `{fixture}` has a comparison in unknown mode `{mode}`")
             }
+            CorpusError::DualOracleUnavailable { fixture, route } => write!(
+                f,
+                "fixture `{fixture}` has one STEP output, so it carries no dual-oracle evidence; \
+                 it belongs under {route}"
+            ),
+            CorpusError::EvaluatorMismatch { fixture, primary, secondary } => write!(
+                f,
+                "fixture `{fixture}`: the STEP paths went through different evaluators \
+                 (primary {primary}, secondary {secondary})"
+            ),
         }
     }
 }

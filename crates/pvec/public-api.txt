@@ -8,6 +8,7 @@ error.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum PvecErro
 error.rs: PvecError::Read { rule: String }
 error.rs: PvecError::Write { rule: String }
 error.rs: PvecError::UnknownUnit { metres_per_unit: f64 }
+error.rs: PvecError::Query { rule: String }
 error.rs: PvecError::Geometry { rule: String }
 error.rs: PvecError::BadContext { reason: String }
 error.rs: PvecError::ErrorBudgetUnmet { achieved: f64, requested: f64 }
@@ -28,9 +29,10 @@ lib.rs: pub use bounds::{Bounds2, CurveRef}
 lib.rs: pub use error::PvecError
 lib.rs: pub use eval::CurveEval
 lib.rs: pub use manifest::Manifest
+lib.rs: pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode}
 lib.rs: pub use pvec_capabilities::CapabilityId
 lib.rs: pub use pvec_entity::EntityId
-lib.rs: pub use pvec_geometry::{Curve, Domain, Side, Transform2}
+lib.rs: pub use pvec_geometry::{Curve, Domain, Point2, Side, Transform2}
 lib.rs: pub use reader::PvecReader
 lib.rs: pub use tessellate::{Conformance, Tessellate, Tessellation, TessellationContext}
 lib.rs: pub use writer::PvecWriter
@@ -40,6 +42,32 @@ manifest.rs: Manifest.bounds: Bounds2
 manifest.rs: Manifest.capabilities: Vec<CapabilityId>
 manifest.rs: Manifest.producer_id: String
 manifest.rs: Manifest.producer_version: String
+pick.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct PickTolerance
+pick.rs: PickTolerance::new(px: f64, source_to_screen: &Transform2) -> Result<PickTolerance, PvecError>
+pick.rs: PickTolerance::px(&self) -> f64
+pick.rs: PickTolerance::scale(&self) -> f64
+pick.rs: PickTolerance::source_radius(&self) -> f64
+pick.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum RectMode
+pick.rs: RectMode::Intersects
+pick.rs: RectMode::Contains
+pick.rs: #[derive(Clone, Debug, Default, PartialEq, Eq)] pub struct EntityIdBatch
+pick.rs: EntityIdBatch::as_slice(&self) -> &[u32]
+pick.rs: EntityIdBatch::len(&self) -> usize
+pick.rs: EntityIdBatch::is_empty(&self) -> bool
+pick.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Pick
+pick.rs: Pick.entity: EntityId
+pick.rs: Pick.distance: f64
+pick.rs: Pick.param: Option<f64>
+pick.rs: Pick.bounds: Bounds2
+pick.rs: Pick.capability: CapabilityId
+pick.rs: #[derive(Debug)] pub struct PickIndex
+pick.rs: PickIndex::new(reader: &PvecReader) -> Result<PickIndex, PvecError>
+pick.rs: PickIndex::insert_exact(&mut self, id: EntityId, curve: Curve) -> Result<(), PvecError>
+pick.rs: PickIndex::insert_preview(&mut self, id: EntityId, capability: CapabilityId, bounds: Bounds2, points: Vec<[f64; 2]>, error_bound: f64) -> Result<(), PvecError>
+pick.rs: PickIndex::refine(&mut self, id: EntityId, curve: Curve) -> Result<EntityId, PvecError>
+pick.rs: PickIndex::query_point(&self, p: Point2, tol: PickTolerance) -> Option<Pick>
+pick.rs: PickIndex::query_rect(&self, r: Bounds2, mode: RectMode) -> EntityIdBatch
+pick.rs: PickIndex::query_nearest(&self, p: Point2, max_dist: f64) -> Option<Pick>
 reader.rs: pub struct PvecReader
 reader.rs: PvecReader::open(bytes: Vec<u8>) -> Result<PvecReader, PvecError>
 reader.rs: PvecReader::manifest(&self) -> &Manifest
