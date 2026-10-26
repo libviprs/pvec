@@ -12,45 +12,7 @@ use pvec_entity::EntityId;
 use std::fs;
 use std::path::PathBuf;
 
-const BEGIN: &str = "<!-- example:begin -->";
 const END: &str = "<!-- example:end -->";
-
-/// The example file: one line (capability 1, required) and one component stream (capability 14, optional), unit mm, sealed.
-fn example() -> Vec<u8> {
-    let config = WriterConfig {
-        unit: LengthUnit::Millimetre,
-        metadata: Metadata {
-            producer_id: "pvec-doc-example".into(),
-            producer_version: "1".into(),
-            corpus_revision: None,
-        },
-        bounds: Some(Bounds { min: [0.0, 0.0], max: [10.0, 0.0] }),
-        capabilities: vec![CapabilityId::new(1), CapabilityId::new(14)],
-    };
-    let mut w = ContainerWriter::new(config);
-    let meta = EntityMeta {
-        id: EntityId::new(0).unwrap(),
-        style: 0,
-        cell: 0,
-        bounds: Bounds { min: [0.0, 0.0], max: [10.0, 0.0] },
-    };
-    w.push_line(meta, [0.0, 0.0], [10.0, 0.0]).unwrap();
-    w.push_stream(Stream { capability: CapabilityId::new(14), version: Version::new(1, 0, 0), payload: vec![0] })
-        .unwrap();
-    w.finish().unwrap()
-}
-
-fn dump(bytes: &[u8]) -> Vec<String> {
-    bytes
-        .chunks(16)
-        .enumerate()
-        .map(|(i, c)| {
-            let hex: Vec<String> = c.iter().map(|b| format!("{b:02x}")).collect();
-            let (a, b) = hex.split_at(hex.len().min(8));
-            format!("{:08x}  {}  {}", i * 16, a.join(" "), b.join(" ")).trim_end().to_string()
-        })
-        .collect()
-}
 
 fn doc() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/CONTAINER.md");
@@ -59,10 +21,12 @@ fn doc() -> String {
 
 /// The bytes of the dump in the document.
 fn bytes_in_doc() -> Vec<u8> {
+    let begin = "<!-- example:begin -->";
     let d = doc();
-    let (from, to) = (d.find(BEGIN).expect("no example in CONTAINER.md"), d.find(END).expect("no end marker"));
+    let (from, to) =
+        (d.find(begin).expect("no example in CONTAINER.md"), d.find(END).expect("no end marker"));
     let mut out = Vec::new();
-    for line in d[from + BEGIN.len()..to].lines() {
+    for line in d[from + begin.len()..to].lines() {
         let Some((offset, rest)) = line.split_once("  ") else { continue };
         if u64::from_str_radix(offset.trim(), 16).is_err() || offset.len() != 8 {
             continue;
@@ -85,9 +49,39 @@ fn u64_at(b: &[u8], o: usize) -> u64 {
 
 #[test]
 fn the_dump_in_the_document_is_the_file_the_writer_produces() {
-    let file = example();
+    // The example file: one line (capability 1, required) and one component stream (capability 14, optional),
+    // unit mm, sealed.
+    let config = WriterConfig {
+        unit: LengthUnit::Millimetre,
+        metadata: Metadata {
+            producer_id: "pvec-doc-example".into(),
+            producer_version: "1".into(),
+            corpus_revision: None,
+        },
+        bounds: Some(Bounds { min: [0.0, 0.0], max: [10.0, 0.0] }),
+        capabilities: vec![CapabilityId::new(1), CapabilityId::new(14)],
+    };
+    let mut w = ContainerWriter::new(config);
+    let meta = EntityMeta {
+        id: EntityId::new(0).unwrap(),
+        style: 0,
+        cell: 0,
+        bounds: Bounds { min: [0.0, 0.0], max: [10.0, 0.0] },
+    };
+    w.push_line(meta, [0.0, 0.0], [10.0, 0.0]).unwrap();
+    w.push_stream(Stream {
+        capability: CapabilityId::new(14),
+        version: Version::new(1, 0, 0),
+        payload: vec![0],
+    })
+    .unwrap();
+    let file = w.finish().unwrap();
     if std::env::var_os("PVEC_BLESS_EXAMPLE").is_some() {
-        println!("{}", dump(&file).join("\n"));
+        for (i, c) in file.chunks(16).enumerate() {
+            let hex: Vec<String> = c.iter().map(|b| format!("{b:02x}")).collect();
+            let (a, b) = hex.split_at(hex.len().min(8));
+            println!("{}", format!("{:08x}  {}  {}", i * 16, a.join(" "), b.join(" ")).trim_end());
+        }
     }
     assert!(file.len() < 2048, "the example must stay small, it is {} bytes", file.len());
     assert_eq!(bytes_in_doc(), file, "the dump in docs/CONTAINER.md is not what the writer writes now");
@@ -122,8 +116,12 @@ fn a_reader_built_from_the_tables_alone_lists_required_capabilities_and_skips_an
             required.push(u32_at(m, e));
         }
     }
-    let reference = Manifest::parse(m, &pvec_container::Header::parse(&f[..header_len], f.len() as u64).unwrap(), f.len() as u64)
-        .unwrap();
+    let reference = Manifest::parse(
+        m,
+        &pvec_container::Header::parse(&f[..header_len], f.len() as u64).unwrap(),
+        f.len() as u64,
+    )
+    .unwrap();
     let mut expected: Vec<u32> = reference
         .capabilities
         .iter()
@@ -147,7 +145,10 @@ fn a_reader_built_from_the_tables_alone_lists_required_capabilities_and_skips_an
             kept += 1;
         } else if flags & 1 == 0 {
             let (offset, stored) = (u64_at(e, 0), u32_at(e, 8));
-            assert!(offset as usize + stored as usize <= f.len(), "the skip is computed from the descriptor alone");
+            assert!(
+                offset as usize + stored as usize <= f.len(),
+                "the skip is computed from the descriptor alone"
+            );
             skipped += 1;
         } else {
             panic!("a must-understand block of kind {kind} would refuse the file");

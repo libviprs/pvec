@@ -79,7 +79,11 @@ fn every_internal_link_in_the_documents_resolves() {
     for file in markdown_files() {
         let text = fs::read_to_string(&file).unwrap();
         for l in links(&text) {
-            let target: PathBuf = if let Some(abs) = l.strip_prefix('/') { repo_root().join(abs) } else { file.parent().unwrap().join(&l) };
+            let target: PathBuf = if let Some(abs) = l.strip_prefix('/') {
+                repo_root().join(abs)
+            } else {
+                file.parent().unwrap().join(&l)
+            };
             if !Path::new(&target).exists() {
                 broken.push(format!("{}: {l}", file.file_name().unwrap().to_string_lossy()));
             }
@@ -88,20 +92,15 @@ fn every_internal_link_in_the_documents_resolves() {
     assert!(broken.is_empty(), "broken links:\n{}", broken.join("\n"));
 }
 
-/// A tolerance-shaped number: an exponent-form literal such as 1e-9, or the word epsilon with a value.
-fn tolerance_like(line: &str) -> bool {
-    let b: Vec<char> = line.chars().collect();
-    let exp = (1..b.len().saturating_sub(2)).any(|i| {
-        (b[i] == 'e' || b[i] == 'E')
-            && b[i - 1].is_ascii_digit()
-            && b[i + 1] == '-'
-            && b[i + 2].is_ascii_digit()
-    });
-    exp || (line.to_lowercase().contains("epsilon") && line.chars().any(|c| c.is_ascii_digit()))
-}
-
 #[test]
 fn only_the_numeric_policy_defines_a_tolerance_and_every_other_mention_cites_it() {
+    // Lines that carry an exponent-form number which is not a tolerance, each with the reason. A new one has to
+    // be added here on purpose, so the net stays as tight as before.
+    let not_a_tolerance = [
+        ("INTERCHANGE.md", "so `1e-7` (a ten-millionth) is written `1.E-7`", "how Part 21 writes a real"),
+        ("INTERCHANGE.md", "bounded by 5.395e-6 world units", "a measured MVT quantization bound"),
+        ("INTERCHANGE.md", "measures 5.274e-6 over 5000 points", "a measured error"),
+    ];
     let mut loose = Vec::new();
     for file in markdown_files() {
         let name = file.file_name().unwrap().to_string_lossy().to_string();
@@ -109,12 +108,28 @@ fn only_the_numeric_policy_defines_a_tolerance_and_every_other_mention_cites_it(
             continue;
         }
         for (n, line) in fs::read_to_string(&file).unwrap().lines().enumerate() {
-            if tolerance_like(line) && !(line.contains("NUMERIC_POLICY") || line.contains("NP-") || line.contains("P1.2")) {
+            // a tolerance-shaped number: an exponent-form literal such as 1e-9, or the word epsilon with a value
+            let b: Vec<char> = line.chars().collect();
+            let exp = (1..b.len().saturating_sub(2)).any(|i| {
+                (b[i] == 'e' || b[i] == 'E')
+                    && b[i - 1].is_ascii_digit()
+                    && b[i + 1] == '-'
+                    && b[i + 2].is_ascii_digit()
+            });
+            let tolerance_like =
+                exp || (line.to_lowercase().contains("epsilon") && line.chars().any(|c| c.is_ascii_digit()));
+            let cited = line.contains("NUMERIC_POLICY") || line.contains("NP-") || line.contains("P1.2");
+            let allowed = not_a_tolerance.iter().any(|(f, text, _)| *f == name && line.contains(text));
+            if tolerance_like && !cited && !allowed {
                 loose.push(format!("{name}:{}: {}", n + 1, line.trim()));
             }
         }
     }
-    assert!(loose.is_empty(), "a tolerance outside the P1.2 policy, with no citation of it:\n{}", loose.join("\n"));
+    assert!(
+        loose.is_empty(),
+        "a tolerance outside the P1.2 policy, with no citation of it:\n{}",
+        loose.join("\n")
+    );
 }
 
 #[test]
@@ -139,52 +154,50 @@ fn the_specification_has_a_third_party_reader_checklist_that_points_at_the_worke
     let s = read("SPECIFICATION.md");
     assert!(s.contains("## Third-party reader checklist"));
     assert!(s.contains("CONTAINER.md#6-an-annotated-example") || s.contains("an annotated example"));
-    for step in ["enumerate the required capabilities", "parse the header", "skip an unknown optional block"] {
+    for step in ["enumerate the required capabilities", "parse the header", "skip an unknown optional block"]
+    {
         assert!(s.contains(step), "the checklist never says to {step}");
     }
     assert!(s.contains("FREEZE-v1.md"), "the specification is assembled from the frozen rows");
 }
 
-/// The verdict lines `- id on platform: PASS (...)` of a benchmark report.
-fn verdict_ids(report: &str) -> Vec<(String, String, String)> {
-    let text = fs::read_to_string(docs_dir().join("bench").join(report)).unwrap();
-    let mut out: Vec<(String, String, String)> = Vec::new();
-    for l in text.lines().filter_map(|l| l.strip_prefix("- ")) {
-        let Some((id, rest)) = l.split_once(" on ") else { continue };
-        let Some((platform, verdict)) = rest.split_once(": ") else { continue };
-        let word = verdict.split_whitespace().next().unwrap_or("");
-        if ["PASS", "FAIL"].contains(&word) && platform.starts_with("linux-") {
-            let row = (id.to_string(), platform.to_string(), word.to_string());
-            if !out.contains(&row) {
-                out.push(row);
-            }
-        }
-    }
-    out
-}
-
 #[test]
 fn the_benchmarks_page_reproduces_every_phase_8_threshold_with_its_platform_and_the_corpus_digest() {
     let b = read("BENCHMARKS.md");
-    let lock = fs::read_to_string(repo_root().join("crates/pvec-bench/benches/corpus/corpus.lock.json")).unwrap();
-    let digest = pvec_checks_digest(&lock);
+    let lock =
+        fs::read_to_string(repo_root().join("crates/pvec-bench/benches/corpus/corpus.lock.json")).unwrap();
+    let digest = pvec_corpus::sha256::hex_digest(lock.as_bytes());
     assert!(b.contains(&digest), "BENCHMARKS.md does not name the corpus digest {digest}");
     let mut seen = 0;
     for report in ["STEP_COMPARISON.md", "LAYOUT.md", "GEOMETRY.md"] {
-        for (id, platform, verdict) in verdict_ids(report) {
+        // the verdict lines `- id on platform: PASS (...)` of the report, each once
+        let text = fs::read_to_string(docs_dir().join("bench").join(report)).unwrap();
+        let mut verdicts: Vec<(String, String, String)> = Vec::new();
+        for l in text.lines().filter_map(|l| l.strip_prefix("- ")) {
+            let Some((id, rest)) = l.split_once(" on ") else { continue };
+            let Some((platform, verdict)) = rest.split_once(": ") else { continue };
+            let word = verdict.split_whitespace().next().unwrap_or("");
+            if ["PASS", "FAIL"].contains(&word) && platform.starts_with("linux-") {
+                let row = (id.to_string(), platform.to_string(), word.to_string());
+                if !verdicts.contains(&row) {
+                    verdicts.push(row);
+                }
+            }
+        }
+        for (id, platform, verdict) in verdicts {
             seen += 1;
-            let row = b.lines().find(|l| l.starts_with('|') && l.contains(&format!("`{id}`")) && l.contains(&platform));
+            let row = b
+                .lines()
+                .find(|l| l.starts_with('|') && l.contains(&format!("`{id}`")) && l.contains(&platform));
             let row = row.unwrap_or_else(|| panic!("BENCHMARKS.md has no row for {id} on {platform}"));
             assert!(row.contains(&verdict), "{id} on {platform}: the row does not say {verdict}");
         }
     }
     assert!(seen >= 30, "found only {seen} phase 8 verdicts to reproduce");
     for missing in ["PROGRESSIVE.md", "TUNING.md"] {
-        assert!(b.contains(missing) && b.contains("not measured"), "BENCHMARKS.md hides that {missing} is missing");
+        assert!(
+            b.contains(missing) && b.contains("not measured"),
+            "BENCHMARKS.md hides that {missing} is missing"
+        );
     }
-}
-
-/// sha256 of the lock file, through the one implementation the repository tests share.
-fn pvec_checks_digest(text: &str) -> String {
-    pvec_corpus::sha256::hex_digest(text.as_bytes())
 }

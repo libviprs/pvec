@@ -7,7 +7,7 @@ the verdict. A red row is a result and stays red here; the failures are tracked 
 
 ## Inputs
 
-* Corpus: `crates/pvec-bench/benches/corpus/corpus.lock.json`, sha256 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`.
+* Corpus: `crates/pvec-bench/benches/corpus/corpus.lock.json`, sha256 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`. That lock is stale on main (the chunk ordering change of pvec#159 moved 8 of its 10 generated entries), so the corpus is not frozen; see its row in [FREEZE-v1.md](FREEZE-v1.md).
 * Platforms: `linux-x86_64` is native x64 (mars, a `linux/amd64` container, release build). `linux-aarch64` is arm64 (mercury, Colima on Apple silicon, release build). No row reads across the two, and no emulated result is reported.
 * Reports: [P8.2](bench/STEP_COMPARISON.md), [P8.3](bench/LAYOUT.md), [P8.4](bench/GEOMETRY.md).
 
