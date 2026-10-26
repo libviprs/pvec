@@ -123,10 +123,14 @@ impl Snapshot {
         // a section is complete when the next header or the end of the text arrives
         let mut flush = |section: &In, open: &mut Vec<(String, String)>| -> Result<(), String> {
             let get = |k: &str| -> Result<String, String> {
-                open.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone()).ok_or(format!("missing key {k}"))
+                open.iter()
+                    .find(|(key, _)| key == k)
+                    .map(|(_, v)| v.clone())
+                    .ok_or(format!("missing key {k}"))
             };
             let id = |open: &Vec<(String, String)>| -> Result<u32, String> {
-                let v = open.iter().find(|(k, _)| k == "id").map(|(_, v)| v.as_str()).ok_or("missing key id")?;
+                let v =
+                    open.iter().find(|(k, _)| k == "id").map(|(_, v)| v.as_str()).ok_or("missing key id")?;
                 v.parse().map_err(|_| format!("id is not a number: {v:?}"))
             };
             match section {
@@ -168,10 +172,14 @@ impl Snapshot {
                 }
                 _ if line.starts_with('[') => return Err(at(format!("unknown table {line}"))),
                 _ => {
-                    let (k, v) = line.split_once('=').ok_or_else(|| at(format!("not a key = value line: {line}")))?;
+                    let (k, v) =
+                        line.split_once('=').ok_or_else(|| at(format!("not a key = value line: {line}")))?;
                     let v = v.trim();
                     let value = match v.strip_prefix('"') {
-                        Some(rest) => rest.strip_suffix('"').ok_or_else(|| at("unterminated string".into()))?.to_string(),
+                        Some(rest) => rest
+                            .strip_suffix('"')
+                            .ok_or_else(|| at("unterminated string".into()))?
+                            .to_string(),
                         None if v.parse::<u32>().is_ok() => v.to_string(),
                         None => return Err(at(format!("a string needs quotes: {v}"))),
                     };

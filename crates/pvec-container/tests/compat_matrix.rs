@@ -152,10 +152,8 @@ fn every_declared_pair_gives_its_declared_outcome() {
         let file = file_for(&case);
         let reader = reader_named(&case["reader"]);
         let out = negotiate(&file.manifest, &file.entries, &reader);
-        let gaps: Vec<String> = version_gaps(&file.manifest, &reader)
-            .iter()
-            .map(|g| format!("{}:{}", g.id, g.file))
-            .collect();
+        let gaps: Vec<String> =
+            version_gaps(&file.manifest, &reader).iter().map(|g| format!("{}:{}", g.id, g.file)).collect();
         assert_eq!(gaps, list(case.get("gaps")), "{name}: version gaps");
         match (case["outcome"].as_str(), &out) {
             ("open", Outcome::Open) => {}
@@ -167,8 +165,11 @@ fn every_declared_pair_gives_its_declared_outcome() {
                     .iter()
                     .map(|id| {
                         let by_cap = p.capabilities.iter().find(|c| c.id.get() == *id).map(|c| c.reason);
-                        let by_block =
-                            p.blocks.iter().find(|b| b.capability.map(|c| c.get()) == Some(*id)).map(|b| b.reason);
+                        let by_block = p
+                            .blocks
+                            .iter()
+                            .find(|b| b.capability.map(|c| c.get()) == Some(*id))
+                            .map(|b| b.reason);
                         reason_name(by_cap.or(by_block).unwrap())
                     })
                     .collect();
@@ -203,7 +204,8 @@ fn every_declared_pair_gives_its_declared_outcome() {
 
 #[test]
 fn a_block_of_pure_garbage_with_a_valid_length_is_skipped_and_never_parsed() {
-    let (_, case) = cases().into_iter().find(|(n, _)| n == "old-reader-new-file-unknown-optional-block").unwrap();
+    let (_, case) =
+        cases().into_iter().find(|(n, _)| n == "old-reader-new-file-unknown-optional-block").unwrap();
     let file = file_for(&case);
     let cfg = ReaderConfig { capabilities: reader_named("s_old"), ..ReaderConfig::default() };
     let r = ContainerReader::open(MemorySource::new(file.bytes), cfg).expect("opens");

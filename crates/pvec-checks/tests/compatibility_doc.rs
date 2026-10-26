@@ -64,7 +64,15 @@ fn the_document_gives_the_exact_behaviour_for_every_row_of_the_decision_table() 
 #[test]
 fn the_document_states_the_lifecycle_the_lint_enforces() {
     let d = doc();
-    for needle in ["active", "deprecated", "write-disabled", "removed", "major version", "`unstable`", "not a conformant v1 file"] {
+    for needle in [
+        "active",
+        "deprecated",
+        "write-disabled",
+        "removed",
+        "major version",
+        "`unstable`",
+        "not a conformant v1 file",
+    ] {
         assert!(d.contains(needle), "docs/COMPATIBILITY.md does not mention {needle}");
     }
     assert!(d.contains(&format!("at least {DEPRECATED_MIN_MINORS} minor releases as `deprecated`")));

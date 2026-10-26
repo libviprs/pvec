@@ -2,12 +2,19 @@
 //! `deprecated` and `write-disabled`, and a breaking change may not land on a minor format version.
 
 use pvec_capabilities::{
-    Breaking, DEPRECATED_MIN_MINORS, FORMAT_VERSION, LintFinding, Registry, Snapshot, Status,
-    WRITE_DISABLED_MIN_MINORS, Version, lint_transition,
+    Breaking, DEPRECATED_MIN_MINORS, FORMAT_VERSION, LintFinding, Registry, Snapshot, Status, Version,
+    WRITE_DISABLED_MIN_MINORS, lint_transition,
 };
 
 /// A snapshot with one capability (id 7) and the given format version, status and retired list.
-fn snap(format: &str, version: &str, requirement: &str, status: &str, since: &str, retired: &[u32]) -> Snapshot {
+fn snap(
+    format: &str,
+    version: &str,
+    requirement: &str,
+    status: &str,
+    since: &str,
+    retired: &[u32],
+) -> Snapshot {
     let mut t = format!("format_version = \"{format}\"\n");
     if !status.is_empty() {
         t.push_str(&format!(
@@ -44,7 +51,13 @@ fn the_v1_registry_round_trips_through_its_snapshot_text() {
 
 #[test]
 fn a_snapshot_with_a_malformed_line_is_refused_with_the_line() {
-    for bad in ["format_version = 1.0.0\n", "id = 3\n", "[[capability]]\nid = x\n", "[[nope]]\n", "format_version = \"1.0\"\n"] {
+    for bad in [
+        "format_version = 1.0.0\n",
+        "id = 3\n",
+        "[[capability]]\nid = x\n",
+        "[[nope]]\n",
+        "format_version = \"1.0\"\n",
+    ] {
         assert!(Snapshot::parse(bad).is_err(), "{bad:?}");
     }
 }
@@ -73,7 +86,10 @@ fn removing_a_deprecated_capability_is_refused_because_it_skipped_write_disabled
 fn removal_needs_a_major_version_and_the_retired_list() {
     let old = snap("1.5.0", "1.0.0", "optional", "write-disabled", "1.2.0", &[]);
     let minor = snap("1.6.0", "1.0.0", "optional", "", "", &[7]);
-    assert!(lint_transition(&old, &minor).contains(&LintFinding::BreakingOnMinor { id: 7, change: Breaking::Removal }));
+    assert!(
+        lint_transition(&old, &minor)
+            .contains(&LintFinding::BreakingOnMinor { id: 7, change: Breaking::Removal })
+    );
     let no_retire = snap("2.0.0", "1.0.0", "optional", "", "", &[]);
     assert!(lint_transition(&old, &no_retire).contains(&LintFinding::RemovedNotRetired { id: 7 }));
     let ok = snap("2.0.0", "1.0.0", "optional", "", "", &[7]);
@@ -128,7 +144,10 @@ fn a_status_may_not_skip_a_step_or_go_back() {
 fn a_breaking_change_on_a_minor_version_is_refused_and_allowed_on_a_major_one() {
     let old = active("1.0.0");
     let bump = snap("1.1.0", "2.0.0", "optional", "active", "1.0.0", &[]);
-    assert!(lint_transition(&old, &bump).contains(&LintFinding::BreakingOnMinor { id: 7, change: Breaking::MajorBump }));
+    assert!(
+        lint_transition(&old, &bump)
+            .contains(&LintFinding::BreakingOnMinor { id: 7, change: Breaking::MajorBump })
+    );
     let tighten = snap("1.1.0", "1.0.0", "required", "active", "1.0.0", &[]);
     assert!(
         lint_transition(&old, &tighten)
@@ -150,8 +169,7 @@ fn a_version_may_not_go_down_and_a_retired_id_may_not_come_back() {
     }));
     let back = snap("2.0.0", "1.0.0", "optional", "active", "1.0.0", &[7]);
     assert!(lint_transition(&old, &back).contains(&LintFinding::RetiredIdReused { id: 7 }));
-    assert!(
-        lint_transition(&active("1.1.0"), &active("1.0.0"))
-            .contains(&LintFinding::FormatVersionWentDown { old: Version::new(1, 1, 0), new: Version::new(1, 0, 0) })
-    );
+    assert!(lint_transition(&active("1.1.0"), &active("1.0.0")).contains(
+        &LintFinding::FormatVersionWentDown { old: Version::new(1, 1, 0), new: Version::new(1, 0, 0) }
+    ));
 }
