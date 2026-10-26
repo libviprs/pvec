@@ -613,12 +613,15 @@ Five stages, each a public function in `pvec_interchange::mvt`, each testable al
 ### Second-opinion decoder
 
 The decoder in the tests is independent of the encoder, but I wrote it, so it is not a second opinion.
-The test `issue_133_third_party_decoder_agrees_on_every_tile_the_export_produces` feeds every non-empty
-tile at zoom 0, 2 and 3 of the `crossing-curves` fixture to `mvt-reader` 2.5.0 (a dev-dependency, pinned
-with `=`, nothing in a shipping crate) and compares it with our test decoder: the layers (count, name,
-extent, order), the features (count and order), the ids, every attribute (type and value, doubles bit for
-bit) and the geometry (every linestring piece, vertex for vertex in integer tile units). It also fails
-if a geometry is anything but a linestring. They agree on all of it.
+The ignored test `issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces` writes every
+non-empty tile at zoom 0, 2 and 3 of the `crossing-curves` fixture and reads them with the MVT driver of
+GDAL 3.9.3, in the pinned `ghcr.io/osgeo/gdal` image that `tools/gpkg-validate.sh` already uses. It
+runs in a throw-away `pvec-hermetic` container (no network, read-only root), not as a Cargo dependency,
+because the tree may hold only the pure Rust crates ADR 0006 and ADR 0016 allow. It compares the
+layers (names), the features (count), the ids, the attributes (`entity_id`, `world_deviation` to the
+last digit, `display_only`) and the geometry (every linestring piece, vertex for vertex in tile units)
+against our test decoder, and it checks that GDAL refuses a file that is not a tile. They agree on all
+of it. The `docker-tests` stage of `gate-fleet.sh local-ci pvec` runs it.
 
 ### Why the tessellation bound is not proven
 

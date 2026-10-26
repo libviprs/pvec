@@ -732,56 +732,52 @@ fn issue_23_interchange_chapter_5_states_extent_zoom_range_and_quantization_erro
 
 // ---- issue 133: a decoder that is not ours, the bound, anisotropic maps ---------------------------------
 
-/// The third-party reader's view of one tile: per layer, (name, extent, features), each feature as
-/// (id, properties, pieces) with the pieces as integer tile coordinates.
-type Seen = Vec<(String, u32, Vec<(Option<u64>, BTreeMap<String, String>, Vec<Vec<(i64, i64)>>)>)>;
+/// `ghcr.io/osgeo/gdal:ubuntu-small-3.9.3`, the same pinned image `tools/gpkg-validate.sh` uses. Its MVT driver
+/// (GDAL 3.9.3, protobuf based, not ours) is the second opinion on the tiles.
+const GDAL_IMAGE: &str =
+    "ghcr.io/osgeo/gdal@sha256:7125d6f5d6af5331354328fc6a64c9e420b29b31460d1a6aaf9526e559255e07";
 
-fn third_party(bytes: &[u8]) -> Seen {
-    use mvt_reader::feature::Value;
-    use mvt_reader::Reader;
-    let reader = Reader::new(bytes.to_vec()).expect("mvt-reader parses the tile");
-    let meta = reader.get_layer_metadata().expect("layer metadata");
-    let mut out = Vec::new();
-    for (i, m) in meta.iter().enumerate() {
-        let mut feats = Vec::new();
-        for f in reader.get_features_as::<i32>(i).expect("features") {
-            let props = f
-                .properties
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(k, v)| {
-                    let s = match v {
-                        Value::UInt(u) => format!("uint:{u}"),
-                        Value::Double(d) => format!("double:{:016x}", d.to_bits()),
-                        Value::Bool(b) => format!("bool:{b}"),
-                        other => format!("other:{other:?}"),
-                    };
-                    (k, s)
-                })
-                .collect();
-            let lines: Vec<Vec<(i64, i64)>> = match f.geometry {
-                geo_types::Geometry::LineString(l) => {
-                    vec![l.0.iter().map(|c| (c.x as i64, c.y as i64)).collect()]
-                }
-                geo_types::Geometry::MultiLineString(m) => {
-                    m.0.iter().map(|l| l.0.iter().map(|c| (c.x as i64, c.y as i64)).collect()).collect()
-                }
-                other => panic!("the export writes linestrings only, mvt-reader saw {other:?}"),
-            };
-            feats.push((f.id, props, lines));
-        }
-        out.push((m.name.clone(), m.extent, feats));
-    }
-    out
-}
+/// Reads every tile in a directory with GDAL's MVT driver and prints one line per feature:
+/// `F|file|layer|mvt_id|entity_id|world_deviation|display_only|x,y;x,y/x,y;x,y`. A file GDAL cannot open prints `OPENFAIL|file`.
+const GDAL_READ: &str = r#"
+import os, sys
+from osgeo import ogr
+ogr.UseExceptions()
+d = sys.argv[1]
+for name in sorted(os.listdir(d)):
+    if not name.endswith(".pbf"):
+        continue
+    try:
+        ds = ogr.Open(os.path.join(d, name))
+    except Exception:
+        ds = None
+    if ds is None:
+        print("OPENFAIL|" + name)
+        continue
+    for i in range(ds.GetLayerCount()):
+        lyr = ds.GetLayer(i)
+        for f in lyr:
+            g = f.GetGeometryRef()
+            parts = [g] if g.GetGeometryName() == "LINESTRING" else [g.GetGeometryRef(k) for k in range(g.GetGeometryCount())]
+            assert g.GetGeometryName() in ("LINESTRING", "MULTILINESTRING"), g.GetGeometryName()
+            pieces = "/".join(";".join("%d,%d" % (round(p[0]), round(p[1])) for p in part.GetPoints()) for part in parts)
+            print("|".join(["F", name, lyr.GetName(), str(f.GetField("mvt_id")), str(f.GetField("entity_id")),
+                            repr(f.GetField("world_deviation")), str(bool(f.GetField("display_only"))), pieces]))
+"#;
 
 #[test]
-fn issue_133_third_party_decoder_agrees_on_every_tile_the_export_produces() {
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
+fn issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces() {
+    use pvec_hermetic::{Config, Container, Decision, Policy};
+    let work = std::env::temp_dir().join(format!("pvec-mvt-133-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&work);
+    fs::create_dir_all(work.join("tiles")).unwrap();
+    fs::write(work.join("read.py"), GDAL_READ).unwrap();
+
     let pr = fixture_projection();
     let opts = MvtOptions::default();
     let ents = fixture();
-    let mut tiles = 0;
-    let mut features = 0;
+    let mut ours: Vec<String> = Vec::new();
     for z in [0u8, 2, 3] {
         for x in 0..(1u32 << z) {
             for y in 0..(1u32 << z) {
@@ -789,33 +785,77 @@ fn issue_133_third_party_decoder_agrees_on_every_tile_the_export_produces() {
                 if t.bytes.is_empty() {
                     continue;
                 }
-                tiles += 1;
-                let ours = decode_tile(&t.bytes, opts.buffer as i64);
-                let theirs = third_party(&t.bytes);
-                assert_eq!(ours.len(), theirs.len(), "layer count, tile {z}/{x}/{y}");
-                for (o, (name, extent, feats)) in ours.iter().zip(&theirs) {
-                    assert_eq!(&o.name, name, "layer name, tile {z}/{x}/{y}");
-                    assert_eq!(u64::from(*extent), o.extent);
-                    assert_eq!(o.features.len(), feats.len(), "feature count in {name}, tile {z}/{x}/{y}");
-                    for (of, (id, props, lines)) in o.features.iter().zip(feats) {
-                        features += 1;
-                        assert_eq!(*id, Some(of.id), "feature id");
-                        assert_eq!(&of.lines, lines, "geometry of feature {}", of.id);
-                        assert_eq!(props.len(), of.tags.len(), "attribute count");
-                        for (k, v) in &of.tags {
-                            let want = match v {
-                                DVal::Uint(u) => format!("uint:{u}"),
-                                DVal::Double(d) => format!("double:{:016x}", d.to_bits()),
-                                DVal::Bool(b) => format!("bool:{b}"),
-                            };
-                            assert_eq!(props.get(k), Some(&want), "attribute {k}");
-                        }
+                let file = format!("{z}-{x}-{y}.pbf");
+                fs::write(work.join("tiles").join(&file), &t.bytes).unwrap();
+                for l in decode_tile(&t.bytes, opts.buffer as i64) {
+                    for f in &l.features {
+                        let DVal::Double(dev) = f.tags["world_deviation"] else { panic!("deviation is a double") };
+                        let pieces: Vec<String> = f
+                            .lines
+                            .iter()
+                            .map(|p| p.iter().map(|(x, y)| format!("{x},{y}")).collect::<Vec<_>>().join(";"))
+                            .collect();
+                        ours.push(format!(
+                            "F|{file}|{}|{}|{}|{dev:?}|true|{}",
+                            l.name,
+                            f.id,
+                            f.id,
+                            pieces.join("/")
+                        ));
                     }
                 }
             }
         }
     }
-    assert!(tiles > 10 && features > 20, "the check must cover real tiles ({tiles} tiles, {features} features)");
+    assert!(ours.len() > 20, "the check must cover real tiles ({} features)", ours.len());
+    // a file that is not a tile, so a reader that accepts anything cannot pass
+    fs::write(work.join("tiles/bad.pbf"), [0xffu8; 16]).unwrap();
+
+    let cfg = Config { image: GDAL_IMAGE.to_string(), mount: work.clone(), search_path: None };
+    let c = match Container::start_with_command(&cfg, &["sleep", "900"]) {
+        Ok(c) => c,
+        Err(e) => match Policy::from_env().decide(e) {
+            Decision::Skip(why) => {
+                eprintln!("skipped: {why}");
+                let _ = fs::remove_dir_all(&work);
+                return;
+            }
+            Decision::Fail(e) => panic!("the GDAL container could not start: {e}"),
+        },
+    };
+    let name = c.name().to_string();
+    let r = c.exec(&["python3", "-I", "/corpus/read.py", "/corpus/tiles"]).unwrap();
+    assert!(r.success, "GDAL could not read the tiles:\n{}\n{}", r.stdout, r.stderr);
+    let mut theirs: Vec<String> = Vec::new();
+    let mut refused = Vec::new();
+    for line in r.stdout.lines() {
+        if let Some(f) = line.strip_prefix("OPENFAIL|") {
+            refused.push(f.to_string());
+        } else {
+            theirs.push(line.to_string());
+        }
+    }
+    assert_eq!(refused, ["bad.pbf"], "GDAL must refuse exactly the file that is not a tile");
+    ours.sort();
+    theirs.sort();
+    assert_eq!(
+        ours.len(),
+        theirs.len(),
+        "feature count differs:\nours:   {:?}\ntheirs: {:?}",
+        ours.first(),
+        theirs.first()
+    );
+    for (o, t) in ours.iter().zip(&theirs) {
+        assert_eq!(o, t, "GDAL read a different layer, id, attribute or geometry");
+    }
+
+    c.stop().unwrap();
+    let ps = std::process::Command::new("docker")
+        .args(["ps", "-a", "--filter", &format!("name={name}"), "--format", "{{.Names}}"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&ps.stdout).trim().is_empty(), "the container is still there");
+    let _ = fs::remove_dir_all(&work);
 }
 
 #[test]
@@ -841,8 +881,9 @@ fn section(ch: &str, heading: &str) -> String {
 #[test]
 fn issue_133_chapter_5_names_the_third_party_decoder_and_what_it_checks() {
     let s = section(&chapter_5(), "### Second-opinion decoder");
-    assert!(s.contains("mvt-reader"), "name the crate");
-    assert!(s.contains("2.5.0"), "pin the version");
+    assert!(s.contains("GDAL") && s.contains("MVT driver"), "name the decoder");
+    assert!(s.contains("3.9.3"), "pin the version");
+    assert!(s.contains("container"), "it runs in a container, not as a dependency");
     for what in ["layers", "features", "ids", "geometry"] {
         assert!(s.contains(what), "say that it compares {what}");
     }
