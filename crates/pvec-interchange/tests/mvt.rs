@@ -738,7 +738,8 @@ const GDAL_IMAGE: &str =
     "ghcr.io/osgeo/gdal@sha256:7125d6f5d6af5331354328fc6a64c9e420b29b31460d1a6aaf9526e559255e07";
 
 /// Reads every tile in a directory with GDAL's MVT driver and prints one line per feature:
-/// `F|file|layer|mvt_id|entity_id|world_deviation|display_only|x,y;x,y/x,y;x,y`. A file GDAL cannot open prints `OPENFAIL|file`.
+/// `F|file|layer|mvt_id|entity_id|world_deviation|display_only|x,y;x,y/x,y;x,y`. GDAL's MVT driver counts y up from the
+/// bottom of the tile (the extent is 4096 here), so y is turned back to the specification's y down. A file GDAL cannot open prints `OPENFAIL|file`.
 const GDAL_READ: &str = r#"
 import os, sys
 from osgeo import ogr
@@ -760,7 +761,7 @@ for name in sorted(os.listdir(d)):
             g = f.GetGeometryRef()
             parts = [g] if g.GetGeometryName() == "LINESTRING" else [g.GetGeometryRef(k) for k in range(g.GetGeometryCount())]
             assert g.GetGeometryName() in ("LINESTRING", "MULTILINESTRING"), g.GetGeometryName()
-            pieces = "/".join(";".join("%d,%d" % (round(p[0]), round(p[1])) for p in part.GetPoints()) for part in parts)
+            pieces = "/".join(";".join("%d,%d" % (round(p[0]), 4096 - round(p[1])) for p in part.GetPoints()) for part in parts)
             print("|".join(["F", name, lyr.GetName(), str(f.GetField("mvt_id")), str(f.GetField("entity_id")),
                             repr(f.GetField("world_deviation")), str(bool(f.GetField("display_only"))).lower(), pieces]))
 "#;
@@ -841,13 +842,14 @@ fn issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces() {
     assert_eq!(refused, ["bad.pbf"], "GDAL must refuse exactly the file that is not a tile");
     ours.sort();
     theirs.sort();
-    assert_eq!(
-        ours.len(),
-        theirs.len(),
-        "feature count differs:\nours:   {:?}\ntheirs: {:?}",
-        ours.first(),
-        theirs.first()
+    let key = |l: &String| l.split('|').take(4).collect::<Vec<_>>().join("|");
+    let only_ours: Vec<_> = ours.iter().map(key).filter(|k| !theirs.iter().any(|t| key(t) == *k)).collect();
+    let only_theirs: Vec<_> = theirs.iter().map(key).filter(|k| !ours.iter().any(|o| key(o) == *k)).collect();
+    assert!(
+        only_ours.is_empty() && only_theirs.is_empty(),
+        "only ours: {only_ours:?}, only GDAL: {only_theirs:?}"
     );
+    assert_eq!(ours.len(), theirs.len());
     for (o, t) in ours.iter().zip(&theirs) {
         assert_eq!(o, t, "GDAL read a different layer, id, attribute or geometry");
     }
