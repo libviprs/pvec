@@ -6,6 +6,8 @@
 
 mod error;
 mod evidence;
+pub mod geometric;
+pub mod structural;
 
 pub use error::{ConformanceError, Result};
 pub use evidence::{Assertion, Outcome, Registry, Tally, Verdict, check_report, may_assert, render, tally};
