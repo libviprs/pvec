@@ -29,6 +29,10 @@ name = "geometry"
 harness = false
 
 [[bench]]
+name = "layout"
+harness = false
+
+[[bench]]
 name = "vs_step"
 harness = false
 

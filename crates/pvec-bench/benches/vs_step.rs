@@ -407,7 +407,7 @@ fn report(csv: &Path, platform: &str) {
         let (Some(p), Some(s), Some(h)) = (g("pvec"), g("part21"), g("step-hdf")) else { continue };
         println!(
             "| {e} | {} | {} | {} | {} | {} | {} | {} | {} / {} / {} | {} / {} | {} / {} |",
-            f(p.entities),
+            p.entities.map_or("NA".to_string(), |n| format!("{n:.0}")),
             f(p.encoded_bytes),
             f(s.encoded_bytes),
             f(h.encoded_bytes),

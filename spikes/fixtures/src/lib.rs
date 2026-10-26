@@ -7,6 +7,7 @@
 //! The geometry here is plain data. It is not the P1.3 API and carries no layer, style or text:
 //! those are independent components and outside the geometry oracle.
 
+pub mod dump;
 pub mod generate;
 pub mod p21;
 
