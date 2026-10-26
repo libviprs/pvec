@@ -10,6 +10,7 @@
 pub mod lock;
 pub mod models;
 pub mod shape;
+pub mod step_bench;
 
 use models::Model;
 use pvec_container::{Bounds, LengthUnit};
