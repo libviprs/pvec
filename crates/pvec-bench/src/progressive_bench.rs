@@ -1,6 +1,6 @@
 //! The thresholds, the network model and the verdicts of the progressive coverage benchmark (issue P8.5).
 
-use crate::layout_bench::{Row, Verdict};
+use crate::layout_bench::{Row, Status, Verdict};
 
 /// Failure if the directory is not ready within this many seconds (10^6 architectural entry, 25 Mbit/s, 60 ms).
 pub const DIRECTORY_MAX_S: f64 = 0.3;
@@ -59,24 +59,168 @@ pub const IDS: [&str; 9] = [
 /// one round trip for its first byte, then moves its bytes over the one link, which carries one request's
 /// bytes at a time in issue order. A local arm has no network time: every request is done at `start_s`.
 pub fn completions(arm: &Arm, start_s: f64, sizes: &[u64]) -> Vec<f64> {
-    let _ = (arm, start_s, sizes);
-    todo!("the network model")
+    let Some(mbit) = arm.mbit_per_s else { return vec![start_s; sizes.len()] };
+    let bytes_per_s = mbit * 1e6 / 8.0;
+    let mut lanes = [start_s; RANGE_CONCURRENCY];
+    let mut link_free = start_s;
+    sizes
+        .iter()
+        .map(|&len| {
+            let lane = (0..RANGE_CONCURRENCY).min_by(|a, b| lanes[*a].total_cmp(&lanes[*b])).unwrap_or(0);
+            let first_byte = lanes[lane] + arm.rtt_ms / 1000.0;
+            let done = first_byte.max(link_free) + len as f64 / bytes_per_s;
+            lanes[lane] = done;
+            link_free = done;
+            done
+        })
+        .collect()
 }
 
 /// `entities represented / entities intersecting`; an empty viewport is complete.
 pub fn coverage(in_view: u64, represented: u64) -> f64 {
-    let _ = (in_view, represented);
-    todo!("the coverage metric")
+    if in_view == 0 { 1.0 } else { represented as f64 / in_view as f64 }
 }
 
 /// `(max - min) / median` of the runs.
 pub fn spread(runs: &[f64]) -> f64 {
-    let _ = runs;
-    todo!("the repeat spread")
+    let mut v = runs.to_vec();
+    v.sort_by(f64::total_cmp);
+    match v.len() {
+        0 => 0.0,
+        n => (v[n - 1] - v[0]) / if n % 2 == 1 { v[n / 2] } else { (v[n / 2 - 1] + v[n / 2]) / 2.0 },
+    }
 }
 
-/// The verdicts for the rows, per platform.
+const ENTRY: &str = "architectural-1e6";
+const FAST: &str = "25mbit-60ms";
+const SLOW: &str = "5mbit-200ms";
+
+/// The verdicts for the rows, per platform: no comparison reads across two platforms.
 pub fn verdicts(rows: &[Row]) -> Vec<Verdict> {
-    let _ = rows;
-    todo!("the verdicts")
+    let mut platforms: Vec<&str> = rows.iter().map(|r| r.platform.as_str()).collect();
+    platforms.sort_unstable();
+    platforms.dedup();
+    let mut out = Vec::new();
+    for platform in platforms {
+        let here: Vec<&Row> = rows.iter().filter(|r| r.platform == platform).collect();
+        let value = |table: &str, entry: &str, arm: &str, param: &str, metric: &str| {
+            here.iter()
+                .find(|r| {
+                    r.table == table
+                        && r.entry == entry
+                        && r.arm == arm
+                        && r.param == param
+                        && r.metric == metric
+                })
+                .and_then(|r| r.value)
+        };
+        let mut push = |id: &'static str, status: Status, detail: String| {
+            out.push(Verdict { id, platform: platform.to_string(), status, detail })
+        };
+        let gap = |what: &str| (Status::NotMeasured, format!("not measured: {what}"));
+        // one number against a limit, on the architectural million
+        let limit = |table: &str, arm: &str, param: &str, metric: &str, max: f64, unit: &str| match value(
+            table, ENTRY, arm, param, metric,
+        ) {
+            Some(v) => (
+                if v <= max { Status::Pass } else { Status::Fail },
+                format!("{ENTRY} on {arm}: {v:.4} {unit} (limit {max} {unit})"),
+            ),
+            None => gap(&format!("{ENTRY} has no {metric} ({param}) on {arm} on this platform")),
+        };
+
+        let (s, d) = limit("stage", FAST, "p95", "directory_s", DIRECTORY_MAX_S, "s");
+        push(IDS[0], s, d);
+        let (s, d) = limit("stage", FAST, "p95", "tier0_s", TIER0_MAX_S, "s");
+        push(IDS[1], s, d);
+        let (s, d) = limit("stage", SLOW, "p95", "tier0_s", TIER0_SLOW_MAX_S, "s");
+        push(IDS[2], s, d);
+
+        let covered: Vec<&&Row> =
+            here.iter().filter(|r| r.table == "stage" && r.metric == "coverage" && r.value.is_some()).collect();
+        let short: Vec<String> = covered
+            .iter()
+            .filter(|r| r.value.is_some_and(|v| v < 1.0))
+            .map(|r| format!("{} on {} ({:.6})", r.entry, r.arm, r.value.unwrap_or(0.0)))
+            .collect();
+        let (s, d) = match (covered.len(), short.is_empty()) {
+            (0, _) => gap("no entry has a coverage row on this platform"),
+            (n, true) => (Status::Pass, format!("{n} entry and arm rows, coverage 1.0 on every viewport")),
+            (n, false) => (
+                Status::Fail,
+                format!("{} of {n} entry and arm rows are below 1.0: {}", short.len(), short.join("; ")),
+            ),
+        };
+        push(IDS[3], s, d);
+
+        let (s, d) = limit("stage", FAST, "max", "worst_preview_px", PREVIEW_MAX_PX, "px");
+        push(IDS[4], s, d);
+
+        let unnamed: Vec<&&Row> =
+            here.iter().filter(|r| r.metric == "previews_without_identity" && r.value.is_some()).collect();
+        let bad: Vec<String> = unnamed
+            .iter()
+            .filter(|r| r.value.is_some_and(|v| v > 0.0))
+            .map(|r| format!("{} on {} ({})", r.entry, r.arm, r.value.unwrap_or(0.0)))
+            .collect();
+        let (s, d) = match (unnamed.len(), bad.is_empty()) {
+            (0, _) => gap("no entry has a previews_without_identity row on this platform"),
+            (n, true) => (Status::Pass, format!("{n} rows, every preview replaces a named entity")),
+            (_, false) => (Status::Fail, format!("previews without a stable identity: {}", bad.join("; "))),
+        };
+        push(IDS[5], s, d);
+
+        let (s, d) = limit("stage", FAST, "p95", "refine_full_s", REFINE_MAX_S, "s");
+        push(IDS[6], s, d);
+
+        let (s, d) = limit("interaction", FAST, "pan", "discard_share", PAN_MAX_DISCARD, "of decoded bytes");
+        push(IDS[7], s, d);
+
+        let mut cases: Vec<(&str, &str, &str)> = here
+            .iter()
+            .filter(|r| r.table == "repeat")
+            .map(|r| (r.entry.as_str(), r.arm.as_str(), r.metric.as_str()))
+            .collect();
+        cases.sort_unstable();
+        cases.dedup();
+        let (mut judged, mut failed, mut worst) = (0, Vec::new(), 0.0f64);
+        for (entry, arm, metric) in cases {
+            let runs: Vec<f64> = here
+                .iter()
+                .filter(|r| r.table == "repeat" && r.entry == entry && r.arm == arm && r.metric == metric)
+                .filter_map(|r| r.value)
+                .collect();
+            if runs.len() < 3 {
+                continue;
+            }
+            judged += 1;
+            let sp = spread(&runs);
+            worst = worst.max(sp);
+            if sp > REPEAT_MAX_SPREAD {
+                failed.push(format!("{entry} {arm} {metric} ({:.1}%)", sp * 100.0));
+            }
+        }
+        let (s, d) = match (judged, failed.is_empty()) {
+            (0, _) => gap("no entry has three repeat runs of a stage on this platform"),
+            (n, true) => (
+                Status::Pass,
+                format!(
+                    "{n} stage times, the widest spread {:.1}% (limit {:.0}%)",
+                    worst * 100.0,
+                    REPEAT_MAX_SPREAD * 100.0
+                ),
+            ),
+            (n, false) => (
+                Status::Fail,
+                format!(
+                    "{} of {n} stage times vary by more than {:.0}%: {}",
+                    failed.len(),
+                    REPEAT_MAX_SPREAD * 100.0,
+                    failed.join("; ")
+                ),
+            ),
+        };
+        push(IDS[8], s, d);
+    }
+    out
 }

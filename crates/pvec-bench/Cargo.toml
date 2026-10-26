@@ -33,6 +33,10 @@ name = "layout"
 harness = false
 
 [[bench]]
+name = "progressive"
+harness = false
+
+[[bench]]
 name = "vs_step"
 harness = false
 
