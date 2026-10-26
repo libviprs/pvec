@@ -5,8 +5,8 @@ claim in one of the four repositories means the same thing in all of them. It ex
 asked for mathematical, structural and display results to be kept apart, and I would rather that be
 mechanical than editorial.
 
-The runner is `crates/pvec-conformance` (`gates.rs`), the report writer and the reader an older consumer
-uses are in `report.rs`, and the tests are `crates/pvec-conformance/tests/issue_41_gates.rs`.
+The runner is `crates/pvec-harness` (`gates.rs`), the report writer and the reader an older consumer
+uses are in `report.rs`, and the tests are `crates/pvec-harness/tests/issue_41_gates.rs`.
 
 ## What I claim
 

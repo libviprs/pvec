@@ -3,10 +3,10 @@
 mod common;
 
 use pvec_capabilities::EvidenceClass as C;
-use pvec_conformance::gates::{Gate, GateVerdict as V, Runner};
-use pvec_conformance::geometric::{Break, Evaluator, Plan, Source};
-use pvec_conformance::structural::{Family, Knot, Structure};
-use pvec_conformance::{ConformanceError, check_report, geometric, report, structural};
+use pvec_harness::gates::{Gate, GateVerdict as V, Runner};
+use pvec_harness::geometric::{Break, Evaluator, Plan, Source};
+use pvec_harness::structural::{Family, Knot, Structure};
+use pvec_harness::{ConformanceError, check_report, geometric, report, structural};
 use pvec_numeric::Side;
 use std::f64::consts::TAU;
 

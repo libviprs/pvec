@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Semantic geometry codecs: PVec curves to the type-batched block payload of ADR 0004 and back"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]

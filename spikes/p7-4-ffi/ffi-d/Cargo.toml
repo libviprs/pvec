@@ -1,0 +1,15 @@
+[package]
+name = "p74-ffi-d"
+description = "Candidate (d): a C-callable packed-buffer API that mirrors the P7.3 arrays"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[lib]
+name = "pvec_ffi_d"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+pvec = { path = "../../../crates/pvec" }
+pvec-wasm = { path = "../../../crates/pvec-wasm" }

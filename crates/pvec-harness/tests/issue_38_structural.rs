@@ -4,8 +4,8 @@
 mod common;
 
 use pvec_capabilities::{EvidenceClass as C, Registry as Capabilities};
-use pvec_conformance::structural::{Family, Knot, Report, Structural, Structure, compare, render};
-use pvec_conformance::{Assertion, check_report};
+use pvec_harness::structural::{Family, Knot, Report, Structural, Structure, compare, render};
+use pvec_harness::{Assertion, check_report};
 use pvec_corpus::expected::EntityClass;
 use pvec_corpus::{Bundle, FixtureRegistry};
 

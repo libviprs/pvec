@@ -2,3 +2,4 @@ target/
 **/target/
 *.superseded
 .DS_Store
+.fuzz-out/
