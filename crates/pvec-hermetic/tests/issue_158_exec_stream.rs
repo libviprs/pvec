@@ -10,8 +10,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const IMAGE: &str =
-    "registry.invalid/pvec/range-source@sha256:0000000000000000000000000000000000000000000000000000000000000000";
+const IMAGE: &str = "registry.invalid/pvec/range-source@sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
 static N: AtomicUsize = AtomicUsize::new(0);
 
@@ -40,11 +39,19 @@ impl Fake {
     }
 
     fn config(&self) -> Config {
-        Config { image: IMAGE.to_string(), mount: self.dir.clone(), search_path: Some(self.dir.clone().into()) }
+        Config {
+            image: IMAGE.to_string(),
+            mount: self.dir.clone(),
+            search_path: Some(self.dir.clone().into()),
+        }
     }
 
     fn calls(&self) -> Vec<String> {
-        fs::read_to_string(self.dir.join("calls.log")).unwrap_or_default().lines().map(str::to_string).collect()
+        fs::read_to_string(self.dir.join("calls.log"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect()
     }
 }
 
@@ -73,7 +80,10 @@ fn exec_stream_pipes_standard_input_and_output_of_one_interactive_exec() {
     assert!(child.wait().unwrap().success());
     let exec: Vec<String> = f.calls().into_iter().filter(|c| c.starts_with("exec")).collect();
     assert_eq!(exec.len(), 1, "{exec:?}");
-    assert!(exec[0].starts_with(&format!("exec -i {} python3 /corpus/range_server.py", c.name())), "{exec:?}");
+    assert!(
+        exec[0].starts_with(&format!("exec -i {} python3 /corpus/range_server.py", c.name())),
+        "{exec:?}"
+    );
     c.stop().unwrap();
 }
 

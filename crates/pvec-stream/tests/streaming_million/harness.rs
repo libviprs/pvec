@@ -685,7 +685,8 @@ fn load_shed_over<S: BlockSource + Send + Sync + 'static>(source: S, changes: u3
 /// The image the range source runs in: the multi-platform index of `python:3.12-slim` (CPython 3.12.15),
 /// pinned by digest as `pvec-interchange`'s STEP reader test pins it. The server is `range_server.py`,
 /// mounted read-only beside the artifact.
-const RANGE_SOURCE_IMAGE: &str = "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1";
+const RANGE_SOURCE_IMAGE: &str =
+    "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1";
 
 /// The pipes of the one `docker exec -i` that talks to `range_server.py`, and the artifact's length.
 /// Cloning is cheap; the helper is killed when the last clone is dropped.
@@ -800,13 +801,13 @@ pub fn with_hermetic_source<R>(
     let mut child = container
         .exec_stream(&["python3", "/corpus/range_server.py", &millis, &rate])
         .expect("the range server starts");
-    let mut io = (
-        child.stdin.take().expect("stdin"),
-        std::io::BufReader::new(child.stdout.take().expect("stdout")),
-    );
-    let len = String::from_utf8(ask(&mut io, "L").expect("the length")).expect("text").parse().expect("number");
+    let mut io =
+        (child.stdin.take().expect("stdin"), std::io::BufReader::new(child.stdout.take().expect("stdout")));
+    let len =
+        String::from_utf8(ask(&mut io, "L").expect("the length")).expect("text").parse().expect("number");
     assert_eq!(len, bytes.len() as u64, "the container serves the artifact it was given");
-    let source = HermeticSource { inner: Arc::new(Pipes { io: Mutex::new(io), child: Mutex::new(child), len }) };
+    let source =
+        HermeticSource { inner: Arc::new(Pipes { io: Mutex::new(io), child: Mutex::new(child), len }) };
     let r = f(&source, container.name());
     drop(source);
     container.stop().expect("the container is removed");
