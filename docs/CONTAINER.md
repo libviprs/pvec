@@ -478,7 +478,7 @@ A reader that meets a block it has never heard of has to skip it correctly, with
 | `OpenDegraded` | an optional capability is not supported, or is declared at a major version the reader does not implement, or a block is of a kind or a codec the reader does not know | reads the file, skips what it cannot read, and returns a `PartialOpen` that lists the skipped capability ids and blocks |
 | `Refuse` | a required capability is not supported, or is declared at another major version, or the file needs a newer reader | opens nothing, and the refusal names the capability id and the version the file declares |
 
-A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as optional cannot be declared required by a file.
+A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. `version_gaps` lists those capabilities with the version the file declares and the one the reader implements, so a consumer can report the gap. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as optional cannot be declared required by a file.
 
 Refusals are `Refusal` values and carry a rule:
 
