@@ -35,8 +35,14 @@ fn issue_120_adr_0017_decides_one_way_and_names_the_alternatives_it_weighed() {
     assert!(lower.contains("curve-only"), "the decision is stated as curve-only or its opposite");
     assert!(lower.contains("instance stream"), "the issue's own alternative A is weighed");
     assert!(lower.contains("component stream"), "the issue's alternative B is weighed");
-    assert!(t.contains("nested-blocks-001") && lower.contains("three levels"), "nesting is the deciding case");
-    assert!(t.contains("#49") && t.contains("#37"), "it builds on the transform ADR and the no-silent-approximation rule");
+    assert!(
+        t.contains("nested-blocks-001") && lower.contains("three levels"),
+        "nesting is the deciding case"
+    );
+    assert!(
+        t.contains("#49") && t.contains("#37"),
+        "it builds on the transform ADR and the no-silent-approximation rule"
+    );
 }
 
 #[test]
@@ -45,7 +51,10 @@ fn issue_120_adr_0017_says_what_happens_to_each_of_the_seven_fixtures() {
     for id in SEVEN {
         assert!(t.contains(id), "{id} is not accounted for");
     }
-    assert!(t.contains("WORLD_SPACE_RESULT") && t.contains("TRANSFORM_PRESERVED"), "both assertions are named");
+    assert!(
+        t.contains("WORLD_SPACE_RESULT") && t.contains("TRANSFORM_PRESERVED"),
+        "both assertions are named"
+    );
     assert!(t.contains("libviprs/pvec-gold-fixtures"), "the re-tag lands in the corpus repository");
 }
 
