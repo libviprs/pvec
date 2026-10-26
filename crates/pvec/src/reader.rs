@@ -1,4 +1,4 @@
-use crate::{Manifest, PvecError};
+use crate::{Curve, EntityId, Manifest, PvecError};
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
 
@@ -26,5 +26,10 @@ impl PvecReader {
     pub fn entity_count(&self) -> Result<u64, PvecError> {
         let v = self.inner.validate().map_err(|e| PvecError::Read { rule: e.rule() })?;
         Ok(v.entities)
+    }
+
+    /// Every entity of the file as a curve, in ascending entity id order.
+    pub fn entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError> {
+        Err(PvecError::Read { rule: "not implemented".to_string() })
     }
 }

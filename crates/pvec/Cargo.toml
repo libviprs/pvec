@@ -27,6 +27,8 @@ pvec-stream = { path = "../pvec-stream", optional = true }
 
 [dev-dependencies]
 pvec-checks = { path = "../pvec-checks" }
+pvec-corpus = { path = "../pvec-corpus" }
+pvec-testkit = { path = "../pvec-testkit" }
 
 [lints]
 workspace = true

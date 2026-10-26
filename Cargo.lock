@@ -46,9 +46,11 @@ dependencies = [
  "pvec-checks",
  "pvec-components",
  "pvec-container",
+ "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
  "pvec-stream",
+ "pvec-testkit",
 ]
 
 [[package]]
