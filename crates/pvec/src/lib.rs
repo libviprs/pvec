@@ -11,8 +11,10 @@
 
 mod bounds;
 mod error;
+mod eval;
 mod manifest;
 mod reader;
+mod tessellate;
 mod writer;
 
 pub mod components;
@@ -21,9 +23,11 @@ pub mod unstable;
 
 pub use bounds::{Bounds2, CurveRef};
 pub use error::PvecError;
+pub use eval::CurveEval;
 pub use manifest::Manifest;
 pub use pvec_capabilities::CapabilityId;
 pub use pvec_entity::EntityId;
-pub use pvec_geometry::{Curve, Domain, Transform2};
+pub use pvec_geometry::{Curve, Domain, Side, Transform2};
 pub use reader::PvecReader;
+pub use tessellate::{Conformance, Tessellate, Tessellation, TessellationContext};
 pub use writer::PvecWriter;
