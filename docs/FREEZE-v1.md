@@ -17,7 +17,7 @@ result file records a failure, so the table cannot say more than the files do.
 | physical container | ADR 0003 | P8.2 .pvec vs Part 21 vs STEP-HDF | docs/bench/STEP_COMPARISON.md records a red gate on x64 (spline-heavy-1e6 viewport p95, 10.7x STEP-HDF), tracked in pvec#192 | NOT FROZEN |
 | internal layout (SoA + arenas) | ADR 0004 | P8.3 layout arms | docs/bench/LAYOUT.md records the SoA gate red on x64 (2.01x against 3x) and the block size gate red, pvec#192 | NOT FROZEN |
 | spatial index + straddler strategy | ADR 0005 | P8.3 index arms, total viewport I/O | docs/bench/LAYOUT.md records the index gate red on 7 of 7 entries (3x to 38x the bytes of the best alternative), pvec#192 | NOT FROZEN |
-| progressive tiers | ADR 0007 | P8.5 coverage stages | no docs/bench/PROGRESSIVE.md: the progressive benchmark is not merged, so this gate is missing | NOT FROZEN |
+| progressive tiers | ADR 0007 | P8.5 coverage stages | docs/bench/PROGRESSIVE.md records 8 of 9 gates red on x64 and 7 of 9 on arm64 (directory 2.1 s against 0.3 s, Tier 0 3.3 s against 1.5 s, full refinement 10.4 s against 5 s on architectural-1e6), pvec#192 | NOT FROZEN |
 | extension rules | ADR 0008 and ADR 0013 | registry lint + P7.6 matrix | tests/compat/matrix.txt | FROZEN |
 | capability registry + compatibility contract | ADR 0010 | P7.8 capability matrix | docs/capabilities.toml | FROZEN |
 | security and resource limits (P4.8) | ADR 0008 and docs/SECURITY_LIMITS.md | P7.8 findings all fixed | the findings are fixed, but the 4 hour nightly fuzz run is still outstanding (pvec#190), so the gate is not closed | NOT FROZEN |
@@ -39,7 +39,7 @@ regenerated lock shows up here, but the corpus is not frozen yet (see its row ab
 - [x] docs/bench/STEP_COMPARISON.md (P8.2): present, one gate red on x64.
 - [x] docs/bench/LAYOUT.md (P8.3): present, three gates red.
 - [x] docs/bench/GEOMETRY.md (P8.4): present, several gates red on both platforms.
-- [ ] docs/bench/PROGRESSIVE.md (P8.5): missing.
+- [x] docs/bench/PROGRESSIVE.md (P8.5): present, eight gates red on x64 and seven on arm64.
 - [ ] docs/bench/TUNING.md (P8.6): missing, so nothing has been tuned against the measurements.
 
 The red gates are listed, with the proposed way to deal with each, in pvec#192. I have not hidden or relaxed any of them

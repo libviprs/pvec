@@ -136,8 +136,10 @@ pub fn verdicts(rows: &[Row]) -> Vec<Verdict> {
         let (s, d) = limit("stage", SLOW, "p95", "tier0_s", TIER0_SLOW_MAX_S, "s");
         push(IDS[2], s, d);
 
-        let covered: Vec<&&Row> =
-            here.iter().filter(|r| r.table == "stage" && r.metric == "coverage" && r.value.is_some()).collect();
+        let covered: Vec<&&Row> = here
+            .iter()
+            .filter(|r| r.table == "stage" && r.metric == "coverage" && r.value.is_some())
+            .collect();
         let short: Vec<String> = covered
             .iter()
             .filter(|r| r.value.is_some_and(|v| v < 1.0))

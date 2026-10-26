@@ -134,7 +134,7 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
             }
             seen_preview[i] = true;
             have[i] = true;
-            previews.push((i as u32, f64::from(p.error_bound())));
+            previews.push((i as u32, p.error_bound()));
         }
     }
     let mut hit = vec![false; n];
@@ -275,10 +275,7 @@ fn prepare(entry: &str, out: &Path) {
 fn truth_of(entry: &str) -> Truth {
     let shapes = Spec::named(entry).expect("a generated entry").shapes();
     let (_, bounds) = pvec_bench::shape::summarise(&shapes);
-    Truth {
-        boxes: shapes.iter().map(|s| (s.bounds(), matches!(s, Shape::Spline(_)))).collect(),
-        bounds,
-    }
+    Truth { boxes: shapes.iter().map(|s| (s.bounds(), matches!(s, Shape::Spline(_)))).collect(), bounds }
 }
 
 const STAGE_METRICS: [&str; 4] = ["directory_s", "tier0_s", "refine_first_s", "refine_full_s"];
@@ -308,7 +305,8 @@ fn run(entry: &str, dir: &Path, platform: &str, repeats: usize) {
         );
         last = samples;
     }
-    let note = "network modelled, CPU measured; p95 over the 200 recorded viewports, median of the repeat runs";
+    let note =
+        "network modelled, CPU measured; p95 over the 200 recorded viewports, median of the repeat runs";
     for (a, arm) in ARMS.iter().enumerate() {
         for (m, metric) in STAGE_METRICS.iter().enumerate() {
             let runs: Vec<f64> = times.iter().map(|t| p95(&mut t[a][m].clone())).collect();
@@ -321,13 +319,50 @@ fn run(entry: &str, dir: &Path, platform: &str, repeats: usize) {
             o.row("stage", arm.name, "mean", metric, mean, note);
         }
         let cov: Vec<f64> = last.iter().map(|s| coverage(s.in_view, s.represented)).collect();
-        let frac: Vec<f64> =
-            last.iter().map(|s| if s.represented == 0 { 0.0 } else { s.previews as f64 / s.represented as f64 }).collect();
-        o.row("stage", arm.name, "min", "coverage", cov.iter().copied().fold(1.0, f64::min), "entities represented in viewport over entities intersecting it, worst viewport");
-        o.row("stage", arm.name, "mean", "preview_fraction", frac.iter().sum::<f64>() / frac.len() as f64, "previews over represented entities");
-        o.row("stage", arm.name, "max", "worst_preview_px", last.iter().map(|s| s.worst_px).fold(0.0, f64::max), "the preview error bound times the viewport scale; display fidelity, not geometric exactness");
-        o.row("stage", arm.name, "fit", "worst_preview_px", last[0].worst_px, "the whole-drawing viewport, the zoom the preview budget is set at");
-        o.row("stage", arm.name, "total", "previews_without_identity", last.iter().map(|s| s.anonymous).sum::<u64>() as f64, "previews that replace no entity of the file, or one already replaced");
+        let frac: Vec<f64> = last
+            .iter()
+            .map(|s| if s.represented == 0 { 0.0 } else { s.previews as f64 / s.represented as f64 })
+            .collect();
+        o.row(
+            "stage",
+            arm.name,
+            "min",
+            "coverage",
+            cov.iter().copied().fold(1.0, f64::min),
+            "entities represented in viewport over entities intersecting it, worst viewport",
+        );
+        o.row(
+            "stage",
+            arm.name,
+            "mean",
+            "preview_fraction",
+            frac.iter().sum::<f64>() / frac.len() as f64,
+            "previews over represented entities",
+        );
+        o.row(
+            "stage",
+            arm.name,
+            "max",
+            "worst_preview_px",
+            last.iter().map(|s| s.worst_px).fold(0.0, f64::max),
+            "the preview error bound times the viewport scale; display fidelity, not geometric exactness",
+        );
+        o.row(
+            "stage",
+            arm.name,
+            "fit",
+            "worst_preview_px",
+            last[0].worst_px,
+            "the whole-drawing viewport, the zoom the preview budget is set at",
+        );
+        o.row(
+            "stage",
+            arm.name,
+            "total",
+            "previews_without_identity",
+            last.iter().map(|s| s.anonymous).sum::<u64>() as f64,
+            "previews that replace no entity of the file, or one already replaced",
+        );
     }
     let mean = |f: &dyn Fn(&Sample) -> f64| last.iter().map(f).sum::<f64>() / last.len() as f64;
     let cut = "ranges and bytes per viewport, mean over the 200 recorded viewports";
@@ -374,7 +409,9 @@ fn interaction(o: &Out, file: &Path, truth: &Truth, wins: &[[f64; 4]]) {
                 plan.block_ids().into_iter().collect()
             };
             let r = open(file);
-            let bytes_of = |ids: &[BlockId]| -> u64 { ids.iter().map(|b| u64::from(r.entries()[b.0 as usize].stored_length)).sum() };
+            let bytes_of = |ids: &[BlockId]| -> u64 {
+                ids.iter().map(|b| u64::from(r.entries()[b.0 as usize].stored_length)).sum()
+            };
             let clock = GenerationClock::new();
             let token = clock.token();
             // the units of A's refinement job, in the order they were requested; the view changes at `at`
@@ -415,7 +452,14 @@ fn interaction(o: &Out, file: &Path, truth: &Truth, wins: &[[f64; 4]]) {
     let note = "view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint";
     for (kind, e) in acc {
         let n = counts[kind];
-        o.row("interaction", arm.name, kind, "discard_share", e[0] / n, &format!("{note}; mean over {n} viewports"));
+        o.row(
+            "interaction",
+            arm.name,
+            kind,
+            "discard_share",
+            e[0] / n,
+            &format!("{note}; mean over {n} viewports"),
+        );
         o.row("interaction", arm.name, kind, "discard_share_max", e[1], note);
         o.row("interaction", arm.name, kind, "bytes_decoded_mean", e[2] / n, note);
         o.row("interaction", arm.name, kind, "bytes_discarded_mean", e[3] / n, note);

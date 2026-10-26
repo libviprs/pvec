@@ -165,7 +165,8 @@ fn a_missing_entity_is_a_failure_on_any_entry_and_any_arm_not_a_slow_result() {
     };
     assert_eq!(status(&mk(1.0, 1.0), "coverage-complete"), Some(Status::Pass));
     assert_eq!(status(&mk(1.0, 0.999_999), "coverage-complete"), Some(Status::Fail));
-    let why = verdicts(&mk(1.0, 0.5)).into_iter().find(|v| v.id == "coverage-complete").expect("verdict").detail;
+    let why =
+        verdicts(&mk(1.0, 0.5)).into_iter().find(|v| v.id == "coverage-complete").expect("verdict").detail;
     assert!(why.contains("spline-heavy-1e6"), "the detail names the entry: {why}");
 }
 
