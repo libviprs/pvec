@@ -83,6 +83,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-conformance"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-corpus",
+]
+
+[[package]]
 name = "pvec-container"
 version = "0.0.0"
 dependencies = [
