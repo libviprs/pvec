@@ -15,6 +15,32 @@ remove, rename or re-sign turns it red and has to be reviewed. After P8.7 a chan
 Each component stream carries its own stream version (ADR 0014), and that is its versioning unit.
 `PvecError` is `#[non_exhaustive]` and carries rules as text, so no container type is reachable.
 
+## Reading curves back
+
+`PvecReader::entities()` returns every entity as `(EntityId, Curve)` in ascending id order. A curve
+comes back as the kind that describes it: a Bezier curve is stored as a B-spline and is read as one,
+a stored segment is a trimmed line, a circle or ellipse arc is a trimmed conic. Writing what was read
+writes the same bytes, which `tests/public_roundtrip.rs` checks on the P2.4 canonical fixtures
+(writer, reader, writer). Two limits remain: a composite whose segments are trimmed is refused, and
+component streams are written but not yet read back.
+
+## Exact evaluation and tessellation (issue P7.2)
+
+`CurveEval` is exact: `domain`, `point_at`, `derivative_at` (two-sided, refused where only one-sided limits
+exist), `derivative_from` (names the `Side`), `bounds`, `is_closed` and `transformed`. Nothing in it
+tessellates, and no tessellation leaves anything behind that evaluation reads.
+
+`Tessellate::tessellate(&TessellationContext)` is the one approximation entry point. The context is the
+whole chain (`source_to_map`, `map_to_screen`, `pixel_ratio`) and the budget (`max_screen_error_px` in
+device pixels, `max_world_error` in map units, `max_segments`), never a bare tolerance. The result is a
+polyline in source space tagged `Conformance::DisplayFidelity`, the only value that type has, with the
+bound it claims on screen and in map units. Deviation is measured after the chain, so a large source
+offset costs nothing. Knots, polyline vertices and composite joints are vertices. A budget the segment
+limit cannot reach returns `PvecError::ErrorBudgetUnmet { achieved, requested }`.
+
+The deviation of a segment is found at seven interior points and the claimed bound is that measure times
+1.05. It is a measured bound, not a proof, which is why the tag says display fidelity.
+
 ## Unstable (`unstable-stream`)
 
 `ViewportQuery`, `ReadPlan`, `Tier0Plan`, `Scene`, `Generation`, `GenerationClock` and `CancelToken`,
