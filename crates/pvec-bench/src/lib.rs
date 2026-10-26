@@ -13,6 +13,7 @@ pub mod layout_bench;
 pub mod lock;
 pub mod models;
 pub mod part21;
+pub mod progressive_bench;
 pub mod shape;
 pub mod step_bench;
 
@@ -170,7 +171,7 @@ impl Spec {
     /// The artifact bytes with the writer set to compress and seal as `options` say.
     pub fn artifact_with(&self, options: WriterOptions) -> Result<Vec<u8>, String> {
         let producer = format!("{GENERATOR}/{}/{:#x}", self.name, self.seed);
-        shape::artifact(&self.shapes(), self.unit(), &producer, options)
+        shape::artifact(&self.shapes(), self.unit(), &producer, options, None)
     }
 }
 

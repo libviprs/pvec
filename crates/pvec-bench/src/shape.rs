@@ -8,8 +8,8 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterConf
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    Aabb, EntityBox, LongEntity, PayloadRef, STRADDLER_FACTOR, build_directory, build_straddlers, classify,
-    payload_cells, scan_payloads,
+    Aabb, EntityBox, LongEntity, PayloadRef, STRADDLER_FACTOR, Tier0Builder, Tier0Params, build_directory,
+    build_straddlers, classify, payload_cells, scan_payloads, tier0_blocks,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::TAU;
@@ -142,12 +142,15 @@ fn push(w: &mut ContainerWriter, id: usize, cell: u32, shape: &Shape) -> Result<
 
 /// Writes `shapes` as one artifact: ids are the indices, B-splines go to the advanced set (cell 0), everything
 /// else to the hot blocks under a spatial directory, and the entities that span many cells go through the
-/// straddler strategy (P5.3b: lay out once to learn the block ids, then again with the lists).
+/// straddler strategy (P5.3b: lay out once to learn the block ids, then again with the lists). With
+/// `tier0_max_error` the file also carries a Tier 0 block per index leaf (P5.4b), previews held to that error
+/// in source units; without it the bytes are the corpus's, unchanged.
 pub fn artifact(
     shapes: &[Shape],
     unit: LengthUnit,
     producer: &str,
     options: WriterOptions,
+    tier0_max_error: Option<f64>,
 ) -> Result<Vec<u8>, String> {
     let (_, all) = summarise(shapes);
     let config = WriterConfig {
@@ -172,6 +175,19 @@ pub fn artifact(
         None => (hot.as_slice(), &[][..]),
     };
     let built = build_directory(local).expect("a directory");
+    let leaves = match tier0_max_error {
+        None => Vec::new(),
+        Some(max_error) => {
+            let count = u32::try_from(shapes.len()).map_err(|_| "too many entities".to_string())?;
+            let mut plan = Tier0Builder::new(count, Tier0Params { max_error }).map_err(|e| e.to_string())?;
+            for (i, s) in shapes.iter().enumerate() {
+                let curve = crate::part21::curve(s).map_err(|e| format!("entity {i}: {e}"))?;
+                plan.add_curve(eid(i), &curve).map_err(|e| format!("entity {i}: {e}"))?;
+            }
+            let plan = plan.finish().map_err(|e| e.to_string())?;
+            tier0_blocks(&plan, local, &built.cells).map_err(|e| e.to_string())?
+        }
+    };
     let mut cell_of: HashMap<u32, u32> =
         local.iter().zip(&built.cells).map(|(e, c)| (e.id.index(), c.get())).collect();
     if let Some(c) = classified.as_ref().filter(|c| !c.long.is_empty()) {
@@ -198,6 +214,10 @@ pub fn artifact(
             built.bytes.clone(),
         )
         .expect("directory");
+        for t in &leaves {
+            let bounds = Bounds { min: t.bounds.min(), max: t.bounds.max() };
+            w.push_tier0_leaf(t.cell.get(), t.count, bounds, t.bytes.clone()).expect("a tier 0 block");
+        }
         if let Some((entries, bytes)) = lists {
             let world = long.iter().skip(1).fold(long[0].bounds, |u, e| {
                 aabb([
