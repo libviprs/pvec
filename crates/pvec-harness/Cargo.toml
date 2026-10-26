@@ -6,14 +6,18 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-# Test support, like pvec-corpus: nothing here opens a socket or starts a process.
+# Test support, like pvec-corpus: nothing in src opens a socket or starts a process. The STEP round trip test
+# (issue 150) starts the evaluator container through pvec-hermetic, so that is a dev-dependency only.
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-corpus = { path = "../pvec-corpus" }
+pvec-entity = { path = "../pvec-entity" }
 pvec-geometry = { path = "../pvec-geometry" }
+pvec-interchange = { path = "../pvec-interchange" }
 pvec-numeric = { path = "../pvec-numeric" }
 
 [dev-dependencies]
+pvec-hermetic = { path = "../pvec-hermetic" }
 pvec-checks = { path = "../pvec-checks" }
 
 [lints]

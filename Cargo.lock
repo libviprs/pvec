@@ -185,7 +185,10 @@ dependencies = [
  "pvec-capabilities",
  "pvec-checks",
  "pvec-corpus",
+ "pvec-entity",
  "pvec-geometry",
+ "pvec-hermetic",
+ "pvec-interchange",
  "pvec-numeric",
 ]
 
