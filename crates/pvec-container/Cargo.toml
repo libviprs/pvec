@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "The PVec container: header, manifest, blocks, block directory and the deterministic writer"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]

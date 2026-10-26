@@ -13,6 +13,9 @@
 //! The display-only vector tile export (P6.6) lives in [`mvt`]; it is the one place that tessellates
 //! for display, through the exact evaluator of `pvec-geometry`.
 //!
+//! The fidelity report (P6.8) lives in [`report`]: one JSON and one Markdown rendering of what an export
+//! did, see `docs/INTERCHANGE.md` chapter 7.
+//!
 //! The crate has no I/O and no `unsafe`; it depends on the capability registry, the entity id and the
 //! curve model. The serialized form of a ledger is a small versioned text format written by hand, and
 //! the GeoPackage is a SQLite file written by hand too, so no serialization crate and no SQLite library
@@ -23,6 +26,7 @@ pub mod gml;
 pub mod gpkg;
 pub mod mvt;
 pub mod pmtiles;
+pub mod report;
 pub mod step;
 
 pub use fidelity::*;

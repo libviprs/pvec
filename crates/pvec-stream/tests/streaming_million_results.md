@@ -59,12 +59,15 @@ along a diagonal each time). Two numbers, because either alone can be gamed:
   units per job is the throttle against the change interval (about 11), which is why the units per viewport
   (74) are in the result and not only the ratio.
 
-## What this does not cover
+## The range source in a container
 
-The issue asks for the throttled range source to run in a hermetic container. `pvec-hermetic` starts its
-container with `--network none`, so a source served over a socket from it is not possible without changing that
-crate. The source here is in process and deterministic about what it charges per range. That is a gap, filed as a
-follow-up (pvec#158).
+The throttled range source also runs in a hermetic container (pvec#158), as the issue asks. `pvec-hermetic` starts
+the pinned `python:3.12-slim` image with no network and a read-only root, the artifact mounted read-only, and the
+harness drives `range_server.py` in it through the pipes of one `docker exec -i`. The throttle (8 ms and 100 MB/s per
+range) is charged inside the container, and the container is removed when the scenario ends, on a pass and on a
+failure. The docker-backed tests are `#[ignore]`d and run in the `docker-tests` stage; the in-process source is
+kept for the default run, so both are checked against the same thresholds. The load-shed numbers in the host
+sections below are from the in-process source. They do not depend on the host's Docker.
 
 ## native x86_64 (mars, release build)
 

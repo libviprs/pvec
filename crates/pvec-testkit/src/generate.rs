@@ -704,7 +704,7 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
         if e.node.get("structure") != Some(&Node::Str("CURVE_ONLY".to_string())) {
             return Err(cx.missing(
                 "affine_transform_2d",
-                "the record keeps an instance plus a transform, and the container stores neither; emitting the world-space result would pass a geometry check and fail the structural one",
+                "the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one",
             ));
         }
         if let Some(l) = e.node.get("layer") {

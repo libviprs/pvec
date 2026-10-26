@@ -1,0 +1,11 @@
+# Throwaway spike for P7.4 (the C/FFI adapter strategy). Own workspace and own lockfile, so cbindgen and its
+# tree never enter the main one.
+[workspace]
+resolver = "3"
+members = ["fixture-gen", "ffi-ab", "ffi-d", "consumer-c"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+publish = false
+version = "0.0.0"

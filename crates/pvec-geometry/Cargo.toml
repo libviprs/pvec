@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "The source-neutral PVec curve model: validated curves, exact evaluation, bounds and affine transforms"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # The only dependency is the numeric policy. A serialization, file or network crate here is a bug,
