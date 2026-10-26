@@ -272,11 +272,14 @@ impl Opening {
         if entries.is_empty() {
             return layout("LAYOUT-06", "no blocks");
         }
-        let keys: Vec<(u16, u32, u16)> = entries.iter().map(|e| (e.kind, e.cell, e.subtype)).collect();
+        let keys: Vec<(u16, u32, u16, u16)> =
+            entries.iter().map(|e| (BlockKind::group(e.kind), e.cell, e.kind, e.subtype)).collect();
         if keys.windows(2).any(|w| w[0] >= w[1]) {
             return layout(
                 "LAYOUT-04",
-                format!("blocks are not in strictly ascending (kind, cell, geometry type) order: {keys:?}"),
+                format!(
+                    "blocks are not in strictly ascending (kind group, cell, kind, geometry type) order: {keys:?}"
+                ),
             );
         }
         let manifest = self.manifest.as_ref().ok_or_else(internal)?;
@@ -888,7 +891,7 @@ pub(crate) const READER_RULES: &[(&str, &str)] = &[
         "LAYOUT-03",
         "the manifest does not hold exactly one block directory pointer, or the directory does not end the file (bytes after it are refused)",
     ),
-    ("LAYOUT-04", "the blocks are not in strictly ascending (kind, cell, geometry type) order"),
+    ("LAYOUT-04", "the blocks are not in strictly ascending (kind group, cell, kind, geometry type) order, where a record block and an arena are one group"),
     ("LAYOUT-06", "the directory has no blocks"),
     (
         "LAYOUT-07",
