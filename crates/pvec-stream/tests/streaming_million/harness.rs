@@ -407,7 +407,7 @@ impl Measured {
 
 /// One viewport the way the runtime serves it, on a cold reader: directory ready, then plan, read the
 /// planned blocks, read the straddler pages and payloads the viewport touches, and read the advanced
-/// set when it touches the viewport (the whole set: STREAMING 2.8).
+/// chunks that touch the viewport (STREAMING 2.8).
 pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
     let bytes = artifact(kind, entities);
     let t0 = Instant::now();
@@ -435,7 +435,7 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
     let drawn: usize = blocks.iter().map(|b| b.hot().map_or(0, |h| h.len())).sum();
     let (peak_before, live_before) = (acct.peak(), acct.live());
 
-    // The whole set is read when it touches the viewport (STREAMING 2.8), chunk by chunk.
+    // The chunks that touch the viewport are read, and no others.
     let requests_before_advanced = r.source().requests().len();
     // Only the chunks whose curves touch the viewport: a chunk's record block carries the union of its
     // curves' bounds, and `advanced_record_blocks` numbers the chunks the way `advanced` does.
@@ -445,6 +445,12 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
         record_blocks
             .iter()
             .enumerate()
+            .filter(|(_, id)| {
+                entries[id.0 as usize]
+                    .bounds
+                    .and_then(|b| Aabb::new(b.min, b.max).ok())
+                    .is_some_and(|b| b.intersects(&win))
+            })
             .map(|(c, _)| c)
             .collect()
     } else {
