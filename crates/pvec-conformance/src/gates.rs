@@ -6,7 +6,8 @@
 //! through the P2.5 and P2.6 modules) and nothing describes a gate as ISO conformance (the only claim
 //! is the one in `docs/ISO_PROFILE.md`).
 
-use crate::error::Result;
+use crate::error::{ConformanceError, Result};
+use crate::evidence::meaning;
 use crate::{geometric, structural};
 use pvec_capabilities::EvidenceClass;
 
@@ -69,17 +70,45 @@ impl Gate {
 
     /// The name the report and the document use.
     pub fn name(self) -> &'static str {
-        todo!("issue 41")
+        match self {
+            Gate::StructuralExact => "structural exact",
+            Gate::GeometricExact => "geometric exact",
+            Gate::DisplayApproximate => "display approximate",
+            Gate::FormatValid => "format valid",
+            Gate::ForwardCompatible => "forward compatible",
+        }
     }
 
     /// The evidence classes that may satisfy the gate. A quarantined fixture satisfies none.
     pub fn classes(self) -> &'static [EvidenceClass] {
-        todo!("issue 41")
+        match self {
+            Gate::StructuralExact | Gate::GeometricExact => {
+                &[EvidenceClass::KnownTruthExact, EvidenceClass::DualOracleEquivalent]
+            }
+            Gate::DisplayApproximate | Gate::FormatValid | Gate::ForwardCompatible => &[
+                EvidenceClass::KnownTruthExact,
+                EvidenceClass::DualOracleEquivalent,
+                EvidenceClass::RealWorldDifferential,
+            ],
+        }
     }
 
     /// The word a verdict is reported with. The display gate never has a word for exactness.
-    pub fn word(self, _verdict: GateVerdict) -> &'static str {
-        todo!("issue 41")
+    pub fn word(self, verdict: GateVerdict) -> &'static str {
+        match (self, verdict) {
+            (Gate::StructuralExact, GateVerdict::Pass) => "exact",
+            (Gate::StructuralExact, GateVerdict::Fail) => "differs",
+            (Gate::GeometricExact, GateVerdict::Pass) => "same locus within the policy tolerance",
+            (Gate::GeometricExact, GateVerdict::Fail) => "locus deviates",
+            (Gate::DisplayApproximate, GateVerdict::Pass) => "approximate, within budget",
+            (Gate::DisplayApproximate, GateVerdict::Fail) => "approximate, over budget",
+            (Gate::DisplayApproximate, GateVerdict::Routed) => "approximate, no budget to hold it to",
+            (Gate::FormatValid, GateVerdict::Pass) => "valid",
+            (Gate::FormatValid, GateVerdict::Fail) => "invalid",
+            (Gate::ForwardCompatible, GateVerdict::Pass) => "compatible",
+            (Gate::ForwardCompatible, GateVerdict::Fail) => "incompatible",
+            (_, GateVerdict::Routed) => "routed to the geometric gate",
+        }
     }
 }
 
@@ -97,43 +126,119 @@ impl Runner {
     /// Records a claim, refusing one the fixture's class cannot satisfy.
     pub fn claim(
         &mut self,
-        _gate: Gate,
-        _fixture: &str,
-        _class: EvidenceClass,
-        _verdict: GateVerdict,
-        _numbers: &[(&str, f64)],
+        gate: Gate,
+        fixture: &str,
+        class: EvidenceClass,
+        verdict: GateVerdict,
+        numbers: &[(&str, f64)],
     ) -> Result<()> {
-        todo!("issue 41")
+        if !gate.classes().contains(&class) {
+            return Err(ConformanceError::GateRefused {
+                gate: gate.name().to_string(),
+                fixture: fixture.to_string(),
+                class: class.name().to_string(),
+            });
+        }
+        self.rows.push(Row {
+            gate,
+            fixture: fixture.to_string(),
+            class,
+            verdict,
+            numbers: numbers.iter().map(|(n, v)| ((*n).to_string(), *v)).collect(),
+        });
+        Ok(())
     }
 
     /// Records a structural comparison (P2.5) under the structural gate.
-    pub fn structural(&mut self, _report: &structural::Report) -> Result<()> {
-        todo!("issue 41")
+    pub fn structural(&mut self, report: &structural::Report) -> Result<()> {
+        let verdict = match report.result {
+            structural::Structural::Exact => GateVerdict::Pass,
+            structural::Structural::Differs => GateVerdict::Fail,
+            structural::Structural::RoutedToGeometric => GateVerdict::Routed,
+        };
+        let failing = report.rows.iter().filter(|r| !r.equal).count() as f64;
+        let mut numbers = Vec::new();
+        if let Some(first) = report.rows.first() {
+            numbers.extend([
+                ("degree", first.degree as f64),
+                ("knot_count", first.knot_count as f64),
+                ("control_point_count", first.control_point_count as f64),
+            ]);
+        }
+        numbers.push(("failing_fields", failing));
+        self.claim(Gate::StructuralExact, &report.fixture, report.class, verdict, &numbers)
     }
 
     /// Records a geometric comparison (P2.6) under the geometric gate.
-    pub fn geometric(&mut self, _report: &geometric::Report) -> Result<()> {
-        todo!("issue 41")
+    pub fn geometric(&mut self, report: &geometric::Report) -> Result<()> {
+        let metric = |name: &str| report.metrics.iter().find(|m| m.name == name);
+        let mut numbers = Vec::new();
+        if let Some(m) = metric("position") {
+            numbers.push(("max_deviation", m.max));
+            if let Some(at) = m.at {
+                numbers.push(("worst_parameter", at));
+            }
+            numbers.push(("tolerance", m.tolerance));
+        }
+        for (name, key) in [
+            ("tangent", "tangent_deviation"),
+            ("curvature", "curvature_deviation"),
+            ("arc_length", "arc_length_deviation"),
+        ] {
+            if let Some(m) = metric(name) {
+                numbers.push((key, m.max));
+            }
+        }
+        let verdict = if report.passed { GateVerdict::Pass } else { GateVerdict::Fail };
+        self.claim(Gate::GeometricExact, &report.fixture, report.class, verdict, &numbers)
     }
 
     /// Records a display result: each error with the budget it is held to, screen then world.
     pub fn display(
         &mut self,
-        _fixture: &str,
-        _class: EvidenceClass,
-        _screen: (f64, f64),
-        _world: (f64, f64),
+        fixture: &str,
+        class: EvidenceClass,
+        screen: (f64, f64),
+        world: (f64, f64),
     ) -> Result<()> {
-        todo!("issue 41")
+        let within = |(error, budget): (f64, f64)| error.is_finite() && error <= budget;
+        let verdict = if within(screen) && within(world) { GateVerdict::Pass } else { GateVerdict::Fail };
+        let numbers = [
+            ("screen_error", screen.0),
+            ("screen_budget", screen.1),
+            ("world_error", world.0),
+            ("world_budget", world.1),
+        ];
+        self.claim(Gate::DisplayApproximate, fixture, class, verdict, &numbers)
     }
 
     /// Every gate's verdict for one fixture, side by side, never collapsed into one.
-    pub fn verdicts(&self, _fixture: &str) -> Vec<(Gate, GateVerdict)> {
-        todo!("issue 41")
+    pub fn verdicts(&self, fixture: &str) -> Vec<(Gate, GateVerdict)> {
+        self.rows.iter().filter(|r| r.fixture == fixture).map(|r| (r.gate, r.verdict)).collect()
     }
 
     /// The report text, one line per row.
     pub fn render(&self) -> String {
-        todo!("issue 41")
+        self.rows
+            .iter()
+            .map(|r| {
+                let verdict = match r.verdict {
+                    GateVerdict::Pass => "PASS",
+                    GateVerdict::Fail => "FAIL",
+                    GateVerdict::Routed => "ROUTED",
+                };
+                let numbers: Vec<String> = r.numbers.iter().map(|(n, v)| format!("{n}={v:?}")).collect();
+                format!(
+                    "{} [{}] {}: {verdict} ({}) {} ({})",
+                    r.fixture,
+                    r.class.name(),
+                    r.gate.name(),
+                    r.gate.word(r.verdict),
+                    numbers.join(" "),
+                    meaning(r.class)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
