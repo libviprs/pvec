@@ -20,6 +20,11 @@ pub enum PvecError {
         /// The metres-per-unit value that matched no unit.
         metres_per_unit: f64,
     },
+    /// A picking input or index entry was refused. `rule` names the rule, `PICK-nn`.
+    Query {
+        /// The rule that refused.
+        rule: String,
+    },
     /// The curve model refused: a parameter outside the domain, an unbounded curve, a derivative the
     /// curve is not smooth enough for.
     Geometry {
@@ -48,6 +53,7 @@ impl fmt::Display for PvecError {
         match self {
             PvecError::Read { rule } => write!(f, "read refused: {rule}"),
             PvecError::Write { rule } => write!(f, "write refused: {rule}"),
+            PvecError::Query { rule } => write!(f, "query refused: {rule}"),
             PvecError::UnknownUnit { metres_per_unit } => {
                 write!(f, "no length unit is {metres_per_unit} metres")
             }
