@@ -205,7 +205,7 @@ above; a nesting depth beyond `NP-18`.
 | Allowed dimensions | 2 |
 | Parameter-domain convention | PVec definition: segment `k` (zero based) occupies `[k, k+1]` of the composite parameter, mapped linearly from that segment's own canonical domain. Part 21 does not carry this parameter, so only the locus is comparable |
 | Trim convention | bounded by construction; each segment is already trimmed |
-| Exact Part 21 form | `COMPOSITE_CURVE('',(#s0,#s1,...),.F.);` with `COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#parent);` per segment. `.CONT_SAME_GRADIENT.` and `.CONT_SAME_GRADIENT_SAME_CURVATURE.` are written only when the continuity has been verified under `NP-16`; otherwise `.CONTINUOUS.` (position only) |
+| Exact Part 21 form | `COMPOSITE_CURVE('',(#s0,#s1,...),.U.);` with `COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#parent);` per segment. The `self_intersect` logical is `.U.` (unknown) because PVec does not compute self-intersection, so writing `.F.` would claim something never checked. `.CONT_SAME_GRADIENT.` and `.CONT_SAME_GRADIENT_SAME_CURVATURE.` are written only when the continuity has been verified under `NP-16`; otherwise `.CONTINUOUS.` (position only) |
 | Unsupported Part 42 features | `.DISCONTINUOUS.` transitions (a gap is not a curve; the producer emits separate entities); `composite_curve_on_surface`; a segment whose parent is a `pcurve` |
 
 A decoder rejects: a gap between consecutive segments larger than `NP-17`; more segments than

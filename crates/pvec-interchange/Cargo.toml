@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Translation fidelity vocabulary for PVec exports (taxonomy, record, ledger) and the GML, GeoPackage and tile exports"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]
