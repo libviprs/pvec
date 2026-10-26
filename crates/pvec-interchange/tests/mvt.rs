@@ -729,3 +729,186 @@ fn issue_23_interchange_chapter_5_states_extent_zoom_range_and_quantization_erro
     let px = format!("{:.4}", pr.quantization_error_px(DEFAULT_EXTENT));
     assert!(ch.contains(&px), "chapter 5 must state the quantization error in pixels, {px}");
 }
+
+// ---- issue 133: a decoder that is not ours, the bound, anisotropic maps ---------------------------------
+
+/// `ghcr.io/osgeo/gdal:ubuntu-small-3.9.3`, the same pinned image `tools/gpkg-validate.sh` uses. Its MVT driver
+/// (GDAL 3.9.3, protobuf based, not ours) is the second opinion on the tiles.
+const GDAL_IMAGE: &str =
+    "ghcr.io/osgeo/gdal@sha256:7125d6f5d6af5331354328fc6a64c9e420b29b31460d1a6aaf9526e559255e07";
+
+/// Reads every tile in a directory with GDAL's MVT driver and prints one line per feature:
+/// `F|file|layer|mvt_id|entity_id|world_deviation|display_only|x,y;x,y/x,y;x,y`. GDAL's MVT driver counts y up from the
+/// bottom of the tile (the extent is 4096 here), so y is turned back to the specification's y down. `CLIP=NO` keeps the buffer our tiles carry. A file GDAL cannot open prints `OPENFAIL|file`.
+const GDAL_READ: &str = r#"
+import os, sys
+from osgeo import gdal, ogr
+gdal.UseExceptions()
+ogr.UseExceptions()
+d = sys.argv[1]
+for name in sorted(os.listdir(d)):
+    if not name.endswith(".pbf"):
+        continue
+    try:
+        ds = gdal.OpenEx(os.path.join(d, name), gdal.OF_VECTOR, open_options=["CLIP=NO"])
+    except Exception:
+        ds = None
+    if ds is None:
+        print("OPENFAIL|" + name)
+        continue
+    for i in range(ds.GetLayerCount()):
+        lyr = ds.GetLayer(i)
+        for f in lyr:
+            g = f.GetGeometryRef()
+            parts = [g] if g.GetGeometryName() == "LINESTRING" else [g.GetGeometryRef(k) for k in range(g.GetGeometryCount())]
+            assert g.GetGeometryName() in ("LINESTRING", "MULTILINESTRING"), g.GetGeometryName()
+            pieces = "/".join(";".join("%d,%d" % (round(p[0]), 4096 - round(p[1])) for p in part.GetPoints()) for part in parts)
+            print("|".join(["F", name, lyr.GetName(), str(f.GetField("mvt_id")), str(f.GetField("entity_id")),
+                            repr(f.GetField("world_deviation")), str(bool(f.GetField("display_only"))).lower(), pieces]))
+"#;
+
+#[test]
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
+fn issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces() {
+    use pvec_hermetic::{Config, Container, Decision, Policy};
+    let work = std::env::temp_dir().join(format!("pvec-mvt-133-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&work);
+    fs::create_dir_all(work.join("tiles")).unwrap();
+    fs::write(work.join("read.py"), GDAL_READ).unwrap();
+
+    let pr = fixture_projection();
+    let opts = MvtOptions::default();
+    let ents = fixture();
+    let mut ours: Vec<String> = Vec::new();
+    for z in [0u8, 2, 3] {
+        for x in 0..(1u32 << z) {
+            for y in 0..(1u32 << z) {
+                let t = export_tile(&ents, &pr, TileId::new(z, x, y).unwrap(), &opts).unwrap();
+                if t.bytes.is_empty() {
+                    continue;
+                }
+                // GDAL georeferences a file named like z-x-y, so the name carries no address
+                let file = format!("t{z}x{x}y{y}.pbf");
+                fs::write(work.join("tiles").join(&file), &t.bytes).unwrap();
+                for l in decode_tile(&t.bytes, opts.buffer as i64) {
+                    for f in &l.features {
+                        let DVal::Double(dev) = f.tags["world_deviation"] else {
+                            panic!("deviation is a double")
+                        };
+                        let pieces: Vec<String> = f
+                            .lines
+                            .iter()
+                            .map(|p| p.iter().map(|(x, y)| format!("{x},{y}")).collect::<Vec<_>>().join(";"))
+                            .collect();
+                        ours.push(format!(
+                            "F|{file}|{}|{}|{}|{dev:?}|true|{}",
+                            l.name,
+                            f.id,
+                            f.id,
+                            pieces.join("/")
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(ours.len() > 20, "the check must cover real tiles ({} features)", ours.len());
+    // a file that is not a tile, so a reader that accepts anything cannot pass
+    fs::write(work.join("tiles/bad.pbf"), [0xffu8; 16]).unwrap();
+
+    let cfg = Config { image: GDAL_IMAGE.to_string(), mount: work.clone(), search_path: None };
+    let c = match Container::start_with_command(&cfg, &["sleep", "900"]) {
+        Ok(c) => c,
+        Err(e) => match Policy::from_env().decide(e) {
+            Decision::Skip(why) => {
+                eprintln!("skipped: {why}");
+                let _ = fs::remove_dir_all(&work);
+                return;
+            }
+            Decision::Fail(e) => panic!("the GDAL container could not start: {e}"),
+        },
+    };
+    let name = c.name().to_string();
+    let r = c.exec(&["python3", "-I", "/corpus/read.py", "/corpus/tiles"]).unwrap();
+    assert!(r.success, "GDAL could not read the tiles:\n{}\n{}", r.stdout, r.stderr);
+    let mut theirs: Vec<String> = Vec::new();
+    let mut refused = Vec::new();
+    for line in r.stdout.lines() {
+        if let Some(f) = line.strip_prefix("OPENFAIL|") {
+            refused.push(f.to_string());
+        } else {
+            theirs.push(line.to_string());
+        }
+    }
+    assert_eq!(refused, ["bad.pbf"], "GDAL must refuse exactly the file that is not a tile");
+    ours.sort();
+    theirs.sort();
+    let key = |l: &String| l.split('|').take(4).collect::<Vec<_>>().join("|");
+    let only_ours: Vec<_> = ours.iter().map(key).filter(|k| !theirs.iter().any(|t| key(t) == *k)).collect();
+    let only_theirs: Vec<_> = theirs.iter().map(key).filter(|k| !ours.iter().any(|o| key(o) == *k)).collect();
+    assert!(
+        only_ours.is_empty() && only_theirs.is_empty(),
+        "only ours: {only_ours:?}, only GDAL: {only_theirs:?}"
+    );
+    assert_eq!(ours.len(), theirs.len());
+    for (o, t) in ours.iter().zip(&theirs) {
+        assert_eq!(o, t, "GDAL read a different layer, id, attribute or geometry");
+    }
+
+    c.stop().unwrap();
+    let ps = std::process::Command::new("docker")
+        .args(["ps", "-a", "--filter", &format!("name={name}"), "--format", "{{.Names}}"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&ps.stdout).trim().is_empty(), "the container is still there");
+    let _ = fs::remove_dir_all(&work);
+}
+
+#[test]
+fn issue_133_shear_and_non_uniform_scale_are_refused_with_the_similarity_error() {
+    let shear = Transform2::scale(2.0, 2.0).unwrap().then(&Transform2::shear(0.3, 0.0).unwrap()).unwrap();
+    let stretch = Transform2::scale(2.0, 3.0).unwrap();
+    for t in [shear, stretch] {
+        assert_eq!(Projection::new(t, 1024.0, 512.0).unwrap_err(), MvtError::NotSimilarity);
+    }
+}
+
+fn chapter_5() -> String {
+    let d = doc();
+    let ch = d.split("## 5. ").nth(1).expect("chapter 5 exists");
+    ch.split("\n## 6. ").next().unwrap().to_string()
+}
+
+fn section(ch: &str, heading: &str) -> String {
+    let rest = ch.split(heading).nth(1).unwrap_or_else(|| panic!("chapter 5 needs the section {heading:?}"));
+    rest.split("\n### ").next().unwrap().to_string()
+}
+
+#[test]
+fn issue_133_chapter_5_names_the_third_party_decoder_and_what_it_checks() {
+    let s = section(&chapter_5(), "### Second-opinion decoder");
+    assert!(s.contains("GDAL") && s.contains("MVT driver"), "name the decoder");
+    assert!(s.contains("3.9.3"), "pin the version");
+    assert!(s.contains("container"), "it runs in a container, not as a dependency");
+    for what in ["layers", "features", "ids", "geometry"] {
+        assert!(s.contains(what), "say that it compares {what}");
+    }
+}
+
+#[test]
+fn issue_133_chapter_5_says_why_the_tessellation_bound_is_measured_not_proven() {
+    let s = section(&chapter_5(), "### Why the tessellation bound is not proven");
+    assert!(s.contains("derivative"), "the missing piece is a derivative bound");
+    assert!(s.contains("P3.6") && s.contains("P7.2"), "name the work that would supply it");
+    assert!(s.contains("DEVIATION_SAMPLES"), "name the constant the claim rests on");
+    assert!(s.contains("4000"), "state the dense cross-check");
+}
+
+#[test]
+fn issue_133_chapter_5_rules_out_anisotropic_maps_with_the_reason() {
+    let s = section(&chapter_5(), "### Why anisotropic maps are refused");
+    assert!(s.contains("NotSimilarity"));
+    assert!(s.contains("direction"), "the budget depends on direction");
+    assert!(s.contains("scalar"), "the tolerance is one scalar per zoom");
+    assert!(s.contains("no source"), "say that no real source needs it today");
+}
