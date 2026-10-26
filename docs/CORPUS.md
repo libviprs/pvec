@@ -148,3 +148,28 @@ needs none, so nothing uses it yet; it exists so the rules are written and teste
   and fails. A container Docker refused to start, or an unpinned image, is never skipped, in any kind of run.
 - The tests drive a fake `docker` found through an explicit search path, so they need no Docker and do not touch the
   process environment.
+
+## The dual STEP oracle adapter (issue P2.2)
+
+`pvec_corpus::oracle` loads the converter artifacts EPIC O produces for a fixture. It never runs a converter
+(both SDKs are x86_64-only and not redistributable); the files arrive with their digests. A fixture's directory
+holds `oracle.json` (schema `pvec/oracle-artifacts/1`), `primary.step` (CAD Exchanger), an optional
+`secondary.step` (ODA), the evaluator record each went through (`*.verification.json`) and the
+implementation-neutral `signature.json`.
+
+- `oracle.json` records per artifact the converter, the SDK name and version, the host class (`x86_64-native`),
+  the machine and the driver (`tools/nas.sh`). A missing or different field fails the load, and so does a file
+  that does not match its digest.
+- Both STEP outputs go through the same `step_eval`. The evaluator name, version, kernel version and numeric
+  policy have to be identical on both paths, otherwise `EvaluatorMismatch`. The adapter keeps the STEP digests
+  and drops the bytes, so there is nothing to compare one converter with the other directly.
+- A fixture with one STEP output carries no dual-oracle evidence: `dual()` returns `DualOracleUnavailable`
+  naming `REAL_WORLD_DIFFERENTIAL` or `QUARANTINED`, and a manifest that claims `DUAL_ORACLE_EQUIVALENT` with
+  one output is refused at load. The class itself is read from the manifest and never changed here.
+- `report_line` describes converter agreement as agreement, and `check_report_wording` is a ban list over the
+  phrases that would turn it into a statement about the source.
+- `tests/issue_35_licence.rs` scans the repository for a converter image in a build or CI file and for credential
+  patterns, so the licensing gate is asserted.
+
+The signature layout (`pvec-gold/signature/*` with a `fixture_id`) is what the adapter requires today; EPIC O's
+O2.4 owns the rest of it.
