@@ -742,14 +742,15 @@ const GDAL_IMAGE: &str =
 /// bottom of the tile (the extent is 4096 here), so y is turned back to the specification's y down. `CLIP=NO` keeps the buffer our tiles carry. A file GDAL cannot open prints `OPENFAIL|file`.
 const GDAL_READ: &str = r#"
 import os, sys
-from osgeo import ogr
+from osgeo import gdal, ogr
+gdal.UseExceptions()
 ogr.UseExceptions()
 d = sys.argv[1]
 for name in sorted(os.listdir(d)):
     if not name.endswith(".pbf"):
         continue
     try:
-        ds = ogr.OpenEx(os.path.join(d, name), open_options=["CLIP=NO"])
+        ds = gdal.OpenEx(os.path.join(d, name), gdal.OF_VECTOR, open_options=["CLIP=NO"])
     except Exception:
         ds = None
     if ds is None:
