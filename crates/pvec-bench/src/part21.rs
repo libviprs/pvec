@@ -21,7 +21,7 @@ fn point(p: [f64; 2]) -> Point2 {
 
 /// The exact curve P6.2 writes for a shape. A segment is a trimmed line, a full circle or ellipse is the
 /// conic, a partial one is a trimmed conic, and a clockwise arc is a trim with the sense reversed.
-fn curve(shape: &Shape) -> Result<Curve, String> {
+pub fn curve(shape: &Shape) -> Result<Curve, String> {
     let g = |e: pvec_geometry::GeometryError| e.to_string();
     match shape {
         Shape::Line(a, b) => {
