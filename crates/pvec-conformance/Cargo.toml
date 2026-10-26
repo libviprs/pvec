@@ -1,14 +1,32 @@
 [package]
 name = "pvec-conformance"
 version = "0.0.0"
-description = "The conformance harness: evidence classes, gate rules and report rows (EPIC P, phase 2)"
+description = "The pvec command line tool: inspect, validate and compare PVec files from a shell, with a machine-readable report and an exit-code contract"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
-# Test support, like pvec-corpus: nothing here opens a socket or starts a process.
+[lib]
+name = "pvec_conformance"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pvec"
+path = "src/main.rs"
+
+# Only crates of this workspace, and no converter, no network and no process: STEP files are inputs here
+# (the independent evaluator of tools/step-eval runs elsewhere and its report is an input too).
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-container = { path = "../pvec-container" }
+pvec-entity = { path = "../pvec-entity" }
+pvec-geometry = { path = "../pvec-geometry" }
+pvec-interchange = { path = "../pvec-interchange" }
+
+[dev-dependencies]
+pvec = { path = "../pvec" }
+pvec-testkit = { path = "../pvec-testkit" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-numeric = { path = "../pvec-numeric" }
 

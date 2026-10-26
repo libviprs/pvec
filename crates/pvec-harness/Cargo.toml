@@ -1,0 +1,16 @@
+[package]
+name = "pvec-harness"
+version = "0.0.0"
+description = "The conformance harness: evidence classes, gate rules and report rows (EPIC P, phase 2)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# Test support, like pvec-corpus: nothing here opens a socket or starts a process.
+[dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-corpus = { path = "../pvec-corpus" }
+pvec-numeric = { path = "../pvec-numeric" }
+
+[lints]
+workspace = true

@@ -1,0 +1,55 @@
+== platform
+x86_64
+rustc 1.99.0 (b940084d7 2026-09-28)
+gcc (Debian 12.2.0-14+deb12u1) 12.2.0
+== fixtures
+22
+== build
+workspace build seconds 4
+== exported symbols (dynamic, defined, text)
+a,b libpvec_ffi.so total 3 named pvec_ 3
+d   libpvec_ffi_d.so total 8 named pvec_d_ 8
+c   0 (no C ABI)
+== header lines
+a hand-written 20 lines, 3 declarations to keep in step
+b generated 70 lines, 0 written by hand
+d hand-written 17 lines, 8 declarations to keep in step
+== prototype outcome: every fixture opened from C, count compared with the generator's
+arc-seam-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+bezier-d3-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+bspline-d3-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+bspline-d5-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+bulge-arc-001 want 2 c=2 a=2 a_static=2 b=2 d=2 PASS
+bulge-arc-neg-001 want 2 c=2 a=2 a_static=2 b=2 d=2 PASS
+circle-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+closed-by-endpoint-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+closed-periodic-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+ellipse-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+elliptical-arc-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+large-coords-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+layer-state-001 want 3 c=3 a=3 a_static=3 b=3 d=3 PASS
+line-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+lwpolyline-closed-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+nonunit-weight-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+nurbs-d2-offconic-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+nurbs-d3-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+polyline-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+polyline2d-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+repeated-knot-c0-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+tiny-radius-001 want 1 c=1 a=1 a_static=1 b=1 d=1 PASS
+== experiment: drift. One parameter of pvec_entity_count narrows from u64* to u32* in Rust.
+1
+a: the C program still compiles against the unchanged hand header, and prints 18446744069414584321 where 1 is right
+b: the C program no longer compiles against the regenerated header: incompatible pointer type [-Werror=incompatible-pointer-types]
+== experiment: leak. A function that returns a Vec<u8> is added to the extern C layer.
+p74-ffi-ab: rustc refuses: error: `extern` fn uses type `Vec<u8>`, which is not FFI-safe
+p74-ffi-d: rustc refuses: error: `extern` fn uses type `Vec<u8>`, which is not FFI-safe
+b: cbindgen alone put it in the header: 2 mentions of Vec_u8
+a,b: with the deny lint removed it builds, with 1 warning lines
+== candidate (c): the WASM interface that stands in for a C ABI
+pvec_wasm.wasm 466775 bytes
+exports function (ours) 17
+exports function (toolchain glue) 84
+exports global 2
+exports memory 1
+== all prototypes agree

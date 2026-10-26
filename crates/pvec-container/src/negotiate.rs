@@ -33,7 +33,7 @@ impl ReaderCapabilities {
     pub fn v1() -> ReaderCapabilities {
         let supported =
             registry().entries().iter().map(|c| (c.id, c.version.major, c.version.minor)).collect();
-        ReaderCapabilities { version: Version::new(1, 0, 0), supported }
+        ReaderCapabilities { version: pvec_capabilities::FORMAT_VERSION, supported }
     }
 
     /// A reader of registry version `version` that supports nothing yet.
@@ -500,6 +500,37 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
     Outcome::OpenDegraded(PartialOpen { capabilities: skipped, blocks, entities })
 }
 
+/// A capability the file declares at a newer minor version than the reader implements. The reader reads
+/// the subset it understands, since a minor only adds, and reports the gap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VersionGap {
+    /// The capability.
+    pub id: CapabilityId,
+    /// The version the file declares.
+    pub file: Version,
+    /// The `(major, minor)` the reader implements.
+    pub supported: (u16, u16),
+}
+
+/// The capabilities `manifest` declares at a newer minor version of a major the reader implements,
+/// ascending by id.
+pub fn version_gaps(manifest: &Manifest, reader: &ReaderCapabilities) -> Vec<VersionGap> {
+    let mut gaps: Vec<VersionGap> = manifest
+        .capabilities
+        .iter()
+        .filter_map(|d| {
+            let (major, minor) = reader.supports(d.id)?;
+            (d.version.major == major && d.version.minor > minor).then_some(VersionGap {
+                id: d.id,
+                file: d.version,
+                supported: (major, minor),
+            })
+        })
+        .collect();
+    gaps.sort_by_key(|g| g.id);
+    gaps
+}
+
 /// Chapter 5 of `docs/CONTAINER.md`, rendered from the constants.
 pub(crate) fn render_chapter() -> String {
     let mut s = String::new();
@@ -519,7 +550,8 @@ the version it was written at and a requirement, required or optional. Matching 
 | `OpenDegraded` | an optional capability is not supported, or is declared at a major version the reader does not implement, or a block is of a kind or a codec the reader does not know | reads the file, skips what it cannot read, and returns a `PartialOpen` that lists the skipped capability ids and blocks |\n\
 | `Refuse` | a required capability is not supported, or is declared at another major version, or the file needs a newer reader | opens nothing, and the refusal names the capability id and the version the file declares |\n\n\
 A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable \
-by the growth rules of section 1.7. A newer major of an optional capability is skipped, and of a required one is \
+by the growth rules of section 1.7. `version_gaps` lists those capabilities with the version the file declares and \
+the one the reader implements, so a consumer can report the gap. A newer major of an optional capability is skipped, and of a required one is \
 refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as \
 optional cannot be declared required by a file.\n\n\
 Refusals are `Refusal` values and carry a rule:\n\n\

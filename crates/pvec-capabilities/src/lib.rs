@@ -19,7 +19,13 @@
 
 use core::fmt;
 
+mod compat;
 mod extension;
+
+pub use compat::{
+    Breaking, DEPRECATED_MIN_MINORS, FORMAT_VERSION, LintFinding, Snapshot, SnapshotEntry, Status,
+    WRITE_DISABLED_MIN_MINORS, lint_transition,
+};
 
 pub use extension::{
     EvidenceClass, ExtensionError, ExtensionFixture, MissingArtifact, ProposalProblem, ProposalSummary,

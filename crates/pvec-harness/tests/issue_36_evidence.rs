@@ -2,7 +2,7 @@
 //! each test below turns red for an implementation that gets the rule wrong.
 
 use pvec_capabilities::{EvidenceClass as C, Registry as Capabilities};
-use pvec_conformance::{
+use pvec_harness::{
     Assertion as A, ConformanceError, Outcome, Registry, check_report, may_assert, render, tally,
 };
 use pvec_corpus::{Bundle, FixtureRegistry};

@@ -1,0 +1,16 @@
+[package]
+name = "p74-fixture-gen"
+description = "Writes the P2.4 canonical artifacts the four prototypes open"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+pvec-corpus = { path = "../../../crates/pvec-corpus" }
+pvec-testkit = { path = "../../../crates/pvec-testkit" }
+
+# Not under src/bin: the shared push wrapper excludes directories named bin.
+[[bin]]
+name = "p74-wasm-exports"
+path = "src/wasm_exports.rs"
