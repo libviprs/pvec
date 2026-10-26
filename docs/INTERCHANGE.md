@@ -7,7 +7,8 @@ crate.
 Chapter 1 is the STEP AP242 export (P6.2, pvec#19). Chapter 2 belongs to the round-trip validation (P6.3)
 and is added by that issue. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
 GeoPackage export (P6.5, pvec#22), chapter 5 the vector tile export (P6.6, pvec#23)
-and chapter 6 the PMTiles packaging (P6.7, pvec#24).
+chapter 6 the PMTiles packaging (P6.7, pvec#24) and chapter 7 the fidelity reports every export emits
+(P6.8, pvec#25).
 
 ## 1. STEP AP242 export
 
@@ -728,3 +729,95 @@ which is copied in as given. The writer never reads a clock.
 
 Serving, CDN and cache headers, MapLibre style authoring, mobile offline packaging and raster
 pyramids. Identical tile contents are not deduplicated, so the archive has no run lengths above one.
+
+## 7. Fidelity reports
+
+An export that only says "done" hides what a reviewer needs. Every export can hand back a
+`pvec_interchange::report::Report`: STEP, GML and GeoPackage through `report()` on their export value,
+MVT through `mvt::report` and PMTiles through `pmtiles::report` (both take the tiles). A report is a value;
+`to_json()` and `to_markdown()` render the same data, so the two never disagree. Each export has a test
+that fails if it writes output without producing one.
+
+### Counting
+
+The ledger of an export can hold several records for one entity: GML writes one per segment, and a tile set
+repeats an entity in every tile it reaches. The report counts each entity once, in the weakest class any of
+its records has (the order is the taxonomy order: `Exact`, `ExactReparameterized`, `EquivalentCompound`,
+`BoundedApproximation`, `Unsupported`), with the largest error any of them measured. The per-class counts
+therefore sum to the entity total, no entity is in two classes and none is missing. `Report::new` takes the
+artifact's entity count and refuses a ledger that covers a different number of entities.
+
+For a tile set the count is the entities that reach at least one tile. An entity outside every tile has no
+record, and the tiles say nothing about it.
+
+### The JSON document
+
+The document is UTF-8 with a trailing newline, keys in a fixed order, and numbers written as the shortest
+decimal that reads back to the same `f64`. It carries no timestamp and does not depend on the order the
+records arrived in, so the same artifact and export options give a byte-identical report. The schema is
+version `1.0`.
+
+| key | meaning |
+|---|---|
+| `schema` | always `pvec-fidelity-report` |
+| `schema_version` | `major.minor` of this schema; any change to the keys bumps it |
+| `source_digest` | `sha256:` and 64 hex digits, the digest of the source artifact (P4.6) |
+| `target` | the export target |
+| `name` | the target, for example `GML` |
+| `version` | the version of the target format the export wrote |
+| `representation` | `Native`, `Tessellated` or `Mixed`, from the target constructs of the records |
+| `conformance` | which claims the report may make, one object per conformance class |
+| `structural` | structural exactness: entities that are `Exact` or `ExactReparameterized` |
+| `geometric` | geometric exactness under P1.2: the above plus `EquivalentCompound` |
+| `display` | display fidelity only: `BoundedApproximation` |
+| `claimed` | whether any entity makes a claim of that class |
+| `entities` | the entity accounting; inside `conformance` it is the number of entities making that claim |
+| `total` | the artifact's entity count |
+| `by_fidelity` | the entity count per fidelity value, with a key for each of the five values |
+| `Exact` | entities in that class (so for `ExactReparameterized`, `EquivalentCompound`, `BoundedApproximation` and `Unsupported`) |
+| `rows` | one row per entity, ordered by entity id |
+| `entity` | the entity id (`EntityId` index) |
+| `fidelity` | the entity's class |
+| `capability_id` | the capability of the record that decided the class |
+| `target_construct` | the construct that record wrote, for example `ARCS` |
+| `records` | how many ledger records the entity had |
+| `measured_error` | the largest measured error among the entity's records, or `null` |
+| `non_exact` | for each class other than `Exact`, the full list of entity ids in it |
+| `approximation_error` | the error summary over the entities that have a measured error |
+| `basis` | always `measured` |
+| `max` | the largest measured error, or `null` |
+| `p99` | the nearest-rank 99th percentile of the measured errors (the value at rank ceil(0.99 n)), or `null` |
+| `unsupported` | one entry per `Unsupported` entity |
+| `capability` | the registry name of the capability, or `null` if it is not registered |
+| `reason` | why the entity was not translated; never blank |
+
+### What a report may claim
+
+A tessellated target (MVT, PMTiles) records only `BoundedApproximation` and `Unsupported`, because the
+ledger refuses anything else for a tessellated construct. Its report therefore has `claimed: false` and
+zero entities for `structural` and `geometric`, and only `display` can be claimed. A test asserts this over
+the serialized document of both exports. Rows of the other classes cannot appear in it.
+
+### Measured, not requested
+
+A `BoundedApproximation` row carries `measured_error`, the deviation the export measured against the source
+curve (GML and GeoPackage measure it per segment or entity, MVT adds the tessellation and quantization
+errors of the tile). The tolerance the caller asked for is never copied in. A test checks that the reported
+value equals what the ledger measured and is not the requested tolerance.
+
+### Unsupported features
+
+Each `Unsupported` entity appears in `unsupported` with the `reason` and the `capability_id` of the source
+capability (and its registry name), so a conversion's losses can be enumerated and diffed.
+
+### Versioning
+
+`SCHEMA_VERSION` is the schema version. `crates/pvec-interchange/tests/report_schema_25.txt` records the key
+paths of every version, one line each, and a test compares the keys of a report that exercises every class
+with the line for the current version. Adding, removing or renaming a key without bumping the version fails
+that test. A new version appends a line and never edits an old one.
+
+### Not done
+
+The CLI that prints these reports (P7.7), report hosting and dashboards, the fixture evidence classes, and
+benchmark numbers.
