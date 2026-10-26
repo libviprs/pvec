@@ -55,7 +55,7 @@ fn status(rows: &[Row], id: &str) -> Option<Status> {
 }
 
 fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
+    (a - b).abs() < 0.000_000_001
 }
 
 // ---------------------------------------------------------------- the thresholds, declared before the run
