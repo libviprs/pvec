@@ -95,9 +95,92 @@ fn issue_52_writer_reader_writer_is_byte_identical_on_the_canonical_fixtures() {
 fn issue_52_every_entity_of_a_canonical_fixture_survives_the_round_trip() {
     for (name, bytes) in &fixtures::canonical() {
         let before = PvecReader::open(bytes.clone()).unwrap().entities().unwrap();
-        assert_eq!(before.len() as u64, PvecReader::open(bytes.clone()).unwrap().entity_count().unwrap(), "{name}");
+        assert_eq!(
+            before.len() as u64,
+            PvecReader::open(bytes.clone()).unwrap().entity_count().unwrap(),
+            "{name}"
+        );
         let after = PvecReader::open(fixtures::rewrite(bytes)).unwrap().entities().unwrap();
         let ids = |v: &[(EntityId, Curve)]| v.iter().map(|(i, _)| i.index()).collect::<Vec<_>>();
         assert_eq!(ids(&before), ids(&after), "{name}: the entity ids moved");
     }
+}
+
+#[test]
+fn issue_52_curves_read_back_equal_after_a_rewrite() {
+    for (name, bytes) in &fixtures::canonical() {
+        let first = fixtures::rewrite(bytes);
+        let a = PvecReader::open(first.clone()).unwrap().entities().unwrap();
+        let b = PvecReader::open(fixtures::rewrite(&first)).unwrap().entities().unwrap();
+        assert_eq!(a, b, "{name}: the curves moved on the second pass");
+    }
+}
+
+#[test]
+fn issue_52_a_hand_built_file_of_every_storable_kind_round_trips() {
+    use pvec_geometry::{
+        BSpline, Bezier, Circle, Ellipse, Line, Placement2, Point2, RationalBSpline, Trimmed, Vector2,
+    };
+    let p = |x: f64, y: f64| Point2 { x, y };
+    let frame = |x: f64, y: f64, ax: f64, ay: f64| Placement2::new(p(x, y), Vector2::new(ax, ay)).unwrap();
+    let spline = |d: f64| {
+        BSpline::new(2, vec![p(0.0, d), p(1.0, d + 2.0), p(3.0, d)], vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+            .unwrap()
+    };
+    let circle = Curve::Circle(Circle::new(frame(5.0, 5.0, 1.0, 0.0), 2.0).unwrap());
+    let ellipse = Curve::Ellipse(Ellipse::new(frame(5.0, 5.0, 0.6, 0.8), 3.0, 1.0).unwrap());
+    let curves = vec![
+        Curve::Polyline(pvec_geometry::Polyline::new(vec![p(0.0, 0.0), p(1.0, 1.0), p(2.0, 0.5)]).unwrap()),
+        circle.clone(),
+        Curve::trimmed_conic(circle, 1.0, 2.5, false).unwrap(),
+        Curve::trimmed_conic(ellipse.clone(), 0.5, 2.0, true).unwrap(),
+        ellipse,
+        Curve::Trimmed(
+            Trimmed::new(
+                Curve::Line(Line::new(p(0.1, 0.2), Vector2::new(1.0, 0.7)).unwrap()),
+                0.0,
+                3.3,
+                true,
+            )
+            .unwrap(),
+        ),
+        Curve::Bezier(Bezier::new(vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 2.0), p(3.0, 0.0)]).unwrap()),
+        Curve::BSpline(spline(0.0)),
+        Curve::RationalBSpline(
+            RationalBSpline::new(
+                2,
+                vec![p(0.0, 0.0), p(1.0, 2.0), p(3.0, 0.0)],
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                vec![1.0, 0.5, 1.0],
+            )
+            .unwrap(),
+        ),
+    ];
+    let mut w = PvecWriter::new(manifest()).unwrap();
+    for (i, c) in curves.iter().enumerate() {
+        w.push(EntityId::new(i as u32 + 1).unwrap(), c).unwrap();
+    }
+    let first = w.finish().unwrap();
+    let r = PvecReader::open(first.clone()).unwrap();
+    let read = r.entities().unwrap();
+    assert_eq!(read.len(), curves.len());
+    assert_eq!(fixtures::rewrite(&first), first);
+    // a composite names other entities, and the reader resolves them
+    let mut w = PvecWriter::new(manifest()).unwrap();
+    let s1 = spline(0.0);
+    let s2 = BSpline::new(2, vec![p(3.0, 0.0), p(4.0, 2.0), p(6.0, 0.0)], vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        .unwrap();
+    let (e1, e2, e3) = (EntityId::new(1).unwrap(), EntityId::new(2).unwrap(), EntityId::new(3).unwrap());
+    w.push(e1, &Curve::BSpline(s1.clone())).unwrap();
+    w.push(e2, &Curve::BSpline(s2.clone())).unwrap();
+    w.push_composite(
+        e3,
+        &[pvec::CurveRef { entity: e1 }, pvec::CurveRef { entity: e2 }],
+        Bounds2 { min: [0.0, 0.0], max: [3.0, 3.0] },
+        false,
+    )
+    .unwrap();
+    let read = PvecReader::open(w.finish().unwrap()).unwrap().entities().unwrap();
+    let Curve::Composite(c) = &read[2].1 else { panic!("expected a composite, got {:?}", read[2].1) };
+    assert_eq!(c.segments(), &[Curve::BSpline(s1), Curve::BSpline(s2)]);
 }

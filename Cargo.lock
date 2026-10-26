@@ -49,6 +49,7 @@ dependencies = [
  "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-numeric",
  "pvec-stream",
  "pvec-testkit",
 ]

@@ -15,6 +15,15 @@ remove, rename or re-sign turns it red and has to be reviewed. After P8.7 a chan
 Each component stream carries its own stream version (ADR 0014), and that is its versioning unit.
 `PvecError` is `#[non_exhaustive]` and carries rules as text, so no container type is reachable.
 
+## Reading curves back
+
+`PvecReader::entities()` returns every entity as `(EntityId, Curve)` in ascending id order. A curve
+comes back as the kind that describes it: a Bezier curve is stored as a B-spline and is read as one,
+a stored segment is a trimmed line, a circle or ellipse arc is a trimmed conic. Writing what was read
+writes the same bytes, which `tests/public_roundtrip.rs` checks on the P2.4 canonical fixtures
+(writer, reader, writer). Two limits remain: a composite whose segments are trimmed is refused, and
+component streams are written but not yet read back.
+
 ## Unstable (`unstable-stream`)
 
 `ViewportQuery`, `ReadPlan`, `Tier0Plan`, `Scene`, `Generation`, `GenerationClock` and `CancelToken`,
