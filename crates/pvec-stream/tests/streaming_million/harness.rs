@@ -671,6 +671,28 @@ pub fn load_shed(changes: u32, seconds: u64) -> Shed {
     }
 }
 
+// ---------------------------------------------------------------- the hermetic range source
+
+/// Runs `f` with a range source whose throttle runs inside a hermetic container (`pvec-hermetic`: no
+/// network, a read-only root, the artifact mounted read-only), and gives it the container's name. The
+/// container is removed when `f` returns or panics. `None` when Docker is not there and this is a
+/// developer run (`PVEC_DEV_RUN`); anywhere else a container that cannot start fails.
+pub fn with_hermetic_source<R>(
+    bytes: &[u8],
+    latency: Duration,
+    bytes_per_sec: u64,
+    f: impl FnOnce(&dyn BlockSource, &str) -> R,
+) -> Option<R> {
+    let _ = (bytes, latency, bytes_per_sec, f);
+    unimplemented!("the hermetic range source is not written yet (pvec#158)")
+}
+
+/// As [`load_shed`], with the throttle in a hermetic container. `None` when the run is skipped.
+pub fn load_shed_hermetic(changes: u32, seconds: u64) -> Option<Shed> {
+    let _ = (changes, seconds);
+    unimplemented!("the hermetic range source is not written yet (pvec#158)")
+}
+
 // ---------------------------------------------------------------- the results file
 
 fn host_label() -> &'static str {

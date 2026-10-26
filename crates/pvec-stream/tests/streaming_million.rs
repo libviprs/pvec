@@ -21,6 +21,8 @@
 mod harness;
 
 use harness::{Kind, MILLION, SMALL, Scale};
+use pvec_container::source::BlockSource;
+use std::time::Duration;
 
 // ---------------------------------------------------------------- the thresholds
 
@@ -218,6 +220,11 @@ fn mixed_and_straddler_heavy_have_no_advanced_set_so_what_they_pin_is_compared_w
 fn a_hundred_viewport_changes_shed_superseded_work_and_end_on_the_newest_viewport() {
     let r = harness::load_shed(CHANGES, SCENARIO_SECS);
     eprintln!("{}", r.line());
+    assert_load_shed(&r);
+}
+
+/// What the scenario has to show, whichever source it ran against.
+fn assert_load_shed(r: &harness::Shed) {
     assert_eq!(r.changes, CHANGES);
     assert!(
         r.jobs_cancelled * 10 >= u64::from(CHANGES) * 9,
@@ -239,6 +246,66 @@ fn a_hundred_viewport_changes_shed_superseded_work_and_end_on_the_newest_viewpor
     );
     assert!(r.final_matches_last_viewport, "the scene is the last viewport's and nothing else");
     assert_eq!(r.stale_applied, 0, "no result of an older generation reached the scene");
+}
+
+// ---------------------------------------------------------------- the hermetic range source (pvec#158)
+
+fn container_exists(name: &str) -> bool {
+    let ps = std::process::Command::new("docker")
+        .args(["ps", "-a", "--filter", &format!("name={name}"), "--format", "{{.Names}}"])
+        .output()
+        .expect("docker ps");
+    !String::from_utf8_lossy(&ps.stdout).trim().is_empty()
+}
+
+#[test]
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
+fn the_throttle_runs_in_a_hermetic_container_that_serves_the_artifact_bytes() {
+    let want = harness::artifact(Kind::Mixed, SMALL);
+    let name = harness::with_hermetic_source(&want, Duration::from_millis(8), 100 << 20, |source, name| {
+        assert_eq!(source.len(), want.len() as u64);
+        for (offset, len) in [(0u64, 64u32), (4096, 1000), (want.len() as u64 - 17, 17)] {
+            let got = source.read_range(offset, len).expect("a range");
+            assert_eq!(got.as_slice(), &want[offset as usize..offset as usize + len as usize]);
+        }
+        assert!(source.read_range(want.len() as u64 - 4, 8).is_err(), "a range past the end is refused");
+        name.to_string()
+    });
+    if let Some(name) = name {
+        assert!(!container_exists(&name), "{name} is still there after a pass");
+    }
+}
+
+#[test]
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
+fn the_container_is_removed_when_the_scenario_fails() {
+    let name = std::sync::Mutex::new(String::new());
+    let bytes = harness::artifact(Kind::Mixed, SMALL);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        harness::with_hermetic_source(&bytes, Duration::ZERO, 1 << 30, |_, n| {
+            *name.lock().unwrap() = n.to_string();
+            panic!("the scenario failed");
+        })
+    }));
+    assert!(r.is_err());
+    let name = name.into_inner().unwrap();
+    assert!(!name.is_empty(), "the container never started");
+    assert!(!container_exists(&name), "{name} is still there after a failure");
+}
+
+#[test]
+#[ignore = "needs a docker daemon: the gate-fleet docker-tests stage runs it with --include-ignored"]
+fn a_hundred_viewport_changes_shed_superseded_work_against_the_source_in_the_container() {
+    let Some(r) = harness::load_shed_hermetic(CHANGES, SCENARIO_SECS) else { return };
+    eprintln!("hermetic: {}", r.line());
+    assert_load_shed(&r);
+}
+
+#[test]
+fn the_results_file_says_the_range_source_is_in_a_hermetic_container_and_no_longer_a_gap() {
+    assert!(RESULTS.contains("hermetic container"), "the results file never says the source is hermetic");
+    assert!(!RESULTS.contains("is in process and deterministic"), "the in-process gap is still described");
+    assert!(!RESULTS.contains("a gap, filed as a follow-up (pvec#158)"));
 }
 
 // ---------------------------------------------------------------- the results file

@@ -201,6 +201,15 @@ impl Container {
         }
     }
 
+    /// Starts `args` inside the running container with its standard input and output piped to this
+    /// process, for a long-lived helper the test talks to (issue pvec#158). The container keeps
+    /// `--network none`: the channel is the pipes of one `docker exec -i`. The caller owns the child and
+    /// kills it; removing the container ends it anyway.
+    pub fn exec_stream(&self, args: &[&str]) -> Result<std::process::Child, ContainerError> {
+        let _ = args;
+        Err(ContainerError::StartFailed("exec_stream is not written yet".into()))
+    }
+
     /// Removes it now and reports a failure, which a drop can only print.
     pub fn stop(mut self) -> Result<(), ContainerError> {
         self.armed = false;
