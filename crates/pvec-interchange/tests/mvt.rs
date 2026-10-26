@@ -762,7 +762,7 @@ for name in sorted(os.listdir(d)):
             assert g.GetGeometryName() in ("LINESTRING", "MULTILINESTRING"), g.GetGeometryName()
             pieces = "/".join(";".join("%d,%d" % (round(p[0]), round(p[1])) for p in part.GetPoints()) for part in parts)
             print("|".join(["F", name, lyr.GetName(), str(f.GetField("mvt_id")), str(f.GetField("entity_id")),
-                            repr(f.GetField("world_deviation")), str(bool(f.GetField("display_only"))), pieces]))
+                            repr(f.GetField("world_deviation")), str(bool(f.GetField("display_only"))).lower(), pieces]))
 "#;
 
 #[test]
@@ -785,11 +785,14 @@ fn issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces() {
                 if t.bytes.is_empty() {
                     continue;
                 }
-                let file = format!("{z}-{x}-{y}.pbf");
+                // GDAL georeferences a file named like z-x-y, so the name carries no address
+                let file = format!("t{z}x{x}y{y}.pbf");
                 fs::write(work.join("tiles").join(&file), &t.bytes).unwrap();
                 for l in decode_tile(&t.bytes, opts.buffer as i64) {
                     for f in &l.features {
-                        let DVal::Double(dev) = f.tags["world_deviation"] else { panic!("deviation is a double") };
+                        let DVal::Double(dev) = f.tags["world_deviation"] else {
+                            panic!("deviation is a double")
+                        };
                         let pieces: Vec<String> = f
                             .lines
                             .iter()
