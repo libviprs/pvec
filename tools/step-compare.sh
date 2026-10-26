@@ -53,7 +53,7 @@ else
     BUILT_IMAGE=1
     "${SSH[@]}" "$D build -q --platform $PLATFORM -t $RUST_IMAGE - <<'EOF2'
 FROM rust:1.99.1-bookworm
-RUN rustup component add clippy rustfmt && apt-get update && apt-get install -y --no-install-recommends libhdf5-dev pkg-config clang && rm -rf /var/lib/apt/lists/*
+RUN rustup component add clippy rustfmt && rustup target add wasm32-unknown-unknown && apt-get update && apt-get install -y --no-install-recommends libhdf5-dev pkg-config clang && rm -rf /var/lib/apt/lists/*
 EOF2" >/dev/null
   fi
 fi

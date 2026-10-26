@@ -1,0 +1,2013 @@
+## arc-seam-001.hdf.kv
+cold_open_ms=0.07601999999999999
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.164 ms / chunk 65536 + shuffle + deflate 6: p95 0.185 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.177 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12940
+viewport_bytes_max=8008
+viewport_p50_ms=0.147456
+viewport_p95_ms=0.163543
+## arc-seam-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.08077200000000001
+peak_rss_kib=13540
+viewport_bytes_max=5265
+viewport_p50_ms=0.16533499999999998
+viewport_p95_ms=0.177297
+## arc-seam-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.083063
+peak_rss_kib=13232
+viewport_bytes_max=15570
+viewport_p50_ms=0.169379
+viewport_p95_ms=0.184633
+## arc-seam-001.hdfr.contiguous.kv
+cold_open_ms=0.07601999999999999
+peak_rss_kib=12940
+viewport_bytes_max=8008
+viewport_p50_ms=0.147456
+viewport_p95_ms=0.163543
+## arc-seam-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000410777
+write_s chunk 65536 + shuffle + deflate 6=0.00057432
+write_s contiguous=0.001390121
+## arc-seam-001.occt.kv
+lift_ms=0.713
+read_ms=2.361
+edges=1
+peak_rss_kib=70576
+## arc-seam-001.part21.kv
+read_ms=0.014254
+scan_checksum=1d2bb332d36f5d6a
+scan_instances=9
+scan_ms=0.010045
+scan_parameters=52
+scan_peak_rss_kib=2164
+## arc-seam-001.prepare.kv
+entities=1
+geometry=26a3763933294cda
+part21_bytes=801
+part21_deflate_bytes=509
+pvec_bytes=456
+pvec_deflate_bytes=416
+pvec_lz4_bytes=416
+## arc-seam-001.pvec.kv
+cold_open_ms=0.002084
+peak_rss_kib=2688
+viewport_bytes_max=608
+viewport_bytes_p95=608
+viewport_p50_ms=0.0022919999999999998
+viewport_p95_ms=0.002626
+viewport_ranges_max=3
+## architectural-1e3.hdf.kv
+cold_open_ms=0.074454
+compressed_bytes=59898
+contiguous_bytes=88616
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 1.573 ms / chunk 65536 + shuffle + deflate 6: p95 1.992 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 2.027 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=13000
+viewport_bytes_max=92242
+viewport_p50_ms=0.548632
+viewport_p95_ms=1.573437
+## architectural-1e3.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.26273399999999997
+peak_rss_kib=14492
+viewport_bytes_max=63710
+viewport_p50_ms=0.9415250000000001
+viewport_p95_ms=2.02679
+## architectural-1e3.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.273649
+peak_rss_kib=14696
+viewport_bytes_max=101385
+viewport_p50_ms=0.9481080000000001
+viewport_p95_ms=1.991876
+## architectural-1e3.hdfr.contiguous.kv
+cold_open_ms=0.074454
+peak_rss_kib=13000
+viewport_bytes_max=92242
+viewport_p50_ms=0.548632
+viewport_p95_ms=1.573437
+## architectural-1e3.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=59898
+bytes chunk 65536 + shuffle + deflate 6=98527
+bytes contiguous=88616
+entities=1000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.002063404
+write_s chunk 65536 + shuffle + deflate 6=0.002086361
+write_s contiguous=0.001314662
+## architectural-1e3.occt.kv
+lift_ms=3.111
+read_ms=31.245
+edges=1000
+peak_rss_kib=74088
+## architectural-1e3.part21.kv
+read_ms=0.112618
+scan_checksum=4c2991b53b3594cc
+scan_instances=5000
+scan_ms=1.336036
+scan_parameters=29548
+scan_peak_rss_kib=2488
+## architectural-1e3.prepare.kv
+entities=1000
+geometry=3803c20a0c2e5593
+part21_bytes=246904
+part21_deflate_bytes=50585
+pvec_bytes=55640
+pvec_deflate_bytes=32784
+pvec_lz4_bytes=37688
+## architectural-1e3.pvec.kv
+cold_open_ms=0.005791
+peak_rss_kib=2904
+viewport_bytes_max=59464
+viewport_bytes_p95=59464
+viewport_p50_ms=0.021165
+viewport_p95_ms=0.052497
+viewport_ranges_max=5
+## architectural-1e5.hdf.kv
+cold_open_ms=0.49857099999999993
+compressed_bytes=4575954
+contiguous_bytes=8062146
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 27.094 ms / chunk 65536 + shuffle + deflate 6: p95 65.100 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 60.361 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=39920
+viewport_bytes_max=8066662
+viewport_p50_ms=7.3565130000000005
+viewport_p95_ms=27.093560999999998
+## architectural-1e5.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=16.58341
+peak_rss_kib=45860
+viewport_bytes_max=4767771
+viewport_p50_ms=28.68506
+viewport_p95_ms=60.361404
+## architectural-1e5.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=18.251407
+peak_rss_kib=48572
+viewport_bytes_max=4579160
+viewport_p50_ms=40.712558
+viewport_p95_ms=65.10007399999999
+## architectural-1e5.hdfr.contiguous.kv
+cold_open_ms=0.49857099999999993
+peak_rss_kib=39920
+viewport_bytes_max=8066662
+viewport_p50_ms=7.3565130000000005
+viewport_p95_ms=27.093560999999998
+## architectural-1e5.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4764116
+bytes chunk 65536 + shuffle + deflate 6=4575954
+bytes contiguous=8062146
+entities=100000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.156751257
+write_s chunk 65536 + shuffle + deflate 6=0.17773553
+write_s contiguous=0.008190548
+## architectural-1e5.occt.kv
+lift_ms=343.219
+read_ms=9717.755
+edges=100000
+peak_rss_kib=378856
+## architectural-1e5.part21.kv
+read_ms=8.181048
+scan_checksum=849276d05ff9d552
+scan_instances=502525
+scan_ms=119.33209599999999
+scan_parameters=2974143
+scan_peak_rss_kib=37704
+## architectural-1e5.prepare.kv
+entities=100000
+geometry=925c8a46b1786659
+part21_bytes=27302184
+part21_deflate_bytes=5145801
+pvec_bytes=5492896
+pvec_deflate_bytes=3123656
+pvec_lz4_bytes=3619656
+## architectural-1e5.pvec.kv
+cold_open_ms=0.40624
+peak_rss_kib=14140
+viewport_bytes_max=5617000
+viewport_bytes_p95=3554888
+viewport_p50_ms=0.741607
+viewport_p95_ms=3.3276260000000004
+viewport_ranges_max=24
+## architectural-1e6.hdf.kv
+cold_open_ms=10.180257999999998
+compressed_bytes=45653056
+contiguous_bytes=80683324
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 144.038 ms / chunk 65536 + shuffle + deflate 6: p95 422.279 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 386.568 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=292676
+viewport_bytes_max=80687840
+viewport_p50_ms=34.252804999999995
+viewport_p95_ms=144.03840200000002
+## architectural-1e6.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=161.03755
+peak_rss_kib=327072
+viewport_bytes_max=46969111
+viewport_p50_ms=195.095733
+viewport_p95_ms=386.568431
+## architectural-1e6.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=148.32220500000003
+peak_rss_kib=329748
+viewport_bytes_max=45654428
+viewport_p50_ms=233.602642
+viewport_p95_ms=422.2791
+## architectural-1e6.hdfr.contiguous.kv
+cold_open_ms=10.180257999999998
+peak_rss_kib=292676
+viewport_bytes_max=80687840
+viewport_p50_ms=34.252804999999995
+viewport_p95_ms=144.03840200000002
+## architectural-1e6.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=46964983
+bytes chunk 65536 + shuffle + deflate 6=45653056
+bytes contiguous=80683324
+entities=1000000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=1.712022562
+write_s chunk 65536 + shuffle + deflate 6=1.90822896
+write_s contiguous=0.054634994
+## architectural-1e6.part21.kv
+read_ms=79.401934
+scan_checksum=ebd5e88df270d245
+scan_instances=5027208
+scan_ms=1513.151229
+scan_parameters=29751518
+scan_peak_rss_kib=358416
+## architectural-1e6.prepare.kv
+entities=1000000
+geometry=4f2510e1f01dd914
+part21_bytes=286372662
+part21_deflate_bytes=51830606
+pvec_bytes=55052464
+pvec_deflate_bytes=31383656
+pvec_lz4_bytes=36327120
+## architectural-1e6.pvec.kv
+cold_open_ms=4.638383999999999
+peak_rss_kib=99192
+viewport_bytes_max=55056288
+viewport_bytes_p95=27680032
+viewport_p50_ms=9.797474000000001
+viewport_p95_ms=35.906096
+viewport_ranges_max=90
+## artefact.kv
+pvec_wasm_bytes=208044
+pvec_wasm_gz_bytes=85417
+hdf_wasm_bytes=482547
+hdf_wasm_gz_bytes=152677
+pvec_decode_lines=6158
+part21_reference_parse_lines=179
+hdf_reader_lines=226
+hdf_wasm_harness_lines=77
+## bezier-d3-001.hdf.kv
+cold_open_ms=0.076937
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.228 ms / chunk 65536 + shuffle + deflate 6: p95 0.275 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.266 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12984
+viewport_bytes_max=9986
+viewport_p50_ms=0.218267
+viewport_p95_ms=0.227686
+## bezier-d3-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.084064
+peak_rss_kib=13552
+viewport_bytes_max=8046
+viewport_p50_ms=0.253193
+viewport_p95_ms=0.26578
+## bezier-d3-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.085648
+peak_rss_kib=13664
+viewport_bytes_max=30062
+viewport_p50_ms=0.260611
+viewport_p95_ms=0.275032
+## bezier-d3-001.hdfr.contiguous.kv
+cold_open_ms=0.076937
+peak_rss_kib=12984
+viewport_bytes_max=9986
+viewport_p50_ms=0.218267
+viewport_p95_ms=0.227686
+## bezier-d3-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000665762
+write_s chunk 65536 + shuffle + deflate 6=0.000586491
+write_s contiguous=0.001256337
+## bezier-d3-001.occt.kv
+lift_ms=0.333
+read_ms=0.852
+edges=1
+peak_rss_kib=70708
+## bezier-d3-001.part21.kv
+read_ms=0.015255000000000001
+scan_checksum=4b60e7f92abe5cb5
+scan_instances=9
+scan_ms=0.010336000000000001
+scan_parameters=61
+scan_peak_rss_kib=2164
+## bezier-d3-001.prepare.kv
+entities=1
+geometry=861fcb3426b1f549
+part21_bytes=834
+part21_deflate_bytes=501
+pvec_bytes=1088
+pvec_deflate_bytes=904
+pvec_lz4_bytes=944
+## bezier-d3-001.pvec.kv
+cold_open_ms=0.001625
+peak_rss_kib=2688
+viewport_bytes_max=1888
+viewport_bytes_p95=1888
+viewport_p50_ms=0.0038759999999999997
+viewport_p95_ms=0.004293
+viewport_ranges_max=3
+## bspline-d3-001.hdf.kv
+cold_open_ms=0.073853
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.226 ms / chunk 65536 + shuffle + deflate 6: p95 0.269 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.266 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12984
+viewport_bytes_max=10058
+viewport_p50_ms=0.21509999999999999
+viewport_p95_ms=0.22593600000000003
+## bspline-d3-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.082147
+peak_rss_kib=13576
+viewport_bytes_max=8075
+viewport_p50_ms=0.253319
+viewport_p95_ms=0.26636299999999996
+## bspline-d3-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.082856
+peak_rss_kib=13656
+viewport_bytes_max=30091
+viewport_p50_ms=0.25411
+viewport_p95_ms=0.269489
+## bspline-d3-001.hdfr.contiguous.kv
+cold_open_ms=0.073853
+peak_rss_kib=12984
+viewport_bytes_max=10058
+viewport_p50_ms=0.21509999999999999
+viewport_p95_ms=0.22593600000000003
+## bspline-d3-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000571487
+write_s chunk 65536 + shuffle + deflate 6=0.000608789
+write_s contiguous=0.001068205
+## bspline-d3-001.occt.kv
+lift_ms=0.339
+read_ms=0.759
+edges=1
+peak_rss_kib=70708
+## bspline-d3-001.part21.kv
+read_ms=0.016171
+scan_checksum=f4e939acb0b57ba8
+scan_instances=12
+scan_ms=0.012003
+scan_parameters=85
+scan_peak_rss_kib=2152
+## bspline-d3-001.prepare.kv
+entities=1
+geometry=9cfcc350ea7bbcd0
+part21_bytes=973
+part21_deflate_bytes=549
+pvec_bytes=1160
+pvec_deflate_bytes=944
+pvec_lz4_bytes=984
+## bspline-d3-001.pvec.kv
+cold_open_ms=0.001667
+peak_rss_kib=2688
+viewport_bytes_max=2032
+viewport_bytes_p95=2032
+viewport_p50_ms=0.004001
+viewport_p95_ms=0.004459
+viewport_ranges_max=3
+## bspline-d5-001.hdf.kv
+cold_open_ms=0.077062
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.225 ms / chunk 65536 + shuffle + deflate 6: p95 0.265 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.260 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12988
+viewport_bytes_max=10122
+viewport_p50_ms=0.212974
+viewport_p95_ms=0.22472799999999998
+## bspline-d5-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.081856
+peak_rss_kib=13548
+viewport_bytes_max=8083
+viewport_p50_ms=0.247734
+viewport_p95_ms=0.259946
+## bspline-d5-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.089983
+peak_rss_kib=13672
+viewport_bytes_max=30099
+viewport_p50_ms=0.25286
+viewport_p95_ms=0.265447
+## bspline-d5-001.hdfr.contiguous.kv
+cold_open_ms=0.077062
+peak_rss_kib=12988
+viewport_bytes_max=10122
+viewport_p50_ms=0.212974
+viewport_p95_ms=0.22472799999999998
+## bspline-d5-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000559235
+write_s chunk 65536 + shuffle + deflate 6=0.000588993
+write_s contiguous=0.001078043
+## bspline-d5-001.occt.kv
+lift_ms=0.341
+read_ms=0.770
+edges=1
+peak_rss_kib=70708
+## bspline-d5-001.part21.kv
+read_ms=0.016505
+scan_checksum=a8521506af0b8c61
+scan_instances=14
+scan_ms=0.011503
+scan_parameters=97
+scan_peak_rss_kib=2164
+## bspline-d5-001.prepare.kv
+entities=1
+geometry=809bc45df7f3867b
+part21_bytes=1049
+part21_deflate_bytes=564
+pvec_bytes=1224
+pvec_deflate_bytes=952
+pvec_lz4_bytes=1000
+## bspline-d5-001.pvec.kv
+cold_open_ms=0.001917
+peak_rss_kib=2688
+viewport_bytes_max=2160
+viewport_bytes_p95=2160
+viewport_p50_ms=0.004002
+viewport_p95_ms=0.0044599999999999996
+viewport_ranges_max=3
+## bulge-arc-001.hdf.kv
+cold_open_ms=0.07770099999999999
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.160 ms / chunk 65536 + shuffle + deflate 6: p95 0.186 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.179 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12928
+viewport_bytes_max=8088
+viewport_p50_ms=0.14802700000000002
+viewport_p95_ms=0.159985
+## bulge-arc-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.084492
+peak_rss_kib=13076
+viewport_bytes_max=5326
+viewport_p50_ms=0.16798400000000002
+viewport_p95_ms=0.179317
+## bulge-arc-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08595
+peak_rss_kib=13240
+viewport_bytes_max=15631
+viewport_p50_ms=0.17194199999999998
+viewport_p95_ms=0.185524
+## bulge-arc-001.hdfr.contiguous.kv
+cold_open_ms=0.07770099999999999
+peak_rss_kib=12928
+viewport_bytes_max=8088
+viewport_p50_ms=0.14802700000000002
+viewport_p95_ms=0.159985
+## bulge-arc-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=2
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000382463
+write_s chunk 65536 + shuffle + deflate 6=0.000484829
+write_s contiguous=0.001031318
+## bulge-arc-001.occt.kv
+lift_ms=0.327
+read_ms=0.769
+edges=2
+peak_rss_kib=70580
+## bulge-arc-001.part21.kv
+read_ms=0.015332000000000002
+scan_checksum=1ea9d4d94ff8d66d
+scan_instances=14
+scan_ms=0.012791
+scan_parameters=82
+scan_peak_rss_kib=2164
+## bulge-arc-001.prepare.kv
+entities=2
+geometry=b313a7379597e8b7
+part21_bytes=1141
+part21_deflate_bytes=597
+pvec_bytes=504
+pvec_deflate_bytes=472
+pvec_lz4_bytes=464
+## bulge-arc-001.pvec.kv
+cold_open_ms=0.002
+peak_rss_kib=2688
+viewport_bytes_max=704
+viewport_bytes_p95=704
+viewport_p50_ms=0.002125
+viewport_p95_ms=0.002333
+viewport_ranges_max=3
+## bulge-arc-neg-001.hdf.kv
+cold_open_ms=0.074619
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.163 ms / chunk 65536 + shuffle + deflate 6: p95 0.188 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.179 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12932
+viewport_bytes_max=8088
+viewport_p50_ms=0.151487
+viewport_p95_ms=0.162819
+## bulge-arc-neg-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.079451
+peak_rss_kib=13072
+viewport_bytes_max=5304
+viewport_p50_ms=0.167361
+viewport_p95_ms=0.179318
+## bulge-arc-neg-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.084284
+peak_rss_kib=13244
+viewport_bytes_max=15609
+viewport_p50_ms=0.172527
+viewport_p95_ms=0.187817
+## bulge-arc-neg-001.hdfr.contiguous.kv
+cold_open_ms=0.074619
+peak_rss_kib=12932
+viewport_bytes_max=8088
+viewport_p50_ms=0.151487
+viewport_p95_ms=0.162819
+## bulge-arc-neg-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=2
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.00043788
+write_s chunk 65536 + shuffle + deflate 6=0.000506331
+write_s contiguous=0.000994457
+## bulge-arc-neg-001.occt.kv
+lift_ms=0.364
+read_ms=0.795
+edges=2
+peak_rss_kib=70580
+## bulge-arc-neg-001.part21.kv
+read_ms=0.017165
+scan_checksum=2564566652af38a6
+scan_instances=14
+scan_ms=0.012957
+scan_parameters=82
+scan_peak_rss_kib=2152
+## bulge-arc-neg-001.prepare.kv
+entities=2
+geometry=5bbfcd703e2ffc04
+part21_bytes=1164
+part21_deflate_bytes=608
+pvec_bytes=512
+pvec_deflate_bytes=488
+pvec_lz4_bytes=480
+## bulge-arc-neg-001.pvec.kv
+cold_open_ms=0.002249
+peak_rss_kib=2688
+viewport_bytes_max=712
+viewport_bytes_p95=712
+viewport_p50_ms=0.002125
+viewport_p95_ms=0.002417
+viewport_ranges_max=3
+## circle-001.hdf.kv
+cold_open_ms=0.075562
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.166 ms / chunk 65536 + shuffle + deflate 6: p95 0.191 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.184 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12940
+viewport_bytes_max=7992
+viewport_p50_ms=0.155501
+viewport_p95_ms=0.16592
+## circle-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.081981
+peak_rss_kib=13552
+viewport_bytes_max=5243
+viewport_p50_ms=0.173881
+viewport_p95_ms=0.184217
+## circle-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.084023
+peak_rss_kib=13236
+viewport_bytes_max=15548
+viewport_p50_ms=0.18046600000000002
+viewport_p95_ms=0.19101
+## circle-001.hdfr.contiguous.kv
+cold_open_ms=0.075562
+peak_rss_kib=12940
+viewport_bytes_max=7992
+viewport_p50_ms=0.155501
+viewport_p95_ms=0.16592
+## circle-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.00035989
+write_s chunk 65536 + shuffle + deflate 6=0.000505137
+write_s contiguous=0.001038658
+## circle-001.occt.kv
+lift_ms=0.344
+read_ms=0.736
+edges=1
+peak_rss_kib=70576
+## circle-001.part21.kv
+read_ms=0.028383
+scan_checksum=636b3abf525dd072
+scan_instances=8
+scan_ms=0.009252999999999999
+scan_parameters=41
+scan_peak_rss_kib=2164
+## circle-001.prepare.kv
+entities=1
+geometry=50cec0e6be3695fa
+part21_bytes=719
+part21_deflate_bytes=471
+pvec_bytes=440
+pvec_deflate_bytes=416
+pvec_lz4_bytes=408
+## circle-001.pvec.kv
+cold_open_ms=0.002084
+peak_rss_kib=2688
+viewport_bytes_max=592
+viewport_bytes_p95=592
+viewport_p50_ms=0.002167
+viewport_p95_ms=0.002417
+viewport_ranges_max=3
+## closed-by-endpoint-001.hdf.kv
+cold_open_ms=0.078438
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.224 ms / chunk 65536 + shuffle + deflate 6: p95 0.270 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.264 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12960
+viewport_bytes_max=10058
+viewport_p50_ms=0.21509999999999999
+viewport_p95_ms=0.224269
+## closed-by-endpoint-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.094818
+peak_rss_kib=14024
+viewport_bytes_max=8058
+viewport_p50_ms=0.250486
+viewport_p95_ms=0.26390600000000003
+## closed-by-endpoint-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.092067
+peak_rss_kib=13664
+viewport_bytes_max=30074
+viewport_p50_ms=0.257987
+viewport_p95_ms=0.27003299999999997
+## closed-by-endpoint-001.hdfr.contiguous.kv
+cold_open_ms=0.078438
+peak_rss_kib=12960
+viewport_bytes_max=10058
+viewport_p50_ms=0.21509999999999999
+viewport_p95_ms=0.224269
+## closed-by-endpoint-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000590453
+write_s chunk 65536 + shuffle + deflate 6=0.000598747
+write_s contiguous=0.00107817
+## closed-by-endpoint-001.occt.kv
+lift_ms=0.327
+read_ms=0.758
+edges=1
+peak_rss_kib=70708
+## closed-by-endpoint-001.part21.kv
+read_ms=0.015588000000000001
+scan_checksum=bfc437ed634b0244
+scan_instances=12
+scan_ms=0.011127999999999999
+scan_parameters=85
+scan_peak_rss_kib=2152
+## closed-by-endpoint-001.prepare.kv
+entities=1
+geometry=e915aee5a0872561
+part21_bytes=971
+part21_deflate_bytes=539
+pvec_bytes=1168
+pvec_deflate_bytes=936
+pvec_lz4_bytes=976
+## closed-by-endpoint-001.pvec.kv
+cold_open_ms=0.002042
+peak_rss_kib=2688
+viewport_bytes_max=2040
+viewport_bytes_p95=2040
+viewport_p50_ms=0.004167
+viewport_p95_ms=0.0045850000000000005
+viewport_ranges_max=3
+## closed-periodic-001.hdf.kv
+cold_open_ms=0.074436
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.229 ms / chunk 65536 + shuffle + deflate 6: p95 0.282 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.267 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12988
+viewport_bytes_max=10106
+viewport_p50_ms=0.219183
+viewport_p95_ms=0.229222
+## closed-periodic-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.08430800000000001
+peak_rss_kib=13548
+viewport_bytes_max=8148
+viewport_p50_ms=0.254048
+viewport_p95_ms=0.267127
+## closed-periodic-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08964
+peak_rss_kib=13664
+viewport_bytes_max=30164
+viewport_p50_ms=0.270043
+viewport_p95_ms=0.281665
+## closed-periodic-001.hdfr.contiguous.kv
+cold_open_ms=0.074436
+peak_rss_kib=12988
+viewport_bytes_max=10106
+viewport_p50_ms=0.219183
+viewport_p95_ms=0.229222
+## closed-periodic-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000561163
+write_s chunk 65536 + shuffle + deflate 6=0.000630392
+write_s contiguous=0.001066843
+## closed-periodic-001.occt.kv
+lift_ms=0.340
+read_ms=0.792
+edges=1
+peak_rss_kib=70704
+## closed-periodic-001.part21.kv
+read_ms=0.01712
+scan_checksum=659585a65b7d2a14
+scan_instances=14
+scan_ms=0.012663
+scan_parameters=101
+scan_peak_rss_kib=2164
+## closed-periodic-001.prepare.kv
+entities=1
+geometry=4b22a2f5e3263b46
+part21_bytes=1171
+part21_deflate_bytes=585
+pvec_bytes=1216
+pvec_deflate_bytes=1000
+pvec_lz4_bytes=1040
+## closed-periodic-001.pvec.kv
+cold_open_ms=0.001666
+peak_rss_kib=2688
+viewport_bytes_max=2136
+viewport_bytes_p95=2136
+viewport_p50_ms=0.0039570000000000004
+viewport_p95_ms=0.004373
+viewport_ranges_max=3
+## ellipse-001.hdf.kv
+cold_open_ms=0.073354
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.165 ms / chunk 65536 + shuffle + deflate 6: p95 0.187 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.184 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12452
+viewport_bytes_max=8024
+viewport_p50_ms=0.15399700000000002
+viewport_p95_ms=0.164662
+## ellipse-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.080352
+peak_rss_kib=13552
+viewport_bytes_max=5305
+viewport_p50_ms=0.171659
+viewport_p95_ms=0.18382199999999999
+## ellipse-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.084934
+peak_rss_kib=13192
+viewport_bytes_max=15610
+viewport_p50_ms=0.17707399999999998
+viewport_p95_ms=0.18665500000000002
+## ellipse-001.hdfr.contiguous.kv
+cold_open_ms=0.073354
+peak_rss_kib=12452
+viewport_bytes_max=8024
+viewport_p50_ms=0.15399700000000002
+viewport_p95_ms=0.164662
+## ellipse-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000416963
+write_s chunk 65536 + shuffle + deflate 6=0.00048811
+write_s contiguous=0.001041784
+## ellipse-001.occt.kv
+lift_ms=0.343
+read_ms=0.737
+edges=1
+peak_rss_kib=70576
+## ellipse-001.part21.kv
+read_ms=0.016037
+scan_checksum=a8c441213762053c
+scan_instances=8
+scan_ms=0.010289
+scan_parameters=42
+scan_peak_rss_kib=2160
+## ellipse-001.prepare.kv
+entities=1
+geometry=c02fae58f933eb73
+part21_bytes=740
+part21_deflate_bytes=479
+pvec_bytes=456
+pvec_deflate_bytes=440
+pvec_lz4_bytes=424
+## ellipse-001.pvec.kv
+cold_open_ms=0.0020829999999999998
+peak_rss_kib=2688
+viewport_bytes_max=624
+viewport_bytes_p95=624
+viewport_p50_ms=0.002291
+viewport_p95_ms=0.002499
+viewport_ranges_max=3
+## elliptical-arc-001.hdf.kv
+cold_open_ms=0.077896
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.167 ms / chunk 65536 + shuffle + deflate 6: p95 0.187 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.180 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12928
+viewport_bytes_max=8024
+viewport_p50_ms=0.155626
+viewport_p95_ms=0.166914
+## elliptical-arc-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.07977100000000001
+peak_rss_kib=13072
+viewport_bytes_max=5294
+viewport_p50_ms=0.17120500000000002
+viewport_p95_ms=0.18041100000000002
+## elliptical-arc-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.084686
+peak_rss_kib=13224
+viewport_bytes_max=15599
+viewport_p50_ms=0.17712
+viewport_p95_ms=0.18732500000000002
+## elliptical-arc-001.hdfr.contiguous.kv
+cold_open_ms=0.077896
+peak_rss_kib=12928
+viewport_bytes_max=8024
+viewport_p50_ms=0.155626
+viewport_p95_ms=0.166914
+## elliptical-arc-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000395979
+write_s chunk 65536 + shuffle + deflate 6=0.000486455
+write_s contiguous=0.001020481
+## elliptical-arc-001.occt.kv
+lift_ms=0.337
+read_ms=0.799
+edges=1
+peak_rss_kib=70572
+## elliptical-arc-001.part21.kv
+read_ms=0.015204
+scan_checksum=e2f898f34b2de649
+scan_instances=9
+scan_ms=0.011622
+scan_parameters=53
+scan_peak_rss_kib=2164
+## elliptical-arc-001.prepare.kv
+entities=1
+geometry=c4241f33b22bf72d
+part21_bytes=827
+part21_deflate_bytes=520
+pvec_bytes=480
+pvec_deflate_bytes=464
+pvec_lz4_bytes=448
+## elliptical-arc-001.pvec.kv
+cold_open_ms=0.002041
+peak_rss_kib=2688
+viewport_bytes_max=648
+viewport_bytes_p95=648
+viewport_p50_ms=0.002208
+viewport_p95_ms=0.002541
+viewport_ranges_max=3
+## huge-coordinate-1e5.hdf.kv
+cold_open_ms=0.347746
+compressed_bytes=6615463
+contiguous_bytes=12553082
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 37.886 ms / chunk 65536 + shuffle + deflate 6: p95 79.556 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 72.888 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=49320
+viewport_bytes_max=12557598
+viewport_p50_ms=10.3532
+viewport_p95_ms=37.88585500000001
+## huge-coordinate-1e5.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=13.910193
+peak_rss_kib=59764
+viewport_bytes_max=6855417
+viewport_p50_ms=31.746597
+viewport_p95_ms=72.88766600000001
+## huge-coordinate-1e5.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=16.867382
+peak_rss_kib=60136
+viewport_bytes_max=6616826
+viewport_p50_ms=44.235679
+viewport_p95_ms=79.556021
+## huge-coordinate-1e5.hdfr.contiguous.kv
+cold_open_ms=0.347746
+peak_rss_kib=49320
+viewport_bytes_max=12557598
+viewport_p50_ms=10.3532
+viewport_p95_ms=37.88585500000001
+## huge-coordinate-1e5.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6852790
+bytes chunk 65536 + shuffle + deflate 6=6615463
+bytes contiguous=12553082
+entities=100000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.190157251
+write_s chunk 65536 + shuffle + deflate 6=0.232632664
+write_s contiguous=0.011208688
+## huge-coordinate-1e5.occt.kv
+lift_ms=532.480
+read_ms=11037.533
+edges=100000
+peak_rss_kib=431616
+## huge-coordinate-1e5.part21.kv
+read_ms=11.775834000000001
+scan_checksum=9b7dcdee41144c8d
+scan_instances=669490
+scan_ms=166.455107
+scan_parameters=4117928
+scan_peak_rss_kib=51584
+## huge-coordinate-1e5.prepare.kv
+entities=100000
+geometry=fb9a1944f92d50c0
+part21_bytes=41507407
+part21_deflate_bytes=9330528
+pvec_bytes=9375352
+pvec_deflate_bytes=5561608
+pvec_lz4_bytes=7451152
+## huge-coordinate-1e5.pvec.kv
+cold_open_ms=0.42463
+peak_rss_kib=17708
+viewport_bytes_max=9379176
+viewport_bytes_p95=5849608
+viewport_p50_ms=3.310399
+viewport_p95_ms=6.177375
+viewport_ranges_max=118
+## industrial-1e5.hdf.kv
+cold_open_ms=0.348437
+compressed_bytes=6271888
+contiguous_bytes=9253700
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 40.032 ms / chunk 65536 + shuffle + deflate 6: p95 77.765 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 76.819 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=42632
+viewport_bytes_max=9258216
+viewport_p50_ms=10.655387000000001
+viewport_p95_ms=40.031891
+## industrial-1e5.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=16.757811
+peak_rss_kib=49696
+viewport_bytes_max=6402646
+viewport_p50_ms=34.98993
+viewport_p95_ms=76.818883
+## industrial-1e5.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=17.374408000000003
+peak_rss_kib=49972
+viewport_bytes_max=6273225
+viewport_p50_ms=44.267553
+viewport_p95_ms=77.76523300000001
+## industrial-1e5.hdfr.contiguous.kv
+cold_open_ms=0.348437
+peak_rss_kib=42632
+viewport_bytes_max=9258216
+viewport_p50_ms=10.655387000000001
+viewport_p95_ms=40.031891
+## industrial-1e5.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6398557
+bytes chunk 65536 + shuffle + deflate 6=6271888
+bytes contiguous=9253700
+entities=100000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.199263367
+write_s chunk 65536 + shuffle + deflate 6=0.237778503
+write_s contiguous=0.00817887
+## industrial-1e5.occt.kv
+lift_ms=374.942
+read_ms=9600.433
+edges=100000
+peak_rss_kib=381360
+## industrial-1e5.part21.kv
+read_ms=7.898403999999999
+scan_checksum=90d0b3adcbc968ac
+scan_instances=507967
+scan_ms=121.662536
+scan_parameters=2988001
+scan_peak_rss_kib=38788
+## industrial-1e5.prepare.kv
+entities=100000
+geometry=21125d7ba9526117
+part21_bytes=28414350
+part21_deflate_bytes=5783328
+pvec_bytes=6731160
+pvec_deflate_bytes=4139472
+pvec_lz4_bytes=4751648
+## industrial-1e5.pvec.kv
+cold_open_ms=0.452955
+peak_rss_kib=15668
+viewport_bytes_max=6734984
+viewport_bytes_p95=4209320
+viewport_p50_ms=1.340405
+viewport_p95_ms=4.010167999999999
+viewport_ranges_max=50
+## large-coords-001.hdf.kv
+cold_open_ms=0.07493999999999999
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.171 ms / chunk 65536 + shuffle + deflate 6: p95 0.197 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.189 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12448
+viewport_bytes_max=8040
+viewport_p50_ms=0.161335
+viewport_p95_ms=0.170624
+## large-coords-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.08235400000000001
+peak_rss_kib=13088
+viewport_bytes_max=5291
+viewport_p50_ms=0.180038
+viewport_p95_ms=0.18857800000000002
+## large-coords-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.082355
+peak_rss_kib=13248
+viewport_bytes_max=17692
+viewport_p50_ms=0.186787
+viewport_p95_ms=0.196992
+## large-coords-001.hdfr.contiguous.kv
+cold_open_ms=0.07493999999999999
+peak_rss_kib=12448
+viewport_bytes_max=8040
+viewport_p50_ms=0.161335
+viewport_p95_ms=0.170624
+## large-coords-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000395443
+write_s chunk 65536 + shuffle + deflate 6=0.000501792
+write_s contiguous=0.001056321
+## large-coords-001.occt.kv
+lift_ms=0.322
+read_ms=0.837
+edges=1
+peak_rss_kib=70708
+## large-coords-001.part21.kv
+read_ms=0.016371
+scan_checksum=e115a55c9cb2992e
+scan_instances=9
+scan_ms=0.009497
+scan_parameters=50
+scan_peak_rss_kib=2164
+## large-coords-001.prepare.kv
+entities=1
+geometry=a2165386d6f8099e
+part21_bytes=838
+part21_deflate_bytes=468
+pvec_bytes=480
+pvec_deflate_bytes=432
+pvec_lz4_bytes=432
+## large-coords-001.pvec.kv
+cold_open_ms=0.002041
+peak_rss_kib=2688
+viewport_bytes_max=664
+viewport_bytes_p95=664
+viewport_p50_ms=0.002125
+viewport_p95_ms=0.002333
+viewport_ranges_max=3
+## layer-state-001.hdf.kv
+cold_open_ms=0.075369
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.166 ms / chunk 65536 + shuffle + deflate 6: p95 0.189 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.184 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=13000
+viewport_bytes_max=8144
+viewport_p50_ms=0.157196
+viewport_p95_ms=0.165571
+## layer-state-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.081744
+peak_rss_kib=13556
+viewport_bytes_max=5274
+viewport_p50_ms=0.175695
+viewport_p95_ms=0.18390299999999998
+## layer-state-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08466
+peak_rss_kib=13252
+viewport_bytes_max=15583
+viewport_p50_ms=0.180361
+viewport_p95_ms=0.18915300000000002
+## layer-state-001.hdfr.contiguous.kv
+cold_open_ms=0.075369
+peak_rss_kib=13000
+viewport_bytes_max=8144
+viewport_p50_ms=0.157196
+viewport_p95_ms=0.165571
+## layer-state-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=3
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000370847
+write_s chunk 65536 + shuffle + deflate 6=0.000492504
+write_s contiguous=0.001034172
+## layer-state-001.occt.kv
+lift_ms=0.334
+read_ms=0.789
+edges=3
+peak_rss_kib=70452
+## layer-state-001.part21.kv
+read_ms=0.017415
+scan_checksum=e78ac119d06fd7b0
+scan_instances=19
+scan_ms=0.014832
+scan_parameters=112
+scan_peak_rss_kib=2164
+## layer-state-001.prepare.kv
+entities=3
+geometry=f17f25b548a36ec8
+part21_bytes=1325
+part21_deflate_bytes=680
+pvec_bytes=712
+pvec_deflate_bytes=584
+pvec_lz4_bytes=624
+## layer-state-001.pvec.kv
+cold_open_ms=0.001542
+peak_rss_kib=2688
+viewport_bytes_max=1008
+viewport_bytes_p95=1008
+viewport_p50_ms=0.0022919999999999998
+viewport_p95_ms=0.0025
+viewport_ranges_max=3
+## line-001.hdf.kv
+cold_open_ms=0.07489900000000001
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.165 ms / chunk 65536 + shuffle + deflate 6: p95 0.186 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.182 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12936
+viewport_bytes_max=8000
+viewport_p50_ms=0.154506
+viewport_p95_ms=0.164545
+## line-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.083856
+peak_rss_kib=13552
+viewport_bytes_max=5245
+viewport_p50_ms=0.17208600000000002
+viewport_p95_ms=0.181501
+## line-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.106226
+peak_rss_kib=13248
+viewport_bytes_max=15551
+viewport_p50_ms=0.176752
+viewport_p95_ms=0.18645799999999998
+## line-001.hdfr.contiguous.kv
+cold_open_ms=0.07489900000000001
+peak_rss_kib=12936
+viewport_bytes_max=8000
+viewport_p50_ms=0.154506
+viewport_p95_ms=0.164545
+## line-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000389075
+write_s chunk 65536 + shuffle + deflate 6=0.000476681
+write_s contiguous=0.001031217
+## line-001.occt.kv
+lift_ms=0.331
+read_ms=0.746
+edges=1
+peak_rss_kib=70452
+## line-001.part21.kv
+read_ms=0.016579
+scan_checksum=ae6b85f4c40e1705
+scan_instances=9
+scan_ms=0.010706
+scan_parameters=52
+scan_peak_rss_kib=2156
+## line-001.prepare.kv
+entities=1
+geometry=43cda3f9287c8c65
+part21_bytes=833
+part21_deflate_bytes=532
+pvec_bytes=432
+pvec_deflate_bytes=400
+pvec_lz4_bytes=400
+## line-001.pvec.kv
+cold_open_ms=0.0020829999999999998
+peak_rss_kib=2688
+viewport_bytes_max=576
+viewport_bytes_p95=576
+viewport_p50_ms=0.002291
+viewport_p95_ms=0.002541
+viewport_ranges_max=3
+## lwpolyline-closed-001.hdf.kv
+cold_open_ms=0.073401
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.174 ms / chunk 65536 + shuffle + deflate 6: p95 0.201 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.198 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12940
+viewport_bytes_max=8056
+viewport_p50_ms=0.162299
+viewport_p95_ms=0.17363
+## lwpolyline-closed-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.079733
+peak_rss_kib=13084
+viewport_bytes_max=5265
+viewport_p50_ms=0.187126
+viewport_p95_ms=0.198374
+## lwpolyline-closed-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08898099999999999
+peak_rss_kib=13248
+viewport_bytes_max=17666
+viewport_p50_ms=0.18654300000000001
+viewport_p95_ms=0.20124899999999998
+## lwpolyline-closed-001.hdfr.contiguous.kv
+cold_open_ms=0.073401
+peak_rss_kib=12940
+viewport_bytes_max=8056
+viewport_p50_ms=0.162299
+viewport_p95_ms=0.17363
+## lwpolyline-closed-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000381543
+write_s chunk 65536 + shuffle + deflate 6=0.000484855
+write_s contiguous=0.000984166
+## lwpolyline-closed-001.occt.kv
+lift_ms=0.325
+read_ms=0.721
+edges=1
+peak_rss_kib=70708
+## lwpolyline-closed-001.part21.kv
+read_ms=0.018538000000000002
+scan_checksum=108d9ec7b7ceb465
+scan_instances=10
+scan_ms=0.009998
+scan_parameters=56
+scan_peak_rss_kib=2164
+## lwpolyline-closed-001.prepare.kv
+entities=1
+geometry=1ed6cb7ad7aac942
+part21_bytes=804
+part21_deflate_bytes=476
+pvec_bytes=496
+pvec_deflate_bytes=432
+pvec_lz4_bytes=440
+## lwpolyline-closed-001.pvec.kv
+cold_open_ms=0.001958
+peak_rss_kib=2688
+viewport_bytes_max=696
+viewport_bytes_p95=696
+viewport_p50_ms=0.002125
+viewport_p95_ms=0.0024159999999999997
+viewport_ranges_max=3
+## mep-1e5.hdf.kv
+cold_open_ms=0.302853
+compressed_bytes=5808864
+contiguous_bytes=9242498
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 39.109 ms / chunk 65536 + shuffle + deflate 6: p95 76.469 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 74.343 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=43164
+viewport_bytes_max=9247014
+viewport_p50_ms=9.414222
+viewport_p95_ms=39.109384
+## mep-1e5.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=16.380385
+peak_rss_kib=50008
+viewport_bytes_max=5995558
+viewport_p50_ms=33.050323999999996
+viewport_p95_ms=74.343343
+## mep-1e5.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=17.364445
+peak_rss_kib=51024
+viewport_bytes_max=5810200
+viewport_p50_ms=44.395691
+viewport_p95_ms=76.469105
+## mep-1e5.hdfr.contiguous.kv
+cold_open_ms=0.302853
+peak_rss_kib=43164
+viewport_bytes_max=9247014
+viewport_p50_ms=9.414222
+viewport_p95_ms=39.109384
+## mep-1e5.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=5991914
+bytes chunk 65536 + shuffle + deflate 6=5808864
+bytes contiguous=9242498
+entities=100000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.18252331
+write_s chunk 65536 + shuffle + deflate 6=0.214272056
+write_s contiguous=0.007775584
+## mep-1e5.occt.kv
+lift_ms=383.517
+read_ms=9826.447
+edges=100000
+peak_rss_kib=387360
+## mep-1e5.part21.kv
+read_ms=7.6669789999999995
+scan_checksum=debdf062b3ccc2d5
+scan_instances=527832
+scan_ms=122.665441
+scan_parameters=3078991
+scan_peak_rss_kib=38772
+## mep-1e5.prepare.kv
+entities=100000
+geometry=7757736fd5633aee
+part21_bytes=28394896
+part21_deflate_bytes=5863669
+pvec_bytes=6756960
+pvec_deflate_bytes=3856384
+pvec_lz4_bytes=4547680
+## mep-1e5.pvec.kv
+cold_open_ms=0.432297
+peak_rss_kib=15924
+viewport_bytes_max=6760792
+viewport_bytes_p95=4342864
+viewport_p50_ms=1.224541
+viewport_p95_ms=4.050159
+viewport_ranges_max=47
+## nonunit-weight-001.hdf.kv
+cold_open_ms=0.07261
+compressed_bytes=7113
+contiguous_bytes=7976
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.238 ms / chunk 65536 + shuffle + deflate 6: p95 0.286 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.278 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12984
+viewport_bytes_max=10554
+viewport_p50_ms=0.229787
+viewport_p95_ms=0.23791099999999998
+## nonunit-weight-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.082984
+peak_rss_kib=13664
+viewport_bytes_max=8597
+viewport_p50_ms=0.26682300000000003
+viewport_p95_ms=0.277611
+## nonunit-weight-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.085233
+peak_rss_kib=13776
+viewport_bytes_max=32709
+viewport_p50_ms=0.275404
+viewport_p95_ms=0.286234
+## nonunit-weight-001.hdfr.contiguous.kv
+cold_open_ms=0.07261
+peak_rss_kib=12984
+viewport_bytes_max=10554
+viewport_p50_ms=0.229787
+viewport_p95_ms=0.23791099999999998
+## nonunit-weight-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=7113
+bytes chunk 65536 + shuffle + deflate 6=34176
+bytes contiguous=7976
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000575135
+write_s chunk 65536 + shuffle + deflate 6=0.000625376
+write_s contiguous=0.001099448
+## nonunit-weight-001.occt.kv
+lift_ms=0.345
+read_ms=0.794
+edges=1
+peak_rss_kib=70700
+## nonunit-weight-001.part21.kv
+read_ms=0.013872
+scan_checksum=06bb2f94851bb224
+scan_instances=10
+scan_ms=0.011247
+scan_parameters=83
+scan_peak_rss_kib=2160
+## nonunit-weight-001.prepare.kv
+entities=1
+geometry=1007f0e3d8bf5d53
+part21_bytes=1030
+part21_deflate_bytes=555
+pvec_bytes=1160
+pvec_deflate_bytes=960
+pvec_lz4_bytes=992
+## nonunit-weight-001.pvec.kv
+cold_open_ms=0.001667
+peak_rss_kib=2688
+viewport_bytes_max=2024
+viewport_bytes_p95=2024
+viewport_p50_ms=0.003958
+viewport_p95_ms=0.004457
+viewport_ranges_max=3
+## nurbs-d2-offconic-001.hdf.kv
+cold_open_ms=0.076736
+compressed_bytes=7113
+contiguous_bytes=7976
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.243 ms / chunk 65536 + shuffle + deflate 6: p95 0.288 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.278 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12996
+viewport_bytes_max=10554
+viewport_p50_ms=0.23187500000000003
+viewport_p95_ms=0.242998
+## nurbs-d2-offconic-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.085734
+peak_rss_kib=13656
+viewport_bytes_max=8601
+viewport_p50_ms=0.26728500000000005
+viewport_p95_ms=0.277617
+## nurbs-d2-offconic-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.086026
+peak_rss_kib=13772
+viewport_bytes_max=32713
+viewport_p50_ms=0.276117
+viewport_p95_ms=0.288156
+## nurbs-d2-offconic-001.hdfr.contiguous.kv
+cold_open_ms=0.076736
+peak_rss_kib=12996
+viewport_bytes_max=10554
+viewport_p50_ms=0.23187500000000003
+viewport_p95_ms=0.242998
+## nurbs-d2-offconic-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=7113
+bytes chunk 65536 + shuffle + deflate 6=34176
+bytes contiguous=7976
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000652799
+write_s chunk 65536 + shuffle + deflate 6=0.00066813
+write_s contiguous=0.001103344
+## nurbs-d2-offconic-001.occt.kv
+lift_ms=0.329
+read_ms=0.758
+edges=1
+peak_rss_kib=70712
+## nurbs-d2-offconic-001.part21.kv
+read_ms=0.014539
+scan_checksum=c90d5e8f911c2a2c
+scan_instances=10
+scan_ms=0.012123
+scan_parameters=83
+scan_peak_rss_kib=2164
+## nurbs-d2-offconic-001.prepare.kv
+entities=1
+geometry=634e579f2e22d4fc
+part21_bytes=1029
+part21_deflate_bytes=564
+pvec_bytes=1160
+pvec_deflate_bytes=976
+pvec_lz4_bytes=1000
+## nurbs-d2-offconic-001.pvec.kv
+cold_open_ms=0.001625
+peak_rss_kib=2688
+viewport_bytes_max=2024
+viewport_bytes_p95=2024
+viewport_p50_ms=0.004208
+viewport_p95_ms=0.004582
+viewport_ranges_max=3
+## nurbs-d3-001.hdf.kv
+cold_open_ms=0.073571
+compressed_bytes=7113
+contiguous_bytes=7976
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.239 ms / chunk 65536 + shuffle + deflate 6: p95 0.285 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.275 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12980
+viewport_bytes_max=10594
+viewport_p50_ms=0.22983699999999999
+viewport_p95_ms=0.23879399999999998
+## nurbs-d3-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.083111
+peak_rss_kib=13648
+viewport_bytes_max=8611
+viewport_p50_ms=0.267582
+viewport_p95_ms=0.27508099999999996
+## nurbs-d3-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08573599999999999
+peak_rss_kib=13792
+viewport_bytes_max=32723
+viewport_p50_ms=0.27216399999999996
+viewport_p95_ms=0.285246
+## nurbs-d3-001.hdfr.contiguous.kv
+cold_open_ms=0.073571
+peak_rss_kib=12980
+viewport_bytes_max=10594
+viewport_p50_ms=0.22983699999999999
+viewport_p95_ms=0.23879399999999998
+## nurbs-d3-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=7113
+bytes chunk 65536 + shuffle + deflate 6=34176
+bytes contiguous=7976
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000583069
+write_s chunk 65536 + shuffle + deflate 6=0.000641392
+write_s contiguous=0.001131519
+## nurbs-d3-001.occt.kv
+lift_ms=0.347
+read_ms=0.783
+edges=1
+peak_rss_kib=70832
+## nurbs-d3-001.part21.kv
+read_ms=0.016789000000000002
+scan_checksum=ce77a449c0810c3d
+scan_instances=11
+scan_ms=0.011873
+scan_parameters=90
+scan_peak_rss_kib=2144
+## nurbs-d3-001.prepare.kv
+entities=1
+geometry=4264f1ad2b6c9a65
+part21_bytes=1074
+part21_deflate_bytes=578
+pvec_bytes=1192
+pvec_deflate_bytes=984
+pvec_lz4_bytes=1008
+## nurbs-d3-001.pvec.kv
+cold_open_ms=0.001625
+peak_rss_kib=2688
+viewport_bytes_max=2096
+viewport_bytes_p95=2096
+viewport_p50_ms=0.004041
+viewport_p95_ms=0.004541
+viewport_ranges_max=3
+## pathological-1e3.hdf.kv
+cold_open_ms=0.07682900000000001
+compressed_bytes=674009
+contiguous_bytes=1153884
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 3.032 ms / chunk 65536 + shuffle + deflate 6: p95 6.457 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 6.475 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=15108
+viewport_bytes_max=1158400
+viewport_p50_ms=0.20540599999999998
+viewport_p95_ms=3.032309
+## pathological-1e3.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.227864
+peak_rss_kib=17936
+viewport_bytes_max=712924
+viewport_p50_ms=0.406107
+viewport_p95_ms=6.475334999999999
+## pathological-1e3.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.237989
+peak_rss_kib=18032
+viewport_bytes_max=675411
+viewport_p50_ms=0.40943799999999997
+viewport_p95_ms=6.456792999999999
+## pathological-1e3.hdfr.contiguous.kv
+cold_open_ms=0.07682900000000001
+peak_rss_kib=15108
+viewport_bytes_max=1158400
+viewport_p50_ms=0.20540599999999998
+viewport_p95_ms=3.032309
+## pathological-1e3.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=709144
+bytes chunk 65536 + shuffle + deflate 6=674009
+bytes contiguous=1153884
+entities=1000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.017379396
+write_s chunk 65536 + shuffle + deflate 6=0.019222154
+write_s contiguous=0.001845359
+## pathological-1e3.occt.kv
+lift_ms=41.033
+read_ms=932.164
+edges=1000
+peak_rss_kib=96676
+## pathological-1e3.part21.kv
+read_ms=1.181854
+scan_checksum=84328a8532a056ac
+scan_instances=45403
+scan_ms=12.828397
+scan_parameters=363830
+scan_peak_rss_kib=6572
+## pathological-1e3.prepare.kv
+entities=1000
+geometry=33de92db5390ba02
+part21_bytes=3295883
+part21_deflate_bytes=758896
+pvec_bytes=1116040
+pvec_deflate_bytes=513248
+pvec_lz4_bytes=767080
+## pathological-1e3.pvec.kv
+cold_open_ms=0.006333
+peak_rss_kib=4296
+viewport_bytes_max=1125396
+viewport_bytes_p95=1125396
+viewport_p50_ms=0.013583
+viewport_p95_ms=0.506723
+viewport_ranges_max=16
+## polyline-001.hdf.kv
+cold_open_ms=0.072489
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.176 ms / chunk 65536 + shuffle + deflate 6: p95 0.201 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.191 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12936
+viewport_bytes_max=8056
+viewport_p50_ms=0.164975
+viewport_p95_ms=0.17634899999999998
+## polyline-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.10102699999999999
+peak_rss_kib=13080
+viewport_bytes_max=5267
+viewport_p50_ms=0.179973
+viewport_p95_ms=0.19051300000000002
+## polyline-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.09202700000000001
+peak_rss_kib=13240
+viewport_bytes_max=17668
+viewport_p50_ms=0.190389
+viewport_p95_ms=0.200762
+## polyline-001.hdfr.contiguous.kv
+cold_open_ms=0.072489
+peak_rss_kib=12936
+viewport_bytes_max=8056
+viewport_p50_ms=0.164975
+viewport_p95_ms=0.17634899999999998
+## polyline-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000377527
+write_s chunk 65536 + shuffle + deflate 6=0.000501925
+write_s contiguous=0.000992268
+## polyline-001.occt.kv
+lift_ms=0.344
+read_ms=0.727
+edges=1
+peak_rss_kib=70700
+## polyline-001.part21.kv
+read_ms=0.014665
+scan_checksum=ed269ec7b7ceb465
+scan_instances=10
+scan_ms=0.010499000000000001
+scan_parameters=56
+scan_peak_rss_kib=2164
+## polyline-001.prepare.kv
+entities=1
+geometry=b69fc4dccba1dd0f
+part21_bytes=808
+part21_deflate_bytes=481
+pvec_bytes=488
+pvec_deflate_bytes=424
+pvec_lz4_bytes=432
+## polyline-001.pvec.kv
+cold_open_ms=0.001958
+peak_rss_kib=2688
+viewport_bytes_max=688
+viewport_bytes_p95=688
+viewport_p50_ms=0.002167
+viewport_p95_ms=0.002458
+viewport_ranges_max=3
+## polyline2d-001.hdf.kv
+cold_open_ms=0.07524
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.177 ms / chunk 65536 + shuffle + deflate 6: p95 0.201 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.193 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12936
+viewport_bytes_max=8056
+viewport_p50_ms=0.165228
+viewport_p95_ms=0.176768
+## polyline2d-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.084531
+peak_rss_kib=13552
+viewport_bytes_max=5268
+viewport_p50_ms=0.183559
+viewport_p95_ms=0.193266
+## polyline2d-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.08598900000000001
+peak_rss_kib=13244
+viewport_bytes_max=17670
+viewport_p50_ms=0.191142
+viewport_p95_ms=0.200723
+## polyline2d-001.hdfr.contiguous.kv
+cold_open_ms=0.07524
+peak_rss_kib=12936
+viewport_bytes_max=8056
+viewport_p50_ms=0.165228
+viewport_p95_ms=0.176768
+## polyline2d-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000438314
+write_s chunk 65536 + shuffle + deflate 6=0.000467102
+write_s contiguous=0.000979574
+## polyline2d-001.occt.kv
+lift_ms=0.329
+read_ms=0.752
+edges=1
+peak_rss_kib=70708
+## polyline2d-001.part21.kv
+read_ms=0.016831
+scan_checksum=86a89ec7b7ceb465
+scan_instances=10
+scan_ms=0.009832
+scan_parameters=56
+scan_peak_rss_kib=2164
+## polyline2d-001.prepare.kv
+entities=1
+geometry=32ecbb483ebec420
+part21_bytes=808
+part21_deflate_bytes=482
+pvec_bytes=488
+pvec_deflate_bytes=432
+pvec_lz4_bytes=440
+## polyline2d-001.pvec.kv
+cold_open_ms=0.0025
+peak_rss_kib=2688
+viewport_bytes_max=688
+viewport_bytes_p95=688
+viewport_p50_ms=0.002291
+viewport_p95_ms=0.0025830000000000002
+viewport_ranges_max=3
+## repeated-knot-c0-001.hdf.kv
+cold_open_ms=0.076116
+compressed_bytes=6845
+contiguous_bytes=7704
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.226 ms / chunk 65536 + shuffle + deflate 6: p95 0.264 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.256 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12988
+viewport_bytes_max=10058
+viewport_p50_ms=0.21559899999999999
+viewport_p95_ms=0.225556
+## repeated-knot-c0-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.087865
+peak_rss_kib=14020
+viewport_bytes_max=8062
+viewport_p50_ms=0.247303
+viewport_p95_ms=0.25621900000000003
+## repeated-knot-c0-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.089364
+peak_rss_kib=13664
+viewport_bytes_max=30078
+viewport_p50_ms=0.254303
+viewport_p95_ms=0.26438500000000004
+## repeated-knot-c0-001.hdfr.contiguous.kv
+cold_open_ms=0.076116
+peak_rss_kib=12988
+viewport_bytes_max=10058
+viewport_p50_ms=0.21559899999999999
+viewport_p95_ms=0.225556
+## repeated-knot-c0-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=6845
+bytes chunk 65536 + shuffle + deflate 6=31808
+bytes contiguous=7704
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000557891
+write_s chunk 65536 + shuffle + deflate 6=0.000580263
+write_s contiguous=0.001072828
+## repeated-knot-c0-001.occt.kv
+lift_ms=0.348
+read_ms=0.798
+edges=1
+peak_rss_kib=70700
+## repeated-knot-c0-001.part21.kv
+read_ms=0.015582
+scan_checksum=8cabc3b8de22ee60
+scan_instances=12
+scan_ms=0.011831999999999999
+scan_parameters=81
+scan_peak_rss_kib=2156
+## repeated-knot-c0-001.prepare.kv
+entities=1
+geometry=a25e52b8e0f6731d
+part21_bytes=958
+part21_deflate_bytes=537
+pvec_bytes=1168
+pvec_deflate_bytes=936
+pvec_lz4_bytes=984
+## repeated-knot-c0-001.pvec.kv
+cold_open_ms=0.001708
+peak_rss_kib=2688
+viewport_bytes_max=2040
+viewport_bytes_p95=2040
+viewport_p50_ms=0.004083
+viewport_p95_ms=0.004458
+viewport_ranges_max=3
+## spline-heavy-1e5.hdf.kv
+cold_open_ms=0.5088929999999999
+compressed_bytes=15648349
+contiguous_bytes=30673550
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 90.542 ms / chunk 65536 + shuffle + deflate 6: p95 159.801 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 148.767 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=88512
+viewport_bytes_max=30678066
+viewport_p50_ms=25.864656999999998
+viewport_p95_ms=90.541606
+## spline-heavy-1e5.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=16.278389
+peak_rss_kib=116832
+viewport_bytes_max=16076520
+viewport_p50_ms=50.388985999999996
+viewport_p95_ms=148.766799
+## spline-heavy-1e5.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=17.844389
+peak_rss_kib=117424
+viewport_bytes_max=15651633
+viewport_p50_ms=69.208107
+viewport_p95_ms=159.80091
+## spline-heavy-1e5.hdfr.contiguous.kv
+cold_open_ms=0.5088929999999999
+peak_rss_kib=88512
+viewport_bytes_max=30678066
+viewport_p50_ms=25.864656999999998
+viewport_p95_ms=90.541606
+## spline-heavy-1e5.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=16072893
+bytes chunk 65536 + shuffle + deflate 6=15648349
+bytes contiguous=30673550
+entities=100000
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.502149222
+write_s chunk 65536 + shuffle + deflate 6=0.617928728
+write_s contiguous=0.031209649
+## spline-heavy-1e5.occt.kv
+lift_ms=1046.966
+read_ms=14012.280
+edges=100000
+peak_rss_kib=724676
+## spline-heavy-1e5.part21.kv
+read_ms=32.415905
+scan_checksum=243b6717a725fe4b
+scan_instances=1118082
+scan_ms=332.988777
+scan_parameters=8538227
+scan_peak_rss_kib=95584
+## spline-heavy-1e5.prepare.kv
+entities=100000
+geometry=3b947fedf0c73b1e
+part21_bytes=79877804
+part21_deflate_bytes=18679733
+pvec_bytes=24413992
+pvec_deflate_bytes=11111024
+pvec_lz4_bytes=14293552
+## spline-heavy-1e5.pvec.kv
+cold_open_ms=0.282591
+peak_rss_kib=28956
+viewport_bytes_max=24417816
+viewport_bytes_p95=23115512
+viewport_p50_ms=70.692031
+viewport_p95_ms=72.450165
+viewport_ranges_max=802
+## tiny-radius-001.hdf.kv
+cold_open_ms=0.072117
+compressed_bytes=4788
+contiguous_bytes=6560
+note=H2 layout of the phase 1 spike; viewport numbers from the configuration with the best p95 (contiguous) with a 256 MiB chunk cache; all three: contiguous: p95 0.163 ms / chunk 65536 + shuffle + deflate 6: p95 0.189 ms / chunk 4096 + shuffle + deflate 6 + latest: p95 0.183 ms; compressed is the smaller of the two compressed files; the layout has no spatial index so every viewport scans the bounds table; round trip bit exact: true
+peak_rss_kib=12936
+viewport_bytes_max=7992
+viewport_p50_ms=0.154275
+viewport_p95_ms=0.163399
+## tiny-radius-001.hdfr.chunk_4096_p_shuffle_p_deflate_6_p_latest.kv
+cold_open_ms=0.08136600000000001
+peak_rss_kib=13556
+viewport_bytes_max=5278
+viewport_p50_ms=0.173648
+viewport_p95_ms=0.183439
+## tiny-radius-001.hdfr.chunk_65536_p_shuffle_p_deflate_6.kv
+cold_open_ms=0.09849
+peak_rss_kib=13684
+viewport_bytes_max=15583
+viewport_p50_ms=0.176856
+viewport_p95_ms=0.18927200000000002
+## tiny-radius-001.hdfr.contiguous.kv
+cold_open_ms=0.072117
+peak_rss_kib=12936
+viewport_bytes_max=7992
+viewport_p50_ms=0.154275
+viewport_p95_ms=0.163399
+## tiny-radius-001.hdfw.kv
+bytes chunk 4096 + shuffle + deflate 6 + latest=4788
+bytes chunk 65536 + shuffle + deflate 6=24376
+bytes contiguous=6560
+entities=1
+roundtrip_exact chunk 4096 + shuffle + deflate 6 + latest=true
+roundtrip_exact chunk 65536 + shuffle + deflate 6=true
+roundtrip_exact contiguous=true
+write_s chunk 4096 + shuffle + deflate 6 + latest=0.000366961
+write_s chunk 65536 + shuffle + deflate 6=0.000511196
+write_s contiguous=0.001084552
+## tiny-radius-001.occt.kv
+lift_ms=0.332
+read_ms=0.703
+edges=1
+peak_rss_kib=70576
+## tiny-radius-001.part21.kv
+read_ms=0.01554
+scan_checksum=5c68730be27c429b
+scan_instances=8
+scan_ms=0.008999
+scan_parameters=41
+scan_peak_rss_kib=2164
+## tiny-radius-001.prepare.kv
+entities=1
+geometry=8e403af213bea32a
+part21_bytes=718
+part21_deflate_bytes=469
+pvec_bytes=448
+pvec_deflate_bytes=432
+pvec_lz4_bytes=424
+## tiny-radius-001.pvec.kv
+cold_open_ms=0.001959
+peak_rss_kib=2688
+viewport_bytes_max=600
+viewport_bytes_p95=600
+viewport_p50_ms=0.002208
+viewport_p95_ms=0.0025
+viewport_ranges_max=3
+## arc-seam-001.occt.err
+## architectural-1e3.occt.err
+## architectural-1e5.occt.err
+## bezier-d3-001.occt.err
+## bspline-d3-001.occt.err
+## bspline-d5-001.occt.err
+## bulge-arc-001.occt.err
+## bulge-arc-neg-001.occt.err
+## circle-001.occt.err
+## closed-by-endpoint-001.occt.err
+## closed-periodic-001.occt.err
+## ellipse-001.occt.err
+## elliptical-arc-001.occt.err
+## huge-coordinate-1e5.occt.err
+## industrial-1e5.occt.err
+## large-coords-001.occt.err
+## layer-state-001.occt.err
+## line-001.occt.err
+## lwpolyline-closed-001.occt.err
+## mep-1e5.occt.err
+## nonunit-weight-001.occt.err
+## nurbs-d2-offconic-001.occt.err
+## nurbs-d3-001.occt.err
+## pathological-1e3.occt.err
+## polyline-001.occt.err
+## polyline2d-001.occt.err
+## repeated-knot-c0-001.occt.err
+## spline-heavy-1e5.occt.err
+## tiny-radius-001.occt.err
