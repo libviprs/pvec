@@ -39,8 +39,8 @@ const MAX_RANGES: [u64; 3] = [16, 12, 10];
 /// hundred curves in a few blocks, so this is a bound on the viewport and not on the file: the fixture has
 /// 703 chunks at 1,000,000 entities and the budget does not move when it has more (issue pvec#162).
 const MAX_ADVANCED_CHUNKS: [u64; 3] = [48, 12, 4];
-/// Range requests one chunk costs: its record block, and its five arenas as one run.
-const MAX_RANGES_PER_ADVANCED_CHUNK: u64 = 2;
+/// Range requests one chunk costs: its record block and its five arenas are one run since #159.
+const MAX_RANGES_PER_ADVANCED_CHUNK: u64 = 1;
 /// Bytes transferred for a viewport besides the advanced set, per scale (wide, mid, tight).
 const MAX_BYTES: [u64; 3] = [4 << 20, 1 << 20, 256 << 10];
 /// Decode work (bytes stored plus bytes decoded) besides the advanced set, per scale (wide, mid, tight).
