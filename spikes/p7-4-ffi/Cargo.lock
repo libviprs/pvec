@@ -195,6 +195,7 @@ name = "pvec"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-codec",
  "pvec-components",
  "pvec-container",
  "pvec-entity",
@@ -205,6 +206,16 @@ dependencies = [
 [[package]]
 name = "pvec-capabilities"
 version = "0.0.0"
+
+[[package]]
+name = "pvec-codec"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-entity",
+ "pvec-geometry",
+ "pvec-numeric",
+]
 
 [[package]]
 name = "pvec-components"
