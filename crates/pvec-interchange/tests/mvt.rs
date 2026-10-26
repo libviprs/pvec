@@ -739,7 +739,7 @@ const GDAL_IMAGE: &str =
 
 /// Reads every tile in a directory with GDAL's MVT driver and prints one line per feature:
 /// `F|file|layer|mvt_id|entity_id|world_deviation|display_only|x,y;x,y/x,y;x,y`. GDAL's MVT driver counts y up from the
-/// bottom of the tile (the extent is 4096 here), so y is turned back to the specification's y down. A file GDAL cannot open prints `OPENFAIL|file`.
+/// bottom of the tile (the extent is 4096 here), so y is turned back to the specification's y down. `CLIP=NO` keeps the buffer our tiles carry. A file GDAL cannot open prints `OPENFAIL|file`.
 const GDAL_READ: &str = r#"
 import os, sys
 from osgeo import ogr
@@ -749,7 +749,7 @@ for name in sorted(os.listdir(d)):
     if not name.endswith(".pbf"):
         continue
     try:
-        ds = ogr.Open(os.path.join(d, name))
+        ds = ogr.OpenEx(os.path.join(d, name), open_options=["CLIP=NO"])
     except Exception:
         ds = None
     if ds is None:
