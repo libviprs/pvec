@@ -8,6 +8,7 @@
 //! pins every entry by digest.
 
 pub mod dump;
+pub mod layout_bench;
 pub mod lock;
 pub mod models;
 pub mod part21;

@@ -37,8 +37,100 @@ fn build_all(items: &Items) -> Vec<(Box<dyn Model>, f64)> {
     ]
 }
 
+/// `corpus-index ENTRY DUMP VIEWPORTS PLATFORM`: P8.3. The models of this spike on a benchmark corpus entry, over its
+/// 200 recorded viewports, as tidy rows (`table,entry,platform,arm,param,metric,value,note`) for
+/// `docs/bench/layout.csv`. `VIEWPORTS` is a text file of `x0,y0,x1,y1` lines. The mid-zoom viewports are the
+/// eighth-of-a-side class of the recording (index 2, 6, 10 and so on).
+fn corpus_index(entry: &str, dump: &str, viewports: &str, platform: &str) {
+    use pvec_fixtures::dump::load;
+    let d = load(entry, &std::fs::read(dump).expect("the dump")).unwrap_or_else(|e| panic!("{entry}: {e}"));
+    let rects: Vec<[f64; 4]> = std::fs::read_to_string(viewports)
+        .expect("viewports")
+        .lines()
+        .map(|l| {
+            let v: Vec<f64> = l.split(',').map(|x| x.parse().expect("a number")).collect();
+            [v[0], v[1], v[2], v[3]]
+        })
+        .collect();
+    assert_eq!(rects.len(), 200, "200 recorded viewports");
+    let items = items_of(&d);
+    let total: u64 = items.size.iter().map(|&s| u64::from(s)).sum();
+    let mean = (total as f64 / items.len() as f64).max(1.0);
+    let row = |table: &str, arm: &str, param: &str, metric: &str, v: f64, note: &str| {
+        println!("{table},{entry},{platform},{arm},{param},{metric},{v},{note}");
+    };
+    // The models, with the names the table uses, then the block size sweep: the packed R-tree with leaves of
+    // 16, 64, 256 and 1024 KiB of payload under the byte model.
+    let mut models: Vec<(String, String, Box<dyn Model>)> = vec![
+        ("index".into(), "quadtree".into(), Box::new(Quadtree::build(&items, 10))),
+        ("index".into(), "rtree-512-64".into(), Box::new(RTree::build(&items, 512, 64))),
+        ("index".into(), "rtree-64-32".into(), Box::new(RTree::build(&items, 64, 32))),
+        ("index".into(), "cells-ref12".into(), Box::new(Cells::build(&items, 10, false))),
+        ("index".into(), "cells-ref28".into(), Box::new(Cells::build(&items, 10, true))),
+        ("index".into(), "buckets-7".into(), Box::new(Buckets::build(&items, 7))),
+        ("index".into(), "buckets-8".into(), Box::new(Buckets::build(&items, 8))),
+    ];
+    for kib in [16usize, 64, 256, 1024] {
+        let cap = ((kib * 1024) as f64 / mean).round().max(1.0) as usize;
+        models.push(("block".into(), format!("rtree-{kib}"), Box::new(RTree::build(&items, cap, 64))));
+    }
+    for (table, arm, m) in &models {
+        let (mut mid_r, mut mid_b, mut mid_n) = (0.0, 0.0, 0.0);
+        let (mut all_r, mut all_b) = (0.0, 0.0);
+        for (i, rect) in rects.iter().enumerate() {
+            let plan = m.query(&items, rect);
+            let want = truth(&items, rect);
+            let mut got = plan.fetched.clone();
+            got.sort_unstable();
+            got.dedup();
+            let missing = want.iter().filter(|e| got.binary_search(e).is_err()).count();
+            assert_eq!(missing, 0, "{arm} lost {missing} visible entities at viewport {i}");
+            let (r, b) = merge(&plan.all_reads(), 64 * 1024);
+            all_r += r as f64;
+            all_b += b as f64;
+            if i % 4 == 2 {
+                mid_r += r as f64;
+                mid_b += b as f64;
+                mid_n += 1.0;
+            }
+        }
+        let note = "I/O simulation under the P1.6 byte model; reads at most 64 KiB apart merged";
+        if table == "index" {
+            row("index", arm, "mid", "ranges_mean", mid_r / mid_n, note);
+            row("index", arm, "mid", "bytes_mean", mid_b / mid_n, note);
+            row("index", arm, "all", "ranges_total", all_r, note);
+            row("index", arm, "all", "bytes_total", all_b, note);
+            row(
+                "index",
+                arm,
+                "",
+                "index_bytes",
+                m.index_bytes() as f64,
+                "the structure's stated record sizes",
+            );
+            row(
+                "index",
+                arm,
+                "",
+                "index_share",
+                m.index_bytes() as f64 / total as f64,
+                "index bytes over the payload bytes of the byte model",
+            );
+            row("index", arm, "", "duplication", m.duplication(), "references stored per entity");
+        } else {
+            row("block", arm, "", "bytes_total", all_b, note);
+            row("block", arm, "", "ranges_total", all_r, note);
+        }
+    }
+}
+
 fn main() {
     let name = std::env::args().nth(1).expect("fixture name");
+    if name == "corpus-index" {
+        let a: Vec<String> = std::env::args().collect();
+        corpus_index(&a[2], &a[3], &a[4], &a[5]);
+        return;
+    }
     if name == "calibration" {
         // Model bytes per entity by kind against layout B's measured bytes on `million`.
         let want = [
