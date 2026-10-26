@@ -141,12 +141,13 @@ fn compare(stretch: f64, bend: f64) -> Run {
     let pv = file("compare.pvec", &compare_file());
     let step = file("model.step", b"ISO-10303-21;\nEND-ISO-10303-21;\n");
     let first_text = evaluator_report(&cs, stretch);
-    let first = file("first.txt", first_text.as_bytes());
+    let tag = format!("{stretch}-{bend}");
+    let first = file(&format!("first-{tag}.txt"), first_text.as_bytes());
     let requests =
         pvec(&["compare-step", "--format", "json", "--evaluator-report", &first, "--requests", &pv, &step]);
     assert_eq!(requests.code, 0, "{}", requests.stdout);
     let req = requests.json().at("result.requests").str().to_string();
-    let second = file("second.txt", answer(&first_text, &req, &cs, stretch, bend).as_bytes());
+    let second = file(&format!("second-{tag}.txt"), answer(&first_text, &req, &cs, stretch, bend).as_bytes());
     pvec(&["compare-step", "--format", "json", "--evaluator-report", &second, &pv, &step])
 }
 
@@ -291,7 +292,7 @@ fn the_cli_document_names_every_subcommand_exit_code_and_result_field() {
     }
     let good = fixture();
     for sub in ["inspect", "validate", "dump-manifest", "capabilities", "tessellate"] {
-        let doc = pvec(&[sub, "--format", "json", &good]).json();
+        let doc = pvec(&[sub, "--error-px", "0.5", "--format", "json", &good]).json();
         for key in doc.get("result").keys() {
             assert!(cli.contains(&format!("`{key}`")), "docs/CLI.md does not document {sub} field {key}");
         }

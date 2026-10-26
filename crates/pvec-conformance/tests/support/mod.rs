@@ -19,8 +19,16 @@ pub fn scratch(name: &str) -> PathBuf {
 }
 
 pub fn file(name: &str, bytes: &[u8]) -> String {
+    // written beside it and renamed, so a test that reads the file while another writes it never sees half
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let p = scratch(name);
-    std::fs::write(&p, bytes).unwrap();
+    let tmp = scratch(&format!(
+        "{name}.{}.{}",
+        std::process::id(),
+        N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::write(&tmp, bytes).unwrap();
+    std::fs::rename(&tmp, &p).unwrap();
     p.to_string_lossy().into_owned()
 }
 
@@ -170,7 +178,8 @@ pub fn evaluator_report(curves: &[Curve], stretch: f64) -> String {
                 Curve::Circle(c) => {
                     let _ = write!(
                         head,
-                        " length=0.0 center={} radius={} xdir={}",
+                        " length={:?} center={} radius={} xdir={}",
+                        std::f64::consts::TAU * c.radius(),
                         p(c.placement().origin()),
                         f(c.radius()),
                         p(Point2::new(c.placement().x_axis().x, c.placement().x_axis().y))

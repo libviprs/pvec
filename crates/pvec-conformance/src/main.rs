@@ -8,8 +8,13 @@ fn main() {
     std::panic::set_hook(Box::new(|_| {}));
     match catch_unwind(|| pvec_conformance::run(&args)) {
         Ok((outcome, json)) => {
-            let text = if json { outcome.report.render_pretty() } else { outcome.human.clone() };
-            let _ = writeln!(std::io::stdout(), "{text}");
+            if outcome.exit >= pvec_conformance::exit::USAGE {
+                let _ = write!(std::io::stderr(), "{}", outcome.human);
+            } else if json {
+                let _ = writeln!(std::io::stdout(), "{}", outcome.report.render_pretty());
+            } else {
+                let _ = write!(std::io::stdout(), "{}", outcome.human);
+            }
             std::process::exit(i32::from(outcome.exit));
         }
         Err(_) => {

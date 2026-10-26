@@ -230,6 +230,7 @@ const KNOWN: &[&str] = &[
     "const",
     "minimum",
     "oneOf",
+    "anyOf",
     "$ref",
     "$defs",
 ];
@@ -254,6 +255,12 @@ fn check(root: &V, schema: &V, v: &V, at: &str) -> Result<(), String> {
         let ok = options.iter().filter(|o| check(root, o, v, at).is_ok()).count();
         if ok != 1 {
             return Err(format!("{at}: matches {ok} of the oneOf options"));
+        }
+    }
+    if let Some(V::Arr(options)) = s.get("anyOf") {
+        if !options.iter().any(|o| check(root, o, v, at).is_ok()) {
+            let why: Vec<String> = options.iter().filter_map(|o| check(root, o, v, at).err()).collect();
+            return Err(format!("{at}: matches none of the anyOf options: {}", why.join(" | ")));
         }
     }
     if let Some(t) = s.get("type") {

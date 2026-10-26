@@ -28,6 +28,7 @@ pvec-interchange = { path = "../pvec-interchange" }
 pvec = { path = "../pvec" }
 pvec-testkit = { path = "../pvec-testkit" }
 pvec-corpus = { path = "../pvec-corpus" }
+pvec-numeric = { path = "../pvec-numeric" }
 
 [lints]
 workspace = true
