@@ -9,6 +9,7 @@ mod evidence;
 pub mod gates;
 pub mod geometric;
 pub mod report;
+pub mod step_roundtrip;
 pub mod structural;
 
 pub use error::{ConformanceError, Result};
