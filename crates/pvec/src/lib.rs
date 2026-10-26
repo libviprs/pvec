@@ -11,6 +11,7 @@
 
 mod bounds;
 mod error;
+mod hit;
 mod manifest;
 mod pick;
 mod reader;

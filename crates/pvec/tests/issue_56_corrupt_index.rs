@@ -3,7 +3,9 @@
 //! family: nothing is sized by a number the file declares).
 #![allow(missing_docs, unsafe_code)]
 
-use pvec::{Bounds2, Curve, EntityId, Manifest, PickIndex, PickTolerance, Point2, PvecReader, PvecWriter, Transform2};
+use pvec::{
+    Bounds2, Curve, EntityId, Manifest, PickIndex, PickTolerance, Point2, PvecReader, PvecWriter, Transform2,
+};
 use pvec_geometry::Polyline;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -56,7 +58,8 @@ fn file() -> Vec<u8> {
     .unwrap();
     for i in 0..ENTITIES {
         let f = f64::from(i);
-        let c = Curve::Polyline(Polyline::new(vec![Point2 { x: f, y: 0.0 }, Point2 { x: f, y: 5.0 }]).unwrap());
+        let c =
+            Curve::Polyline(Polyline::new(vec![Point2 { x: f, y: 0.0 }, Point2 { x: f, y: 5.0 }]).unwrap());
         w.push(EntityId::new(i).unwrap(), &c).unwrap();
     }
     w.finish().unwrap()
@@ -84,7 +87,9 @@ fn issue_56_every_single_byte_corruption_is_an_error_or_a_file_whose_ids_are_all
                 Ok((mut ix, n)) => {
                     accepted += 1;
                     // Whatever the index accepts, an id at or above the declared count is refused.
-                    let s = Curve::Polyline(Polyline::new(vec![Point2 { x: 0.0, y: 0.0 }, Point2 { x: 1.0, y: 0.0 }]).unwrap());
+                    let s = Curve::Polyline(
+                        Polyline::new(vec![Point2 { x: 0.0, y: 0.0 }, Point2 { x: 1.0, y: 0.0 }]).unwrap(),
+                    );
                     assert!(ix.insert_exact(EntityId::new(u32::try_from(n).unwrap()).unwrap(), s).is_err());
                 }
             }
@@ -124,5 +129,5 @@ fn issue_56_picking_an_empty_index_returns_nothing() {
     let (ix, _) = index(file()).unwrap();
     let tol = PickTolerance::new(2.0, &Transform2::IDENTITY).unwrap();
     assert!(ix.query_point(Point2 { x: 1.0, y: 1.0 }, tol).is_none());
-    assert!(ix.query_nearest(Point2 { x: 1.0, y: 1.0 }, 1e9).is_none());
+    assert!(ix.query_nearest(Point2 { x: 1.0, y: 1.0 }, f64::MAX).is_none());
 }
