@@ -832,3 +832,13 @@ fn may_reach(e: &MvtEntity, projection: &Projection, tile: TileId, opts: &MvtOpt
     let maxy = pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
     !(maxx < rect.x0 || minx > rect.x1 || maxy < rect.y0 || miny > rect.y1)
 }
+
+/// The fidelity report of a set of tiles (P6.8).
+pub fn report(
+    tiles: &[MvtTile],
+    source_digest: [u8; 32],
+    artifact_entities: u32,
+) -> Result<crate::report::Report, crate::report::ReportError> {
+    let _ = (tiles, source_digest, artifact_entities);
+    unimplemented!("P6.8")
+}

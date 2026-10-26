@@ -628,3 +628,11 @@ pub fn export(entities: &[GpkgEntity], options: &GpkgOptions) -> Result<GpkgExpo
     let bytes = layout(w.finish())?;
     Ok(GpkgExport { bytes, ledger })
 }
+
+impl GpkgExport {
+    /// The fidelity report of this export (P6.8).
+    pub fn report(&self, source_digest: [u8; 32], artifact_entities: u32) -> Result<crate::report::Report, crate::report::ReportError> {
+        let _ = (source_digest, artifact_entities);
+        unimplemented!("P6.8")
+    }
+}

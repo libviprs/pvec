@@ -542,3 +542,13 @@ fn metadata_json(
     j.push_str("]}");
     j
 }
+
+/// The fidelity report of a PMTiles archive's tiles (P6.8).
+pub fn report(
+    tiles: &[MvtTile],
+    provenance: &Provenance,
+    artifact_entities: u32,
+) -> Result<crate::report::Report, PmtilesError> {
+    let _ = (tiles, provenance, artifact_entities);
+    unimplemented!("P6.8")
+}
