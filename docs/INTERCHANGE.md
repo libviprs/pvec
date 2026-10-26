@@ -205,11 +205,25 @@ any of them.
 change each: one knot multiplicity flipped on the cubic spline, one weight dropped on the rational curve. The evaluator
 must report both as disagreements in both classes. That is what shows the comparison is load-bearing.
 
-### 2.5 Not covered here
+### 2.5 The corpus run and the gates
 
-Running the same harness over every phase 2 fixture and wiring its verdicts into the frozen gates is pvec#150. This
-chapter's run covers the P6.2 fixtures (`tests/common`), each written with the identity, a similarity and a general
-affine map.
+`pvec_harness::step_roundtrip` runs the same harness over the r0-open corpus (pvec#150). `curves_of` reads each
+fixture's authored mathematics as PVec curves, `transform_of` its composed world map, and the test
+`issue_150_occt_reads_every_corpus_fixture_back_and_the_gates_record_it` writes each fixture under that map, has OCCT
+read it back and compares it with the moved curves. `Runner::step_roundtrip` then records the result as one
+structural row and one geometric row with the fixture's own evidence class. A disagreement fails its row, a verdict
+that compared nothing fails both (silence is not agreement), a fixture with no directly comparable parameter is routed
+to the geometric gate, and a quarantined fixture is refused. The corrupted multiplicity of 2.4 is run on the cubic
+spline of the corpus as well and must turn both rows red.
+
+What the corpus run does not cover:
+
+- `near-singular-001` (a mapper must not emit a curve for it), and the quarantined entries, which have no record.
+- Anything that needs a vendor-written DWG or a converter's STEP output: those are `libviprs/pvec-gold-fixtures#42`
+  (the vendor-qualified probes and O1.8 verdicts). This run exports PVec's own curves, so it is `KNOWN_TRUTH_EXACT`
+  evidence for the writer and says nothing about a converter, and it never produces `DUAL_ORACLE_EQUIVALENT`.
+- A periodic spline is compared in the clamped form `BSpline::from_periodic` makes of it, not in the wrapped form of
+  the record.
 
 ## 3. GML export
 

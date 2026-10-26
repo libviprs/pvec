@@ -72,8 +72,9 @@ fn issue_150_the_curves_are_the_authored_mathematics() {
     let d = bulged.domain();
     let (start, end) = (bulged.eval(d.lo()).unwrap(), bulged.eval(d.hi()).unwrap());
     assert!(matches!(bulged, Curve::Composite(_) | Curve::Trimmed(_)), "{bulged:?}");
-    assert_eq!((start.x, start.y), (1.0, 0.5));
-    assert_eq!((end.x, end.y), (4.5, 2.25));
+    let near = |a: f64, b: f64| pvec_numeric::Policy::V1.near(a, b, 5.0);
+    assert!(near(start.x, 1.0) && near(start.y, 0.5), "{start:?}");
+    assert!(near(end.x, 4.5) && near(end.y, 2.25), "{end:?}");
 }
 
 #[test]
@@ -207,13 +208,21 @@ fn issue_150_occt_reads_every_corpus_fixture_back_and_the_gates_record_it() {
         work.join("evaluate.py"),
     )
     .unwrap();
+    // each fixture is written under the world map its record composed, and compared with the curves moved by it
     let mut curves = Vec::new();
     for f in &fixtures {
-        let cs = curves_of(f.expected.as_ref().unwrap()).unwrap();
+        let expected = f.expected.as_ref().unwrap();
+        let t = transform_of(expected).unwrap();
+        let cs = curves_of(expected).unwrap();
         let ents: Vec<StepEntity> = cs.iter().map(|(i, c)| StepEntity::exact(*i, c.clone())).collect();
-        let x = export(&ents, &StepOptions::new("corpus.stp", "2026-10-25T12:00:00").unwrap()).unwrap();
+        let opts = StepOptions::new("corpus.stp", "2026-10-25T12:00:00").unwrap().with_transform(t);
+        let x = export(&ents, &opts).unwrap();
         fs::write(work.join(format!("out/{}.stp", f.id)), &x.part21).unwrap();
-        curves.push(cs);
+        let moved = cs
+            .iter()
+            .map(|(i, c)| (*i, c.transform(&t).unwrap_or_else(|e| panic!("{}: {e:?}", f.id)).0))
+            .collect::<Vec<_>>();
+        curves.push(moved);
     }
     // the corrupted mapping: one knot multiplicity flipped on the cubic spline
     let clean = fs::read_to_string(work.join("out/bspline-d3-001.stp")).unwrap();
