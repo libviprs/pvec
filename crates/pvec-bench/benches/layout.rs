@@ -529,7 +529,8 @@ fn shipped(entry: &str, dir: &Path, platform: &str) {
             .iter()
             .filter(|e| e.block_kind().is_some_and(|k| kinds.contains(&k)))
             .map(|e| f64::from(e.stored_length))
-            .sum()
+            .sum::<f64>()
+            + 0.0
     };
     let hot: Vec<&_> = r.entries().iter().filter(|e| e.block_kind() == Some(BlockKind::Hot)).collect();
     let index = sum(&[BlockKind::SpatialDirectory, BlockKind::CellRefs]);
