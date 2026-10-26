@@ -1,5 +1,5 @@
 [package]
-name = "pvec-conformance"
+name = "pvec-harness"
 version = "0.0.0"
 description = "The conformance harness: evidence classes, gate rules and report rows (EPIC P, phase 2)"
 edition.workspace = true

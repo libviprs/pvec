@@ -83,7 +83,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pvec-conformance"
+name = "pvec-harness"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
