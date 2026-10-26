@@ -11,6 +11,7 @@ pub mod compare;
 pub mod error;
 pub mod expected;
 pub mod json;
+pub mod oracle;
 pub mod pin;
 pub mod registry;
 pub mod scalar;
