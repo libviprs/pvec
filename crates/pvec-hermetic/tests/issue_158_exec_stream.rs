@@ -29,7 +29,7 @@ impl Fake {
         ));
         fs::create_dir_all(&dir).unwrap();
         let script = format!(
-            "#!/bin/sh\necho \"$@\" >> \"{log}\"\n/usr/bin/env > \"{env}\"\ncase \"$1\" in\n  exec) exec cat;;\nesac\nexit 0\n",
+            "#!/bin/sh\necho \"$@\" >> \"{log}\"\n/usr/bin/env > \"{env}\"\ncase \"$1\" in\n  exec) exec /bin/cat;;\nesac\nexit 0\n",
             log = dir.join("calls.log").display(),
             env = dir.join("env.log").display(),
         );

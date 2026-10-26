@@ -82,19 +82,25 @@ fn find(search: &OsString) -> Option<PathBuf> {
     std::env::split_paths(search).map(|d| d.join("docker")).find(|p| p.is_file())
 }
 
-fn docker(bin: &Path, path: &OsString, args: &[&str]) -> std::io::Result<Output> {
+/// A `docker` command with the sanitised environment: `PATH` and the daemon-selection variables only.
+fn command(bin: &Path, path: &OsString) -> Command {
+    let mut cmd = Command::new(bin);
+    cmd.env_clear().env("PATH", path);
+    for key in FORWARDED {
+        if let Some(v) = std::env::var_os(key) {
+            cmd.env(key, v);
+        }
+    }
+    cmd.stdin(Stdio::null());
+    cmd
+}
+
+/// Retries `run` while the binary is briefly "text file busy" to exec (ETXTBSY): a binary that another
+/// thread has only just finished writing. A fresh fake in a parallel test run hits it; a retry is the fix.
+fn retrying<T>(mut run: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
     let mut attempts = 0;
     loop {
-        let mut cmd = Command::new(bin);
-        cmd.args(args).env_clear().env("PATH", path);
-        for key in FORWARDED {
-            if let Some(v) = std::env::var_os(key) {
-                cmd.env(key, v);
-            }
-        }
-        match cmd.stdin(Stdio::null()).output() {
-            // ETXTBSY: a binary that another thread has only just finished writing is briefly
-            // "text file busy" to exec. A fresh fake in a parallel test run hits it; a retry is the fix.
+        match run() {
             Err(e) if e.raw_os_error() == Some(26) && attempts < 50 => {
                 attempts += 1;
                 std::thread::sleep(std::time::Duration::from_millis(20));
@@ -102,6 +108,10 @@ fn docker(bin: &Path, path: &OsString, args: &[&str]) -> std::io::Result<Output>
             other => return other,
         }
     }
+}
+
+fn docker(bin: &Path, path: &OsString, args: &[&str]) -> std::io::Result<Output> {
+    retrying(|| command(bin, path).args(args).output())
 }
 
 fn text(out: &Output) -> String {
@@ -206,8 +216,16 @@ impl Container {
     /// `--network none`: the channel is the pipes of one `docker exec -i`. The caller owns the child and
     /// kills it; removing the container ends it anyway.
     pub fn exec_stream(&self, args: &[&str]) -> Result<std::process::Child, ContainerError> {
-        let _ = args;
-        Err(ContainerError::StartFailed("exec_stream is not written yet".into()))
+        retrying(|| {
+            command(&self.docker, &self.path)
+                .args(["exec", "-i", self.name.as_str()])
+                .args(args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+        })
+        .map_err(|e| ContainerError::StartFailed(format!("exec: {e}")))
     }
 
     /// Removes it now and reports a failure, which a drop can only print.
