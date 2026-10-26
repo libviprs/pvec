@@ -30,6 +30,7 @@ reader.rs: pub struct PvecReader
 reader.rs: PvecReader::open(bytes: Vec<u8>) -> Result<PvecReader, PvecError>
 reader.rs: PvecReader::manifest(&self) -> &Manifest
 reader.rs: PvecReader::entity_count(&self) -> Result<u64, PvecError>
+reader.rs: PvecReader::entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError>
 writer.rs: #[derive(Debug)] pub struct PvecWriter
 writer.rs: PvecWriter::new(manifest: Manifest) -> Result<PvecWriter, PvecError>
 writer.rs: PvecWriter::push(&mut self, id: EntityId, curve: &Curve) -> Result<(), PvecError>
