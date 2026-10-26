@@ -14,8 +14,8 @@ pub trait CurveEval {
     /// The derivative of `order` at `t`, as `[dx, dy]`. Where only one-sided limits exist (a knot, a
     /// polyline vertex, a composite joint) the request is refused rather than answered from a side;
     /// [`CurveEval::derivative_from`] names the side.
-    fn derivative(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError>;
-    /// As [`CurveEval::derivative`], taken from `side`.
+    fn derivative_at(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError>;
+    /// As [`CurveEval::derivative_at`], taken from `side`.
     fn derivative_from(&self, t: f64, order: usize, side: Side) -> Result<[f64; 2], PvecError>;
     /// A box that contains the curve. Closed form for arcs, polylines and cubics at most; the control
     /// hull for splines. An unbounded line has none and is refused.
@@ -33,7 +33,7 @@ impl CurveEval for Curve {
     fn point_at(&self, t: f64) -> Result<[f64; 2], PvecError> {
         self.eval(t).map(|p| [p.x, p.y]).map_err(geometry)
     }
-    fn derivative(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError> {
+    fn derivative_at(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError> {
         self.derivative_from(t, order, Side::Both)
     }
     fn derivative_from(&self, t: f64, order: usize, side: Side) -> Result<[f64; 2], PvecError> {

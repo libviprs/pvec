@@ -10,6 +10,9 @@ use pvec_geometry::{
     Trimmed, Vector2,
 };
 
+/// A coordinate offset of one million source units.
+const OFFSET: f64 = 1_000_000.0;
+
 fn p(x: f64, y: f64) -> Point2 {
     Point2 { x, y }
 }
@@ -213,17 +216,17 @@ fn issue_53_evaluation_is_bit_identical_before_and_after_tessellation() {
 fn issue_53_a_million_unit_offset_in_the_source_is_measured_after_the_chain() {
     let spline = bspline(
         &[
-            (1e6, 1e6),
-            (1e6 + 1.0, 1e6 + 5.0),
-            (1e6 + 3.0, 1e6 + 7.0),
-            (1e6 + 5.0, 1e6 + 1.0),
-            (1e6 + 8.0, 1e6 + 6.0),
+            (OFFSET, OFFSET),
+            (OFFSET + 1.0, OFFSET + 5.0),
+            (OFFSET + 3.0, OFFSET + 7.0),
+            (OFFSET + 5.0, OFFSET + 1.0),
+            (OFFSET + 8.0, OFFSET + 6.0),
         ],
         3,
     );
     let curve = Curve::BSpline(spline);
     let ctx = TessellationContext {
-        source_to_map: Transform2::translate(-1e6, -1e6).unwrap(),
+        source_to_map: Transform2::translate(-OFFSET, -OFFSET).unwrap(),
         map_to_screen: scale(256.0),
         ..context(1.0)
     };
@@ -269,8 +272,8 @@ fn issue_53_exact_evaluation_answers_points_derivatives_bounds_closure_and_image
     let d = circle.domain();
     assert_eq!((d.lo(), d.hi()), (0.0, std::f64::consts::TAU));
     assert_eq!(circle.point_at(0.0).unwrap(), [10.0, 5.0]);
-    let v = circle.derivative(0.0, 1).unwrap();
-    assert!(v[0].abs() < 1e-12 && (v[1] - 5.0).abs() < 1e-12, "{v:?}");
+    let v = circle.derivative_at(0.0, 1).unwrap();
+    assert!(v[0].abs() < 0.000_000_001 && (v[1] - 5.0).abs() < 0.000_000_001, "{v:?}");
     assert!(circle.is_closed());
     let b: Bounds2 = circle.bounds().unwrap();
     assert!(b.min[0] <= 0.0 && b.max[0] >= 10.0);
@@ -281,7 +284,7 @@ fn issue_53_exact_evaluation_answers_points_derivatives_bounds_closure_and_image
     assert!(!open.is_closed());
     let poly = Curve::Polyline(Polyline::new(vec![p(0.0, 0.0), p(1.0, 1.0), p(2.0, 0.0)]).unwrap());
     assert!(
-        matches!(poly.derivative(1.0, 1), Err(PvecError::Geometry { .. })),
+        matches!(poly.derivative_at(1.0, 1), Err(PvecError::Geometry { .. })),
         "a corner has no two-sided derivative"
     );
     assert_eq!(poly.derivative_from(1.0, 1, Side::Right).unwrap(), [1.0, -1.0]);

@@ -26,7 +26,7 @@ component streams are written but not yet read back.
 
 ## Exact evaluation and tessellation (issue P7.2)
 
-`CurveEval` is exact: `domain`, `point_at`, `derivative` (two-sided, refused where only one-sided limits
+`CurveEval` is exact: `domain`, `point_at`, `derivative_at` (two-sided, refused where only one-sided limits
 exist), `derivative_from` (names the `Side`), `bounds`, `is_closed` and `transformed`. Nothing in it
 tessellates, and no tessellation leaves anything behind that evaluation reads.
 
