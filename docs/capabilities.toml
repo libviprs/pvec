@@ -1,0 +1,204 @@
+# The capability registry snapshot. Generated from crates/pvec-capabilities; I do not edit it by hand.
+# Regenerate with: PVEC_BLESS_CAPABILITIES=1 cargo test -p pvec-checks --test compatibility_doc
+# The rules it is linted against are in docs/COMPATIBILITY.md.
+format_version = "1.0.0"
+
+[[capability]]
+id = 1
+name = "cartesian_point"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 2
+name = "direction_vector"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 3
+name = "axis_placement_2d"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 4
+name = "line"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 5
+name = "polyline"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 6
+name = "circle"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 7
+name = "ellipse"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 8
+name = "trimmed_curve"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 9
+name = "composite_curve"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 10
+name = "bezier_curve"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 11
+name = "b_spline_curve"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 12
+name = "rational_b_spline_curve"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 13
+name = "affine_transform_2d"
+class = "geometry"
+version = "1.0.0"
+requirement = "required"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 14
+name = "layer"
+class = "component"
+version = "2.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 15
+name = "line_style"
+class = "component"
+version = "2.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 16
+name = "text"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 17
+name = "hatch"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 18
+name = "source_provenance"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 19
+name = "dwg_semantics"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 20
+name = "semantic_class"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"

@@ -4,10 +4,13 @@ members = [
     "crates/pvec-capabilities",
     "crates/pvec-checks",
     "crates/pvec-codec",
+    "crates/pvec-harness",
     "crates/pvec-components",
+    "crates/pvec-conformance",
     "crates/pvec-container",
     "crates/pvec-corpus",
     "crates/pvec-entity",
+    "crates/pvec-fuzz",
     "crates/pvec-geometry",
     "crates/pvec-hermetic",
     "crates/pvec-interchange",
@@ -17,15 +20,16 @@ members = [
     "crates/pvec-sources",
     "crates/pvec-stream",
     "crates/pvec-testkit",
+    "crates/pvec-wasm",
 ]
 # Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),
 # so they are separate workspaces and never enter this lockfile.
-exclude = ["spikes"]
+exclude = ["spikes", "fuzz"]
 
 [workspace.package]
 edition = "2024"
 rust-version = "1.85"
-license = "Apache-2.0 OR MIT"
+license = "MIT"
 publish = false
 
 [workspace.lints.rust]

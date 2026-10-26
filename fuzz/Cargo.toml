@@ -1,0 +1,67 @@
+[package]
+name = "pvec-fuzz-targets"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# The libFuzzer glue. This is a workspace of its own on purpose: libfuzzer-sys builds C++ through `cc`, and the
+# root lock is kept free of native source (a test reads it). The targets themselves are plain functions in
+# `crates/pvec-fuzz`, so they also run on stable, in `cargo test`, without this directory.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+pvec-fuzz = { path = "../crates/pvec-fuzz" }
+
+# The fuzz-only flag: re-seal each input so executions are spent past the checksum.
+# cargo +nightly fuzz run fuzz_header --features no-checksum-gate
+[features]
+no-checksum-gate = ["pvec-fuzz/no-checksum-gate"]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_header"
+path = "fuzz_targets/fuzz_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_directory_traversal"
+path = "fuzz_targets/fuzz_directory_traversal.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_immediate_blocks"
+path = "fuzz_targets/fuzz_immediate_blocks.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_advanced_blocks"
+path = "fuzz_targets/fuzz_advanced_blocks.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_decompress_boundary"
+path = "fuzz_targets/fuzz_decompress_boundary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_component_streams"
+path = "fuzz_targets/fuzz_component_streams.rs"
+test = false
+doc = false
+bench = false
