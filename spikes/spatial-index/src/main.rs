@@ -100,8 +100,22 @@ fn corpus_index(entry: &str, dump: &str, viewports: &str, platform: &str) {
             row("index", arm, "mid", "bytes_mean", mid_b / mid_n, note);
             row("index", arm, "all", "ranges_total", all_r, note);
             row("index", arm, "all", "bytes_total", all_b, note);
-            row("index", arm, "", "index_bytes", m.index_bytes() as f64, "the structure's stated record sizes");
-            row("index", arm, "", "index_share", m.index_bytes() as f64 / total as f64, "index bytes over the payload bytes of the byte model");
+            row(
+                "index",
+                arm,
+                "",
+                "index_bytes",
+                m.index_bytes() as f64,
+                "the structure's stated record sizes",
+            );
+            row(
+                "index",
+                arm,
+                "",
+                "index_share",
+                m.index_bytes() as f64 / total as f64,
+                "index bytes over the payload bytes of the byte model",
+            );
             row("index", arm, "", "duplication", m.duplication(), "references stored per entity");
         } else {
             row("block", arm, "", "bytes_total", all_b, note);
