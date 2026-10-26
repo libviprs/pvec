@@ -242,7 +242,7 @@ impl Cursor<'_> {
 pub fn scan(text: &str) -> Result<Scan, String> {
     let data = text.find("DATA;").ok_or("no DATA section")? + "DATA;".len();
     let end = text.rfind("ENDSEC;").ok_or("no ENDSEC")?;
-    let mut c = Cursor { b: text[data..end].as_bytes(), at: 0 };
+    let mut c = Cursor { b: &text.as_bytes()[data..end], at: 0 };
     let mut scan = Scan::default();
     let mut seen = std::collections::HashSet::new();
     loop {
