@@ -95,7 +95,8 @@ fn every_digest_in_the_lock_matches_the_rebuilt_artifact() {
 #[ignore = "rebuilds the 10^6 entries; run it on both architectures (release)"]
 fn every_large_digest_in_the_lock_matches_the_rebuilt_artifact() {
     let lock = lock();
-    let big: Vec<_> = entries(&lock).into_iter().filter(|e| n(e, "entities") > FAST && !on_demand(e)).collect();
+    let big: Vec<_> =
+        entries(&lock).into_iter().filter(|e| n(e, "entities") > FAST && !on_demand(e)).collect();
     assert!(!big.is_empty(), "the 10^6 rungs are in the lock");
     for e in big {
         let bytes = build(s(e, "name")).unwrap_or_else(|why| panic!("{why}"));
