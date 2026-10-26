@@ -205,7 +205,6 @@ fn params(c: &Curve, n: usize, seed: u64) -> Vec<f64> {
 
 struct Out {
     platform: String,
-    host: String,
 }
 
 impl Out {
@@ -225,7 +224,7 @@ impl Out {
             budget_px: budget,
             metric: metric.into(),
             value,
-            note: if self.host.is_empty() { note } else { note },
+            note,
         };
         println!("{}", r.line());
     }
@@ -551,7 +550,7 @@ fn main() {
             let prototype = a.get(3).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| {
                 t.lines().find_map(|l| l.strip_prefix("prototype_point_at_ns=")?.parse::<f64>().ok())
             });
-            let out = Out { platform: a[1].clone(), host: a[2].clone() };
+            let out = Out { platform: a[1].clone() };
             let eval_ns = eval_table(&out, prototype);
             accuracy_table(&out);
             huge_entry(&out);
