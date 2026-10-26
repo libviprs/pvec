@@ -607,6 +607,11 @@ negotiate.rs: Outcome::Open
 negotiate.rs: Outcome::OpenDegraded(PartialOpen)
 negotiate.rs: Outcome::Refuse(Refusal)
 negotiate.rs: pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCapabilities) -> Outcome
+negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct VersionGap
+negotiate.rs: VersionGap.id: CapabilityId
+negotiate.rs: VersionGap.file: Version
+negotiate.rs: VersionGap.supported: (u16, u16)
+negotiate.rs: pub fn version_gaps(manifest: &Manifest, reader: &ReaderCapabilities) -> Vec<VersionGap>
 reader.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct BlockId(pub u32)
 reader.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RangeRequest
 reader.rs: RangeRequest.offset: u64

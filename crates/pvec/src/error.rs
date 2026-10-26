@@ -25,6 +25,27 @@ pub enum PvecError {
         /// The rule that refused.
         rule: String,
     },
+    /// The curve model refused: a parameter outside the domain, an unbounded curve, a derivative the
+    /// curve is not smooth enough for.
+    Geometry {
+        /// The rule of `docs/NUMERIC_POLICY.md` or `docs/ISO_PROFILE.md` that refused.
+        rule: String,
+    },
+    /// A tessellation context that cannot be used: a budget that is not positive, a pixel ratio that
+    /// is not positive, no segments allowed.
+    BadContext {
+        /// What was wrong with it.
+        reason: String,
+    },
+    /// The error budget cannot be met within `max_segments`.
+    ErrorBudgetUnmet {
+        /// The deviation the best tessellation within the segment limit reaches, in the unit of the
+        /// budget that was missed: device pixels for the screen budget, map units for the world one.
+        /// The screen budget is the one reported when both are missed.
+        achieved: f64,
+        /// The budget that was asked for, in the same unit.
+        requested: f64,
+    },
 }
 
 impl fmt::Display for PvecError {
@@ -36,8 +57,19 @@ impl fmt::Display for PvecError {
             PvecError::UnknownUnit { metres_per_unit } => {
                 write!(f, "no length unit is {metres_per_unit} metres")
             }
+            PvecError::Geometry { rule } => write!(f, "curve refused: {rule}"),
+            PvecError::BadContext { reason } => write!(f, "tessellation context refused: {reason}"),
+            PvecError::ErrorBudgetUnmet { achieved, requested } => {
+                write!(f, "error budget {requested} not met within the segment limit, reached {achieved}")
+            }
         }
     }
 }
 
 impl std::error::Error for PvecError {}
+
+/// The facade's refusal for one of the curve model's, kept as its rule so no geometry error type is
+/// reachable (conversion layer).
+pub(crate) fn geometry(e: pvec_geometry::GeometryError) -> PvecError {
+    PvecError::Geometry { rule: e.rule().to_string() }
+}

@@ -13,5 +13,9 @@ pvec-entity = { path = "../pvec-entity" }
 pvec-geometry = { path = "../pvec-geometry" }
 pvec-numeric = { path = "../pvec-numeric" }
 
+# The load-shed harness serves its throttled range source from a hermetic container (issue pvec#158).
+[dev-dependencies]
+pvec-hermetic = { path = "../pvec-hermetic" }
+
 [lints]
 workspace = true
