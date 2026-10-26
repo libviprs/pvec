@@ -517,3 +517,79 @@ A capability is optional, and so skippable by an old reader, only if it satisfie
 
 Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes through the decoded model refuses (`PartialOpen::ensure_lossless_rewrite`), because the model cannot carry what was not decoded. A tool that must keep the blocks copies them as they are, through `read_stored` and `assemble`, and preserves them byte for byte, the descriptor and the checksum included. Both are tested.
 
+## 6. An annotated example
+
+This is a real file, written by the container writer from one line from (0, 0) to (10, 0) in millimetres and one
+component stream, with the default integrity options. It is 528 bytes. A test (`issue_67_walkthrough.rs`) regenerates it
+and fails if the dump below differs by a byte, then reads the capabilities and the blocks out of the dump itself using
+only the offsets of sections 1.2, 1.3 and 4.2, so this chapter and the writer cannot drift apart.
+
+<!-- example:begin -->
+```text
+00000000  89 50 56 45 43 0d 0a 1a  01 00 00 00 04 03 02 01
+00000010  40 00 00 00 01 02 00 00  40 00 00 00 00 00 00 00
+00000020  d0 00 00 00 00 00 00 00  e0 00 00 00 00 00 00 00
+00000030  18 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00000040  02 00 01 00 02 00 00 00  fc a9 f1 d2 4d 62 50 3f
+00000050  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00000060  00 00 00 00 00 00 24 40  00 00 00 00 00 00 00 00
+00000070  01 00 00 00 00 00 00 00  01 00 00 00 00 00 00 00
+00000080  80 01 00 00 00 00 00 00  10 00 00 00 00 00 00 00
+00000090  ae 53 dc 47 7f 9c e9 5a  cb 5b de 3a 9f 8f 7d b4
+000000a0  f4 d3 c4 57 b3 7e 66 9b  71 fa 66 9f 22 a1 ec 56
+000000b0  10 00 00 00 01 00 00 00  00 00 00 00 00 00 00 00
+000000c0  01 00 00 00 01 00 00 00  00 00 01 00 00 00 00 00
+000000d0  0e 00 00 00 02 00 00 00  00 00 02 00 00 00 00 00
+000000e0  01 00 00 00 00 00 00 00  90 01 00 00 00 00 00 00
+000000f0  80 00 00 00 00 00 00 00  70 76 65 63 2d 64 6f 63
+00000100  2d 65 78 61 6d 70 6c 65  31 00 00 00 00 00 00 00
+00000110  50 56 48 31 01 00 01 00  01 00 00 00 00 00 00 00
+00000120  48 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00000130  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00000140  00 00 00 00 00 00 00 00  00 00 00 00 00 00 24 40
+00000150  00 00 00 00 00 00 00 00  50 56 43 53 01 00 00 00
+00000160  01 00 00 00 00 00 00 00  0e 00 00 00 01 00 00 00
+00000170  00 00 00 00 01 00 00 00  00 00 00 00 00 00 00 00
+00000180  d9 6b a8 9e 3c f3 fe 44  9e ae 4a a2 f8 e8 f6 33
+00000190  10 01 00 00 00 00 00 00  48 00 00 00 48 00 00 00
+000001a0  01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+000001b0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 24 40
+000001c0  00 00 00 00 00 00 00 00  01 00 01 00 03 00 00 00
+000001d0  58 01 00 00 00 00 00 00  28 00 00 00 28 00 00 00
+000001e0  01 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+000001f0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00000200  00 00 00 00 00 00 00 00  04 00 00 00 00 00 00 00
+```
+<!-- example:end -->
+
+Reading it with the tables above, offsets in hex:
+
+| bytes | field | value | meaning |
+|---|---|---|---|
+| 0x00 to 0x07 | magic | `89 50 56 45 43 0d 0a 1a` | checked first, from these eight bytes alone |
+| 0x08, 0x0a | container_major, container_minor | 1, 0 | a reader that implements major 1 goes on |
+| 0x0c | byte_order | `04 03 02 01` | 0x01020304 little endian |
+| 0x10 | header_len | 0x40 | 64 bytes, so the manifest may start at 0x40 or later |
+| 0x14, 0x15 | block_checksum, artifact_checksum | 1, 2 | XXH3-64 per block, SHA-256 for the artifact |
+| 0x18, 0x20 | manifest_offset, manifest_length | 0x40, 0xd0 | the manifest ends at 0x110, where the first block starts |
+| 0x28, 0x30 | directory_table_offset, directory_table_length | 0xe0, 0x18 | one 24 byte directory pointer, inside the manifest |
+| 0x40 | length_unit | 2 | millimetre (section 1.5) |
+| 0x42 | flags | 1 | bit 0: the artifact digest is present (0x90 to 0xaf) |
+| 0x44 | capability_count | 2 | two 16 byte capability entries, at 0xc0 and 0xd0 |
+| 0x48 | metres_per_unit | 0.001 | exactly the unit's factor |
+| 0x50 to 0x6f | bounds | 0, 0, 10, 0 | min_x, min_y, max_x, max_y |
+| 0x70 | min reader | 1.0.0 | the lowest registry reader version that may open the file |
+| 0x78 | directory_count | 1 | the pointer at 0xe0 |
+| 0x80, 0x88 | block_checksums_offset, length | 0x180, 0x10 | the per-block checksum table |
+| 0xb0, 0xb4, 0xb8 | producer_id_len, producer_version_len, corpus_revision_len | 16, 1, 0 | `pvec-doc-example`, `1`, none; the text starts at 0xf8 |
+| 0xc0 | capability entry 0 | id 1, version 1.0.0, requirement 1 | required: a reader without capability 1 refuses the file |
+| 0xd0 | capability entry 1 | id 14, version 2.0.0, requirement 2 | optional: a reader without it opens the file and skips what belongs to it |
+| 0xe0 | directory pointer | kind 1, offset 0x190, length 0x80 | the block directory, two 64 byte entries |
+| 0x110 | block 0 | 0x48 bytes | the hot block (magic `PVH1`) |
+| 0x158 | block 1 | 0x28 bytes | the component stream set (magic `PVCS`) |
+| 0x190 | directory entry 0 | offset 0x110, kind 1, flags 3 | hot geometry: must-understand and has-bounds |
+| 0x1d0 | directory entry 1 | offset 0x158, kind 4, flags 0, capability 0 | components: optional, so a reader that does not know kind 4 skips it |
+
+To skip the block at 0x158 an implementer needs nothing but its directory entry: the offset 0x158 and the stored length
+0x28 say where the next block would start, flag bit 0 is clear so the file is still readable, and not one byte of the
+payload is requested, checksummed or parsed (section 5.3).

@@ -112,7 +112,7 @@ The same input gives the same bytes:
 - Instance numbers start at 1, have no gaps, and follow the order entities are passed, children first.
   Nothing is shared between entities, so a curve's instances do not change when another entity does.
 - A real is the shortest decimal that reads back to the same `f64` (Rust's `{:?}`), always with a decimal
-  point and an upper-case `E` for the exponent, so `1e-7` is `1.E-7`.
+  point and an upper-case `E` for the exponent, so `1e-7` (a ten-millionth) is written `1.E-7`.
 - Strings double apostrophes and backslashes, and anything outside printable ASCII is written as
   `\X2\hhhh\X0\` (or `\X4\` past the BMP), so the file is 7-bit.
 - The header has no clock. `FILE_NAME` carries the timestamp the caller passed (`YYYY-MM-DDThh:mm:ss`),
