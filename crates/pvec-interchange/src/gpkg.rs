@@ -21,6 +21,7 @@ mod sqlite;
 mod translate;
 mod wkb;
 
+use crate::report::{Report, ReportError};
 use crate::{
     EmptyText, ErrorBound, Fidelity, FidelityLedger, FidelityRecord, Reason, Representation, TargetConstruct,
 };
@@ -630,9 +631,9 @@ pub fn export(entities: &[GpkgEntity], options: &GpkgOptions) -> Result<GpkgExpo
 }
 
 impl GpkgExport {
-    /// The fidelity report of this export (P6.8).
-    pub fn report(&self, source_digest: [u8; 32], artifact_entities: u32) -> Result<crate::report::Report, crate::report::ReportError> {
-        let _ = (source_digest, artifact_entities);
-        unimplemented!("P6.8")
+    /// The fidelity report of this export (P6.8), for an artifact of `artifact_entities` entities
+    /// whose digest is `source_digest`.
+    pub fn report(&self, source_digest: [u8; 32], artifact_entities: u32) -> Result<Report, ReportError> {
+        Report::new("GeoPackage", "1.4", source_digest, artifact_entities, self.ledger.records())
     }
 }

@@ -137,7 +137,7 @@ fn record(entity: u32, cap: u32, rep: Representation, construct: &str, f: Fideli
 
 fn kitchen_sink() -> Report {
     let n = Representation::Native;
-    let records = vec![
+    let records = [
         record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact),
         record(1, ids::TRIMMED_CURVE.get(), n, "TRIMMED_CURVE", Fidelity::ExactReparameterized),
         record(2, ids::ELLIPSE.get(), n, "ARCS", Fidelity::EquivalentCompound),

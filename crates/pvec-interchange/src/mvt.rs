@@ -17,6 +17,7 @@
 //! Tessellation depends on the zoom level and the entity only, never on the tile coordinates, so two
 //! neighbouring tiles clip the very same polyline and their union has no seam.
 
+use crate::report::{Report, ReportError};
 use crate::fidelity::{
     ErrorBound, Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation,
     TargetConstruct,
@@ -833,12 +834,15 @@ fn may_reach(e: &MvtEntity, projection: &Projection, tile: TileId, opts: &MvtOpt
     !(maxx < rect.x0 || minx > rect.x1 || maxy < rect.y0 || miny > rect.y1)
 }
 
-/// The fidelity report of a set of tiles (P6.8).
-pub fn report(
-    tiles: &[MvtTile],
-    source_digest: [u8; 32],
-    artifact_entities: u32,
-) -> Result<crate::report::Report, crate::report::ReportError> {
-    let _ = (tiles, source_digest, artifact_entities);
-    unimplemented!("P6.8")
+/// The fidelity report of a set of tiles (P6.8). `artifact_entities` is the number of entities that reach
+/// the tile set: an entity outside every tile has no record, so it is not part of what these tiles say.
+/// An entity in several tiles is counted once, in the weakest class it has in any of them.
+pub fn report(tiles: &[MvtTile], source_digest: [u8; 32], artifact_entities: u32) -> Result<Report, ReportError> {
+    Report::new(
+        "Mapbox Vector Tile",
+        "2",
+        source_digest,
+        artifact_entities,
+        tiles.iter().flat_map(|t| t.ledger.ledger().records()),
+    )
 }
