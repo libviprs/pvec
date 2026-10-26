@@ -92,7 +92,12 @@ pub fn load(name: &str, bytes: &[u8]) -> Result<Drawing, String> {
                 let (n, k) = (h.u32() as usize, h.u32() as usize);
                 let (x, y, knots) = (h.fs(n), h.fs(n), h.fs(k));
                 let weights = weighted.then(|| h.fs(n));
-                Geom::Spline { degree, cps: x.iter().zip(&y).map(|(x, y)| [*x, *y]).collect(), knots, weights }
+                Geom::Spline {
+                    degree,
+                    cps: x.iter().zip(&y).map(|(x, y)| [*x, *y]).collect(),
+                    knots,
+                    weights,
+                }
             }
             t => return Err(format!("unknown tag {t}")),
         };
@@ -128,7 +133,11 @@ fn percentile(v: &[f64], q: f64) -> f64 {
 fn peak_rss_kib() -> u64 {
     std::fs::read_to_string("/proc/self/status")
         .ok()
-        .and_then(|s| s.lines().find(|l| l.starts_with("VmHWM:")).and_then(|l| l.split_whitespace().nth(1)?.parse().ok()))
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmHWM:"))
+                .and_then(|l| l.split_whitespace().nth(1)?.parse().ok())
+        })
         .unwrap_or(0)
 }
 
@@ -143,7 +152,11 @@ pub fn write(entry: &str, dump: &Path, out: &Path) {
         let t = Timer::start();
         h2::write(&d, path.to_str().expect("utf8"), &cfg(name)).expect("write");
         let (wall, _) = t.stop();
-        let got = Drawing { name: d.name, extent: d.extent, entities: h2::read_all(path.to_str().expect("utf8")).expect("read") };
+        let got = Drawing {
+            name: d.name,
+            extent: d.extent,
+            entities: h2::read_all(path.to_str().expect("utf8")).expect("read"),
+        };
         let exact = got.checksum() == want && got.entities.len() == d.entities.len();
         kv.insert(format!("bytes {name}"), std::fs::metadata(&path).expect("file").len().to_string());
         kv.insert(format!("write_s {name}"), wall.to_string());
@@ -173,7 +186,8 @@ pub fn read(entry: &str, out: &Path, viewports: &Path, config: &str) {
     for _ in 0..5 {
         let t = std::time::Instant::now();
         let f = open_logged(p, None).expect("open");
-        let _roots: Vec<crate::schema::Root> = f.dataset("pvec_h2/roots").expect("roots").read_raw().expect("read");
+        let _roots: Vec<crate::schema::Root> =
+            f.dataset("pvec_h2/roots").expect("roots").read_raw().expect("read");
         let _bbox: Vec<f64> = f.dataset("pvec_h2/bbox").expect("bbox").read_raw().expect("read");
         opens.push(t.elapsed().as_secs_f64() * 1000.0);
     }
