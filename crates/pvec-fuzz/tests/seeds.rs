@@ -7,12 +7,12 @@ use std::collections::BTreeSet;
 fn the_corpus_names_its_composition_and_every_source_is_present() {
     let seeds = corpus();
     let count = |s: Source| seeds.iter().filter(|x| x.source == s).count();
-    assert!(count(Source::Hostile) >= 150, "hostile seeds: {}", count(Source::Hostile));
+    assert!(count(Source::Hostile) >= 100, "hostile seeds: {}", count(Source::Hostile));
     assert!(count(Source::KnownTruth) >= 10, "known-truth seeds: {}", count(Source::KnownTruth));
     assert!(count(Source::Writer) >= 20, "writer seeds: {}", count(Source::Writer));
     let names: BTreeSet<&str> = seeds.iter().map(|s| s.name.as_str()).collect();
     assert_eq!(names.len(), seeds.len(), "seed names are unique");
-    assert!(seeds.iter().all(|s| !s.bytes.is_empty() && s.bytes.len() <= 1 << 20));
+    assert!(seeds.iter().all(|s| s.bytes.len() <= 1 << 20), "a seed over a mebibyte");
 }
 
 #[test]

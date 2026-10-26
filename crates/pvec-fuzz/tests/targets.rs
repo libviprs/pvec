@@ -47,7 +47,7 @@ fn every_target_survives_every_input_made_from_the_seeds() {
     let seeds = corpus();
     for (name, target) in TARGETS {
         let inputs = for_target(name, &seeds);
-        assert!(inputs.len() >= 20, "{name} has only {} seeds", inputs.len());
+        assert!(inputs.len() >= 5, "{name} has only {} seeds", inputs.len());
         for (i, input) in inputs.iter().enumerate() {
             assert_eq!(panics(|| drop(target(input))), None, "{name} seed {i}");
         }

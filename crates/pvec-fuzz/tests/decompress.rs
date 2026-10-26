@@ -22,7 +22,7 @@ fn a_bomb_is_a_refusal_for_every_codec_and_never_a_decode() {
 
 #[test]
 fn a_stream_inside_the_ratio_decodes_to_exactly_the_declared_length() {
-    let raw: Vec<u8> = (0..4000u32).map(|i| (i % 17) as u8).collect();
+    let raw: Vec<u8> = (0..4000u32).map(|i| (i.wrapping_mul(7919) % 251) as u8).collect();
     for (codec, stored) in [
         (Codec::Lz4, pvec_container::compress::compress(Codec::Lz4, &raw)),
         (Codec::Deflate, pvec_container::compress::compress(Codec::Deflate, &raw)),

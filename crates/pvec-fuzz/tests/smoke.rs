@@ -14,6 +14,10 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
+fn rng() -> u64 {
+    std::env::var("PVEC_FUZZ_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0x5eed)
+}
+
 fn executions() -> u64 {
     std::env::var("PVEC_FUZZ_EXECUTIONS").ok().and_then(|v| v.parse().ok()).unwrap_or(3000)
 }
@@ -23,7 +27,7 @@ fn every_target_runs_its_smoke_budget_with_no_finding() {
     let seeds = corpus();
     for (name, _) in TARGETS {
         let inputs = for_target(name, &seeds);
-        let report = run(name, &inputs, executions(), 0x5eed, &metered);
+        let report = run(name, &inputs, executions(), rng(), &metered);
         println!(
             "SMOKE {name} executions={} distinct_words={} findings={} words={:?}",
             report.executions,
