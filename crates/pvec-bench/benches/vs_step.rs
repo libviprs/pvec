@@ -262,8 +262,8 @@ fn assemble(out: &Path, platform: &str, host: &str, entries: &[String]) {
             r.peak_rss_kib = num(&kv, "peak_rss_kib");
             r.note = format!(
                 "compressed is the smaller of lz4 ({}) and deflate ({}) per block; timings on the uncompressed default file; viewport bytes include the open; at most {} ranges",
-                lz4.map_or(0.0, |v| v),
-                dfl.map_or(0.0, |v| v),
+                lz4.unwrap_or(0.0),
+                dfl.unwrap_or(0.0),
                 num(&kv, "viewport_ranges_max").unwrap_or(0.0)
             );
         } else {
