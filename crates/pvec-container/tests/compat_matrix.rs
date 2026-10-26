@@ -173,6 +173,9 @@ fn every_declared_pair_gives_its_declared_outcome() {
                     })
                     .collect();
                 assert_eq!(reasons, list(case.get("reasons")), "{name}: skip reasons");
+                let blocks: Vec<String> =
+                    p.blocks.iter().map(|b| format!("{}:{}", b.kind, reason_name(b.reason))).collect();
+                assert_eq!(blocks, list(case.get("blocks")), "{name}: skipped blocks");
             }
             ("refuse", Outcome::Refuse(r)) => {
                 assert_eq!(r.rule(), case["rule"], "{name}: rule");

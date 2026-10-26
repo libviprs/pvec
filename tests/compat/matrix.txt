@@ -15,6 +15,7 @@
 # named       for refuse, the capability id the refusal names
 # skipped     for open_degraded, the skipped capability ids
 # reasons     for open_degraded, the skip reason of each skipped capability, in the same order
+# blocks      for open_degraded, the skipped blocks as kind:reason, in directory order (default none)
 # gaps        capabilities read at a newer minor than the reader implements: id:file-version
 # geometry    same = the geometry decoded is identical to the base file's
 
@@ -25,7 +26,8 @@ caps = 99:optional:3.1
 garbage = 9:99:64
 outcome = open_degraded
 skipped = 14,15,16,18,20,99
-reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,unknown_block_kind
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+blocks = 9:unknown_block_kind
 geometry = same
 
 case old-reader-new-file-unknown-required-capability
