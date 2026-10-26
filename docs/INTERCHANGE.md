@@ -607,8 +607,47 @@ Five stages, each a public function in `pvec_interchange::mvt`, each testable al
 * Seams: for the fixture, at zoom 2 with buffer 0 and with the default buffer, every point of the
   exact curve lies within the recorded bound of a segment recovered from the union of all tiles.
 * Validity: tiles are decoded in the test-suite by a decoder written from the vector tile
-  specification that shares no code with the encoder. It checks command ids and counts, parameter
+  specification that shares no code with the encoder (and by a third-party one, see below). It checks command ids and counts, parameter
   availability, key and value indices, and that every vertex lies inside the buffered tile.
+
+### Second-opinion decoder
+
+The decoder in the tests is independent of the encoder, but I wrote it, so it is not a second opinion.
+The ignored test `issue_133_gdal_mvt_driver_agrees_on_every_tile_the_export_produces` writes every
+non-empty tile at zoom 0, 2 and 3 of the `crossing-curves` fixture and reads them with the MVT driver of
+GDAL 3.9.3, in the pinned `ghcr.io/osgeo/gdal` image that `tools/gpkg-validate.sh` already uses. It
+runs in a throw-away `pvec-hermetic` container (no network, read-only root), not as a Cargo dependency,
+because the tree may hold only the pure Rust crates ADR 0006 and ADR 0016 allow. It compares the
+layers (names), the features (count), the ids, the attributes (`entity_id`, `world_deviation` to the
+last digit, `display_only`) and the geometry (every linestring piece, vertex for vertex in tile units)
+against our test decoder, and it checks that GDAL refuses a file that is not a tile. They agree on all
+of it. The `docker-tests` stage of `gate-fleet.sh local-ci pvec` runs it.
+
+### Why the tessellation bound is not proven
+
+The bound in the ledger is a measurement. `tessellate` compares each final chord with the exact
+evaluator at `DEVIATION_SAMPLES` (7) interior points, and the acceptance test cross-checks with 4000
+dense samples per curve at every zoom. Neither is a proof for an arbitrary spline: a proof needs a
+bound on a derivative of the curve (the second derivative for chord deviation, so a chord of parameter
+width h deviates by at most h^2/8 times that bound), and the evaluator in `pvec-geometry` does not
+expose one. Circles, lines and polylines would have a closed form, but a rational spline or a trimmed
+ellipse would not, and a bound that holds for only some curves would have to be a second code path with
+a second claim. The adaptive tessellator with derivative-bound subdivision is P3.6/P7.2. When it lands
+this export switches to it, the sampling goes, and the ledger bound becomes a proven one. Until then the
+ledger says what it is, a measured bound, and `docs/FIDELITY_TAXONOMY.md` allows exactly that.
+
+### Why anisotropic maps are refused
+
+`Projection::new` returns `NotSimilarity` for a shear or a non-uniform scale. The screen budget is
+a length on the screen, and the tessellation tolerance is one scalar per zoom in world units. Under a
+similarity those are the same number in every direction. Under a stretch a world deviation of d costs
+between d times the smallest and d times the largest scale in screen pixels, depending on its direction,
+so one scalar is either too loose in one direction or too tight (and wasteful) in the other. Supporting
+it means a tessellator that takes a tolerance per direction, which is a change to `tessellate` and its
+bound, not to the projection. Right now no source needs it (the fixtures and the corpus place a drawing with
+a rotation, a uniform scale and a shift), so it stays refused, loudly, and the test
+`issue_133_shear_and_non_uniform_scale_are_refused_with_the_similarity_error` keeps it that way. If a
+real source turns up with one, that is a new issue with that source attached.
 
 ### Out of scope here
 
