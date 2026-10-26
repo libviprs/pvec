@@ -1,0 +1,10 @@
+[package]
+name = "p74-consumer-c"
+description = "Candidate (c): no C ABI. A native consumer links the pvec crate and opens the fixture in Rust"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+pvec = { path = "../../../crates/pvec" }

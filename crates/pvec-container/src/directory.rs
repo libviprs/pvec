@@ -128,6 +128,13 @@ impl BlockKind {
         }
     }
 
+    /// The group a kind is ordered in: the first key of the canonical block order. A record block and an
+    /// arena share one, so that the blocks of a chunk of the advanced curves are ordered by cell first and
+    /// are adjacent (issue pvec#159); every other kind is a group of its own.
+    pub(crate) fn group(kind: u16) -> u16 {
+        if kind == BlockKind::Arena.id() { BlockKind::Records.id() } else { kind }
+    }
+
     /// The kind for an id.
     pub fn from_id(id: u16) -> Option<BlockKind> {
         BlockKind::ALL.into_iter().find(|k| k.id() == id)
