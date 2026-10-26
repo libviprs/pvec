@@ -729,3 +729,139 @@ fn issue_23_interchange_chapter_5_states_extent_zoom_range_and_quantization_erro
     let px = format!("{:.4}", pr.quantization_error_px(DEFAULT_EXTENT));
     assert!(ch.contains(&px), "chapter 5 must state the quantization error in pixels, {px}");
 }
+
+// ---- issue 133: a decoder that is not ours, the bound, anisotropic maps ---------------------------------
+
+/// The third-party reader's view of one tile: per layer, (name, extent, features), each feature as
+/// (id, properties, pieces) with the pieces as integer tile coordinates.
+type Seen = Vec<(String, u32, Vec<(Option<u64>, BTreeMap<String, String>, Vec<Vec<(i64, i64)>>)>)>;
+
+fn third_party(bytes: &[u8]) -> Seen {
+    use mvt_reader::feature::Value;
+    use mvt_reader::Reader;
+    let reader = Reader::new(bytes.to_vec()).expect("mvt-reader parses the tile");
+    let meta = reader.get_layer_metadata().expect("layer metadata");
+    let mut out = Vec::new();
+    for (i, m) in meta.iter().enumerate() {
+        let mut feats = Vec::new();
+        for f in reader.get_features_as::<i32>(i).expect("features") {
+            let props = f
+                .properties
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(k, v)| {
+                    let s = match v {
+                        Value::UInt(u) => format!("uint:{u}"),
+                        Value::Double(d) => format!("double:{:016x}", d.to_bits()),
+                        Value::Bool(b) => format!("bool:{b}"),
+                        other => format!("other:{other:?}"),
+                    };
+                    (k, s)
+                })
+                .collect();
+            let lines: Vec<Vec<(i64, i64)>> = match f.geometry {
+                geo_types::Geometry::LineString(l) => {
+                    vec![l.0.iter().map(|c| (c.x as i64, c.y as i64)).collect()]
+                }
+                geo_types::Geometry::MultiLineString(m) => {
+                    m.0.iter().map(|l| l.0.iter().map(|c| (c.x as i64, c.y as i64)).collect()).collect()
+                }
+                other => panic!("the export writes linestrings only, mvt-reader saw {other:?}"),
+            };
+            feats.push((f.id, props, lines));
+        }
+        out.push((m.name.clone(), m.extent, feats));
+    }
+    out
+}
+
+#[test]
+fn issue_133_third_party_decoder_agrees_on_every_tile_the_export_produces() {
+    let pr = fixture_projection();
+    let opts = MvtOptions::default();
+    let ents = fixture();
+    let mut tiles = 0;
+    let mut features = 0;
+    for z in [0u8, 2, 3] {
+        for x in 0..(1u32 << z) {
+            for y in 0..(1u32 << z) {
+                let t = export_tile(&ents, &pr, TileId::new(z, x, y).unwrap(), &opts).unwrap();
+                if t.bytes.is_empty() {
+                    continue;
+                }
+                tiles += 1;
+                let ours = decode_tile(&t.bytes, opts.buffer as i64);
+                let theirs = third_party(&t.bytes);
+                assert_eq!(ours.len(), theirs.len(), "layer count, tile {z}/{x}/{y}");
+                for (o, (name, extent, feats)) in ours.iter().zip(&theirs) {
+                    assert_eq!(&o.name, name, "layer name, tile {z}/{x}/{y}");
+                    assert_eq!(u64::from(*extent), o.extent);
+                    assert_eq!(o.features.len(), feats.len(), "feature count in {name}, tile {z}/{x}/{y}");
+                    for (of, (id, props, lines)) in o.features.iter().zip(feats) {
+                        features += 1;
+                        assert_eq!(*id, Some(of.id), "feature id");
+                        assert_eq!(&of.lines, lines, "geometry of feature {}", of.id);
+                        assert_eq!(props.len(), of.tags.len(), "attribute count");
+                        for (k, v) in &of.tags {
+                            let want = match v {
+                                DVal::Uint(u) => format!("uint:{u}"),
+                                DVal::Double(d) => format!("double:{:016x}", d.to_bits()),
+                                DVal::Bool(b) => format!("bool:{b}"),
+                            };
+                            assert_eq!(props.get(k), Some(&want), "attribute {k}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(tiles > 10 && features > 20, "the check must cover real tiles ({tiles} tiles, {features} features)");
+}
+
+#[test]
+fn issue_133_shear_and_non_uniform_scale_are_refused_with_the_similarity_error() {
+    let shear = Transform2::scale(2.0, 2.0).unwrap().then(&Transform2::shear(0.3, 0.0).unwrap()).unwrap();
+    let stretch = Transform2::scale(2.0, 3.0).unwrap();
+    for t in [shear, stretch] {
+        assert_eq!(Projection::new(t, 1024.0, 512.0).unwrap_err(), MvtError::NotSimilarity);
+    }
+}
+
+fn chapter_5() -> String {
+    let d = doc();
+    let ch = d.split("## 5. ").nth(1).expect("chapter 5 exists");
+    ch.split("\n## 6. ").next().unwrap().to_string()
+}
+
+fn section(ch: &str, heading: &str) -> String {
+    let rest = ch.split(heading).nth(1).unwrap_or_else(|| panic!("chapter 5 needs the section {heading:?}"));
+    rest.split("\n### ").next().unwrap().to_string()
+}
+
+#[test]
+fn issue_133_chapter_5_names_the_third_party_decoder_and_what_it_checks() {
+    let s = section(&chapter_5(), "### Second-opinion decoder");
+    assert!(s.contains("mvt-reader"), "name the crate");
+    assert!(s.contains("2.5.0"), "pin the version");
+    for what in ["layers", "features", "ids", "geometry"] {
+        assert!(s.contains(what), "say that it compares {what}");
+    }
+}
+
+#[test]
+fn issue_133_chapter_5_says_why_the_tessellation_bound_is_measured_not_proven() {
+    let s = section(&chapter_5(), "### Why the tessellation bound is not proven");
+    assert!(s.contains("derivative"), "the missing piece is a derivative bound");
+    assert!(s.contains("P3.6") && s.contains("P7.2"), "name the work that would supply it");
+    assert!(s.contains("DEVIATION_SAMPLES"), "name the constant the claim rests on");
+    assert!(s.contains("4000"), "state the dense cross-check");
+}
+
+#[test]
+fn issue_133_chapter_5_rules_out_anisotropic_maps_with_the_reason() {
+    let s = section(&chapter_5(), "### Why anisotropic maps are refused");
+    assert!(s.contains("NotSimilarity"));
+    assert!(s.contains("direction"), "the budget depends on direction");
+    assert!(s.contains("scalar"), "the tolerance is one scalar per zoom");
+    assert!(s.contains("no source"), "say that no real source needs it today");
+}

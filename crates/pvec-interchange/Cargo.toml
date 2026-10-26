@@ -19,6 +19,9 @@ pvec-container = { path = "../pvec-container" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-hermetic = { path = "../pvec-hermetic" }
 pvec-testkit = { path = "../pvec-testkit" }
+# A third-party vector tile decoder, a second opinion on the tiles (issue #133). Dev-only.
+mvt-reader = { version = "=2.5.0", default-features = false }
+geo-types = "0.7"
 
 [lints]
 workspace = true
