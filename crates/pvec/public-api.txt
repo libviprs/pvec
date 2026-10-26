@@ -16,7 +16,7 @@ error.rs: impl std::error::Error for PvecError {}
 eval.rs: pub trait CurveEval
 eval.rs: CurveEval::domain(&self) -> Domain
 eval.rs: CurveEval::point_at(&self, t: f64) -> Result<[f64; 2], PvecError>
-eval.rs: CurveEval::derivative(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError>
+eval.rs: CurveEval::derivative_at(&self, t: f64, order: usize) -> Result<[f64; 2], PvecError>
 eval.rs: CurveEval::derivative_from(&self, t: f64, order: usize, side: Side) -> Result<[f64; 2], PvecError>
 eval.rs: CurveEval::bounds(&self) -> Result<Bounds2, PvecError>
 eval.rs: CurveEval::is_closed(&self) -> bool

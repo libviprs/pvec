@@ -72,6 +72,17 @@ fn segment(a: Point2, b: Point2) -> Result<Curve, PvecError> {
     let line = Line::new(a, a.vector_to(b)).map_err(geometry)?;
     let (d, len) = (line.direction(), a.distance(b));
     let nudge = |v: f64, by: i64| f64::from_bits((v.to_bits() as i64 + by) as u64);
+    let build = |dx, dy, ds| -> Option<Curve> {
+        let direction = Vector2::new(nudge(d.x, dx), nudge(d.y, dy));
+        let basis = Curve::Line(Line::from_stored(a, direction).ok()?);
+        let trim = Trim { start: 0.0, span: nudge(len, ds), reversed: false };
+        Trimmed::from_normalised(basis, trim).ok().map(Curve::Trimmed)
+    };
+    let exact = |c: &Curve| c.eval(c.domain().hi()).is_ok_and(|p| p == b);
+    // The obvious values are right for most segments, so the neighbours are only listed for the rest.
+    if let Some(c) = build(0, 0, 0).filter(exact) {
+        return Ok(c);
+    }
     let mut steps: Vec<(i64, i64, i64)> = Vec::new();
     for dx in -4..=4 {
         for dy in -4..=4 {
@@ -81,18 +92,9 @@ fn segment(a: Point2, b: Point2) -> Result<Curve, PvecError> {
         }
     }
     steps.sort_by_key(|(dx, dy, ds)| dx.abs() + dy.abs() + ds.abs());
-    let build = |dx, dy, ds| -> Option<Curve> {
-        let direction = Vector2::new(nudge(d.x, dx), nudge(d.y, dy));
-        let basis = Curve::Line(Line::from_stored(a, direction).ok()?);
-        let trim = Trim { start: 0.0, span: nudge(len, ds), reversed: false };
-        Trimmed::from_normalised(basis, trim).ok().map(Curve::Trimmed)
-    };
     for (dx, dy, ds) in steps {
-        if let Some(c) = build(dx, dy, ds) {
-            let end = c.domain().hi();
-            if c.eval(end).is_ok_and(|p| p == b) {
-                return Ok(c);
-            }
+        if let Some(c) = build(dx, dy, ds).filter(exact) {
+            return Ok(c);
         }
     }
     build(0, 0, 0).ok_or(PvecError::Read { rule: "NP-12".to_string() })
