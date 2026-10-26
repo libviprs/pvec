@@ -1,0 +1,18 @@
+# P8.2: the stand-in for the `pvec-wasm` decode artefact (P7.3 has not built the real one yet). The container
+# reader, the spatial directory and the viewport plan, with every codec the reader accepts, compiled for
+# wasm32-unknown-unknown behind two exports. Own workspace, like every spike.
+[workspace]
+
+[package]
+name = "pvec-wasm-standin"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pvec-container = { path = "../../crates/pvec-container" }
+pvec-stream = { path = "../../crates/pvec-stream" }

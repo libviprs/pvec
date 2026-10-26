@@ -55,10 +55,13 @@ dependencies = [
 name = "pvec-bench"
 version = "0.0.0"
 dependencies = [
+ "miniz_oxide",
  "pvec-capabilities",
  "pvec-container",
  "pvec-corpus",
  "pvec-entity",
+ "pvec-geometry",
+ "pvec-interchange",
  "pvec-stream",
  "pvec-testkit",
 ]
