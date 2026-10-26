@@ -22,3 +22,7 @@ path = "src/measure/accuracy.rs"
 [[bin]]
 name = "bench"
 path = "src/measure/bench.rs"
+
+[[bin]]
+name = "corpus_eval"
+path = "src/measure/corpus_eval.rs"
