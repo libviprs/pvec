@@ -80,7 +80,12 @@ pub fn load(name: &str, bytes: &[u8]) -> Result<Drawing, String> {
                 let (n, k) = (h.u32() as usize, h.u32() as usize);
                 let (x, y, knots) = (h.fs(n), h.fs(n), h.fs(k));
                 let weights = weighted.then(|| h.fs(n));
-                Geom::Spline { degree, cps: x.iter().zip(&y).map(|(x, y)| [*x, *y]).collect(), knots, weights }
+                Geom::Spline {
+                    degree,
+                    cps: x.iter().zip(&y).map(|(x, y)| [*x, *y]).collect(),
+                    knots,
+                    weights,
+                }
             }
             t => return Err(format!("unknown tag {t}")),
         };
@@ -88,4 +93,3 @@ pub fn load(name: &str, bytes: &[u8]) -> Result<Drawing, String> {
     }
     Ok(Drawing { name: Box::leak(name.to_string().into_boxed_str()), extent, entities })
 }
-

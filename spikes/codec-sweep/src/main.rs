@@ -40,7 +40,8 @@ fn main() {
     let a: Vec<String> = std::env::args().collect();
     let (entry, file, platform) = (&a[1], &a[2], &a[3]);
     let bytes = std::fs::read(file).expect("the file");
-    let r = ContainerReader::open(MemorySource::new(bytes.as_slice()), ReaderConfig::default()).expect("opens");
+    let r =
+        ContainerReader::open(MemorySource::new(bytes.as_slice()), ReaderConfig::default()).expect("opens");
     let blocks: Vec<&[u8]> = r
         .entries()
         .iter()
@@ -60,7 +61,7 @@ fn main() {
     let big = whole.len() > 100 << 20;
 
     let lz4: (Compress, Decompress) = (
-        Box::new(|b| lz4_flex::block::compress(b)),
+        Box::new(lz4_flex::block::compress),
         Box::new(|b, n| {
             let mut out = vec![0u8; n];
             lz4_flex::block::decompress_into(b, &mut out).expect("lz4");
@@ -68,13 +69,15 @@ fn main() {
         }),
     );
     let none: (Compress, Decompress) = (Box::new(|b| b.to_vec()), Box::new(|b, _| b.to_vec()));
-    let codecs = [("none", none), ("lz4", lz4), ("zstd3", zstd_at(3)), ("zstd9", zstd_at(9)), ("zstd19", zstd_at(19))];
+    let codecs =
+        [("none", none), ("lz4", lz4), ("zstd3", zstd_at(3)), ("zstd9", zstd_at(9)), ("zstd19", zstd_at(19))];
     for (name, (compress, decompress)) in &codecs {
         let runs = if *name == "zstd19" && big { 1 } else { 3 };
         let (ct, packed) = best(runs, || blocks.iter().map(|b| compress(b)).collect::<Vec<_>>());
         let stored: usize = packed.iter().map(Vec::len).sum();
-        let (dt, back) =
-            best(runs, || packed.iter().zip(&blocks).map(|(p, b)| decompress(p, b.len())).collect::<Vec<_>>());
+        let (dt, back) = best(runs, || {
+            packed.iter().zip(&blocks).map(|(p, b)| decompress(p, b.len())).collect::<Vec<_>>()
+        });
         assert!(back.iter().zip(&blocks).all(|(x, y)| x.as_slice() == *y), "{name}: per block round trip");
         row(name, "block", "ratio", stored as f64 / raw);
         row(name, "block", "stored_bytes", stored as f64);

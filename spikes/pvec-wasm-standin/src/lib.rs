@@ -21,8 +21,11 @@ pub extern "C" fn pvec_alloc(len: usize) -> *mut u8 {
 
 /// Opens the artifact at `ptr` (`len` bytes), plans the viewport and decodes what the plan holds. Returns the
 /// number of hot entities decoded plus the advanced records, or `u64::MAX` when anything is refused.
+///
+/// # Safety
+/// `ptr` must point at `len` bytes that stay valid for the call, as `pvec_alloc` hands out.
 #[unsafe(no_mangle)]
-pub extern "C" fn pvec_decode(ptr: *const u8, len: usize, x0: f64, y0: f64, x1: f64, y1: f64) -> u64 {
+pub unsafe extern "C" fn pvec_decode(ptr: *const u8, len: usize, x0: f64, y0: f64, x1: f64, y1: f64) -> u64 {
     // SAFETY: the host wrote `len` bytes at the pointer `pvec_alloc` returned and keeps them alive for the call.
     let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
     decode(bytes, [x0, y0, x1, y1]).unwrap_or(u64::MAX)
