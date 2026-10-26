@@ -81,7 +81,7 @@ pub enum RecordKind {
     Composite,
 }
 
-/// One advanced curve: degree, flags and arena indices. [`NO_ENTRY`](crate::blocks::arena::NO_ENTRY)
+/// One advanced curve: degree, flags and arena indices. [`NO_ENTRY`]
 /// in an index means the curve has none of that payload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AdvancedCurveRecord {

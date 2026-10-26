@@ -5,6 +5,13 @@ lock is `corpus.lock.json`, the viewport set is `viewports.csv`, the generator i
 `../../src`, and the test that holds all of it is `../../tests/issue_60_corpus.rs`. The lock and the viewport file are
 written by the generator (`cargo bench -p pvec-bench --bench gen_corpus -- write`), never by hand.
 
+There are two locks since pvec#196. `corpus.lock.json` (sha256 `9df09435...e25b`) is the corpus before pvec#159 changed the
+writer's block order, and it stays frozen because docs/bench/LAYOUT.md, GEOMETRY.md and STEP_COMPARISON.md were measured on it
+and cite it (`issue_62_layout` and `issue_63_geometry` check that). `corpus.post159.lock.json` (sha256 `586014c9...26b3`) is the
+current corpus, the one `issue_60_corpus` checks: same entries, sizes and viewports, new digests for the nine generated entries
+other than `architectural-1e3` (the 10^7 one is now `ef39f594...13d9` on both platforms, per `measured.csv`). `write` produces
+the current one, so I renamed its output. The 10^7 table below is the old lock's measurement...
+
 ## What is pinned
 
 | | |

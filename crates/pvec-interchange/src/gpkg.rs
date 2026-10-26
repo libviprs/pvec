@@ -13,7 +13,7 @@
 //!   `LINESTRING` within a world-space tolerance the caller supplies. The ledger and the `error_bound`
 //!   column hold the deviation measured against the exact evaluator, not the tolerance asked for.
 //!
-//! The SQLite file is written by hand ([`sqlite`]), so the crate has no SQLite library and no C source
+//! The SQLite file is written by hand (the private `sqlite` module), so the crate has no SQLite library and no C source
 //! behind it, and the bytes are a pure function of the input: no clock, no random numbers.
 
 mod rtree;
