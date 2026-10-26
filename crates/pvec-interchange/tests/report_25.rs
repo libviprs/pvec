@@ -17,9 +17,9 @@ use pvec_interchange::pmtiles::{self, Provenance};
 use pvec_interchange::report::{Report, ReportError, SCHEMA_VERSION};
 use pvec_interchange::step::{StepEntity, StepOptions};
 use pvec_interchange::{
-    gpkg, step, ErrorBound, Fidelity, FidelityKind, FidelityRecord, Reason, Representation, TargetConstruct,
+    ErrorBound, Fidelity, FidelityKind, FidelityRecord, Reason, Representation, TargetConstruct, gpkg, step,
 };
-use report_json::{json, key_paths, J};
+use report_json::{J, json, key_paths};
 use std::collections::BTreeSet;
 
 fn digest() -> [u8; 32] {
@@ -66,7 +66,8 @@ fn mvt_entities() -> Vec<MvtEntity> {
     let unbounded = Curve::Line(Line::new(p(0.0, 0.0), Vector2::new(1.0, 0.0)).unwrap());
     let circle = |cx, cy, r| {
         Curve::Circle(
-            pvec_geometry::Circle::new(Placement2::new(p(cx, cy), Vector2::new(1.0, 0.0)).unwrap(), r).unwrap(),
+            pvec_geometry::Circle::new(Placement2::new(p(cx, cy), Vector2::new(1.0, 0.0)).unwrap(), r)
+                .unwrap(),
         )
     };
     vec![
@@ -85,7 +86,8 @@ fn tiles(ents: &[MvtEntity]) -> Vec<MvtTile> {
         for x in 0..(1u32 << z) {
             for y in 0..(1u32 << z) {
                 out.push(
-                    mvt::export_tile(ents, &pr, TileId::new(z, x, y).unwrap(), &MvtOptions::default()).unwrap(),
+                    mvt::export_tile(ents, &pr, TileId::new(z, x, y).unwrap(), &MvtOptions::default())
+                        .unwrap(),
                 );
             }
         }
@@ -131,8 +133,14 @@ fn every_export() -> Vec<(&'static str, Report, BTreeSet<u32>)> {
 // ---- a ledger with every class in it ----------------------------------------------------------------------
 
 fn record(entity: u32, cap: u32, rep: Representation, construct: &str, f: Fidelity) -> FidelityRecord {
-    FidelityRecord::new(eid(entity), pvec_capabilities::CapabilityId::new(cap), TargetConstruct::new(construct, rep).unwrap(), f, "")
-        .unwrap()
+    FidelityRecord::new(
+        eid(entity),
+        pvec_capabilities::CapabilityId::new(cap),
+        TargetConstruct::new(construct, rep).unwrap(),
+        f,
+        "",
+    )
+    .unwrap()
 }
 
 fn kitchen_sink() -> Report {
@@ -141,8 +149,20 @@ fn kitchen_sink() -> Report {
         record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact),
         record(1, ids::TRIMMED_CURVE.get(), n, "TRIMMED_CURVE", Fidelity::ExactReparameterized),
         record(2, ids::ELLIPSE.get(), n, "ARCS", Fidelity::EquivalentCompound),
-        record(3, ids::BEZIER_CURVE.get(), n, "POLYLINE", Fidelity::BoundedApproximation(ErrorBound::new(0.004).unwrap())),
-        record(4, ids::TEXT.get(), n, "none", Fidelity::Unsupported(Reason::new("a component stream is not geometry").unwrap())),
+        record(
+            3,
+            ids::BEZIER_CURVE.get(),
+            n,
+            "POLYLINE",
+            Fidelity::BoundedApproximation(ErrorBound::new(0.004).unwrap()),
+        ),
+        record(
+            4,
+            ids::TEXT.get(),
+            n,
+            "none",
+            Fidelity::Unsupported(Reason::new("a component stream is not geometry").unwrap()),
+        ),
     ];
     Report::new("kitchen sink", "1", digest(), 5, records.iter()).unwrap()
 }
@@ -219,8 +239,10 @@ fn issue_25_a_ledger_that_does_not_cover_the_artifact_is_refused() {
 fn issue_25_an_entity_with_several_records_is_counted_once_in_its_weakest_class() {
     let n = Representation::Native;
     let a = record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact);
-    let b = record(0, ids::LINE.get(), n, "ARC", Fidelity::BoundedApproximation(ErrorBound::new(0.5).unwrap()));
-    let c = record(0, ids::LINE.get(), n, "ARC", Fidelity::BoundedApproximation(ErrorBound::new(0.25).unwrap()));
+    let b =
+        record(0, ids::LINE.get(), n, "ARC", Fidelity::BoundedApproximation(ErrorBound::new(0.5).unwrap()));
+    let c =
+        record(0, ids::LINE.get(), n, "ARC", Fidelity::BoundedApproximation(ErrorBound::new(0.25).unwrap()));
     let d = doc(&Report::new("t", "1", digest(), 1, [&a, &b, &c]).unwrap());
     assert_eq!(d.get("entities").get("total").num(), 1.0);
     assert_eq!(count(&d, FidelityKind::BoundedApproximation), 1);
@@ -235,8 +257,14 @@ fn issue_25_every_non_exact_class_lists_its_entities_in_full() {
     for (name, r, _) in every_export().into_iter().chain([("sink", kitchen_sink(), BTreeSet::new())]) {
         let d = doc(&r);
         for k in FidelityKind::ALL.into_iter().filter(|k| *k != FidelityKind::Exact) {
-            let listed: Vec<u32> =
-                d.get("entities").get("non_exact").get(k.name()).arr().iter().map(|j| j.num() as u32).collect();
+            let listed: Vec<u32> = d
+                .get("entities")
+                .get("non_exact")
+                .get(k.name())
+                .arr()
+                .iter()
+                .map(|j| j.num() as u32)
+                .collect();
             let from_rows: Vec<u32> = rows(&d)
                 .iter()
                 .filter(|r| r.get("fidelity").str() == k.name())
@@ -257,15 +285,23 @@ fn issue_25_a_tessellated_target_makes_no_structural_or_geometric_claim() {
         assert_eq!(d.get("target").get("representation").str(), "Tessellated", "{name}");
         for class in ["structural", "geometric"] {
             let c = d.get("conformance").get(class);
-            assert_eq!(c, &J::Obj([("claimed".to_string(), J::Bool(false)), ("entities".to_string(), J::Num(0.0))].into()), "{name} {class}");
+            assert_eq!(
+                c,
+                &J::Obj(
+                    [("claimed".to_string(), J::Bool(false)), ("entities".to_string(), J::Num(0.0))].into()
+                ),
+                "{name} {class}"
+            );
         }
         assert!(d.get("conformance").get("display").get("claimed") == &J::Bool(true), "{name}");
         for k in [FidelityKind::Exact, FidelityKind::ExactReparameterized, FidelityKind::EquivalentCompound] {
             assert_eq!(count(&d, k), 0, "{name} {}", k.name());
         }
-        assert!(rows(&d).iter().all(|r| {
-            matches!(r.get("fidelity").str(), "BoundedApproximation" | "Unsupported")
-        }));
+        assert!(
+            rows(&d)
+                .iter()
+                .all(|r| { matches!(r.get("fidelity").str(), "BoundedApproximation" | "Unsupported") })
+        );
         let text = r.to_json();
         for banned in ["\"Exact\":[", "structural exact", "geometric exact"] {
             assert!(!text.contains(banned), "{name}: {banned}");
@@ -329,7 +365,15 @@ fn issue_25_rows_that_are_not_approximations_carry_no_error() {
 fn issue_25_the_error_summary_is_the_maximum_and_the_nearest_rank_p99_of_the_rows() {
     let n = Representation::Native;
     let recs: Vec<FidelityRecord> = (1..=200u32)
-        .map(|i| record(i, ids::BEZIER_CURVE.get(), n, "P", Fidelity::BoundedApproximation(ErrorBound::new(i as f64 / 1000.0).unwrap())))
+        .map(|i| {
+            record(
+                i,
+                ids::BEZIER_CURVE.get(),
+                n,
+                "P",
+                Fidelity::BoundedApproximation(ErrorBound::new(i as f64 / 1000.0).unwrap()),
+            )
+        })
         .collect();
     let d = doc(&Report::new("t", "1", digest(), 200, recs.iter()).unwrap());
     let a = d.get("approximation_error");
@@ -338,7 +382,9 @@ fn issue_25_the_error_summary_is_the_maximum_and_the_nearest_rank_p99_of_the_row
     assert_eq!(a.get("max").num(), 0.2);
     assert_eq!(a.get("p99").num(), 0.198, "ceil(0.99 * 200) = the 198th value");
 
-    let none = doc(&Report::new("t", "1", digest(), 1, [&record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact)]).unwrap());
+    let none =
+        doc(&Report::new("t", "1", digest(), 1, [&record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact)])
+            .unwrap());
     assert_eq!(none.get("approximation_error").get("max"), &J::Null);
     assert_eq!(none.get("approximation_error").get("p99"), &J::Null);
 }
@@ -347,7 +393,11 @@ fn issue_25_the_error_summary_is_the_maximum_and_the_nearest_rank_p99_of_the_row
 fn issue_25_the_error_summary_agrees_with_the_rows_in_every_export() {
     for (name, r, _) in every_export() {
         let d = doc(&r);
-        let errs: Vec<f64> = rows(&d).iter().filter(|r| r.get("measured_error") != &J::Null).map(|r| r.get("measured_error").num()).collect();
+        let errs: Vec<f64> = rows(&d)
+            .iter()
+            .filter(|r| r.get("measured_error") != &J::Null)
+            .map(|r| r.get("measured_error").num())
+            .collect();
         let a = d.get("approximation_error");
         assert_eq!(a.get("entities").num() as usize, errs.len(), "{name}");
         match errs.iter().cloned().fold(None, |m: Option<f64>, x| Some(m.map_or(x, |m| m.max(x)))) {
@@ -388,8 +438,10 @@ fn issue_25_every_unsupported_row_carries_a_reason_and_a_capability_id() {
 
 #[test]
 fn issue_25_the_same_artifact_and_options_give_a_byte_identical_report() {
-    let first: Vec<(String, String)> = every_export().iter().map(|(_, r, _)| (r.to_json(), r.to_markdown())).collect();
-    let second: Vec<(String, String)> = every_export().iter().map(|(_, r, _)| (r.to_json(), r.to_markdown())).collect();
+    let first: Vec<(String, String)> =
+        every_export().iter().map(|(_, r, _)| (r.to_json(), r.to_markdown())).collect();
+    let second: Vec<(String, String)> =
+        every_export().iter().map(|(_, r, _)| (r.to_json(), r.to_markdown())).collect();
     assert_eq!(first, second);
     assert!(first.iter().all(|(j, _)| j.ends_with("}\n") && !j.contains('\r')));
 }
@@ -428,7 +480,8 @@ fn issue_25_the_markdown_is_rendered_from_the_same_data() {
 // ---- the schema is versioned -----------------------------------------------------------------------------
 
 fn golden() -> Vec<(String, Vec<String>)> {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/report_schema_25.txt")).unwrap();
+    let text =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/report_schema_25.txt")).unwrap();
     text.lines()
         .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
         .map(|l| {
@@ -458,10 +511,16 @@ fn issue_25_a_schema_change_without_a_version_bump_fails() {
     let mut keys = key_paths(&doc(&kitchen_sink()));
     assert!(schema_matches_golden(SCHEMA_VERSION, &keys));
     keys.push("an.added.key".to_string());
-    assert!(!schema_matches_golden(SCHEMA_VERSION, &keys), "an added key under the same version must not pass");
+    assert!(
+        !schema_matches_golden(SCHEMA_VERSION, &keys),
+        "an added key under the same version must not pass"
+    );
     keys.pop();
     keys.remove(0);
-    assert!(!schema_matches_golden(SCHEMA_VERSION, &keys), "a removed key under the same version must not pass");
+    assert!(
+        !schema_matches_golden(SCHEMA_VERSION, &keys),
+        "a removed key under the same version must not pass"
+    );
 }
 
 #[test]
@@ -480,7 +539,8 @@ fn issue_25_the_recorded_versions_only_ever_increase() {
 
 #[test]
 fn issue_25_chapter_7_documents_the_schema() {
-    let doc_text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/INTERCHANGE.md")).unwrap();
+    let doc_text =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/INTERCHANGE.md")).unwrap();
     let at = doc_text.find("## 7. Fidelity reports").expect("chapter 7");
     let ch = &doc_text[at..];
     assert!(ch.contains(&format!("`{SCHEMA_VERSION}`")), "chapter 7 states the schema version");

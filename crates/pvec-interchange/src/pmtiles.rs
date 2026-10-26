@@ -550,7 +550,11 @@ fn metadata_json(
 /// The fidelity report of a PMTiles archive's tiles (P6.8), with the digest the archive's provenance
 /// states. The counts follow [`crate::mvt::report`]. A tile set that [`write_pmtiles`] would refuse for
 /// its provenance has no report either.
-pub fn report(tiles: &[MvtTile], provenance: &Provenance, artifact_entities: u32) -> Result<Report, PmtilesError> {
+pub fn report(
+    tiles: &[MvtTile],
+    provenance: &Provenance,
+    artifact_entities: u32,
+) -> Result<Report, PmtilesError> {
     let (digest, _, _) = check_provenance(provenance)?;
     Report::new(
         "PMTiles",

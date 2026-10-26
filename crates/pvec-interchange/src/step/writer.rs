@@ -595,7 +595,17 @@ fn string(s: &str) -> String {
 impl StepExport {
     /// The fidelity report of this export (P6.8), for an artifact of `artifact_entities` entities
     /// whose digest is `source_digest`.
-    pub fn report(&self, source_digest: [u8; 32], artifact_entities: u32) -> Result<crate::report::Report, crate::report::ReportError> {
-        crate::report::Report::new("STEP AP242", "ISO 10303-21:2016", source_digest, artifact_entities, self.ledger.records())
+    pub fn report(
+        &self,
+        source_digest: [u8; 32],
+        artifact_entities: u32,
+    ) -> Result<crate::report::Report, crate::report::ReportError> {
+        crate::report::Report::new(
+            "STEP AP242",
+            "ISO 10303-21:2016",
+            source_digest,
+            artifact_entities,
+            self.ledger.records(),
+        )
     }
 }

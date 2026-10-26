@@ -152,9 +152,8 @@ impl Report {
     /// Entities that may claim each conformance class: structural (Exact, ExactReparameterized),
     /// geometric (those and EquivalentCompound) and display (BoundedApproximation).
     fn claim_counts(&self) -> [usize; 3] {
-        let claims = |f: fn(crate::Claims) -> bool| {
-            self.rows.iter().filter(|r| f(r.fidelity.claims())).count()
-        };
+        let claims =
+            |f: fn(crate::Claims) -> bool| self.rows.iter().filter(|r| f(r.fidelity.claims())).count();
         [claims(|c| c.structural), claims(|c| c.geometric), claims(|c| c.display)]
     }
 
@@ -242,7 +241,8 @@ impl Report {
             number(p99)
         );
         o.push_str("  \"unsupported\": [");
-        let unsupported: Vec<&Row> = self.rows.iter().filter(|r| r.fidelity == FidelityKind::Unsupported).collect();
+        let unsupported: Vec<&Row> =
+            self.rows.iter().filter(|r| r.fidelity == FidelityKind::Unsupported).collect();
         for (i, r) in unsupported.iter().enumerate() {
             o.push_str(if i == 0 { "\n" } else { ",\n" });
             let _ = write!(
@@ -299,9 +299,12 @@ impl Report {
                 r.error.map_or("-".to_string(), |e| e.to_string())
             );
         }
-        let unsupported: Vec<&Row> = self.rows.iter().filter(|r| r.fidelity == FidelityKind::Unsupported).collect();
+        let unsupported: Vec<&Row> =
+            self.rows.iter().filter(|r| r.fidelity == FidelityKind::Unsupported).collect();
         if !unsupported.is_empty() {
-            o.push_str("\n## Unsupported\n\n| entity | capability id | capability | reason |\n|---|---|---|---|\n");
+            o.push_str(
+                "\n## Unsupported\n\n| entity | capability id | capability | reason |\n|---|---|---|---|\n",
+            );
             for r in unsupported {
                 let _ = writeln!(
                     o,
