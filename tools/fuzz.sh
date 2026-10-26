@@ -36,8 +36,10 @@ done
 [ ${#TARGETS[@]} -gt 0 ] || TARGETS=(fuzz_header fuzz_directory_traversal fuzz_immediate_blocks fuzz_advanced_blocks fuzz_decompress_boundary fuzz_component_streams)
 
 case $HOST in
-  mars)    SSH=(ssh -o BatchMode=yes -o LogLevel=ERROR devshell@192.168.0.100); DOCKER=docker; PLATFORM=linux/amd64; MEM=6g ;;
-  nas)     SSH=(ssh -o BatchMode=yes -o LogLevel=ERROR rom@192.168.0.10);       DOCKER=docker; PLATFORM=linux/amd64; MEM=6g ;;
+  # ~/.docker on mars is a dangling symlink, which makes `docker build` fail with "mkdir: file exists", so
+  # the client config goes to the scratch directory the fleet already uses
+  mars)    SSH=(ssh -o BatchMode=yes -o LogLevel=ERROR devshell@192.168.0.100); DOCKER=docker; PLATFORM=linux/amd64; MEM=6g; DCFG=/work/nas-work/.docker-config-fuzz ;;
+  nas)     SSH=(ssh -o BatchMode=yes -o LogLevel=ERROR rom@192.168.0.10);       DOCKER=docker; PLATFORM=linux/amd64; MEM=6g; DCFG='~/workspace/nas-work/.docker-config-fuzz' ;;
   mercury) SSH=(ssh -o BatchMode=yes -o LogLevel=ERROR mercury);                DOCKER=/opt/homebrew/bin/docker; PLATFORM=linux/arm64; MEM=5g ;;
   jupiter) SSH=();                                                              DOCKER=docker; PLATFORM=linux/arm64; MEM=4g ;;
   *) echo "fuzz.sh: unknown host $HOST" >&2; exit 64 ;;
@@ -54,7 +56,7 @@ mkdir -p "$OUT"
 # Runs docker on the host; arguments are quoted for the remote shell.
 d() {
   if [ ${#SSH[@]} -eq 0 ]; then "$DOCKER" "$@"; else
-    local q; q=$(printf '%q ' "$DOCKER" "$@"); "${SSH[@]}" "$q"
+    local q; q=$(printf '%q ' "$DOCKER" "$@"); "${SSH[@]}" "${DCFG:+DOCKER_CONFIG=$DCFG }$q"
   fi
 }
 

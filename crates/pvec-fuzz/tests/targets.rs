@@ -101,3 +101,16 @@ fn the_header_target_stays_inside_a_small_allocation_whatever_the_manifest_claim
         assert!(bytes <= 8 * input.len() + (32 << 10), "{bytes} bytes for {} input bytes", input.len());
     }
 }
+
+#[test]
+fn the_hardening_report_names_every_target_and_says_what_was_not_run() {
+    let doc = std::fs::read_to_string(repo().join("docs/FUZZING.md")).expect("docs/FUZZING.md");
+    for name in NAMES {
+        assert!(doc.contains(&format!("`{name}`")), "docs/FUZZING.md does not name {name}");
+    }
+    for needle in
+        ["Seed corpus", "native arm64", "native x86_64", "## Findings", "has not run", "no-checksum-gate"]
+    {
+        assert!(doc.contains(needle), "docs/FUZZING.md does not say {needle}");
+    }
+}
