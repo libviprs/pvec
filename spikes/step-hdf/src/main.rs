@@ -6,6 +6,9 @@
 //!   measure decode   <h1|h2> <file> <expected-checksum-hex>
 //!   measure extract  <fixture> <h1|h2> <file>
 //!   measure progressive <fixture> <h2|h1> <file>
+//!   measure corpus-write <entry> <dump> <outdir>          (P8.2, see src/corpus.rs)
+//!   measure corpus-read  <entry> <outdir> <viewports> <config>
+//!   measure corpus-merge <entry> <outdir>
 
 use pvec_fixtures::{Drawing, Entity, Geom, generate, p21, viewport_script};
 use std::time::Instant;
@@ -65,6 +68,16 @@ fn median(mut v: Vec<f64>) -> f64 {
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     match a.get(1).map(String::as_str) {
+        Some("corpus-write") => {
+            step_hdf_spike::corpus::write(&a[2], std::path::Path::new(&a[3]), std::path::Path::new(&a[4]))
+        }
+        Some("corpus-read") => step_hdf_spike::corpus::read(
+            &a[2],
+            std::path::Path::new(&a[3]),
+            std::path::Path::new(&a[4]),
+            &a[5],
+        ),
+        Some("corpus-merge") => step_hdf_spike::corpus::merge(&a[2], std::path::Path::new(&a[3])),
         Some("sizes") => {
             let d = fixture(&a[2]);
             let layout = a[3].as_str();

@@ -7,15 +7,19 @@
 //! process. `benches/corpus/CORPUS.md` says what each class is, and `benches/corpus/corpus.lock.json`
 //! pins every entry by digest.
 
+pub mod dump;
 pub mod lock;
 pub mod models;
+pub mod part21;
 pub mod shape;
+pub mod step_bench;
 
 use models::Model;
+use pvec_container::writer::WriterOptions;
 use pvec_container::{Bounds, LengthUnit};
 use pvec_corpus::sha256::hex_digest;
 use pvec_corpus::{Bundle, CorpusError};
-use pvec_testkit::generate::generate_all;
+use pvec_testkit::generate::{generate_all, generate_all_with};
 use pvec_testkit::reference::{ReadEntity, read};
 use std::collections::BTreeMap;
 use std::f64::consts::TAU;
@@ -156,10 +160,15 @@ impl Spec {
         models::shapes(self.model, self.entities, self.seed)
     }
 
-    /// The artifact bytes.
+    /// The artifact bytes, with the writer's default options.
     pub fn artifact(&self) -> Result<Vec<u8>, String> {
+        self.artifact_with(WriterOptions::default())
+    }
+
+    /// The artifact bytes with the writer set to compress and seal as `options` say.
+    pub fn artifact_with(&self, options: WriterOptions) -> Result<Vec<u8>, String> {
         let producer = format!("{GENERATOR}/{}/{:#x}", self.name, self.seed);
-        shape::artifact(&self.shapes(), self.unit(), &producer)
+        shape::artifact(&self.shapes(), self.unit(), &producer, options)
     }
 }
 
@@ -190,15 +199,23 @@ pub fn known_truth() -> Result<KnownTruth, CorpusError> {
 
 /// The artifact bytes of one corpus entry, rebuilt from the generator or the vendored bundle.
 pub fn build(name: &str) -> Result<Vec<u8>, String> {
+    build_with(name, WriterOptions::default())
+}
+
+/// [`build`] with the writer set to compress and seal as `options` say.
+pub fn build_with(name: &str, options: WriterOptions) -> Result<Vec<u8>, String> {
     if let Some(spec) = Spec::named(name) {
-        return spec.artifact();
+        return spec.artifact_with(options);
     }
-    let (built, _) = known_truth().map_err(|e| e.to_string())?;
-    built
+    let outcomes = generate_all_with(&Bundle::vendored().map_err(|e| e.to_string())?, options)
+        .map_err(|e| e.to_string())?;
+    outcomes
         .into_iter()
-        .find(|(n, _)| n == name)
-        .map(|(_, b)| b)
-        .ok_or_else(|| format!("{name}: not a corpus entry"))
+        .find(|o| o.fixture == name)
+        .ok_or_else(|| format!("{name}: not a corpus entry"))?
+        .result
+        .map(|a| a.bytes)
+        .map_err(|r| r.to_string())
 }
 
 /// Entity counts by capability name, read back from the artifact through the reference reader.

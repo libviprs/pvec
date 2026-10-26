@@ -191,7 +191,7 @@ pub fn render(measured: &str) -> Result<(String, String), String> {
     let mut ex: Vec<(String, &str, String)> = refused.into_iter().collect();
     let trial = |s: Shape| {
         let pad = Shape::Line([0.0, 0.0], [10.0, 10.0]);
-        artifact(&[s, pad], pvec_container::LengthUnit::Millimetre, "trial")
+        artifact(&[s, pad], pvec_container::LengthUnit::Millimetre, "trial", Default::default())
     };
     for (name, shape) in [
         ("pathological-zero-length-line", Shape::Line([3.0, 3.0], [3.0, 3.0])),

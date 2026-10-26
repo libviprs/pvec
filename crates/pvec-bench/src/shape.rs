@@ -4,7 +4,7 @@
 use pvec_container::blocks::advanced::SplineSpec;
 use pvec_container::directory::STRADDLER_CELL_FIRST;
 use pvec_container::source::MemorySource;
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterConfig};
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
@@ -143,7 +143,12 @@ fn push(w: &mut ContainerWriter, id: usize, cell: u32, shape: &Shape) -> Result<
 /// Writes `shapes` as one artifact: ids are the indices, B-splines go to the advanced set (cell 0), everything
 /// else to the hot blocks under a spatial directory, and the entities that span many cells go through the
 /// straddler strategy (P5.3b: lay out once to learn the block ids, then again with the lists).
-pub fn artifact(shapes: &[Shape], unit: LengthUnit, producer: &str) -> Result<Vec<u8>, String> {
+pub fn artifact(
+    shapes: &[Shape],
+    unit: LengthUnit,
+    producer: &str,
+    options: WriterOptions,
+) -> Result<Vec<u8>, String> {
     let (_, all) = summarise(shapes);
     let config = WriterConfig {
         unit,
@@ -182,7 +187,7 @@ pub fn artifact(shapes: &[Shape], unit: LengthUnit, producer: &str) -> Result<Ve
         }
     }
     let lay_out = |lists: Option<(u32, Vec<u8>)>| -> Result<Vec<u8>, String> {
-        let mut w = ContainerWriter::new(config.clone());
+        let mut w = ContainerWriter::with_options(config.clone(), options);
         for (i, s) in shapes.iter().enumerate() {
             let cell = if matches!(s, Shape::Spline(_)) { 0 } else { cell_of[&(i as u32)] };
             push(&mut w, i, cell, s).map_err(|e| format!("entity {i} ({}): {e}", s.capability()))?;
@@ -221,4 +226,41 @@ pub fn artifact(shapes: &[Shape], unit: LengthUnit, producer: &str) -> Result<Ve
         .collect();
     let lists = build_straddlers(&c.scale, &placed).expect("lists");
     lay_out(Some((lists.entries, lists.bytes)))
+}
+
+/// The shapes an artifact holds, in entity order, read back through the reference reader. This is how the
+/// Part 21 and STEP-HDF arms get exactly the geometry the `.pvec` arm holds: every arm starts from the one
+/// artifact. A composite curve is refused, since the corpus has none.
+pub fn from_artifact(artifact: &[u8]) -> Result<Vec<Shape>, String> {
+    use pvec_testkit::reference::{ReadEntity, read};
+    let opened = read(artifact).map_err(|e| e.to_string())?;
+    let mut entities: Vec<&ReadEntity> = opened.entities.iter().collect();
+    entities.sort_by_key(|e| e.id());
+    entities
+        .into_iter()
+        .map(|e| match e {
+            ReadEntity::Line { a, b, .. } => Ok(Shape::Line(*a, *b)),
+            ReadEntity::Polyline { x, y, .. } => {
+                Ok(Shape::Polyline(x.iter().zip(y).map(|(x, y)| [*x, *y]).collect()))
+            }
+            ReadEntity::CircleArc { centre, radius, start_sweep, .. } => {
+                Ok(Shape::Arc { centre: *centre, radius: *radius, start_sweep: *start_sweep })
+            }
+            ReadEntity::EllipseArc { centre, radii, angles, .. } => {
+                Ok(Shape::Ellipse { centre: *centre, radii: *radii, angles: *angles })
+            }
+            ReadEntity::Spline { degree, knots, x, y, weights, .. } => {
+                Ok(Shape::Spline(Box::new(SplineData {
+                    degree: *degree,
+                    knots: knots.clone(),
+                    x: x.clone(),
+                    y: y.clone(),
+                    weights: weights.clone(),
+                })))
+            }
+            ReadEntity::Composite { id, .. } => {
+                Err(format!("entity {id}: a composite curve is not in the corpus"))
+            }
+        })
+        .collect()
 }

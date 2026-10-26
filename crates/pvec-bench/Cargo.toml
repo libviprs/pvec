@@ -6,18 +6,25 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-# Bench support, like pvec-testkit: only crates of this workspace, no registry dependency, and nothing in
-# the corpus half starts a process or opens a socket.
+# Bench support, like pvec-testkit: crates of this workspace, plus the deflate crate the container already
+# uses (for the compressed sizes), and nothing in the corpus half starts a process or opens a socket.
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-container = { path = "../pvec-container" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-entity = { path = "../pvec-entity" }
+pvec-geometry = { path = "../pvec-geometry" }
+pvec-interchange = { path = "../pvec-interchange" }
 pvec-stream = { path = "../pvec-stream" }
 pvec-testkit = { path = "../pvec-testkit" }
+miniz_oxide = "0.9"
 
 [[bench]]
 name = "gen_corpus"
+harness = false
+
+[[bench]]
+name = "vs_step"
 harness = false
 
 [lints]
