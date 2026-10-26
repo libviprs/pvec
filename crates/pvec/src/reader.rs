@@ -171,11 +171,23 @@ impl PvecReader {
     /// Writing what is read back writes the same bytes. An unbounded line is not storable, and a
     /// composite whose segments are trimmed is refused here for now.
     pub fn entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError> {
+        Ok(self.scan()?.into_iter().map(|(id, curve, _)| (id, curve)).collect())
+    }
+
+    /// The style reference of every entity, in ascending entity id order: an opaque index the style
+    /// component stream resolves, `0` where the writer gave none.
+    pub fn styles(&self) -> Result<Vec<(EntityId, u32)>, PvecError> {
+        Ok(self.scan()?.into_iter().map(|(id, _, style)| (id, style)).collect())
+    }
+
+    /// Both of the above in one pass over the blocks (conversion layer: hot and advanced records to
+    /// curves, with the style column that goes with them).
+    fn scan(&self) -> Result<Vec<(EntityId, Curve, u32)>, PvecError> {
         let id = |raw: u32| {
             EntityId::new(raw)
                 .map_err(|_| PvecError::Read { rule: "ENTITY-ID: not a valid entity id".to_string() })
         };
-        let mut out: Vec<(EntityId, Curve)> = Vec::new();
+        let mut out: Vec<(EntityId, Curve, u32)> = Vec::new();
         for (at, entry) in self.inner.entries().iter().enumerate() {
             // The straddler pages repeat payloads that a leaf's own block holds.
             if entry.block_kind() != Some(BlockKind::Hot) || entry.cell >= STRADDLER_CELL_FIRST {
@@ -217,7 +229,7 @@ impl PvecReader {
                         arc(ellipse, col("start")[k], col("sweep")[k])?
                     }
                 };
-                out.push((id(*raw)?, curve));
+                out.push((id(*raw)?, curve, hot.styles()[k]));
             }
         }
         for chunk in 0..self.inner.advanced_chunk_count().map_err(container)? {
@@ -225,10 +237,10 @@ impl PvecReader {
             let view = set.view().map_err(container)?;
             for index in 0..view.len() {
                 let Some(record) = view.record(index) else { continue };
-                out.push((id(record.id)?, advanced(&view, index, 1)?));
+                out.push((id(record.id)?, advanced(&view, index, 1)?, record.style));
             }
         }
-        out.sort_by_key(|(id, _)| id.index());
+        out.sort_by_key(|(id, _, _)| id.index());
         Ok(out)
     }
 }
