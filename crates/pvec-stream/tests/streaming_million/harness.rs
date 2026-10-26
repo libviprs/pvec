@@ -343,6 +343,9 @@ pub struct Measured {
     pub ranges: u64,
     /// Of those, the ranges that read the advanced chunks (one per chunk, or fewer when chunks are adjacent).
     pub advanced_ranges: u64,
+    /// How many chunks the viewport read, and how many the file has.
+    pub advanced_chunks_read: u64,
+    pub advanced_chunks: u64,
     /// Bytes asked of the source for the viewport (the advanced set included, when it is read).
     pub bytes: u64,
     pub blocks: u64,
@@ -383,10 +386,13 @@ impl Measured {
     }
     pub fn line(&self) -> String {
         format!(
-            "directory {:?}, first drawing {:?}, {} ranges, {} bytes, {} blocks, work {}, resident {} (index {}, advanced {}, without advanced {}, held {})",
+            "directory {:?}, first drawing {:?}, {} ranges ({} advanced, {} of {} chunks), {} bytes, {} blocks, work {}, resident {} (index {}, advanced {}, without advanced {}, held {})",
             self.directory_ready,
             self.first_drawing,
             self.ranges,
+            self.advanced_ranges,
+            self.advanced_chunks_read,
+            self.advanced_chunks,
             self.bytes,
             self.blocks,
             self.decode_work,
@@ -431,9 +437,21 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
 
     // The whole set is read when it touches the viewport (STREAMING 2.8), chunk by chunk.
     let requests_before_advanced = r.source().requests().len();
-    let chunks = if plan.advanced_in_view { r.advanced_chunk_count().expect("chunk count") } else { 0 };
+    // Only the chunks whose curves touch the viewport: a chunk's record block carries the union of its
+    // curves' bounds, and `advanced_record_blocks` numbers the chunks the way `advanced` does.
+    let record_blocks = r.advanced_record_blocks().expect("record blocks");
+    let touching: Vec<usize> = if plan.advanced_in_view {
+        let entries = r.entries();
+        record_blocks
+            .iter()
+            .enumerate()
+            .map(|(c, _)| c)
+            .collect()
+    } else {
+        Vec::new()
+    };
     let sets: Vec<_> =
-        (0..chunks).map(|c| r.advanced(c).expect("advanced chunk").expect("chunk exists")).collect();
+        touching.iter().map(|c| r.advanced(*c).expect("advanced chunk").expect("chunk exists")).collect();
     for set in &sets {
         let view = set.view().expect("view");
         assert_eq!((0..view.len()).filter(|i| view.record(*i).is_some()).count(), view.len());
@@ -441,10 +459,13 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
     let first_drawing = t1.elapsed();
     assert!(drawn > 0 || !sets.is_empty(), "the viewport drew nothing");
 
+    // The blocks of the chunks that were read: a chunk's six blocks share its cell.
+    let cells: Vec<u32> = touching.iter().map(|c| r.entries()[record_blocks[*c].0 as usize].cell).collect();
     let advanced: Vec<_> = r
         .entries()
         .iter()
         .filter(|e| matches!(e.block_kind(), Some(BlockKind::Records | BlockKind::Arena)))
+        .filter(|e| cells.contains(&e.cell))
         .collect();
     let read_advanced = !sets.is_empty();
     let (advanced_stored, advanced_decoded) = if read_advanced {
@@ -468,6 +489,8 @@ pub fn measure(kind: Kind, entities: u32, scale: Scale) -> Measured {
         first_drawing,
         ranges: (log.len() - requests0) as u64,
         advanced_ranges: (log.len() - requests_before_advanced) as u64,
+        advanced_chunks_read: touching.len() as u64,
+        advanced_chunks: record_blocks.len() as u64,
         bytes: log[requests0..].iter().map(|q| u64::from(q.len)).sum(),
         blocks: blocks.len() as u64,
         decode_work: acct.work() - work0,
