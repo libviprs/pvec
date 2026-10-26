@@ -6,7 +6,9 @@
 
 mod error;
 mod evidence;
+pub mod gates;
 pub mod geometric;
+pub mod report;
 pub mod structural;
 
 pub use error::{ConformanceError, Result};

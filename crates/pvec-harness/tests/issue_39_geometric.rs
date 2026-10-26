@@ -393,7 +393,7 @@ fn issue_39_the_geometry_crate_evaluates_a_circle_and_a_parabola_to_the_independ
 
 #[test]
 fn issue_39_the_module_writes_no_tolerance_and_a_geometric_pass_is_never_worded_as_structural() {
-    common::assert_no_tolerance_literal("geometric.rs");
+    common::assert_no_tolerance_literal("geometric.rs", true);
     let r = compare(
         "circle-001",
         C::RealWorldDifferential,

@@ -183,6 +183,7 @@ name = "pvec-harness"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-checks",
  "pvec-corpus",
  "pvec-geometry",
  "pvec-numeric",

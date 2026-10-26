@@ -203,7 +203,7 @@ fn issue_38_every_row_records_degree_knot_count_control_point_count_rule_and_cla
 
 #[test]
 fn issue_38_the_module_writes_no_tolerance_and_calls_the_policy() {
-    common::assert_no_tolerance_literal("structural.rs");
+    common::assert_no_tolerance_literal("structural.rs", true);
 }
 
 #[test]
