@@ -9,6 +9,7 @@ members = [
     "crates/pvec-container",
     "crates/pvec-corpus",
     "crates/pvec-entity",
+    "crates/pvec-fuzz",
     "crates/pvec-geometry",
     "crates/pvec-hermetic",
     "crates/pvec-interchange",
@@ -22,7 +23,7 @@ members = [
 ]
 # Spikes are throwaway and carry their own dependency trees (serialization crates, HDF5 and so on),
 # so they are separate workspaces and never enter this lockfile.
-exclude = ["spikes"]
+exclude = ["spikes", "fuzz"]
 
 [workspace.package]
 edition = "2024"

@@ -158,6 +158,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-fuzz"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-components",
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-geometry",
+ "pvec-testkit",
+]
+
+[[package]]
 name = "pvec-geometry"
 version = "0.0.0"
 dependencies = [
