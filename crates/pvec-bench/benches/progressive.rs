@@ -74,7 +74,7 @@ fn aabb(w: [f64; 4]) -> Aabb {
 }
 
 fn scale_of(w: [f64; 4]) -> f64 {
-    SCREEN_PX / (w[2] - w[0]).max(w[3] - w[1]).max(1e-6)
+    SCREEN_PX / (w[2] - w[0]).max(w[3] - w[1]).max(0.000_001)
 }
 
 fn path(out: &Path, entry: &str) -> PathBuf {

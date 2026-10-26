@@ -60,7 +60,7 @@ pub const IDS: [&str; 9] = [
 /// bytes at a time in issue order. A local arm has no network time: every request is done at `start_s`.
 pub fn completions(arm: &Arm, start_s: f64, sizes: &[u64]) -> Vec<f64> {
     let Some(mbit) = arm.mbit_per_s else { return vec![start_s; sizes.len()] };
-    let bytes_per_s = mbit * 1e6 / 8.0;
+    let bytes_per_s = mbit * 1_000_000.0 / 8.0;
     let mut lanes = [start_s; RANGE_CONCURRENCY];
     let mut link_free = start_s;
     sizes
