@@ -91,12 +91,11 @@ pub fn spread(runs: &[f64]) -> f64 {
     }
 }
 
-const ENTRY: &str = "architectural-1e6";
-const FAST: &str = "25mbit-60ms";
-const SLOW: &str = "5mbit-200ms";
-
 /// The verdicts for the rows, per platform: no comparison reads across two platforms.
 pub fn verdicts(rows: &[Row]) -> Vec<Verdict> {
+    const ENTRY: &str = "architectural-1e6";
+    const FAST: &str = "25mbit-60ms";
+    const SLOW: &str = "5mbit-200ms";
     let mut platforms: Vec<&str> = rows.iter().map(|r| r.platform.as_str()).collect();
     platforms.sort_unstable();
     platforms.dedup();
