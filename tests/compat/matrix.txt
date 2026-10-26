@@ -1,0 +1,106 @@
+# The compatibility matrix (issue P7.6): old reader x new file and new reader x old file.
+#
+# Each case declares the outcome the compatibility rules of docs/COMPATIBILITY.md give. The outcome is
+# written here by hand and never computed by the harness, so a change in behaviour turns a case red.
+#
+# reader      s_old = geometry 1..13 at 1.0, no component stream, reader version 1.0.0
+#             s_new = s_old plus every component stream plus capability 99 up to 3.1, reader version 1.1.0
+#             v1    = this build, every capability of the v1 registry
+# base        the file the case starts from: "mixed" (geometry and the five component streams)
+# caps        capabilities added to, or replaced in, the base manifest: id:requirement:major.minor
+# min_reader  the minimum reader version the manifest declares (default 1.0.0)
+# garbage     a block of random bytes with a valid length: kind:capability:length
+# outcome     open | open_degraded | refuse
+# rule        for refuse, the NEGOTIATE rule of docs/CONTAINER.md
+# named       for refuse, the capability id the refusal names
+# skipped     for open_degraded, the skipped capability ids
+# reasons     for open_degraded, the skip reason of each skipped capability, in the same order
+# gaps        capabilities read at a newer minor than the reader implements: id:file-version
+# geometry    same = the geometry decoded is identical to the base file's
+
+case old-reader-new-file-unknown-optional-block
+reader = s_old
+base = mixed
+caps = 99:optional:3.1
+garbage = 9:99:64
+outcome = open_degraded
+skipped = 14,15,16,18,20,99
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,unknown_block_kind
+geometry = same
+
+case old-reader-new-file-unknown-required-capability
+reader = s_old
+base = mixed
+caps = 99:required:2.1
+outcome = refuse
+rule = NEGOTIATE-01
+named = 99
+
+case old-reader-file-with-component-streams
+reader = s_old
+base = mixed
+outcome = open_degraded
+skipped = 14,15,16,18,20
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+geometry = same
+
+case old-reader-new-file-two-unknown-required-names-the-first
+reader = s_old
+base = mixed
+caps = 98:required:1.0,99:required:1.0
+outcome = refuse
+rule = NEGOTIATE-01
+named = 98
+
+case new-reader-old-file
+reader = s_new
+base = mixed
+outcome = open
+geometry = same
+
+case new-reader-new-file-required-capability-it-implements
+reader = s_new
+base = mixed
+caps = 99:required:3.0
+outcome = open
+geometry = same
+
+case new-reader-file-with-a-newer-major-of-a-required-capability
+reader = s_new
+base = mixed
+caps = 99:required:4.0
+outcome = refuse
+rule = NEGOTIATE-02
+named = 99
+
+case reader-meets-a-newer-minor-of-a-capability-it-implements
+reader = v1
+base = mixed
+caps = 4:required:1.9
+outcome = open
+gaps = 4:1.9.0
+geometry = same
+
+case reader-meets-a-newer-major-of-an-optional-capability
+reader = v1
+base = mixed
+caps = 14:optional:3.0
+outcome = open_degraded
+skipped = 14
+reasons = newer_major
+geometry = same
+
+case reader-meets-a-newer-major-of-a-required-capability
+reader = v1
+base = mixed
+caps = 4:required:2.0
+outcome = refuse
+rule = NEGOTIATE-02
+named = 4
+
+case reader-older-than-the-file-minimum
+reader = v1
+base = mixed
+min_reader = 2.0.0
+outcome = refuse
+rule = NEGOTIATE-03

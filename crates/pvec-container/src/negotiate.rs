@@ -500,6 +500,24 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
     Outcome::OpenDegraded(PartialOpen { capabilities: skipped, blocks, entities })
 }
 
+/// A capability the file declares at a newer minor version than the reader implements. The reader reads
+/// the subset it understands, since a minor only adds, and reports the gap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VersionGap {
+    /// The capability.
+    pub id: CapabilityId,
+    /// The version the file declares.
+    pub file: Version,
+    /// The `(major, minor)` the reader implements.
+    pub supported: (u16, u16),
+}
+
+/// The capabilities `manifest` declares at a newer minor version of a major the reader implements,
+/// ascending by id.
+pub fn version_gaps(_manifest: &Manifest, _reader: &ReaderCapabilities) -> Vec<VersionGap> {
+    todo!("P7.6")
+}
+
 /// Chapter 5 of `docs/CONTAINER.md`, rendered from the constants.
 pub(crate) fn render_chapter() -> String {
     let mut s = String::new();
