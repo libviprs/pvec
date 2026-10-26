@@ -23,7 +23,7 @@ fn read(name: &str) -> String {
 }
 
 fn lock() -> Value {
-    json::parse(read("corpus.lock.json").as_bytes()).expect("the lock parses as strict JSON")
+    json::parse(read("corpus.post159.lock.json").as_bytes()).expect("the lock parses as strict JSON")
 }
 
 fn entries(lock: &Value) -> Vec<&Value> {
