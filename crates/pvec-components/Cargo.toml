@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Independent component streams: layer, line style, text, hatch, provenance, each skippable and each referring to entities by EntityId"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # Deliberately no dependency on pvec-geometry or pvec-codec: a component stream has no way to reach a

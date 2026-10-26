@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "The sources of the PVec reader that touch the file system: a local file and a positional read over one. They live here, and not in pvec-container, because an API crate does no file access"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]
