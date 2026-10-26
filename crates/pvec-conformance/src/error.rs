@@ -40,6 +40,8 @@ pub enum ConformanceError {
         /// What was asserted.
         assertion: String,
     },
+    /// A geometric comparison was refused or could not be set up.
+    Geometric(String),
     /// A report line breaks the report format.
     Report {
         /// The offending line.
@@ -67,6 +69,7 @@ impl fmt::Display for ConformanceError {
             ConformanceError::NotRegistered { fixture, assertion } => {
                 write!(f, "fixture `{fixture}`: {assertion} was never registered")
             }
+            ConformanceError::Geometric(why) => write!(f, "geometric comparison refused: {why}"),
             ConformanceError::Report { line, why } => write!(f, "report line `{line}`: {why}"),
         }
     }
