@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "A memory-mapped source for the PVec reader. It holds the one confined unsafe block the workspace allows outside pvec-container's aligned.rs (ADR 0016), so that the API crates stay free of it"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]

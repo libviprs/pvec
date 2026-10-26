@@ -33,6 +33,12 @@ const MAX_FIRST_DRAWING_SECS: f64 = 30.0;
 /// chunks' own ranges (one per chunk since #153, so they grow with the curves and not with the viewport).
 /// The old single-set read was one more range, so each cap still has that one in it.
 const MAX_RANGES: [u64; 3] = [16, 12, 10];
+/// Chunks of the advanced curves a viewport may read, per scale (wide, mid, tight). A chunk is a few
+/// hundred curves in a few blocks, so this is a bound on the viewport and not on the file: the fixture has
+/// 703 chunks at 1,000,000 entities and the budget does not move when it has more (issue pvec#162).
+const MAX_ADVANCED_CHUNKS: [u64; 3] = [48, 12, 4];
+/// Range requests one chunk costs: its record block, and its five arenas as one run.
+const MAX_RANGES_PER_ADVANCED_CHUNK: u64 = 2;
 /// Bytes transferred for a viewport besides the advanced set, per scale (wide, mid, tight).
 const MAX_BYTES: [u64; 3] = [4 << 20, 1 << 20, 256 << 10];
 /// Decode work (bytes stored plus bytes decoded) besides the advanced set, per scale (wide, mid, tight).
@@ -128,6 +134,24 @@ fn every_measured_quantity_is_under_its_threshold_on_the_million_entity_artifact
                 m.ranges_without_advanced() + u64::from(m.advanced_ranges > 0) <= MAX_RANGES[i],
                 "{name}: {} ranges",
                 m.ranges_without_advanced()
+            );
+            assert!(
+                m.advanced_chunks_read <= MAX_ADVANCED_CHUNKS[i],
+                "{name}: {} of {} advanced chunks read",
+                m.advanced_chunks_read,
+                m.advanced_chunks
+            );
+            assert!(
+                m.advanced_chunks_read * 10 <= m.advanced_chunks,
+                "{name}: the viewport reads {} of {} chunks, which is the whole set and not its part",
+                m.advanced_chunks_read,
+                m.advanced_chunks
+            );
+            assert!(
+                m.advanced_ranges <= MAX_RANGES_PER_ADVANCED_CHUNK * m.advanced_chunks_read,
+                "{name}: {} advanced ranges for {} chunks",
+                m.advanced_ranges,
+                m.advanced_chunks_read
             );
             assert!(
                 m.bytes_without_advanced() <= MAX_BYTES[i],

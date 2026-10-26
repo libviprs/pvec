@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "The PVec facade: the semantic reader and writer surface, with the container encoding kept out of sight"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # The features are the matrix of docs/API.md. None of them changes the exported type list, which the
