@@ -258,11 +258,7 @@ fn issue_54_a_file_the_reader_refuses_is_an_error_code_and_leaks_no_handle() {
 /// whole, wherever the formatter wrapped them.
 fn surface_problems(source: &str) -> Vec<String> {
     const SCALARS: [&str; 3] = ["u32", "i32", "f64"];
-    let code: String = source
-        .lines()
-        .filter(|l| !l.trim().starts_with("//"))
-        .collect::<Vec<_>>()
-        .join(" ");
+    let code: String = source.lines().filter(|l| !l.trim().starts_with("//")).collect::<Vec<_>>().join(" ");
     let mut out = Vec::new();
     for banned in ["JsValue", "js_sys", "String", "Vec<", "Array", "Object", "Box<"] {
         if code.contains(banned) {
@@ -314,5 +310,8 @@ fn issue_54_the_surface_check_catches_an_export_that_returns_strings_or_objects(
     assert!(!surface_problems("pub fn label(id: u32) -> String {").is_empty());
     assert!(!surface_problems("pub fn open(bytes: Vec<u8>) -> i32 {").is_empty());
     assert!(surface_problems("pub fn open(bytes: &[u8]) -> i32 {").is_empty());
-    assert!(!surface_problems("pub fn names(\n    n: u32,\n) -> Vec<String> {").is_empty(), "wrapped signatures are read whole");
+    assert!(
+        !surface_problems("pub fn names(\n    n: u32,\n) -> Vec<String> {").is_empty(),
+        "wrapped signatures are read whole"
+    );
 }

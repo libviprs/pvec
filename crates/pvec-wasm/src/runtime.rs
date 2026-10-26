@@ -51,6 +51,7 @@ struct Slot {
 pub struct Runtime {
     slots: Vec<Slot>,
     /// Stands in for the size of linear memory off `wasm32`.
+    #[cfg(not(target_arch = "wasm32"))]
     grown: u32,
 }
 
@@ -130,8 +131,9 @@ impl Runtime {
                 && b.min[1] <= bounds.max[1]
                 && b.max[1] >= bounds.min[1]
         };
-        let mut picked: Vec<usize> =
-            (0..file.entities.len()).filter(|i| file.entities[*i].bounds.as_ref().is_none_or(meets)).collect();
+        let mut picked: Vec<usize> = (0..file.entities.len())
+            .filter(|i| file.entities[*i].bounds.as_ref().is_none_or(meets))
+            .collect();
         let truncated = picked.len() > budget as usize;
         picked.truncate(budget as usize);
         Ok(self.insert(Item::Batch { file, picked, truncated }))
@@ -205,12 +207,18 @@ impl Runtime {
         let at = |s: usize| s as u32;
         Ok(match kind {
             BufferKind::Vertices => match &p.vertices {
-                Vertices::F64(v) => View { ptr: at(v.as_ptr() as usize), len: v.len() as u32, elem: ElemType::F64 },
-                Vertices::F32(v) => View { ptr: at(v.as_ptr() as usize), len: v.len() as u32, elem: ElemType::F32 },
+                Vertices::F64(v) => {
+                    View { ptr: at(v.as_ptr() as usize), len: v.len() as u32, elem: ElemType::F64 }
+                }
+                Vertices::F32(v) => {
+                    View { ptr: at(v.as_ptr() as usize), len: v.len() as u32, elem: ElemType::F32 }
+                }
             },
-            BufferKind::Offsets => {
-                View { ptr: at(p.offsets.as_ptr() as usize), len: p.offsets.len() as u32, elem: ElemType::U32 }
-            }
+            BufferKind::Offsets => View {
+                ptr: at(p.offsets.as_ptr() as usize),
+                len: p.offsets.len() as u32,
+                elem: ElemType::U32,
+            },
             BufferKind::EntityIds => {
                 View { ptr: at(p.ids.as_ptr() as usize), len: p.ids.len() as u32, elem: ElemType::U32 }
             }

@@ -16,5 +16,5 @@ mod runtime;
 #[cfg(target_arch = "wasm32")]
 mod bindings;
 
-pub use abi::{AbiError, BufferKind, ElemType, Precision, View, DISPLAY_FIDELITY, WASM_ABI_VERSION};
+pub use abi::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View, WASM_ABI_VERSION};
 pub use runtime::Runtime;
