@@ -6,7 +6,7 @@
 //! ([`crate::geometric`]) as reparameterisation-eligible, and it is neither exact nor failed here.
 //! Every comparison goes through [`pvec_numeric::Policy`]; this module writes no tolerance.
 
-use crate::evidence::{Assertion, may_assert};
+use crate::evidence::{Assertion, assertion_for, meaning};
 use pvec_capabilities::EvidenceClass;
 use pvec_corpus::expected::Node;
 use pvec_numeric::Policy;
@@ -223,12 +223,6 @@ impl Structure {
     }
 }
 
-fn assertion_for(class: EvidenceClass) -> Option<Assertion> {
-    [Assertion::SourceIntent, Assertion::ConverterAgreement, Assertion::RegressionStability]
-        .into_iter()
-        .find(|a| may_assert(class, *a))
-}
-
 /// Why the two cannot be compared field by field, evaluated before any field is looked at.
 fn precondition(expected: &Structure, actual: &Structure) -> Vec<String> {
     let policy = Policy::V1;
@@ -376,12 +370,7 @@ pub fn render(report: &Report) -> String {
             report.reasons.join("; ")
         );
     }
-    let meaning = match report.assertion {
-        Some(Assertion::SourceIntent) => "source intent",
-        Some(Assertion::ConverterAgreement) => "converter agreement",
-        Some(Assertion::RegressionStability) => "regression stability",
-        None => "not counted",
-    };
+    let meaning = meaning(report.class);
     report
         .rows
         .iter()

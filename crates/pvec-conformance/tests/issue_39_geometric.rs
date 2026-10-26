@@ -1,6 +1,8 @@
 //! Issue #39: geometric equivalence against an independent evaluation. The evaluators below are
 //! closed-form, so nothing here shares a line with the evaluator under test.
 
+mod common;
+
 use pvec_capabilities::EvidenceClass as C;
 use pvec_conformance::geometric::*;
 use pvec_geometry::{Bezier, Circle, Placement2, Point2, Vector2};
@@ -391,22 +393,7 @@ fn issue_39_the_geometry_crate_evaluates_a_circle_and_a_parabola_to_the_independ
 
 #[test]
 fn issue_39_the_module_writes_no_tolerance_and_a_geometric_pass_is_never_worded_as_structural() {
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/geometric.rs")).unwrap();
-    let code: String =
-        src.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
-    assert!(code.contains("Policy::V1"));
-    assert!(!code.contains("EPSILON") && !code.contains("0.000"));
-    let b: Vec<char> = code.chars().collect();
-    for i in 1..b.len() {
-        let exponent = (b[i] == 'e' || b[i] == 'E')
-            && b[i - 1].is_ascii_digit()
-            && b.get(i + 1).is_some_and(|c| *c == '-' || c.is_ascii_digit());
-        assert!(
-            !exponent,
-            "an exponent-form literal near `{}`",
-            &code[i.saturating_sub(8)..(i + 8).min(code.len())]
-        );
-    }
+    common::assert_no_tolerance_literal("geometric.rs");
     let r = compare(
         "circle-001",
         C::RealWorldDifferential,
