@@ -39,7 +39,7 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
 | LAYOUT-01 | the manifest does not start straight after the header |
 | LAYOUT-02 | the capabilities are not strictly ascending by id |
 | LAYOUT-03 | the manifest does not hold exactly one block directory pointer, or the directory does not end the file (bytes after it are refused) |
-| LAYOUT-04 | the blocks are not in strictly ascending (kind, cell, geometry type) order |
+| LAYOUT-04 | the blocks are not in strictly ascending (kind group, cell, kind, geometry type) order, where a record block and an arena are one group |
 | LAYOUT-06 | the directory has no blocks |
 | LAYOUT-07 | a block overlaps what comes before it, or the blocks run into the directory (the parsers refuse every file that could reach this; it is kept so that removing their checks does not remove it) |
 | LAYOUT-08 | a byte between the manifest, the blocks and the directory is not zero |

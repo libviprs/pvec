@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Test support: the canonical artifact generator over the known-truth corpus (P2.4) and the reference reader the hostile-container tests hold a reader to"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # Test support, like pvec-corpus. Only crates of this workspace: no libviprs crate, no CAD or PDF

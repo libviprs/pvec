@@ -146,5 +146,8 @@ needs none, so nothing uses it yet; it exists so the rules are written and teste
 - Docker missing or its daemon not answering can be skipped only when `PVEC_DEV_RUN` is `1` or `true`, and a `CI`
   that is set (anything but empty, `0` or `false`) overrides it, so CI fails. With neither variable the run is strict
   and fails. A container Docker refused to start, or an unpinned image, is never skipped, in any kind of run.
+- `exec_stream` starts a command in the running container with its standard input and output piped to the test, for a
+  helper the test talks to over one `docker exec -i` (the load-shed range source of `pvec-stream`, pvec#158). The
+  container keeps `--network none`, so there is no port to publish and the channel works from a toolchain container too.
 - The tests drive a fake `docker` found through an explicit search path, so they need no Docker and do not touch the
   process environment.
