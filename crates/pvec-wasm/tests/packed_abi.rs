@@ -8,6 +8,8 @@ use pvec_wasm::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, Run
 use std::fs;
 use std::path::Path;
 
+const BIG: f64 = 1_000_000_000.0;
+
 fn context(max_segments: usize) -> pvec::TessellationContext {
     pvec::TessellationContext {
         source_to_map: Transform2::IDENTITY,
@@ -20,7 +22,7 @@ fn context(max_segments: usize) -> pvec::TessellationContext {
 }
 
 fn everything() -> Bounds2 {
-    Bounds2 { min: [-1e9, -1e9], max: [1e9, 1e9] }
+    Bounds2 { min: [-BIG, -BIG], max: [BIG, BIG] }
 }
 
 /// `n` short segments on a grid, entity `i + 1` at column `i % 1000`, row `i / 1000`, with style `i % 7`.
@@ -252,33 +254,35 @@ fn issue_54_a_file_the_reader_refuses_is_an_error_code_and_leaks_no_handle() {
 }
 
 /// What is wrong with a binding file: every export takes and returns numbers or a byte or number slice,
-/// so no call can hand JS an object, an array of objects or a string per entity.
+/// so no call can hand JS an object, an array of objects or a string per entity. Signatures are read
+/// whole, wherever the formatter wrapped them.
 fn surface_problems(source: &str) -> Vec<String> {
     const SCALARS: [&str; 3] = ["u32", "i32", "f64"];
+    let code: String = source
+        .lines()
+        .filter(|l| !l.trim().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join(" ");
     let mut out = Vec::new();
-    for raw in source.lines() {
-        let line = raw.trim();
-        if line.starts_with("//") {
-            continue;
+    for banned in ["JsValue", "js_sys", "String", "Vec<", "Array", "Object", "Box<"] {
+        if code.contains(banned) {
+            out.push(format!("`{banned}` appears in the exports"));
         }
-        for banned in ["JsValue", "js_sys", "String", "Vec<", "Array", "Object", "Box<"] {
-            if line.contains(banned) {
-                out.push(format!("`{banned}` in: {line}"));
-            }
-        }
-        let Some(sig) = line.strip_prefix("pub fn ") else { continue };
+    }
+    for part in code.split("pub fn ").skip(1) {
+        let sig = part.split('{').next().unwrap_or("");
         let (args, ret) = match sig.split_once("->") {
-            Some((a, r)) => (a, r.trim().trim_end_matches('{').trim()),
-            None => (sig.trim_end_matches('{'), ""),
+            Some((a, r)) => (a, r.trim()),
+            None => (sig, ""),
         };
         if !(ret.is_empty() || SCALARS.contains(&ret)) {
-            out.push(format!("returns `{ret}`: {line}"));
+            out.push(format!("returns `{ret}`: {sig}"));
         }
         let inside = args.split_once('(').and_then(|(_, r)| r.rsplit_once(')')).map_or("", |(a, _)| a);
         for arg in inside.split(',').map(str::trim).filter(|a| !a.is_empty()) {
             let ty = arg.rsplit_once(':').map_or("", |(_, t)| t.trim());
             if !(SCALARS.contains(&ty) || ty == "&[u8]" || ty == "&[f64]") {
-                out.push(format!("takes `{ty}`: {line}"));
+                out.push(format!("takes `{ty}`: {sig}"));
             }
         }
     }
@@ -310,4 +314,5 @@ fn issue_54_the_surface_check_catches_an_export_that_returns_strings_or_objects(
     assert!(!surface_problems("pub fn label(id: u32) -> String {").is_empty());
     assert!(!surface_problems("pub fn open(bytes: Vec<u8>) -> i32 {").is_empty());
     assert!(surface_problems("pub fn open(bytes: &[u8]) -> i32 {").is_empty());
+    assert!(!surface_problems("pub fn names(\n    n: u32,\n) -> Vec<String> {").is_empty(), "wrapped signatures are read whole");
 }
