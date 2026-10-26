@@ -99,6 +99,7 @@ exact geometry in a packed buffer.
 
 ## Size
 
-`pvec_wasm.wasm`, `cargo build --release --target wasm32-unknown-unknown` with rustc 1.99.1, no
-`wasm-opt` and no `wasm-bindgen` post-processing: 466,696 bytes (sha-256 prefix `73d7c0dff24e2969`),
-built on an arm64 host. It is recorded for P8.2, and no ceiling is asserted.
+`pvec_wasm.wasm`, `cargo build --release --target wasm32-unknown-unknown`, no `wasm-opt` and no
+`wasm-bindgen` post-processing, rustc 1.99.0 in a `rust:1.99.0-bookworm` container: 466,775 bytes built on
+native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
+ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.
