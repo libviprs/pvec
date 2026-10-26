@@ -16,9 +16,9 @@ lib.rs: pub mod unstable
 lib.rs: pub use bounds::{Bounds2, CurveRef}
 lib.rs: pub use error::PvecError
 lib.rs: pub use manifest::Manifest
+lib.rs: pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode}
 lib.rs: pub use pvec_capabilities::CapabilityId
 lib.rs: pub use pvec_entity::EntityId
-lib.rs: pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode}
 lib.rs: pub use pvec_geometry::{Curve, Domain, Point2, Transform2}
 lib.rs: pub use reader::PvecReader
 lib.rs: pub use writer::PvecWriter
