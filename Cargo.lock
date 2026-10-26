@@ -199,6 +199,7 @@ dependencies = [
  "pvec-container",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-hermetic",
  "pvec-numeric",
 ]
 

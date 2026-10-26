@@ -356,12 +356,17 @@ pub fn read_with(bytes: &[u8], options: &Options) -> Result<Opened, ReadError> {
         return refuse(Stage::Directory, "LAYOUT-06", "no blocks");
     }
 
-    let keys: Vec<(u16, u32, u16)> = entries.iter().map(|e| (e.kind, e.cell, e.subtype)).collect();
+    // a record block (kind 2) and an arena (kind 3) are one group, so a chunk's blocks are adjacent
+    let group = |kind: u16| if kind == 3 { 2 } else { kind };
+    let keys: Vec<(u16, u32, u16, u16)> =
+        entries.iter().map(|e| (group(e.kind), e.cell, e.kind, e.subtype)).collect();
     if keys.windows(2).any(|w| w[0] >= w[1]) {
         return refuse(
             Stage::Layout,
             "LAYOUT-04",
-            format!("blocks are not in strictly ascending (kind, cell, geometry type) order: {keys:?}"),
+            format!(
+                "blocks are not in strictly ascending (kind group, cell, kind, geometry type) order: {keys:?}"
+            ),
         );
     }
 

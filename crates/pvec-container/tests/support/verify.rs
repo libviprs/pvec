@@ -53,10 +53,12 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
     }
 
     // canonical order, read back from the file
-    let keys: Vec<(u16, u32, u16)> = entries.iter().map(|e| (e.kind, e.cell, e.subtype)).collect();
+    let group = |kind: u16| if kind == 3 { 2 } else { kind };
+    let keys: Vec<(u16, u32, u16, u16)> =
+        entries.iter().map(|e| (group(e.kind), e.cell, e.kind, e.subtype)).collect();
     if keys.windows(2).any(|w| w[0] >= w[1]) {
         return Err(format!(
-            "blocks are not in strictly ascending (kind, cell, geometry type) order: {keys:?}"
+            "blocks are not in strictly ascending (kind group, cell, kind, geometry type) order: {keys:?}"
         ));
     }
 
