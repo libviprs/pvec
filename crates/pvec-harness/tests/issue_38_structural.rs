@@ -1,6 +1,8 @@
 //! Issue #38: structural exactness. Each test breaks one thing in an otherwise equal pair and
 //! checks that exactly the right thing turns red.
 
+mod common;
+
 use pvec_capabilities::{EvidenceClass as C, Registry as Capabilities};
 use pvec_harness::structural::{Family, Knot, Report, Structural, Structure, compare, render};
 use pvec_harness::{Assertion, check_report};
@@ -201,23 +203,7 @@ fn issue_38_every_row_records_degree_knot_count_control_point_count_rule_and_cla
 
 #[test]
 fn issue_38_the_module_writes_no_tolerance_and_calls_the_policy() {
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/structural.rs")).unwrap();
-    let code: String =
-        src.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
-    assert!(code.contains("Policy::V1"), "structural comparisons go through the numeric policy");
-    assert!(!code.contains("EPSILON"));
-    let b: Vec<char> = code.chars().collect();
-    for i in 1..b.len() {
-        let exponent = (b[i] == 'e' || b[i] == 'E')
-            && b[i - 1].is_ascii_digit()
-            && b.get(i + 1).is_some_and(|c| *c == '-' || c.is_ascii_digit());
-        assert!(
-            !exponent,
-            "an exponent-form literal near `{}`",
-            &code[i.saturating_sub(8)..(i + 8).min(code.len())]
-        );
-    }
-    assert!(!code.contains("0.000"), "a small decimal literal");
+    common::assert_no_tolerance_literal("structural.rs");
 }
 
 #[test]

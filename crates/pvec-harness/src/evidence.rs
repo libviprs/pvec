@@ -71,13 +71,25 @@ pub fn may_assert(class: EvidenceClass, assertion: Assertion) -> bool {
 }
 
 impl Assertion {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Assertion::SourceIntent => "source intent",
             Assertion::ConverterAgreement => "converter agreement",
             Assertion::RegressionStability => "regression stability",
         }
     }
+}
+
+/// The assertion a pass supports for a class, `None` for a quarantined fixture.
+pub(crate) fn assertion_for(class: EvidenceClass) -> Option<Assertion> {
+    [Assertion::SourceIntent, Assertion::ConverterAgreement, Assertion::RegressionStability]
+        .into_iter()
+        .find(|a| may_assert(class, *a))
+}
+
+/// What a verdict means for a class, in the words the report uses.
+pub(crate) fn meaning(class: EvidenceClass) -> &'static str {
+    assertion_for(class).map_or("not counted", Assertion::label)
 }
 
 impl Registry {
