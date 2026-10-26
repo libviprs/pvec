@@ -17,6 +17,7 @@
 
 use crate::fidelity::FidelityKind;
 use crate::mvt::{MvtTile, TileId};
+use crate::report::{Report, ReportError};
 use core::fmt;
 use std::collections::BTreeMap;
 
@@ -62,6 +63,8 @@ pub enum PmtilesError {
     TileOutsideTestedRange(TileId),
     /// A tile whose bytes are not a vector tile this export wrote.
     BadTileBytes(TileId),
+    /// The fidelity report of the tiles was refused.
+    Report(ReportError),
 }
 
 impl fmt::Display for PmtilesError {
@@ -75,6 +78,7 @@ impl fmt::Display for PmtilesError {
                 write!(f, "tile {} is outside the tested zoom range", at(t))
             }
             PmtilesError::BadTileBytes(t) => write!(f, "tile {} is not a vector tile", at(t)),
+            PmtilesError::Report(e) => write!(f, "no fidelity report: {e}"),
         }
     }
 }
@@ -541,4 +545,23 @@ fn metadata_json(
     }
     j.push_str("]}");
     j
+}
+
+/// The fidelity report of a PMTiles archive's tiles (P6.8), with the digest the archive's provenance
+/// states. The counts follow [`crate::mvt::report`]. A tile set that [`write_pmtiles`] would refuse for
+/// its provenance has no report either.
+pub fn report(
+    tiles: &[MvtTile],
+    provenance: &Provenance,
+    artifact_entities: u32,
+) -> Result<Report, PmtilesError> {
+    let (digest, _, _) = check_provenance(provenance)?;
+    Report::new(
+        "PMTiles",
+        "3",
+        digest,
+        artifact_entities,
+        tiles.iter().flat_map(|t| t.ledger.ledger().records()),
+    )
+    .map_err(PmtilesError::Report)
 }

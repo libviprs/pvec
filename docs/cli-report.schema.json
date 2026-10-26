@@ -1,0 +1,1359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/libviprs/pvec/docs/cli-report.schema.json",
+  "title": "pvec report",
+  "description": "The JSON report of every pvec subcommand (report_schema_version 1). A refused file carries an error and a partial result; any other report carries the full result of its command.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/refused_report"
+    },
+    {
+      "$ref": "#/$defs/report_inspect"
+    },
+    {
+      "$ref": "#/$defs/report_validate"
+    },
+    {
+      "$ref": "#/$defs/report_dump_manifest"
+    },
+    {
+      "$ref": "#/$defs/report_capabilities"
+    },
+    {
+      "$ref": "#/$defs/report_compare_step"
+    },
+    {
+      "$ref": "#/$defs/report_tessellate"
+    },
+    {
+      "$ref": "#/$defs/report_bench_open"
+    }
+  ],
+  "$defs": {
+    "bounds": {
+      "type": "object",
+      "required": [
+        "min",
+        "max"
+      ],
+      "properties": {
+        "min": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "max": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "declared": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "requirement",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requirement": {
+          "enum": [
+            "required",
+            "optional"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "disagreement": {
+      "type": "object",
+      "required": [
+        "entity",
+        "pvec",
+        "step",
+        "sample",
+        "tolerance"
+      ],
+      "properties": {
+        "entity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pvec": {
+          "type": "string"
+        },
+        "step": {
+          "type": "string"
+        },
+        "sample": {
+          "type": "string"
+        },
+        "tolerance": {
+          "type": "number"
+        }
+      }
+    },
+    "structural_class": {
+      "type": "object",
+      "required": [
+        "status",
+        "checked",
+        "disagreements"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "differs",
+            "not_assessed"
+          ]
+        },
+        "checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/disagreement"
+          }
+        }
+      }
+    },
+    "failing_class": {
+      "type": "object",
+      "required": [
+        "status",
+        "checked",
+        "disagreements"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "not_assessed"
+          ]
+        },
+        "checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/disagreement"
+          }
+        }
+      }
+    },
+    "inspect_result": {
+      "type": "object",
+      "required": [
+        "header",
+        "manifest",
+        "directory"
+      ],
+      "properties": {
+        "header": {
+          "type": "object",
+          "required": [
+            "container_major",
+            "container_minor",
+            "header_len",
+            "block_checksum",
+            "artifact_checksum",
+            "manifest_offset",
+            "manifest_length"
+          ],
+          "properties": {
+            "container_major": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "container_minor": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "header_len": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "block_checksum": {
+              "type": "string"
+            },
+            "artifact_checksum": {
+              "type": "string"
+            },
+            "manifest_offset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "manifest_length": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "manifest": {
+          "type": "object",
+          "required": [
+            "unit",
+            "metres_per_unit",
+            "bounds",
+            "min_reader",
+            "capabilities",
+            "producer_id",
+            "producer_version",
+            "block_checksums",
+            "artifact_digest"
+          ],
+          "properties": {
+            "unit": {
+              "type": "string"
+            },
+            "metres_per_unit": {
+              "type": "number"
+            },
+            "bounds": {
+              "$ref": "#/$defs/bounds"
+            },
+            "min_reader": {
+              "type": "string"
+            },
+            "capabilities": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "producer_id": {
+              "type": "string"
+            },
+            "producer_version": {
+              "type": "string"
+            },
+            "block_checksums": {
+              "type": "boolean"
+            },
+            "artifact_digest": {
+              "type": "boolean"
+            }
+          }
+        },
+        "directory": {
+          "type": "object",
+          "required": [
+            "blocks",
+            "entities",
+            "by_kind"
+          ],
+          "properties": {
+            "blocks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entities": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "by_kind": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "blocks",
+                  "entities",
+                  "stored_bytes"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "blocks": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "entities": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "stored_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "validate_result": {
+      "type": "object",
+      "required": [
+        "format_valid",
+        "blocks",
+        "entities",
+        "skipped_blocks",
+        "checks",
+        "limits"
+      ],
+      "properties": {
+        "format_valid": {
+          "type": "boolean"
+        },
+        "blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped_blocks": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "checks": {
+          "type": "object",
+          "required": [
+            "structure",
+            "limits",
+            "block_checksums",
+            "artifact_digest"
+          ],
+          "properties": {
+            "structure": {
+              "enum": [
+                "pass"
+              ]
+            },
+            "limits": {
+              "enum": [
+                "pass"
+              ]
+            },
+            "block_checksums": {
+              "enum": [
+                "verified",
+                "not_written"
+              ]
+            },
+            "artifact_digest": {
+              "enum": [
+                "verified",
+                "not_written"
+              ]
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "max_artifact_bytes",
+            "max_block_bytes",
+            "max_blocks",
+            "max_expansion_ratio",
+            "max_entities_per_artifact",
+            "max_nesting_depth",
+            "max_alloc_bytes"
+          ],
+          "properties": {
+            "max_artifact_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_block_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_blocks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_expansion_ratio": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_entities_per_artifact": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_nesting_depth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_alloc_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "dump_manifest_result": {
+      "type": "object",
+      "required": [
+        "container_version",
+        "min_reader",
+        "unit",
+        "bounds",
+        "capabilities",
+        "directories",
+        "block_checksums",
+        "artifact_digest",
+        "metadata"
+      ],
+      "properties": {
+        "container_version": {
+          "type": "string"
+        },
+        "min_reader": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "object",
+          "required": [
+            "name",
+            "metres_per_unit"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "metres_per_unit": {
+              "type": "number"
+            }
+          }
+        },
+        "bounds": {
+          "$ref": "#/$defs/bounds"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declared"
+          }
+        },
+        "directories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "offset",
+              "length"
+            ],
+            "properties": {
+              "kind": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "block_checksums": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "offset",
+                "length"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "length": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "artifact_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "required": [
+            "producer_id",
+            "producer_version",
+            "corpus_revision"
+          ],
+          "properties": {
+            "producer_id": {
+              "type": "string"
+            },
+            "producer_version": {
+              "type": "string"
+            },
+            "corpus_revision": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "capabilities_result": {
+      "type": "object",
+      "required": [
+        "reader_version",
+        "file_min_reader",
+        "supported",
+        "declared",
+        "unsupported_required",
+        "skipped_optional",
+        "version_gaps"
+      ],
+      "properties": {
+        "reader_version": {
+          "type": "string"
+        },
+        "file_min_reader": {
+          "type": "string"
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "declared": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declared"
+          }
+        },
+        "unsupported_required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declared"
+          }
+        },
+        "skipped_optional": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declared"
+          }
+        },
+        "version_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "file_version",
+              "supported"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "file_version": {
+                "type": "string"
+              },
+              "supported": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "compare_step_verdict_result": {
+      "type": "object",
+      "required": [
+        "step_file",
+        "evaluator",
+        "entities",
+        "verdict",
+        "not_comparable"
+      ],
+      "properties": {
+        "step_file": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "evaluator": {
+          "type": "string"
+        },
+        "entities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verdict": {
+          "type": "object",
+          "required": [
+            "structural_exactness",
+            "geometric_exactness",
+            "display_fidelity"
+          ],
+          "properties": {
+            "structural_exactness": {
+              "$ref": "#/$defs/structural_class"
+            },
+            "geometric_exactness": {
+              "$ref": "#/$defs/failing_class"
+            },
+            "display_fidelity": {
+              "$ref": "#/$defs/failing_class"
+            }
+          }
+        },
+        "not_comparable": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "entity",
+              "reason"
+            ],
+            "properties": {
+              "entity": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "compare_step_requests_result": {
+      "type": "object",
+      "required": [
+        "step_file",
+        "evaluator",
+        "requests"
+      ],
+      "properties": {
+        "step_file": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "evaluator": {
+          "type": "string"
+        },
+        "requests": {
+          "type": "string"
+        }
+      }
+    },
+    "tessellate_result": {
+      "type": "object",
+      "required": [
+        "error_budget_px",
+        "units_per_pixel",
+        "tolerance_world",
+        "display_fidelity",
+        "entities",
+        "skipped"
+      ],
+      "properties": {
+        "error_budget_px": {
+          "type": "number"
+        },
+        "units_per_pixel": {
+          "type": "number"
+        },
+        "tolerance_world": {
+          "type": "number"
+        },
+        "display_fidelity": {
+          "type": "object",
+          "required": [
+            "status",
+            "max_deviation_px"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail"
+              ]
+            },
+            "max_deviation_px": {
+              "type": "number"
+            }
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "status",
+              "points",
+              "deviation_world",
+              "deviation_px"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "enum": [
+                  "ok",
+                  "tolerance_not_met",
+                  "not_tessellated"
+                ]
+              },
+              "points": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deviation_world": {
+                "type": "number"
+              },
+              "deviation_px": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "reason"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "bench_open_result": {
+      "type": "object",
+      "required": [
+        "iterations",
+        "bytes",
+        "volatile",
+        "timings_ns"
+      ],
+      "properties": {
+        "iterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "volatile": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timings_ns": {
+          "type": "object",
+          "required": [
+            "min",
+            "median",
+            "max"
+          ],
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "median": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "report_inspect": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "inspect"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/inspect_result"
+        }
+      }
+    },
+    "report_validate": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "validate"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/validate_result"
+        }
+      }
+    },
+    "report_dump_manifest": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "dump-manifest"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/dump_manifest_result"
+        }
+      }
+    },
+    "report_capabilities": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "capabilities"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/capabilities_result"
+        }
+      }
+    },
+    "report_compare_step": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "compare-step"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/compare_step_verdict_result"
+            },
+            {
+              "$ref": "#/$defs/compare_step_requests_result"
+            }
+          ]
+        }
+      }
+    },
+    "report_tessellate": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "tessellate"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/tessellate_result"
+        }
+      }
+    },
+    "report_bench_open": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "bench-open"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/bench_open_result"
+        }
+      }
+    },
+    "refused_report": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "enum": [
+            "inspect",
+            "validate",
+            "dump-manifest",
+            "capabilities",
+            "compare-step",
+            "tessellate",
+            "bench-open"
+          ]
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "enum": [
+            2,
+            3
+          ]
+        },
+        "status": {
+          "enum": [
+            "refused",
+            "unsupported_capability"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/error"
+        },
+        "result": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

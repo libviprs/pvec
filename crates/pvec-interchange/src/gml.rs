@@ -16,6 +16,7 @@
 //! * No tolerance is written here. Comparisons use the numeric policy of P1.2 (`pvec_numeric::Policy`),
 //!   and the only other number the caller supplies is the deviation budget for approximations.
 
+use crate::report::{Report, ReportError};
 use crate::{
     ErrorBound, Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation,
     TargetConstruct,
@@ -925,4 +926,12 @@ fn escape(s: &str) -> String {
         }
     }
     o
+}
+
+impl GmlExport {
+    /// The fidelity report of this export (P6.8), for an artifact of `artifact_entities` entities
+    /// whose digest is `source_digest`.
+    pub fn report(&self, source_digest: [u8; 32], artifact_entities: u32) -> Result<Report, ReportError> {
+        Report::new("GML", GML_VERSION, source_digest, artifact_entities, self.ledger.records())
+    }
 }
