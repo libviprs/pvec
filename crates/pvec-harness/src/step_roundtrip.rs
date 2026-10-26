@@ -7,11 +7,17 @@ use crate::gates::Runner;
 use pvec_capabilities::EvidenceClass;
 use pvec_corpus::ExpectedMath;
 use pvec_entity::EntityId;
-use pvec_geometry::Curve;
+use pvec_geometry::{Curve, Transform2};
 use pvec_interchange::step::verify::Verdict;
 
 /// The curves a fixture's authored mathematics describes, one per entity, numbered from 1.
 pub fn curves_of(_expected: &ExpectedMath) -> std::result::Result<Vec<(EntityId, Curve)>, String> {
+    Err("not implemented".to_string())
+}
+
+/// The map from a fixture's local frame to the world its authored record puts it in: the identity for a fixture
+/// with no `transform` or `transform_chain`.
+pub fn transform_of(_expected: &ExpectedMath) -> std::result::Result<Transform2, String> {
     Err("not implemented".to_string())
 }
 

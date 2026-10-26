@@ -8,9 +8,9 @@ mod common;
 use pvec_capabilities::{EvidenceClass as C, Registry as Capabilities};
 use pvec_corpus::{Bundle, Fixture, FixtureRegistry};
 use pvec_entity::EntityId;
-use pvec_geometry::{Curve, Curve2d};
+use pvec_geometry::{Curve, Curve2d, Transform2};
 use pvec_harness::gates::{Gate, GateVerdict as V, Runner};
-use pvec_harness::step_roundtrip::curves_of;
+use pvec_harness::step_roundtrip::{curves_of, transform_of};
 use pvec_harness::{ConformanceError, check_report, report};
 use pvec_interchange::FidelityKind;
 use pvec_interchange::step::verify::{Class, Disagreement, Verdict};
@@ -74,6 +74,21 @@ fn issue_150_the_curves_are_the_authored_mathematics() {
     assert!(matches!(bulged, Curve::Composite(_) | Curve::Trimmed(_)), "{bulged:?}");
     assert_eq!((start.x, start.y), (1.0, 0.5));
     assert_eq!((end.x, end.y), (4.5, 2.25));
+}
+
+#[test]
+fn issue_150_the_authored_transforms_read_as_the_maps_the_record_composed() {
+    let corpus = corpus();
+    let t = |id: &str| transform_of(corpus.get(id).unwrap().expected.as_ref().unwrap()).unwrap();
+    for f in covered(&corpus) {
+        transform_of(f.expected.as_ref().unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.id));
+    }
+    assert_eq!(t("line-001"), Transform2::IDENTITY);
+    assert_eq!(t("translation-001"), Transform2::translate(3.5, -1.25).unwrap());
+    // the chain's composed matrix: [0 -1 | 4], [2 0 | 1]
+    assert_eq!(t("nested-blocks-001"), Transform2::new([0.0, -1.0, 2.0, 0.0, 4.0, 1.0]).unwrap());
+    // a reflection keeps its sign
+    assert_eq!(t("reflection-001"), Transform2::new([-1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).unwrap());
 }
 
 #[test]
