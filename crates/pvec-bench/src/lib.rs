@@ -13,6 +13,7 @@ pub mod layout_bench;
 pub mod lock;
 pub mod models;
 pub mod part21;
+pub mod progressive_bench;
 pub mod shape;
 pub mod step_bench;
 
