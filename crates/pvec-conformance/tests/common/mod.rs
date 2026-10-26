@@ -1,13 +1,16 @@
 //! Shared by the module-level checks: a gate module writes no numeric tolerance of its own.
 
 /// Panics when `src/<file>` has an exponent-form float literal, `EPSILON`, a small decimal literal,
-/// or does not call the numeric policy. Hex literals such as `0x9E37` are not floats.
-pub fn assert_no_tolerance_literal(file: &str) {
+/// or, when `calls_policy`, does not call the numeric policy. Hex literals such as `0x9E37` are not floats.
+pub fn assert_no_tolerance_literal(file: &str, calls_policy: bool) {
     let path = format!("{}/src/{file}", env!("CARGO_MANIFEST_DIR"));
     let src = std::fs::read_to_string(&path).unwrap();
     let code: String =
         src.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
-    assert!(code.contains("Policy::V1"), "{file}: comparisons go through the numeric policy");
+    assert!(
+        !calls_policy || code.contains("Policy::V1"),
+        "{file}: comparisons go through the numeric policy"
+    );
     assert!(!code.contains("EPSILON") && !code.contains("0.000"), "{file}: a tolerance-shaped constant");
     let b: Vec<char> = code.chars().collect();
     for i in 1..b.len() {

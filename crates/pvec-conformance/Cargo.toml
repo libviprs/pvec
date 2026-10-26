@@ -13,5 +13,8 @@ pvec-corpus = { path = "../pvec-corpus" }
 pvec-geometry = { path = "../pvec-geometry" }
 pvec-numeric = { path = "../pvec-numeric" }
 
+[dev-dependencies]
+pvec-checks = { path = "../pvec-checks" }
+
 [lints]
 workspace = true

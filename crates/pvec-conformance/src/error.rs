@@ -40,6 +40,17 @@ pub enum ConformanceError {
         /// What was asserted.
         assertion: String,
     },
+    /// A gate was claimed for a fixture whose evidence class cannot satisfy it.
+    GateRefused {
+        /// The gate.
+        gate: String,
+        /// The fixture id.
+        fixture: String,
+        /// Its class.
+        class: String,
+    },
+    /// A conformance report that cannot be read.
+    BadReport(String),
     /// A geometric comparison was refused or could not be set up.
     Geometric(String),
     /// A report line breaks the report format.
@@ -69,6 +80,13 @@ impl fmt::Display for ConformanceError {
             ConformanceError::NotRegistered { fixture, assertion } => {
                 write!(f, "fixture `{fixture}`: {assertion} was never registered")
             }
+            ConformanceError::GateRefused { gate, fixture, class } => {
+                write!(
+                    f,
+                    "the {gate} gate cannot be claimed for fixture `{fixture}`: {class} does not satisfy it"
+                )
+            }
+            ConformanceError::BadReport(why) => write!(f, "conformance report refused: {why}"),
             ConformanceError::Geometric(why) => write!(f, "geometric comparison refused: {why}"),
             ConformanceError::Report { line, why } => write!(f, "report line `{line}`: {why}"),
         }
