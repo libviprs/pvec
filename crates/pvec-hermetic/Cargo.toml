@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "Test support: a hermetic container fixture (stand-up, tear-down on pass and failure) and the dev-skip versus CI-fail policy"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # Test support, and the one place in this workspace that starts a process (the `docker` client).

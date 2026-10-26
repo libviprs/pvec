@@ -1219,8 +1219,9 @@ impl ContainerWriter {
         blocks.sort_by_key(|b| b.first_seen);
         let by = |key: SortKey, a: Ordering| if self.sorts(key) { a } else { Ordering::Equal };
         blocks.sort_by(|a, b| {
-            by(SortKey::BlockKind, a.kind.id().cmp(&b.kind.id()))
+            by(SortKey::BlockKind, BlockKind::group(a.kind.id()).cmp(&BlockKind::group(b.kind.id())))
                 .then(by(SortKey::SpatialCell, a.cell.cmp(&b.cell)))
+                .then(by(SortKey::BlockKind, a.kind.id().cmp(&b.kind.id())))
                 .then(by(SortKey::GeometryType, a.subtype.cmp(&b.subtype)))
         });
 
