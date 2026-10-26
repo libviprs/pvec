@@ -21,7 +21,7 @@ result file records a failure, so the table cannot say more than the files do.
 | extension rules | ADR 0008 and ADR 0013 | registry lint + P7.6 matrix | tests/compat/matrix.txt | FROZEN |
 | capability registry + compatibility contract | ADR 0010 | P7.8 capability matrix | docs/capabilities.toml | FROZEN |
 | security and resource limits (P4.8) | ADR 0008 and docs/SECURITY_LIMITS.md | P7.8 findings all fixed | the findings are fixed, but the 4 hour nightly fuzz run is still outstanding (pvec#190), so the gate is not closed | NOT FROZEN |
-| fixture corpus revision | EPIC O revision pin | corpus.lock.json digests | crates/pvec-bench/benches/corpus/corpus.lock.json | FROZEN |
+| fixture corpus revision | EPIC O revision pin | corpus.lock.json digests | the lock no longer matches the rebuilt corpus: `every_digest_in_the_lock_matches_the_rebuilt_artifact` in crates/pvec-bench/tests/issue_60_corpus.rs is red on main, because the chunk ordering change of pvec#159 moved the bytes of 8 of the 10 generated entries after the lock was written. Regenerating it re-pins the lock digest the benchmark reports cite, so it waits on the benchmark owner | NOT FROZEN |
 | C/FFI answer | docs/adr/ADR-P7.4-c-ffi-strategy.md | prototype result in that ADR | the ADR is still Proposed; v1 ships no C header, so the C/FFI surface is deferred and nothing about it is frozen | NOT FROZEN |
 
 ## Constants
@@ -31,7 +31,8 @@ At the freeze the constants are: container 1.0 (`Header::MAJOR` 1, `Header::MINO
 `3d20a14b894b6268232446fe60ab68dbf2190f68287c69b74be3779eb7583887`, and the corpus lock
 `crates/pvec-bench/benches/corpus/corpus.lock.json` has sha256
 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`. The freeze tests recompute both, so changing the
-registry or the corpus lock turns them red until this page is updated on purpose.
+registry or the corpus lock turns them red until this page is updated on purpose. The lock digest is recorded so a
+regenerated lock shows up here, but the corpus is not frozen yet (see its row above)...
 
 ## The five benchmark reports
 

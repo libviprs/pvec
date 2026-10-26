@@ -32,36 +32,43 @@ fn rows() -> Vec<[String; 5]> {
         .collect()
 }
 
-const ARTEFACTS: [&str; 11] = [
-    "semantic profile",
-    "numeric policy",
-    "physical container",
-    "internal layout",
-    "spatial index",
-    "progressive tiers",
-    "extension rules",
-    "capability registry",
-    "security and resource limits",
-    "fixture corpus revision",
-    "C/FFI answer",
-];
-
 #[test]
 fn the_table_has_one_row_per_frozen_artefact_and_each_names_an_adr_and_a_result() {
+    let artefacts = [
+        "semantic profile",
+        "numeric policy",
+        "physical container",
+        "internal layout",
+        "spatial index",
+        "progressive tiers",
+        "extension rules",
+        "capability registry",
+        "security and resource limits",
+        "fixture corpus revision",
+        "C/FFI answer",
+    ];
     let rows = rows();
-    for want in ARTEFACTS {
+    for want in artefacts {
         let row = rows.iter().find(|r| r[0].starts_with(want)).unwrap_or_else(|| panic!("no row for {want}"));
-        assert!(row[1].contains("ADR") || row[1].contains("revision pin"), "{want}: no deciding ADR in `{}`", row[1]);
+        assert!(
+            row[1].contains("ADR") || row[1].contains("revision pin"),
+            "{want}: no deciding ADR in `{}`",
+            row[1]
+        );
         assert!(!row[3].is_empty(), "{want}: no benchmark result file");
         assert!(["FROZEN", "NOT FROZEN"].contains(&row[4].as_str()), "{want}: status `{}`", row[4]);
     }
-    assert_eq!(rows.len(), ARTEFACTS.len());
+    assert_eq!(rows.len(), artefacts.len());
 }
 
 #[test]
 fn a_row_is_frozen_only_when_its_result_file_exists_and_records_no_failure() {
     for row in rows() {
-        let files: Vec<&str> = row[3].split(';').map(str::trim).filter(|f| f.starts_with("docs/") || f.starts_with("tests/") || f.starts_with("crates/")).collect();
+        let files: Vec<&str> = row[3]
+            .split(';')
+            .map(str::trim)
+            .filter(|f| f.starts_with("docs/") || f.starts_with("tests/") || f.starts_with("crates/"))
+            .collect();
         if row[4] == "FROZEN" {
             assert!(!files.is_empty(), "{}: frozen with no checkable result file", row[0]);
             for f in files {
@@ -110,14 +117,17 @@ fn the_registry_snapshot_matches_the_digest_recorded_in_the_freeze_record() {
 
 #[test]
 fn the_corpus_lock_matches_the_digest_recorded_in_the_freeze_record() {
-    let digest = pvec_corpus::sha256::hex_digest(read("crates/pvec-bench/benches/corpus/corpus.lock.json").as_bytes());
+    let digest =
+        pvec_corpus::sha256::hex_digest(read("crates/pvec-bench/benches/corpus/corpus.lock.json").as_bytes());
     assert!(freeze().contains(&digest), "corpus.lock.json digest is now {digest}");
 }
 
 #[test]
 fn the_record_makes_no_claim_of_formal_iso_conformance_and_says_what_is_deferred() {
     let doc = freeze();
-    assert!(doc.contains("aligned to named ISO 10303-42:2025 constructs, validated through ISO 10303-21 interchange"));
+    assert!(doc.contains(
+        "aligned to named ISO 10303-42:2025 constructs, validated through ISO 10303-21 interchange"
+    ));
     assert!(doc.contains("no claim of formal Part 42 conformance"));
     for banned in ["conformant", "compliant", "fully conforms", "is certified"] {
         assert!(!doc.to_lowercase().contains(banned), "the record says `{banned}`");
@@ -133,7 +143,9 @@ fn the_record_makes_no_claim_of_formal_iso_conformance_and_says_what_is_deferred
 #[test]
 fn the_migration_note_has_its_three_sections() {
     let m = read("docs/MIGRATION.md");
-    for h in ["## What a v1.x reader must keep working", "## What may change within v1.x", "## What requires v2"] {
+    for h in
+        ["## What a v1.x reader must keep working", "## What may change within v1.x", "## What requires v2"]
+    {
         assert!(m.contains(h), "MIGRATION.md has no `{h}`");
     }
 }
