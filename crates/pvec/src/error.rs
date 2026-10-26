@@ -61,3 +61,9 @@ impl fmt::Display for PvecError {
 }
 
 impl std::error::Error for PvecError {}
+
+/// The facade's refusal for one of the curve model's, kept as its rule so no geometry error type is
+/// reachable (conversion layer).
+pub(crate) fn geometry(e: pvec_geometry::GeometryError) -> PvecError {
+    PvecError::Geometry { rule: e.rule().to_string() }
+}

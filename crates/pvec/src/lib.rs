@@ -28,6 +28,6 @@ pub use manifest::Manifest;
 pub use pvec_capabilities::CapabilityId;
 pub use pvec_entity::EntityId;
 pub use pvec_geometry::{Curve, Domain, Side, Transform2};
-pub use tessellate::{Conformance, Tessellate, Tessellation, TessellationContext};
 pub use reader::PvecReader;
+pub use tessellate::{Conformance, Tessellate, Tessellation, TessellationContext};
 pub use writer::PvecWriter;

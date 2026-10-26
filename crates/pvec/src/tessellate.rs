@@ -1,4 +1,5 @@
-use crate::{Curve, PvecError, Transform2};
+use crate::{Curve, CurveEval, PvecError, Transform2};
+use pvec_geometry::{Curve2d, GeometryError, Point2};
 
 /// What a tessellation claims to be. There is one value: a tessellation is an approximation for
 /// display, never the curve itself. A type with a second value would let a consumer present a polyline
@@ -51,12 +52,173 @@ pub trait Tessellate {
     fn tessellate(&self, ctx: &TessellationContext) -> Result<Tessellation, PvecError>;
 }
 
+/// The sampling margin: the deviation of a segment is found at seven interior points, and the claimed
+/// bound is that measure times this, so a curve that bulges between two samples is still inside it.
+const MARGIN: f64 = 1.05;
+
+/// Where a curve is not smooth, as parameters strictly inside its domain: the interior knots of a
+/// spline, the vertices of a polyline, the joints of a composite and whichever of those a trim keeps.
+fn breaks(curve: &Curve) -> Vec<f64> {
+    let mut out: Vec<f64> = match curve {
+        Curve::Polyline(p) => (1..p.vertices().len() - 1).map(|i| i as f64).collect(),
+        Curve::BSpline(b) => b.knots().to_vec(),
+        Curve::RationalBSpline(b) => b.knots().to_vec(),
+        Curve::Composite(c) => c
+            .segments()
+            .iter()
+            .enumerate()
+            .flat_map(|(k, seg)| {
+                let d = Curve2d::domain(seg);
+                let own = breaks(seg).into_iter().map(move |u| k as f64 + (u - d.lo()) / d.width());
+                (k > 0).then_some(k as f64).into_iter().chain(own)
+            })
+            .collect(),
+        Curve::Trimmed(t) => {
+            let trim = t.trim();
+            breaks(t.basis())
+                .into_iter()
+                .map(|b| if trim.reversed { trim.start + trim.span - b } else { b - trim.start })
+                .collect()
+        }
+        _ => Vec::new(),
+    };
+    let d = Curve2d::domain(curve);
+    out.retain(|t| *t > d.lo() && *t < d.hi());
+    out.sort_by(f64::total_cmp);
+    out.dedup();
+    out
+}
+
+/// One stretch of the curve between two parameters, with the exact points at its ends.
+struct Span {
+    a: f64,
+    b: f64,
+    pa: [f64; 2],
+    pb: [f64; 2],
+}
+
 pub(crate) fn tessellate_with(
-    _curve: &Curve,
-    _ctx: &TessellationContext,
-    _split_at_breaks: bool,
+    curve: &Curve,
+    ctx: &TessellationContext,
+    split_at_breaks: bool,
 ) -> Result<Tessellation, PvecError> {
-    Err(PvecError::Geometry { rule: "unimplemented".to_string() })
+    let bad = |reason: &str| Err(PvecError::BadContext { reason: reason.to_string() });
+    if ctx.max_screen_error_px.is_nan() || ctx.max_screen_error_px <= 0.0 {
+        return bad("max_screen_error_px must be positive");
+    }
+    if ctx.max_world_error.is_nan() || ctx.max_world_error <= 0.0 {
+        return bad("max_world_error must be positive");
+    }
+    if ctx.pixel_ratio.is_nan() || ctx.pixel_ratio <= 0.0 || ctx.pixel_ratio.is_infinite() {
+        return bad("pixel_ratio must be positive and finite");
+    }
+    if ctx.max_segments == 0 {
+        return bad("max_segments must be at least 1");
+    }
+    if matches!(curve, Curve::Line(_)) {
+        return Err(crate::error::geometry(GeometryError::Unbounded));
+    }
+    let at = |t: f64| curve.point_at(t);
+    let to_world = |q: [f64; 2]| ctx.source_to_map.apply_point(Point2 { x: q[0], y: q[1] });
+    let to_device = |w: Point2| {
+        let s = ctx.map_to_screen.apply_point(w);
+        [s.x * ctx.pixel_ratio, s.y * ctx.pixel_ratio]
+    };
+    let from_chord = |q: [f64; 2], a: [f64; 2], b: [f64; 2]| {
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let len2 = dx * dx + dy * dy;
+        let t = if len2 == 0.0 {
+            0.0
+        } else {
+            (((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / len2).clamp(0.0, 1.0)
+        };
+        (q[0] - a[0] - t * dx).hypot(q[1] - a[1] - t * dy)
+    };
+    // The deviation of the chord of a span from the curve over it: on screen in device pixels, and in
+    // map units, each times the sampling margin.
+    let measure = |s: &Span| -> Result<(f64, f64), PvecError> {
+        let (wa, wb) = (to_world(s.pa), to_world(s.pb));
+        let (da, db) = (to_device(wa), to_device(wb));
+        let (mut px, mut world) = (0.0f64, 0.0f64);
+        for j in 1..8 {
+            let q = to_world(at(s.a + (s.b - s.a) * (j as f64 / 8.0))?);
+            world = world.max(from_chord([q.x, q.y], [wa.x, wa.y], [wb.x, wb.y]));
+            px = px.max(from_chord(to_device(q), da, db));
+        }
+        Ok((px * MARGIN, world * MARGIN))
+    };
+    let within = |(px, world): (f64, f64)| px <= ctx.max_screen_error_px && world <= ctx.max_world_error;
+    let unmet = |(px, world): (f64, f64)| {
+        if px > ctx.max_screen_error_px {
+            PvecError::ErrorBudgetUnmet { achieved: px, requested: ctx.max_screen_error_px }
+        } else {
+            PvecError::ErrorBudgetUnmet { achieved: world, requested: ctx.max_world_error }
+        }
+    };
+
+    let d = Curve2d::domain(curve);
+    let mut cuts = vec![d.lo()];
+    if split_at_breaks {
+        cuts.extend(breaks(curve));
+    }
+    cuts.push(d.hi());
+    let points = cuts.iter().map(|t| at(*t)).collect::<Result<Vec<_>, _>>()?;
+    let spans: Vec<Span> = cuts
+        .windows(2)
+        .zip(points.windows(2))
+        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1] })
+        .collect();
+    if spans.len() > ctx.max_segments {
+        // Not even the breaks fit. What the same limit gives with the spans spread evenly says how far off.
+        let n = ctx.max_segments;
+        let even = (0..n)
+            .map(|i| {
+                let (a, b) = (
+                    d.lo() + d.width() * i as f64 / n as f64,
+                    d.lo() + d.width() * (i + 1) as f64 / n as f64,
+                );
+                Ok(Span { a, b, pa: at(a)?, pb: at(b)? })
+            })
+            .collect::<Result<Vec<_>, PvecError>>()?;
+        let mut worst = (0.0f64, 0.0f64);
+        for s in &even {
+            let m = measure(s)?;
+            worst = (worst.0.max(m.0), worst.1.max(m.1));
+        }
+        return Err(unmet(worst));
+    }
+
+    let mut vertices = vec![points[0]];
+    let mut worst = (0.0f64, 0.0f64);
+    let mut stack: Vec<Span> = spans.into_iter().rev().collect();
+    while let Some(span) = stack.pop() {
+        let m = measure(&span)?;
+        if within(m) {
+            vertices.push(span.pb);
+            worst = (worst.0.max(m.0), worst.1.max(m.1));
+            continue;
+        }
+        let mid = span.a + (span.b - span.a) * 0.5;
+        let room = vertices.len() - 1 + stack.len() + 2 <= ctx.max_segments;
+        if !room || !(mid > span.a && mid < span.b) {
+            // Nothing more can be split: the answer is the worst of what is left.
+            let mut left = m;
+            for s in &stack {
+                let o = measure(s)?;
+                left = (left.0.max(o.0), left.1.max(o.1));
+            }
+            return Err(unmet(left));
+        }
+        let pm = at(mid)?;
+        stack.push(Span { a: mid, b: span.b, pa: pm, pb: span.pb });
+        stack.push(Span { a: span.a, b: mid, pa: span.pa, pb: pm });
+    }
+    Ok(Tessellation {
+        vertices,
+        achieved_screen_error_px: worst.0,
+        achieved_world_error: worst.1,
+        conformance: Conformance::DisplayFidelity,
+    })
 }
 
 impl Tessellate for Curve {
