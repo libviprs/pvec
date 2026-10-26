@@ -1,0 +1,20 @@
+# P8.3: the compression sweep of the layout benchmark. The shipped container has no zstd (it is a C library and the
+# dependency policy has no room for one), so the sweep that has to include it lives here, in a spike with its own
+# dependency tree, and reads the `.pvec` files the harness writes. Own workspace.
+[workspace]
+
+[package]
+name = "codec-sweep-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+pvec-container = { path = "../../crates/pvec-container" }
+lz4_flex = { version = "0.14", default-features = false, features = ["safe-encode", "safe-decode", "std"] }
+zstd = "0.13"
+
+[[bin]]
+name = "measure"
+path = "src/main.rs"
