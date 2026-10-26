@@ -83,6 +83,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pvec-bench"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-container",
+ "pvec-corpus",
+ "pvec-entity",
+ "pvec-stream",
+ "pvec-testkit",
+]
+
+[[package]]
 name = "pvec-capabilities"
 version = "0.0.0"
 

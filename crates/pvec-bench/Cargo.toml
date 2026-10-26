@@ -1,0 +1,24 @@
+[package]
+name = "pvec-bench"
+version = "0.0.0"
+description = "The benchmark corpus (P8.1) and the phase 8 benchmark harnesses that measure on it"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# Bench support, like pvec-testkit: only crates of this workspace, no registry dependency, and nothing in
+# the corpus half starts a process or opens a socket.
+[dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-container = { path = "../pvec-container" }
+pvec-corpus = { path = "../pvec-corpus" }
+pvec-entity = { path = "../pvec-entity" }
+pvec-stream = { path = "../pvec-stream" }
+pvec-testkit = { path = "../pvec-testkit" }
+
+[[bench]]
+name = "gen_corpus"
+harness = false
+
+[lints]
+workspace = true
