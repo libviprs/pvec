@@ -79,9 +79,7 @@ fn reading_a_chunk_is_one_range_of_about_its_own_size_and_no_other_chunks_bytes(
     let r = open(chunked());
     for c in 0..r.advanced_chunk_count().unwrap() {
         let first = r.advanced_record_blocks().unwrap()[c].0 as usize;
-        let own: u64 = (first..first + 6)
-            .map(|i| u64::from(r.entries()[i].stored_length))
-            .sum();
+        let own: u64 = (first..first + 6).map(|i| u64::from(r.entries()[i].stored_length)).sum();
         let (before, bytes0) = (r.source().requests().len(), r.source().bytes_requested());
         r.advanced(c).unwrap().expect("the chunk").view().unwrap();
         assert_eq!(r.source().requests().len() - before, 1, "chunk {c}");

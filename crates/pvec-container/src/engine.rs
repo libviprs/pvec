@@ -891,7 +891,10 @@ pub(crate) const READER_RULES: &[(&str, &str)] = &[
         "LAYOUT-03",
         "the manifest does not hold exactly one block directory pointer, or the directory does not end the file (bytes after it are refused)",
     ),
-    ("LAYOUT-04", "the blocks are not in strictly ascending (kind group, cell, kind, geometry type) order, where a record block and an arena are one group"),
+    (
+        "LAYOUT-04",
+        "the blocks are not in strictly ascending (kind group, cell, kind, geometry type) order, where a record block and an arena are one group",
+    ),
     ("LAYOUT-06", "the directory has no blocks"),
     (
         "LAYOUT-07",
