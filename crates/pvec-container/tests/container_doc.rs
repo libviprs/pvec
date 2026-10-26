@@ -74,15 +74,22 @@ fn the_tables_name_the_fields_the_issue_requires() {
     }
 }
 
+/// Chapters 1 to 5 are generated from the constants; chapter 6, the annotated example, is written by hand and
+/// held to the writer by `issue_67_walkthrough.rs`.
+const EXAMPLE_CHAPTER: &str = "\n\n## 6. An annotated example";
+
 #[test]
 fn the_committed_container_document_is_exactly_the_generated_one() {
     let generated = render_markdown();
+    let committed = fs::read_to_string(doc_path()).unwrap_or_default();
+    let tail = committed.find(EXAMPLE_CHAPTER).map_or("", |i| &committed[i..]);
     if std::env::var_os("PVEC_BLESS_CONTAINER").is_some() {
-        fs::write(doc_path(), &generated).unwrap();
+        fs::write(doc_path(), format!("{generated}{tail}")).unwrap();
     }
     let committed = fs::read_to_string(doc_path()).unwrap_or_default();
+    let head = committed.find(EXAMPLE_CHAPTER).map_or(committed.as_str(), |i| &committed[..i]);
     assert!(
-        committed == generated,
+        head == generated.trim_end_matches('\n'),
         "docs/CONTAINER.md differs from the constants; regenerate it with PVEC_BLESS_CONTAINER=1 \
          cargo test -p pvec-container --test container_doc"
     );

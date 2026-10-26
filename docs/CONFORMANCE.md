@@ -52,6 +52,10 @@ is no overall tick, and no function that merges the gates. A structural comparis
 precondition fails (a reparameterised spline, a reversed curve) is reported as `ROUTED` to the geometric
 gate: it is neither a pass nor a failure of the structural one.
 
+## The three verdicts
+
+The five gates above give three kinds of verdict, and each has its own procedure and none is derived from another. **structural exactness** is the structural exact gate: the stored parameters equal the reference field by field. **geometric exactness** is the geometric exact gate: the curve deviates from the reference by no more than the policy tolerance, wherever it is sampled. **display fidelity** is the display approximate gate: a stated screen-space and world-space error budget was met, and the verdict says approximate in its own wording. The runner is the `pvec-conformance` procedure of this page (`crates/pvec-harness`, the P2.8 gates), and it never merges the verdicts. They are kept apart because they answer different questions, so a display-perfect result is not mathematically exact, and no page of this documentation may word one as the other.
+
 ## Wording
 
 The formatter has one word per gate and verdict (`Gate::word`). The display gate has no word for exactness

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 const BEGIN: &str = "<!-- example:begin -->";
 const END: &str = "<!-- example:end -->";
 
-/// The example file: one line and one component stream (an optional kind), unit mm, sealed.
+/// The example file: one line (capability 1, required) and one component stream (capability 14, optional), unit mm, sealed.
 fn example() -> Vec<u8> {
     let config = WriterConfig {
         unit: LengthUnit::Millimetre,
@@ -25,7 +25,7 @@ fn example() -> Vec<u8> {
             corpus_revision: None,
         },
         bounds: Some(Bounds { min: [0.0, 0.0], max: [10.0, 0.0] }),
-        capabilities: vec![CapabilityId::new(14)],
+        capabilities: vec![CapabilityId::new(1), CapabilityId::new(14)],
     };
     let mut w = ContainerWriter::new(config);
     let meta = EntityMeta {
@@ -132,6 +132,7 @@ fn a_reader_built_from_the_tables_alone_lists_required_capabilities_and_skips_an
         .collect();
     expected.sort_unstable();
     required.sort_unstable();
+    assert!(!required.is_empty(), "the example declares a required capability to enumerate");
     assert_eq!(required, expected, "the required capabilities read from the tables are the writer's");
     // directory pointer, section 1.3: kind 1 is the block directory
     let table = m_off + 128 + 16 * caps;
