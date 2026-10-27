@@ -26,8 +26,8 @@
 //! the writer put it.
 
 use crate::directory::{
-    Aabb, BuiltDirectory, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN,
-    SpatialDirectory, hilbert,
+    Aabb, BuiltDirectory, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN, SpatialDirectory,
+    hilbert,
 };
 use crate::ownership::{PayloadRef, PlacedEntity};
 use pvec_container::directory::{BlockEntry, BlockKind, CODEC_NONE, STRADDLER_CELL_FIRST};
@@ -407,7 +407,8 @@ pub fn classify(
     let world = local.iter().skip(1).fold(local[0].bounds, |w, e| union(&w, &e.bounds));
     let cap = extent(&world).max(s0);
     let grow = f64::from(FANOUT).sqrt();
-    let sizes: Vec<f64> = (0..height_for(local.len(), cell_capacity)).map(|l| (s0 * grow.powi(l as i32)).min(cap)).collect();
+    let sizes: Vec<f64> =
+        (0..height_for(local.len(), cell_capacity)).map(|l| (s0 * grow.powi(l as i32)).min(cap)).collect();
     let scale = LevelScale::new(factor, sizes)?;
     Ok(Classification { local, long, scale })
 }

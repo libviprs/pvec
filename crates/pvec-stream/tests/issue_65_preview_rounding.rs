@@ -51,11 +51,7 @@ fn a_curve_far_from_the_origin_gets_a_preview_when_its_own_extent_is_small() {
     ] {
         let made = build_preview(id(0), &curve, &Tier0Params { max_error: BUDGET }).unwrap();
         let preview = made.unwrap_or_else(|why| panic!("{name} at {FAR:?} has no preview: {why:?}"));
-        assert!(
-            f64::from(preview.error_bound()) <= BUDGET,
-            "{name}: bound {} over the budget",
-            preview.error_bound()
-        );
+        assert!(preview.error_bound() <= BUDGET, "{name}: bound {} over the budget", preview.error_bound());
     }
 }
 
@@ -65,7 +61,7 @@ fn the_stored_bound_is_still_never_below_an_independent_measurement() {
         let preview = build_preview(id(1), &curve, &Tier0Params { max_error: BUDGET }).unwrap().unwrap();
         let measured = measure_deviation(&curve, &preview).unwrap();
         assert!(
-            f64::from(preview.error_bound()) >= measured,
+            preview.error_bound() >= measured,
             "bound {} below the measured deviation {measured}",
             preview.error_bound()
         );
@@ -73,7 +69,7 @@ fn the_stored_bound_is_still_never_below_an_independent_measurement() {
         let dom = curve.domain();
         let end = curve.eval(dom.hi()).unwrap();
         let last = *preview.points().last().unwrap();
-        assert!((last[0] - end.x).hypot(last[1] - end.y) <= f64::from(preview.error_bound()));
+        assert!((last[0] - end.x).hypot(last[1] - end.y) <= preview.error_bound());
     }
 }
 

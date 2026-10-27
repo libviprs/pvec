@@ -16,6 +16,9 @@ use pvec_stream::CELL_CAPACITY;
 
 const CEILING: u32 = 16 << 20;
 
+// the default leaf holds all three polylines, so only the byte ceiling can cut them
+const _: () = assert!(CELL_CAPACITY >= 3);
+
 /// `n` polylines of 700,000 vertices, about 11 MB each, side by side.
 fn contours(n: usize) -> Vec<Shape> {
     (0..n)
@@ -50,5 +53,4 @@ fn a_drawing_that_fits_keeps_the_default_leaf() {
     let bytes = artifact(&shapes, LengthUnit::Metre, "p8.6/block-guard", Default::default(), None).unwrap();
     let r = open(bytes, CEILING).unwrap();
     assert_eq!(r.entries().iter().filter(|e| e.block_kind() == Some(BlockKind::Hot)).count(), 1);
-    assert!(CELL_CAPACITY >= 3, "the default leaf holds all three, so only the byte ceiling cut them above");
 }
