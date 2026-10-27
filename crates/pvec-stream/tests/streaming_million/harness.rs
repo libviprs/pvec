@@ -32,6 +32,10 @@ use std::time::{Duration, Instant};
 /// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
 const LEAF: u32 = 64;
 
+/// The advanced chunk size these fixtures are built for (the 64 KiB of P5.7), which the selectivity thresholds
+/// of this test were declared against. The shipped default is `ADVANCED_CHUNK_BYTES`, 1 MiB since P8.6.
+const CHUNK: u32 = 64 * 1024;
+
 pub const SMALL: u32 = 100_000;
 pub const MILLION: u32 = 1_000_000;
 
@@ -210,6 +214,7 @@ pub fn generate(kind: Kind, entities: u32, seed: u64) -> Vec<u8> {
                 .collect();
             let built = build_directory(&hot, LEAF).expect("directory");
             let mut w = ContainerWriter::new(config(seed));
+            w.advanced_chunk_bytes(CHUNK);
             let mut cells = built.cells.iter();
             for (i, b) in boxes.iter().enumerate() {
                 if is_spline(i) {
@@ -256,6 +261,7 @@ fn straddler_artifact(seed: u64, all: &[EntityBox]) -> Vec<u8> {
     let by_id: HashMap<u32, u32> = cells.iter().map(|(id, cell)| (id.index(), *cell)).collect();
     let lay_out = |lists: Option<(u32, Vec<u8>)>| {
         let mut w = ContainerWriter::new(config(seed));
+        w.advanced_chunk_bytes(CHUNK);
         for (e, cell) in c.local.iter().zip(&built.cells) {
             push_hot(&mut w, e.id, cell.get(), e.bounds);
         }

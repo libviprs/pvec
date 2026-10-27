@@ -198,10 +198,13 @@ fn a_block_entry_carries_the_union_of_its_entities_bounds() {
 #[test]
 fn advanced_curves_are_chunks_of_a_record_block_and_five_arenas_in_cell_k() {
     let fx = spline_heavy();
-    let (_, _, entries) = open(&fx.write().unwrap());
+    // chunks of 64 KiB, the size this fixture was written for: the default is 1 MiB since P8.6, one chunk here
+    let mut w = fx.load(&[]).unwrap();
+    w.advanced_chunk_bytes(64 * 1024);
+    let (_, _, entries) = open(&w.finish().unwrap());
     let records: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Records)).collect();
     let arenas: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Arena)).collect();
-    assert!(records.len() > 1, "370 curves are more than one default chunk");
+    assert!(records.len() > 1, "370 curves are more than one 64 KiB chunk");
     assert_eq!(records.iter().map(|e| e.count).sum::<u32>(), 370, "300 splines and 70 composites");
     for (k, r) in records.iter().enumerate() {
         assert_eq!(r.cell as usize, k);
