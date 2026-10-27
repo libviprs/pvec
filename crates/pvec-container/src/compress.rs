@@ -203,8 +203,7 @@ impl CodecPolicy {
         CodecPolicy { hot: Codec::None, records: Codec::None, arena: Codec::None, components: Codec::None };
 
     /// What `docs/spikes/04-6-compression.md` recommends for anything served over HTTP: LZ4 for every
-    /// kind. It is not the default, because the measurement was made on synthetic fixtures; the default
-    /// stays [`CodecPolicy::NONE`] until real drawings say otherwise (P8.3).
+    /// kind. It is not the default either: P8.6 measured the default against it (`docs/bench/TUNING.md`).
     pub const RECOMMENDED: CodecPolicy =
         CodecPolicy { hot: Codec::Lz4, records: Codec::Lz4, arena: Codec::Lz4, components: Codec::Lz4 };
 
@@ -237,8 +236,13 @@ impl CodecPolicy {
     }
 }
 
+/// The default P8.6 settled on, class by class. Hot geometry blocks are deflate: the progressive benchmark
+/// moves 5.5 MB of exact data per viewport on a million entities, which is 1.8 s of a 25 Mbit/s link before
+/// the round trips, and deflate stores 0.34 of the raw bytes where LZ4 stores 0.52, at about a fifth of the
+/// decode speed that is still hundreds of MB/s, far past the link. The rest is as it was until a benchmark
+/// has measured it (P8.6 does not tune what no benchmark measured).
 impl Default for CodecPolicy {
     fn default() -> CodecPolicy {
-        CodecPolicy::NONE
+        CodecPolicy { hot: Codec::Deflate, records: Codec::None, arena: Codec::None, components: Codec::None }
     }
 }

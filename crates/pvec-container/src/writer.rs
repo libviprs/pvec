@@ -77,8 +77,9 @@ pub struct WriterConfig {
     pub capabilities: Vec<CapabilityId>,
 }
 
-/// How an artifact is compressed and sealed. The default compresses nothing and writes both the block
-/// checksum table and the artifact digest.
+/// How an artifact is compressed and sealed. The default is the one P8.6 settled on (`CodecPolicy::default`:
+/// deflate for hot blocks, nothing else beyond the Tier 0 blocks) and writes both the block checksum table and
+/// the artifact digest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct WriterOptions {
     /// What is recorded for integrity.

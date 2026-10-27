@@ -151,7 +151,7 @@ kind of block and per file, and an uncompressed block (codec 0) is always legal.
 | 1 | lz4 | an LZ4 block with no size prefix; the decoded length is the entry's |\n\
 | 2 | deflate | raw deflate, level 6, with no zlib or gzip wrapper |\n\n\
 The writer takes a codec per kind of block (`WriterOptions`), and stores a block compressed only when that is \
-smaller than it was, so a block that does not shrink stays at codec 0. The Tier 0 blocks (kind 8) are the one kind whose codec the policy does not choose: they are always deflate, because a leaf's stream is fetched whole in one range. The measurement of `docs/STREAMING.md` section 4.7 (a million entities, 15,625 leaves) stored 0.795 of the raw bytes with LZ4 at under a microsecond a leaf against 0.666 with deflate at about ten times the LZ4 decode time, and they were LZ4 for that reason until P8.6 (`docs/bench/TUNING.md`): with leaves of 32,768 entities a leaf is a request of hundreds of kilobytes, the link is what a viewer waits on, and deflate's smaller leaf is the shorter wait. Both codecs are pure Rust, and the same \
+smaller than it was, so a block that does not shrink stays at codec 0. The default policy stores hot blocks with deflate and every other kind as it is (`docs/bench/TUNING.md`, P8.6). The Tier 0 blocks (kind 8) are the one kind whose codec the policy does not choose: they are always deflate, because a leaf's stream is fetched whole in one range. The measurement of `docs/STREAMING.md` section 4.7 (a million entities, 15,625 leaves) stored 0.795 of the raw bytes with LZ4 at under a microsecond a leaf against 0.666 with deflate at about ten times the LZ4 decode time, and they were LZ4 for that reason until P8.6 (`docs/bench/TUNING.md`): with leaves of 32,768 entities a leaf is a request of hundreds of kilobytes, the link is what a viewer waits on, and deflate's smaller leaf is the shorter wait. Both codecs are pure Rust, and the same \
 input gives the same bytes for the version of the codec crate that `Cargo.lock` pins and the same pointer width (LZ4's \
 match finder differs on 32-bit targets, so a wasm32 writer's LZ4 is not a 64-bit writer's, and deflate has no such \
 difference); a compressed artifact is canonical for that version and width, and a change of codec version is a change \
@@ -171,8 +171,8 @@ at most 1 MiB, not at every open. The refusals:\n\n\
         s.push_str(&format!("| {r} | {m} |\n"));
     }
     s.push_str(
-        "\nThe measurement behind the codec ids and the decision on the writer's default is \
-`docs/spikes/04-6-compression.md`.\n",
+        "\nThe measurement behind the codec ids is `docs/spikes/04-6-compression.md`; the writer's default policy is the \
+one `docs/bench/TUNING.md` records (P8.6).\n",
     );
     s
 }

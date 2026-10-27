@@ -8,6 +8,7 @@ use pvec_components::read_streams;
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices};
 use pvec_container::blocks::hot::HotBlockView;
+use pvec_container::compress::{Codec, decompress};
 use pvec_container::directory::{BlockKind, parse_directory_checked};
 use pvec_container::{ByteRange, DirectoryPointer, Header, Manifest};
 use std::collections::BTreeSet;
@@ -90,8 +91,12 @@ pub fn verify(bytes: &[u8], input: &Input) -> Result<Summary, String> {
         if ids.insert(id) { Ok(()) } else { Err(format!("entity {id} is in two blocks")) }
     };
     for e in &entries {
-        let raw = &bytes[e.offset as usize..e.offset as usize + e.stored_length as usize];
-        let aligned = AlignedBytes::from_bytes(raw);
+        let stored = &bytes[e.offset as usize..e.offset as usize + e.stored_length as usize];
+        // a block is decoded the way the file says before it is parsed: the writer compresses by default
+        let codec = Codec::from_id(e.codec).ok_or(format!("unknown codec {}", e.codec))?;
+        let raw = decompress(codec, stored, e.uncompressed_length as usize)
+            .map_err(|x| format!("block of kind {}: {x:?}", e.kind))?;
+        let aligned = AlignedBytes::from_bytes(&raw);
         match e.block_kind() {
             Some(BlockKind::Hot) => {
                 let v = HotBlockView::parse(aligned.as_bytes()).map_err(|x| format!("hot block: {x}"))?;
