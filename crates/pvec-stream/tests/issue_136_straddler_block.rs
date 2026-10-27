@@ -18,6 +18,9 @@ use pvec_stream::{
 use std::collections::BTreeSet;
 use std::fs;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 struct Rng(u64);
 
 impl Rng {
@@ -120,8 +123,8 @@ struct Written {
 /// local entities in their cells and the straddlers' payloads in the cells `payload_cells` names, learn
 /// the block ids from that layout, build the lists over them and write the file again with the lists.
 fn write(all: Vec<EntityBox>) -> Written {
-    let c = classify(&all, STRADDLER_FACTOR).expect("classified");
-    let built = build_directory(&c.local).expect("directory");
+    let c = classify(&all, STRADDLER_FACTOR, LEAF).expect("classified");
+    let built = build_directory(&c.local, LEAF).expect("directory");
     let placeholder = |e: &EntityBox| LongEntity {
         id: e.id,
         bounds: e.bounds,

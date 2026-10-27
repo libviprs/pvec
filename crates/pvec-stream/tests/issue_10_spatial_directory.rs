@@ -16,6 +16,9 @@ use pvec_stream::{
 use std::collections::BTreeSet;
 use std::fs;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 // ---------------------------------------------------------------- fixtures
 
 struct Rng(u64);
@@ -104,7 +107,7 @@ fn artifact_with(
     version: &str,
     tamper: impl FnOnce(&mut Vec<u8>),
 ) -> (Vec<u8>, BuiltDirectory) {
-    let built = build_directory(entities).expect("directory");
+    let built = build_directory(entities, LEAF).expect("directory");
     let mut w = ContainerWriter::new(config(version));
     for (e, cell) in entities.iter().zip(&built.cells) {
         let (lo, hi) = (e.bounds.min(), e.bounds.max());
@@ -195,7 +198,7 @@ fn open_reads_a_million_entity_directory_in_at_most_four_range_reads_and_under_2
     assert!(block < 2 << 20, "the directory block is {block} bytes");
     assert_eq!(block, built.bytes.len() as u64, "stored as it is");
     assert_eq!(dir.entities(), 1_000_000);
-    assert_eq!(dir.cells(), 1_000_000usize.div_ceil(CELL_CAPACITY as usize));
+    assert_eq!(dir.cells(), 1_000_000usize.div_ceil(LEAF as usize));
 }
 
 #[test]
@@ -363,9 +366,9 @@ fn query_order_is_ascending_cell_id_and_is_the_same_for_ties() {
     let tied: Vec<EntityBox> = (0..640).map(same).collect();
     let mixed = shuffled(&tied, 11);
     for input in [&tied, &mixed] {
-        let built = build_directory(input).unwrap();
+        let built = build_directory(input, LEAF).unwrap();
         for (e, cell) in input.iter().zip(&built.cells) {
-            assert_eq!(cell.get(), e.id.index() / CELL_CAPACITY + 1, "entity {:?}", e.id);
+            assert_eq!(cell.get(), e.id.index() / LEAF + 1, "entity {:?}", e.id);
         }
     }
     let (bytes, _) = artifact(&mixed);
@@ -409,7 +412,7 @@ fn cell_zero_is_not_a_cell() {
     assert_eq!(rule(parse(&b, &entries)), "SPD-09");
     // a hot block in cell 0 beside a directory is entities the directory cannot find
     let entities = rooms(7, 2, 50, 1000.0);
-    let built = build_directory(&entities).unwrap();
+    let built = build_directory(&entities, LEAF).unwrap();
     let mut w = ContainerWriter::new(config("t/1"));
     for (i, (e, cell)) in entities.iter().zip(&built.cells).enumerate() {
         let cell = if i == 0 { 0 } else { cell.get() };
@@ -463,9 +466,9 @@ fn bad_boxes_and_bad_inputs_are_refused() {
     assert!(Aabb::new([0.0, 0.0], [f64::INFINITY, 1.0]).is_err());
     assert!(Aabb::new([2.0, 0.0], [1.0, 1.0]).is_err());
     assert!(Aabb::new([0.0, 0.0], [10_000_000_000_000.0, 1.0]).is_err(), "beyond the numeric policy's range");
-    assert!(build_directory(&[]).is_err());
+    assert!(build_directory(&[], LEAF).is_err());
     let twice = [EntityBox { id: eid(1), bounds: bx(0.0, 0.0, 1.0, 1.0) }; 2];
-    assert_eq!(rule(build_directory(&twice)), "SPD-12");
+    assert_eq!(rule(build_directory(&twice, LEAF)), "SPD-12");
 }
 
 #[test]
@@ -489,7 +492,7 @@ fn a_file_without_a_directory_opens_without_one_and_two_directories_are_refused(
 fn the_advanced_curve_set_is_reported_beside_the_cells() {
     use pvec_container::blocks::advanced::SplineSpec;
     let entities = rooms(6, 3, 40, 1000.0);
-    let built = build_directory(&entities).unwrap();
+    let built = build_directory(&entities, LEAF).unwrap();
     let mut w = ContainerWriter::new(config("t/1"));
     for (e, cell) in entities.iter().zip(&built.cells) {
         let meta = EntityMeta { id: e.id, style: 0, cell: cell.get(), bounds: to_bounds(e.bounds) };
@@ -523,7 +526,9 @@ fn the_advanced_curve_set_is_reported_beside_the_cells() {
 
 #[test]
 fn the_named_constants_and_the_p1_6_measurements_are_recorded() {
-    assert_eq!(CELL_CAPACITY, 64);
+    // 64 until P8.6 (docs/bench/TUNING.md); the fixtures above are built with LEAF, which is that 64
+    assert_eq!(CELL_CAPACITY, 32768);
+    assert_eq!(LEAF, 64);
     assert_eq!(FANOUT, 32);
     assert_eq!(SPLIT_POLICY, SplitPolicy::HilbertPack);
     let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/directory.rs")).unwrap();

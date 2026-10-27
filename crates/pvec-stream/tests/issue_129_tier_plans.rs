@@ -19,6 +19,9 @@ use pvec_stream::{
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 /// Range requests a full-extent view of `rooms-1m` may issue for complete Tier 0 at the default reader
 /// configuration. The exact blocks of the same view are 3 requests (STREAMING.md 5.4).
 const FULL_EXTENT_TIER0_MAX_RANGES: u32 = 4;
@@ -104,7 +107,7 @@ fn tier0_plan(total: u32) -> pvec_stream::Tier0Plan {
 
 /// Entities in their cells, and a Tier 0 block per leaf when `tier0` is set.
 fn artifact(entities: &[EntityBox], tier0: bool) -> Vec<u8> {
-    let built = build_directory(entities).expect("directory");
+    let built = build_directory(entities, LEAF).expect("directory");
     let mut w = ContainerWriter::new(config());
     for (e, cell) in entities.iter().zip(&built.cells) {
         let meta = EntityMeta { id: e.id, style: 0, cell: cell.get(), bounds: to_bounds(e.bounds) };
@@ -131,9 +134,9 @@ fn with_straddlers() -> Vec<u8> {
         let bounds = if k % 2 == 0 { bx(0.0, t, 6000.0, t) } else { bx(t, 0.0, t, 6000.0) };
         all.push(EntityBox { id: eid(all.len() as u32), bounds });
     }
-    let c = classify(&all, 4.0).expect("classified");
+    let c = classify(&all, 4.0, LEAF).expect("classified");
     assert!(!c.long.is_empty(), "the fixture has straddlers");
-    let built = build_directory(&c.local).unwrap();
+    let built = build_directory(&c.local, LEAF).unwrap();
     let placeholder = |e: &EntityBox| LongEntity {
         id: e.id,
         bounds: e.bounds,

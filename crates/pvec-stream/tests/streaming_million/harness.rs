@@ -29,6 +29,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 pub const SMALL: u32 = 100_000;
 pub const MILLION: u32 = 1_000_000;
 
@@ -205,7 +208,7 @@ pub fn generate(kind: Kind, entities: u32, seed: u64) -> Vec<u8> {
                 .filter(|(i, _)| !is_spline(*i))
                 .map(|(i, b)| EntityBox { id: eid(i as u32), bounds: *b })
                 .collect();
-            let built = build_directory(&hot).expect("directory");
+            let built = build_directory(&hot, LEAF).expect("directory");
             let mut w = ContainerWriter::new(config(seed));
             let mut cells = built.cells.iter();
             for (i, b) in boxes.iter().enumerate() {
@@ -242,8 +245,8 @@ pub fn generate(kind: Kind, entities: u32, seed: u64) -> Vec<u8> {
 /// entities and the straddlers' payloads in the cells `payload_cells` names, learn the block ids from
 /// that layout, build the lists over them and write the file again with the lists.
 fn straddler_artifact(seed: u64, all: &[EntityBox]) -> Vec<u8> {
-    let c = classify(all, STRADDLER_FACTOR).expect("classified");
-    let built = build_directory(&c.local).expect("directory");
+    let c = classify(all, STRADDLER_FACTOR, LEAF).expect("classified");
+    let built = build_directory(&c.local, LEAF).expect("directory");
     let placeholder = |e: &EntityBox| LongEntity {
         id: e.id,
         bounds: e.bounds,

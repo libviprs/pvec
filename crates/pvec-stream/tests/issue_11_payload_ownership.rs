@@ -17,6 +17,9 @@ use pvec_stream::{
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 // ---------------------------------------------------------------- fixtures
 
 struct Rng(u64);
@@ -158,7 +161,7 @@ struct Artifact {
 
 fn write(entities: Vec<Fx>) -> Artifact {
     let boxes: Vec<EntityBox> = entities.iter().map(|e| EntityBox { id: e.id, bounds: e.bounds() }).collect();
-    let built = build_directory(&boxes).expect("directory");
+    let built = build_directory(&boxes, LEAF).expect("directory");
     let mut w = ContainerWriter::new(config());
     for (e, cell) in entities.iter().zip(&built.cells) {
         let b = e.bounds();

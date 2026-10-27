@@ -19,6 +19,9 @@ use pvec_stream::{
 use std::collections::HashMap;
 use support::fixtures::*;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 fn config() -> WriterConfig {
     WriterConfig {
         unit: LengthUnit::Millimetre,
@@ -62,9 +65,9 @@ impl Measured {
 
 fn measure(entities: &[Fx], ceiling: u32) -> Measured {
     let boxes: Vec<EntityBox> = entities.iter().map(|e| EntityBox { id: e.id, bounds: e.bounds() }).collect();
-    let c = classify(&boxes, STRADDLER_FACTOR).expect("classified");
+    let c = classify(&boxes, STRADDLER_FACTOR, LEAF).expect("classified");
     let by_id: HashMap<EntityId, &Fx> = entities.iter().map(|e| (e.id, e)).collect();
-    let built = build_directory(&c.local).expect("directory over the local entities");
+    let built = build_directory(&c.local, LEAF).expect("directory over the local entities");
     let mut w = ContainerWriter::new(config());
     for (e, cell) in c.local.iter().zip(&built.cells) {
         push(&mut w, by_id[&e.id], cell.get());

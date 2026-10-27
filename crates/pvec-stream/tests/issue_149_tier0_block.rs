@@ -19,6 +19,9 @@ use pvec_stream::{
 };
 use std::collections::BTreeSet;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 struct Rng(u64);
 
 impl Rng {
@@ -108,7 +111,7 @@ struct Written {
 /// per leaf, one block each.
 fn write() -> Written {
     let all = lines(ENTITIES);
-    let built = build_directory(&all).unwrap();
+    let built = build_directory(&all, LEAF).unwrap();
     let plan = plan();
     let mut w = ContainerWriter::new(config());
     for (e, cell) in all.iter().zip(&built.cells) {
@@ -307,7 +310,7 @@ fn an_entry_that_disagrees_with_its_leaf_or_its_bytes_is_refused() {
 fn a_leaf_whose_tier0_does_not_cover_the_leaf_is_refused() {
     let w = written();
     let all = lines(ENTITIES);
-    let built = build_directory(&all).unwrap();
+    let built = build_directory(&all, LEAF).unwrap();
     let blocks = tier0_blocks(&w.plan, &all, &built.cells).unwrap();
     let leaf_ids = |cell: u32| -> Vec<EntityId> {
         w.cells.iter().enumerate().filter(|(_, c)| **c == cell).map(|(i, _)| eid(i as u32)).collect()
@@ -336,7 +339,7 @@ fn a_leaf_whose_tier0_does_not_cover_the_leaf_is_refused() {
 fn hostile_leaf_streams_are_refused_before_they_allocate() {
     let w = written();
     let all = lines(ENTITIES);
-    let built = build_directory(&all).unwrap();
+    let built = build_directory(&all, LEAF).unwrap();
     let good = tier0_blocks(&w.plan, &all, &built.cells).unwrap().remove(7).bytes;
     assert!(Tier0Plan::decode_leaf(&good).is_ok());
     // every truncation is an error, never a panic or a short plan
@@ -400,7 +403,7 @@ fn measurement_million_entities_per_leaf_compressed_or_not() {
             EntityBox { id: eid(i), bounds: Aabb::new([x, y], [x + 5.0, y + 5.0]).unwrap() }
         })
         .collect();
-    let built = build_directory(&boxes).unwrap();
+    let built = build_directory(&boxes, LEAF).unwrap();
     let blocks = tier0_blocks(&plan, &boxes, &built.cells).unwrap();
     let raw: usize = blocks.iter().map(|b| b.bytes.len()).sum();
     println!("leaves {} raw bytes {} (global stream {})", blocks.len(), raw, plan.encode().len());
@@ -425,7 +428,7 @@ fn measurement_million_entities_per_leaf_compressed_or_not() {
 #[test]
 fn two_leaves_with_swapped_blocks_pass_the_count_and_fail_the_full_check() {
     let all = lines(ENTITIES);
-    let built = build_directory(&all).unwrap();
+    let built = build_directory(&all, LEAF).unwrap();
     let mut blocks = tier0_blocks(&plan(), &all, &built.cells).unwrap();
     assert_eq!(blocks[2].count, blocks[3].count);
     let swapped = blocks[3].bytes.clone();

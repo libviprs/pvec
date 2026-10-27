@@ -14,6 +14,9 @@ use pvec_stream::{
 use std::collections::HashMap;
 use support::fixtures::*;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 type Mem = Recording<MemorySource<Vec<u8>>>;
 
 fn config() -> WriterConfig {
@@ -59,7 +62,7 @@ fn spline(w: &mut ContainerWriter, id: u32, x: f64) -> Aabb {
 fn build() -> (Vec<u8>, Vec<(u32, Aabb)>, Vec<Fx>) {
     let lines = rooms(3, 2, 200, 2000.0);
     let boxes: Vec<EntityBox> = lines.iter().map(|e| EntityBox { id: e.id, bounds: e.bounds() }).collect();
-    let built = build_directory(&boxes).unwrap();
+    let built = build_directory(&boxes, LEAF).unwrap();
     let mut w = ContainerWriter::new(config());
     w.advanced_chunk_bytes(1);
     for (e, cell) in lines.iter().zip(built.cells.iter()) {

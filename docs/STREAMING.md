@@ -47,7 +47,7 @@ A cell's entities are in the hot blocks whose `cell` field is the leaf's id. The
 
 Per-entity references with their own bounds inside a cell are not in this version: with every payload owned by one cell (ADR 0005) there is nothing to duplicate, and a per-entity list would not fit the 2 MiB open budget at a million entities. See the scope note on issue #10.
 
-The constants are named in `crates/pvec-stream/src/directory.rs`, with P1.6's measurements beside them: `CELL_CAPACITY` 64, `FANOUT` 32, the split policy `HilbertPack` (sort by the Hilbert key of the bounds centre on a 65,536 grid, ties by entity id, cut every `CELL_CAPACITY`), `MAX_FANOUT` 256 and `MAX_HEIGHT` 8 as the ceilings a file may declare. Tuning them against real drawings is P8.6.
+The constants are named in `crates/pvec-stream/src/directory.rs`, with P1.6's measurements beside them: `CELL_CAPACITY` 32,768 (it was 64 until P8.6 tuned it against the progressive benchmark, `docs/bench/TUNING.md`), `FANOUT` 32, the split policy `HilbertPack` (sort by the Hilbert key of the bounds centre on a 65,536 grid, ties by entity id, cut every leaf capacity), `MAX_FANOUT` 256 and `MAX_HEIGHT` 8 as the ceilings a file may declare. `build_directory` and `classify` take the leaf capacity as an argument, because the header records the capacity the file was built with: a writer passes `CELL_CAPACITY`, and the structural tests of this chapter pass the 64 their fixtures are built for.
 
 ### 1.2 Invariants
 
