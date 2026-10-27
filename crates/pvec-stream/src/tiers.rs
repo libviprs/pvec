@@ -335,8 +335,11 @@ impl Tier0Entry<'_> {
 
 /// The error budget a writer holds Tier 0 previews to, in pixels at the fit zoom of a 1,920 px screen
 /// (`docs/STREAMING.md` section 4.3). A caller turns it into world units with the extent of the drawing:
-/// `PREVIEW_BUDGET_PX * extent / 1920`. Tuned in P8.6 (`docs/bench/TUNING.md`).
-pub const PREVIEW_BUDGET_PX: f64 = 0.5;
+/// `PREVIEW_BUDGET_PX * extent / 1920`. It was 0.5 until P8.6 (`docs/bench/TUNING.md`): a viewer that zooms in
+/// before the exact refinement arrives shows a preview at up to 32 times the fit zoom, and 0.5 px at the fit
+/// zoom is 6.2 px there against the 2 px the progressive benchmark allows. Of the budgets swept, 0.13 px gives
+/// 2.06 px at the worst recorded viewport and 0.125 px gives 1.79 px (1.98 px on the 10^5 entries).
+pub const PREVIEW_BUDGET_PX: f64 = 0.125;
 
 /// What the writer is asked to hold previews to.
 #[derive(Clone, Copy, Debug, PartialEq)]

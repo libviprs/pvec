@@ -71,7 +71,8 @@ fn the_thresholds_are_pinned_before_the_run() {
     assert_eq!(REPEAT_MAX_SPREAD, 0.2);
     assert_eq!(RANGE_CONCURRENCY, 6);
     assert_eq!(SCREEN_PX, 1920.0);
-    assert_eq!(PREVIEW_BUDGET_PX, 0.5);
+    // the writer's input, not a threshold: it is the checked-in default of pvec-stream, tuned in P8.6 from 0.5
+    assert_eq!(PREVIEW_BUDGET_PX, 0.125);
 }
 
 #[test]
