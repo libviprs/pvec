@@ -239,10 +239,12 @@ impl CodecPolicy {
 /// The default P8.6 settled on, class by class. Hot geometry blocks are deflate: the progressive benchmark
 /// moves 5.5 MB of exact data per viewport on a million entities, which is 1.8 s of a 25 Mbit/s link before
 /// the round trips, and deflate stores 0.34 of the raw bytes where LZ4 stores 0.52, at about a fifth of the
-/// decode speed that is still hundreds of MB/s, far past the link. The rest is as it was until a benchmark
-/// has measured it (P8.6 does not tune what no benchmark measured).
+/// decode speed that is still hundreds of MB/s, far past the link. The advanced records and arenas are LZ4:
+/// a viewport reads all of them, so the decode time counts at once, and no threshold is judged on them.
+/// Component streams are left as they are, because nothing in the corpus measured them (P8.6 does not tune
+/// what no benchmark measured).
 impl Default for CodecPolicy {
     fn default() -> CodecPolicy {
-        CodecPolicy { hot: Codec::Deflate, records: Codec::None, arena: Codec::None, components: Codec::None }
+        CodecPolicy { hot: Codec::Deflate, records: Codec::Lz4, arena: Codec::Lz4, components: Codec::None }
     }
 }

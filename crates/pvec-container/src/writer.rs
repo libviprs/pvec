@@ -78,8 +78,8 @@ pub struct WriterConfig {
 }
 
 /// How an artifact is compressed and sealed. The default is the one P8.6 settled on (`CodecPolicy::default`:
-/// deflate for hot blocks, nothing else beyond the Tier 0 blocks) and writes both the block checksum table and
-/// the artifact digest.
+/// deflate for hot blocks, LZ4 for the advanced records and arenas, deflate for Tier 0 whatever the policy)
+/// and writes both the block checksum table and the artifact digest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct WriterOptions {
     /// What is recorded for integrity.
