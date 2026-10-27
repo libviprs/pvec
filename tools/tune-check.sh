@@ -25,7 +25,7 @@ SUITES=$(printf '%s ' P2.5:pvec-harness:issue_38_structural P2.6:pvec-harness:is
 INNER='
 set -e
 S=$1; PLAT=$2; HOST=$3; mkdir -p $S
-echo "label='"$LABEL"'"; echo "platform=$PLAT"; echo "host=$HOST"
+echo "label=$LABEL"; echo "platform=$PLAT"; echo "host=$HOST"
 for s in '"$SUITES"'; do
   IFS=: read -r id crate test <<< "$s"
   r=$(cargo test --release --locked -p $crate --test $test 2>&1 | grep -E "^test result" || true)
@@ -57,25 +57,29 @@ done
 E=architectural-1e6
 L header > $S/l.csv; L prepare $E $S; { L decode $E $S $PLAT; L shipped $E $S $PLAT; } >> $S/l.csv
 echo "p83.$E.bytes_total_uncompressed_layout=$(grep "^index,$E,$PLAT,shipped,all,bytes_total," $S/l.csv | cut -d, -f7)"
+echo "p83.$E.stored_bytes_total=$(grep "^default,$E,$PLAT,shipped,all,bytes_total," $S/l.csv | cut -d, -f7)"
 echo "p83.$E.ranges_total=$(grep "^index,$E,$PLAT,shipped,all,ranges_total," $S/l.csv | cut -d, -f7)"
 soa=$(grep "^decode,$E,$PLAT,soa,,entities_per_s," $S/l.csv | cut -d, -f7); rec=$(grep "^decode,$E,$PLAT,record,,entities_per_s," $S/l.csv | cut -d, -f7)
 echo "p83.$E.soa_entities_per_s=$soa"; echo "p83.$E.record_entities_per_s=$rec"; echo "p83.$E.soa_over_record=$(awk "BEGIN {print $soa/$rec}")"
 rm -f $S/$E.pvec $S/$E.shapes
 G header > $S/g.csv; G run $PLAT $HOST >> $S/g.csv
 echo "p84.ns_per_segment_mean=$(awk -F, "\$7==\"ns_per_segment\" && \$8!=\"\" {s+=\$8; n++} END {if (n) print s/n}" $S/g.csv)"
-echo "p84.rows=$(wc -l < $S/g.csv | tr -d ' ')"
+echo "p84.rows=$(wc -l < $S/g.csv | sed "s/ //g")"
 '
 
 mkdir -p "$OUT"
+INNER_FILE="$ROOT/.tune-inner-$$.sh"
+trap 'rm -f "$INNER_FILE"' EXIT
+printf '%s\n' "$INNER" > "$INNER_FILE"
 case $MODE in
   native)
     PLAT=native-$(uname -s)-$(uname -m)
     SCR="$OUT/work-$LABEL"; mkdir -p "$SCR"
-    (cd "$ROOT" && LABEL=$LABEL bash -c "$INNER" _ "$SCR" "$PLAT" "$(hostname -s)") | tee "$OUT/tune-$LABEL-native.kv" ;;
+    (cd "$ROOT" && LABEL=$LABEL bash "$INNER_FILE" "$SCR" "$PLAT" "$(hostname -s)") | tee "$OUT/tune-$LABEL-native.kv" ;;
   mars|mercury)
     . "$ROOT/tools/bench-host.sh" "$MODE" "pvec65-$$-$LABEL"
-    trap host_cleanup EXIT
+    trap 'rm -f "$INNER_FILE"; host_cleanup' EXIT
     host_push "$ROOT"
-    rust "$(printf 'LABEL=%q; ' "$LABEL")export LABEL; bash -c $(printf '%q' "$INNER") _ /work/out/tune $PLAT $BH_HOST" | tee "$OUT/tune-$LABEL-$PLAT.kv" ;;
+    rust "LABEL=$LABEL bash /work/$(basename "$INNER_FILE") /work/out/tune $PLAT $BH_HOST" | tee "$OUT/tune-$LABEL-$PLAT.kv" ;;
   *) echo "unknown mode $MODE" >&2; exit 2 ;;
 esac
