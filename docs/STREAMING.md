@@ -405,7 +405,7 @@ A preview has no identity of its own: it is `replaces`, the id of the exact enti
 
 A leaf whose stream does not cover the leaf's entity set is `Gap` (TIER0-01, an entity of the leaf has no entry) or `OutOfRange` (TIER0-03, an entry for an entity that is not the leaf's), the same rules as for the whole plan; an id twice in a leaf stream is `Duplicate` (TIER0-02), and a version 1 stream where a leaf's is expected, or the other way round, is TIER0-05. The writer refuses cell 0, a straddler payload cell and a second block for a cell (`WRT-14`). The tests are `tests/issue_149_tier0_block.rs`.
 
-**Compression.** The block is LZ4 whatever the codec policy says about the other kinds, and is stored as it is when that is not smaller (`docs/CONTAINER.md` section 4.7). Section 4.7 below has the measurement the choice rests on.
+**Compression.** The block is deflate whatever the codec policy says about the other kinds (it was LZ4 until P8.6), and is stored as it is when that is not smaller (`docs/CONTAINER.md` section 4.7). Section 4.7 below has the measurement the choice rests on.
 
 ### 4.6 Infeasibility
 

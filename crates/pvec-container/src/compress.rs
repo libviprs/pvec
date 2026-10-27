@@ -229,9 +229,10 @@ impl CodecPolicy {
             BlockKind::CellRefs => Codec::None,
             // a leaf's Tier 0 is fetched whole in one range and previews carry vertices and origins that
             // repeat, so it is compressed whatever the policy says about the other kinds: on a million
-            // entities LZ4 stores 0.795 of the raw bytes for under a microsecond a leaf, deflate stores
-            // 0.666 and decodes about ten times slower (`docs/STREAMING.md` section 4.7)
-            BlockKind::Tier0 => Codec::Lz4,
+            // entities LZ4 stores 0.795 of the raw bytes and deflate 0.666 (`docs/STREAMING.md` section
+            // 4.7). It was LZ4 until P8.6, for the decode time of a leaf; with leaves of 32,768 entities the
+            // link dominates, and the 5 Mbit/s Tier 0 of architectural-1e6 is 0.4 s shorter with deflate
+            BlockKind::Tier0 => Codec::Deflate,
         }
     }
 }

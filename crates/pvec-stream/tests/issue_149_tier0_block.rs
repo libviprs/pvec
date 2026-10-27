@@ -164,12 +164,12 @@ fn a_file_with_tier0_validates_and_has_one_optional_block_per_leaf() {
         assert_ne!(e.cell, 0);
         assert!(e.cell < STRADDLER_CELL_FIRST);
     }
-    // compressed with LZ4 whatever the policy (default: none), and smaller for it
-    assert!(entries.iter().all(|(_, e)| e.codec == 0 || e.codec == 1));
+    // compressed with deflate whatever the policy (LZ4 until P8.6), and smaller for it
+    assert!(entries.iter().all(|(_, e)| e.codec == 0 || e.codec == 2));
     let (stored, raw): (u64, u64) = entries.iter().fold((0, 0), |(s, r), (_, e)| {
         (s + u64::from(e.stored_length), r + u64::from(e.uncompressed_length))
     });
-    assert!(entries.iter().filter(|(_, e)| e.codec == 1).count() > entries.len() / 2);
+    assert!(entries.iter().filter(|(_, e)| e.codec == 2).count() > entries.len() / 2);
     assert!(stored < raw, "{stored} stored of {raw}");
     // the block directory orders blocks by kind and then cell
     assert!(entries.windows(2).all(|p| p[0].1.cell < p[1].1.cell));
