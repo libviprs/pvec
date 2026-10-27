@@ -408,6 +408,7 @@ tiers.rs: Tier0Entry::Exact { id: EntityId }
 tiers.rs: Tier0Entry::Preview(&'a Preview)
 tiers.rs: Tier0Entry<'_>::id(&self) -> EntityId
 tiers.rs: Tier0Entry<'_>::fidelity(&self) -> Fidelity
+tiers.rs: pub const PREVIEW_BUDGET_PX: f64
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Tier0Params
 tiers.rs: Tier0Params.max_error: f64
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Conformance
