@@ -21,7 +21,8 @@ pub const RANGE_CONCURRENCY: usize = 6;
 /// The screen the recorded viewports are shown on, along the wider side, in pixels.
 pub const SCREEN_PX: f64 = 1920.0;
 /// The preview error budget the writer is given, in pixels at the fit zoom (`docs/STREAMING.md` section 4.3).
-pub const PREVIEW_BUDGET_PX: f64 = 0.5;
+/// It is the checked-in default of `pvec-stream`, so the benchmark measures the budget that ships.
+pub use pvec_stream::PREVIEW_BUDGET_PX;
 
 /// A network arm.
 #[derive(Clone, Copy, Debug, PartialEq)]

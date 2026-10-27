@@ -331,6 +331,11 @@ impl Tier0Entry<'_> {
     }
 }
 
+/// The error budget a writer holds Tier 0 previews to, in pixels at the fit zoom of a 1,920 px screen
+/// (`docs/STREAMING.md` section 4.3). A caller turns it into world units with the extent of the drawing:
+/// `PREVIEW_BUDGET_PX * extent / 1920`. Tuned in P8.6 (`docs/bench/TUNING.md`).
+pub const PREVIEW_BUDGET_PX: f64 = 0.5;
+
 /// What the writer is asked to hold previews to.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tier0Params {
