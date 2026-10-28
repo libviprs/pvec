@@ -40,7 +40,7 @@ regenerated lock shows up here, but the corpus is not frozen yet (see its row ab
 - [x] docs/bench/LAYOUT.md (P8.3): present, three gates red.
 - [x] docs/bench/GEOMETRY.md (P8.4): present, several gates red on both platforms.
 - [x] docs/bench/PROGRESSIVE.md (P8.5): present, eight gates red on x64 and seven on arm64.
-- [ ] docs/bench/TUNING.md (P8.6): missing, so nothing has been tuned against the measurements.
+- [x] docs/bench/TUNING.md (P8.6): the tuning log, with the rows of the index and viewport pass so far.
 
 The red gates are listed, with the proposed way to deal with each, in pvec#192. I have not hidden or relaxed any of them
 and I have not changed a threshold to make a row green.

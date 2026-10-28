@@ -18,8 +18,9 @@ pub mod shape;
 pub mod step_bench;
 
 use models::Model;
+use pvec_container::source::BlockSource;
 use pvec_container::writer::WriterOptions;
-use pvec_container::{Bounds, LengthUnit};
+use pvec_container::{Bounds, ContainerReader, LengthUnit, ReadError};
 use pvec_corpus::sha256::hex_digest;
 use pvec_corpus::{Bundle, CorpusError};
 use pvec_testkit::generate::{generate_all, generate_all_with};
@@ -43,6 +44,31 @@ pub const CLASSES: [&str; 7] = [
 
 /// Viewports recorded per entry.
 pub const VIEWPORTS: usize = 200;
+
+/// Fetches the advanced `chunks` a viewport needs and walks their curves, returning how many it saw. The
+/// blocks of up to 16 MiB of chunks go to one `read_blocks` call, so the planner coalesces neighbouring
+/// chunks into the same ranges (the request cap is 16 MiB anyway), and each chunk is then opened from the cache.
+pub fn read_advanced<S: BlockSource>(r: &ContainerReader<S>, chunks: &[usize]) -> Result<usize, ReadError> {
+    const BATCH: u64 = 16 << 20;
+    let (mut seen, mut batch, mut ids, mut stored) = (0, Vec::new(), Vec::new(), 0u64);
+    for (i, &c) in chunks.iter().enumerate() {
+        let six = r.advanced_chunk_blocks(&[c])?;
+        stored += six.iter().map(|id| u64::from(r.entries()[id.0 as usize].stored_length)).sum::<u64>();
+        ids.extend(six);
+        batch.push(c);
+        if stored >= BATCH || i + 1 == chunks.len() {
+            r.read_blocks(&ids)?;
+            for c in batch.drain(..) {
+                if let Some(set) = r.advanced(c)? {
+                    seen += set.view()?.len();
+                }
+            }
+            ids.clear();
+            stored = 0;
+        }
+    }
+    Ok(seen)
+}
 
 /// One synthetic entry: what to draw, how many, from which seed.
 #[derive(Clone, Copy, Debug)]

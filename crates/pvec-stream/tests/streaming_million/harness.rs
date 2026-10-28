@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 const LEAF: u32 = 64;
 
 /// The advanced chunk size these fixtures are built for (the 64 KiB of P5.7), which the selectivity thresholds
-/// of this test were declared against. The shipped default is `ADVANCED_CHUNK_BYTES`, 1 MiB since P8.6.
+/// of this test were declared against. The shipped default is `ADVANCED_CHUNK_BYTES`, 256 KiB since P8.6.
 const CHUNK: u32 = 64 * 1024;
 
 pub const SMALL: u32 = 100_000;

@@ -9,7 +9,7 @@ There are two locks since pvec#196. `corpus.lock.json` (sha256 `9df09435...e25b`
 writer's block order, and it stays frozen because docs/bench/LAYOUT.md, GEOMETRY.md and STEP_COMPARISON.md were measured on it
 and cite it (`issue_62_layout` and `issue_63_geometry` check that). `corpus.post159.lock.json` (sha256 `586014c9...26b3`) is the
 current corpus, the one `issue_60_corpus` checks: same entries, sizes and viewports, new digests for the nine generated entries
-other than `architectural-1e3` (the 10^7 one is now `ef39f594...13d9` on both platforms, per `measured.csv`). `write` produces
+other than `architectural-1e3` (the 10^7 one is now `1ae62767...0541` on both platforms, per `measured.csv`). `write` produces
 the current one, so I renamed its output. The 10^7 table below is the old lock's measurement...
 
 ## What is pinned

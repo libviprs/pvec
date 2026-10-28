@@ -477,7 +477,7 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
         .expect("opens");
     let dir = SpatialDirectory::open(&r).expect("directory");
     let long = StraddlerIndex::open(&r).expect("straddler index");
-    let (ids, advanced): (Vec<BlockId>, bool) = match &dir {
+    let (ids, chunks): (Vec<BlockId>, Vec<usize>) = match &dir {
         Some(dir) => {
             let win = Aabb::new([window[0], window[1]], [window[2], window[3]]).expect("a window");
             let scale = 1000.0 / (window[2] - window[0]).max(0.000_001);
@@ -492,7 +492,7 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
                 payload.dedup();
                 ids.extend(payload);
             }
-            (ids, plan.advanced_in_view)
+            (ids, plan.advanced_chunks)
         }
         None => (
             r.entries()
@@ -501,15 +501,11 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
                 .filter(|(_, e)| e.block_kind() == Some(BlockKind::Hot))
                 .map(|(i, _)| BlockId(i as u32))
                 .collect(),
-            true,
+            (0..r.advanced_chunk_count().expect("chunks")).collect(),
         ),
     };
     let _ = r.read_blocks(&ids).expect("blocks");
-    if advanced {
-        for c in 0..r.advanced_chunk_count().expect("chunks") {
-            let _ = r.advanced(c).expect("chunk");
-        }
-    }
+    pvec_bench::read_advanced(&r, &chunks).expect("advanced chunks");
     r.source().requests().iter().map(|q| (q.offset, u64::from(q.len))).collect()
 }
 
