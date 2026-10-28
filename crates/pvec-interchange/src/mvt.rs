@@ -316,84 +316,153 @@ fn chord_deviation(c: &Curve, t0: f64, p0: Point2, t1: f64, p1: Point2) -> Resul
     Ok(worst)
 }
 
-struct Refine<'a> {
-    curve: &'a Curve,
+/// The margin on a measured deviation: it is found at [`DEVIATION_SAMPLES`] interior points, and a curve can
+/// bulge a part in a thousand past them (a cubic at 0.25 px reached 0.250185 px against 4096 points), so a chord is
+/// accepted when its deviation times this is inside the tolerance.
+const SAMPLING_MARGIN: f64 = 1.05;
+/// The most pieces a chord that is too far off is cut into in one step.
+const MAX_SPLIT: usize = 64;
+/// The vertices the first pass keeps on the stack. A tessellation of at most this many vertices is copied once into
+/// a buffer of exactly its length, and a longer one is counted here and then written into a buffer of exactly its
+/// length, so either way the result is the only allocation.
+const STACK_POINTS: usize = 512;
+
+/// The state of one tessellation: the tolerance, the vertices so far and the worst chord.
+struct Refine {
     tol: f64,
-    out: Vec<Point2>,
+    stack: [Point2; STACK_POINTS],
+    /// Vertices pushed in this pass, kept or only counted.
+    n: usize,
+    /// The result of the second pass, when the first one overflowed the stack.
+    heap: Vec<Point2>,
+    spill: bool,
     worst: f64,
     failed: Option<f64>,
 }
 
-impl Refine<'_> {
-    fn go(&mut self, t0: f64, p0: Point2, t1: f64, p1: Point2, depth: u32) -> Result<(), TessError> {
-        let dev = chord_deviation(self.curve, t0, p0, t1, p1)?;
-        if dev <= self.tol || depth >= MAX_DEPTH {
-            if dev > self.tol {
+impl Refine {
+    fn push(&mut self, p: Point2) {
+        if self.spill {
+            self.heap.push(p);
+        } else if self.n < STACK_POINTS {
+            self.stack[self.n] = p;
+        }
+        self.n += 1;
+    }
+
+    /// Accepts the chord `p0` to `p1` of `curve` when it is inside the tolerance, and cuts it into
+    /// about `sqrt(deviation / tolerance)` equal pieces when it is not: a chord's deviation falls with the square of its
+    /// length, so one cut at that count is usually the last, where bisection would overshoot by up to a factor of two.
+    fn go(
+        &mut self,
+        curve: &Curve,
+        t0: f64,
+        p0: Point2,
+        t1: f64,
+        p1: Point2,
+        depth: u32,
+    ) -> Result<(), TessError> {
+        let dev = chord_deviation(curve, t0, p0, t1, p1)?;
+        let ratio = dev * SAMPLING_MARGIN / self.tol;
+        if ratio <= 1.0 || depth >= MAX_DEPTH {
+            if ratio > 1.0 {
                 self.failed = Some(self.failed.unwrap_or(0.0).max(dev));
             }
             self.worst = self.worst.max(dev);
-            self.out.push(p1);
+            self.push(p1);
             return Ok(());
         }
-        let tm = t0 + (t1 - t0) * 0.5;
-        let pm = self.curve.eval(tm).map_err(geom)?;
-        self.go(t0, p0, tm, pm, depth + 1)?;
-        self.go(tm, pm, t1, p1, depth + 1)
+        // 1.1 because the deviation falls a little slower than the square of the length when the curvature varies
+        // along the chord, and a chord that comes out just over is cut in two, which shows as a lump in the count.
+        let k = ((ratio.sqrt() * 1.1).ceil() as usize).clamp(2, MAX_SPLIT);
+        let (mut at, mut from) = (t0, p0);
+        for j in 1..=k {
+            let (t, p) = if j == k {
+                (t1, p1)
+            } else {
+                let t = t0 + (t1 - t0) * (j as f64 / k as f64);
+                (t, curve.eval(t).map_err(geom)?)
+            };
+            self.go(curve, at, from, t, p, depth + 1)?;
+            (at, from) = (t, p);
+        }
+        Ok(())
+    }
+
+    /// Appends the vertices of `curve`; the first one is left out when something is there already, so the pieces of a
+    /// composite join at their shared end.
+    fn curve(&mut self, curve: &Curve) -> Result<(), TessError> {
+        match curve {
+            Curve::Line(_) => Err(TessError::Unbounded),
+            Curve::Polyline(p) => {
+                let skip = usize::from(self.n > 0);
+                p.vertices().iter().skip(skip).for_each(|v| self.push(*v));
+                Ok(())
+            }
+            Curve::Trimmed(t) if matches!(t.basis(), Curve::Line(_)) => {
+                let d = curve.domain();
+                if self.n == 0 {
+                    self.push(curve.eval(d.lo()).map_err(geom)?);
+                }
+                self.push(curve.eval(d.hi()).map_err(geom)?);
+                Ok(())
+            }
+            Curve::Composite(c) => c.segments().iter().try_for_each(|seg| self.curve(seg)),
+            other => {
+                let d = other.domain();
+                let (lo, hi) = (d.lo(), d.hi());
+                let first = other.eval(lo).map_err(geom)?;
+                if self.n == 0 {
+                    self.push(first);
+                }
+                let (mut prev_t, mut prev_p) = (lo, first);
+                for k in 1..=INITIAL_SPLITS {
+                    let t = if k == INITIAL_SPLITS {
+                        hi
+                    } else {
+                        lo + (hi - lo) * (k as f64 / INITIAL_SPLITS as f64)
+                    };
+                    let p = other.eval(t).map_err(geom)?;
+                    self.go(other, prev_t, prev_p, t, p, 0)?;
+                    (prev_t, prev_p) = (t, p);
+                }
+                match self.failed.take() {
+                    Some(achieved) => Err(TessError::ToleranceNotMet { achieved }),
+                    None => Ok(()),
+                }
+            }
+        }
     }
 }
 
 /// Stage 2: tessellate `curve` so that no final chord is further than `tolerance` (world units) from
 /// the exact curve at the sampled points. A polyline is passed through, a trimmed line is its two
 /// ends, a composite is its segments joined, everything else is subdivided adaptively from
-/// eight equal parameter spans (so a closed curve cannot collapse to a point).
+/// eight equal parameter spans (so a closed curve cannot collapse to a point). The result is the only allocation.
 pub fn tessellate(curve: &Curve, tolerance: f64) -> Result<Tessellation, TessError> {
     if !(tolerance.is_finite() && tolerance > 0.0) {
         return Err(TessError::BadTolerance);
     }
-    match curve {
-        Curve::Line(_) => Err(TessError::Unbounded),
-        Curve::Polyline(p) => Ok(Tessellation { points: p.vertices().to_vec(), deviation: 0.0 }),
-        Curve::Trimmed(t) if matches!(t.basis(), Curve::Line(_)) => {
-            let d = curve.domain();
-            let a = curve.eval(d.lo()).map_err(geom)?;
-            let b = curve.eval(d.hi()).map_err(geom)?;
-            Ok(Tessellation { points: vec![a, b], deviation: 0.0 })
-        }
-        Curve::Composite(c) => {
-            let mut points: Vec<Point2> = Vec::new();
-            let mut deviation = 0.0f64;
-            for seg in c.segments() {
-                let t = tessellate(seg, tolerance)?;
-                deviation = deviation.max(t.deviation);
-                let skip = usize::from(!points.is_empty());
-                points.extend(t.points.into_iter().skip(skip));
-            }
-            Ok(Tessellation { points, deviation })
-        }
-        other => {
-            let d = other.domain();
-            let (lo, hi) = (d.lo(), d.hi());
-            let first = other.eval(lo).map_err(geom)?;
-            let mut r = Refine { curve: other, tol: tolerance, out: vec![first], worst: 0.0, failed: None };
-            let mut prev_t = lo;
-            let mut prev_p = first;
-            for k in 1..=INITIAL_SPLITS {
-                let t = if k == INITIAL_SPLITS {
-                    hi
-                } else {
-                    lo + (hi - lo) * (k as f64 / INITIAL_SPLITS as f64)
-                };
-                let p = other.eval(t).map_err(geom)?;
-                r.go(prev_t, prev_p, t, p, 0)?;
-                prev_t = t;
-                prev_p = p;
-            }
-            if let Some(achieved) = r.failed {
-                return Err(TessError::ToleranceNotMet { achieved });
-            }
-            Ok(Tessellation { points: r.out, deviation: r.worst })
-        }
+    if let Curve::Polyline(p) = curve {
+        return Ok(Tessellation { points: p.vertices().to_vec(), deviation: 0.0 });
     }
+    let mut r = Refine {
+        tol: tolerance,
+        stack: [Point2::new(0.0, 0.0); STACK_POINTS],
+        n: 0,
+        heap: Vec::new(),
+        spill: false,
+        worst: 0.0,
+        failed: None,
+    };
+    r.curve(curve)?;
+    if r.n > STACK_POINTS {
+        r.heap = Vec::with_capacity(r.n);
+        (r.spill, r.n, r.worst) = (true, 0, 0.0);
+        r.curve(curve)?;
+    }
+    let points = if r.spill { r.heap } else { r.stack[..r.n].to_vec() };
+    Ok(Tessellation { points, deviation: r.worst })
 }
 
 /// The clip rectangle in tile units.
