@@ -505,9 +505,7 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
         ),
     };
     let _ = r.read_blocks(&ids).expect("blocks");
-    for c in chunks {
-        let _ = r.advanced(c).expect("chunk");
-    }
+    pvec_bench::read_advanced(&r, &chunks).expect("advanced chunks");
     r.source().requests().iter().map(|q| (q.offset, u64::from(q.len))).collect()
 }
 

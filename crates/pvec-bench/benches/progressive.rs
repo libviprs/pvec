@@ -149,9 +149,7 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
         r.read_blocks(&payload).expect("payload blocks");
     }
     let advanced = plan.advanced_in_view;
-    for &c in &plan.advanced_chunks {
-        black_box(r.advanced(c).expect("chunk"));
-    }
+    black_box(pvec_bench::read_advanced(&r, &plan.advanced_chunks).expect("advanced chunks"));
     s.tier0_cpu = t.elapsed().as_secs_f64();
     let all = lens(&r.source().requests());
     s.tier0 = all[mark..].to_vec();

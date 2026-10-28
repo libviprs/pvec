@@ -676,6 +676,7 @@ reader.rs: ContainerReader<S>::read_block(&self, id: BlockId) -> Result<Arc<Deco
 reader.rs: ContainerReader<S>::read_blocks(&self, ids: &[BlockId]) -> Result<Vec<Arc<DecodedBlock>>, ReadError>
 reader.rs: ContainerReader<S>::advanced_chunk_count(&self) -> Result<usize, ReadError>
 reader.rs: ContainerReader<S>::advanced_record_blocks(&self) -> Result<Vec<BlockId>, ReadError>
+reader.rs: ContainerReader<S>::advanced_chunk_blocks(&self, chunks: &[usize]) -> Result<Vec<BlockId>, ReadError>
 reader.rs: ContainerReader<S>::advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError>
 reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>

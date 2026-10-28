@@ -169,11 +169,7 @@ fn one_viewport(path: &Path, window: [f64; 4]) -> (f64, u64, usize) {
     };
     let blocks = r.read_blocks(&ids).expect("blocks");
     let drawn: usize = blocks.iter().map(|b| b.hot().map_or(0, |h| h.len())).sum();
-    let mut sets = 0;
-    for c in chunks {
-        let set = r.advanced(c).expect("chunk").expect("exists");
-        sets += set.view().expect("view").len();
-    }
+    let sets = pvec_bench::read_advanced(&r, &chunks).expect("advanced chunks");
     let ms = start.elapsed().as_secs_f64() * 1000.0;
     assert!(drawn + sets > 0 || dir.is_some(), "a file without a directory draws everything");
     let source = r.source();
