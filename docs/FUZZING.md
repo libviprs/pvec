@@ -67,9 +67,26 @@ Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 
 
 The same targets also run on stable Rust without libFuzzer, so the pull request gate does not need a nightly toolchain: `PVEC_FUZZ_EXECUTIONS=3000000 cargo test --release -p pvec-fuzz --test smoke -- --nocapture` ran three seeds of 3,000,000 executions per target (54 million in about 40 seconds on the MacBook), with the allocator counted per execution against the same budget. That driver is not coverage guided and is the weaker evidence; it is the one a test can run every time.
 
+## The long run (P7.8, issue #190)
+
+`--seconds` is per target and the targets of one invocation run one after the other, so six targets at 14,400 s on one host is 24 hours. To fit the window I ran separate `tools/fuzz.sh` invocations in parallel, one container each (`--cpus 1`, libFuzzer is single threaded), each with its own `RUN_ID` and its own corpus volume (`CORPUS_VOL`), after building the image once on every host so they did not race on the image tag. All of it started at 00:07 PDT on 2026-10-28 and ended by 04:12.
+
+| target | host | platform | time | executions | exec/s | corpus | peak RSS |
+|---|---|---|---|---|---|---|---|
+| `fuzz_directory_traversal` | nas | native x86_64 | 4.0 h (14,400 s) | 124,787,740 | 8,665 | 206 -> 1,198 | 650 MB |
+| `fuzz_decompress_boundary` | nas | native x86_64 | 4.0 h (14,400 s) | 103,382,149 | 7,178 | 409 -> 866 | 426 MB |
+| `fuzz_header` | mars | native x86_64 | 1.94 h (7,000 s) | 805,371,179 | 115,036 | 206 -> 685 | 533 MB |
+| `fuzz_immediate_blocks` | mars | native x86_64 | 1.94 h (7,000 s) | 1,398,219,331 | 199,717 | 40 -> 79 | 495 MB |
+| `fuzz_advanced_blocks` | mercury | native arm64 | 1.94 h (7,000 s) | 415,395,283 | 59,333 | 57 -> 286 | 536 MB |
+| `fuzz_component_streams` | mercury | native arm64 | 1.94 h (7,000 s) | 323,627,667 | 46,225 | 8 -> 74 | 409 MB |
+
+Every run ended with no crash, no out-of-memory and no timeout (no file in any artifact directory), and every target is far past 10^6 executions.
+
+I did not give every target 4 hours. Only the two targets on nas ran the full 4 hours. Mars and mercury are shared with benchmark runs, so I kept each to one container, which meant two targets one after the other at 7,000 s (1.94 h) each. Jupiter was not used: Docker Desktop was not running on the MacBook and I left it alone. The two nas targets are also the slowest per second because the container had one cpu, so their count is lower, still more than 100 million.
+
 ## Findings
 
-None. Neither the 187 million libFuzzer executions above nor the 54 million executions of the smoke driver found a crash, an assertion failure, an out-of-memory or a hang, so there is no reproducer to check in and `tests/regressions/` holds only its README. The replay test is in place (`crates/pvec-fuzz/tests/regressions.rs`): the first crash lands there as a file named for its target, with the bounds or limit check that fixed it named in the pull request.
+None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 billion of the long run, nor the 54 million executions of the smoke driver found a crash, an assertion failure, an out-of-memory or a hang, so there is no reproducer to check in and `tests/regressions/` holds only its README. The replay test is in place (`crates/pvec-fuzz/tests/regressions.rs`): the first crash lands there as a file named for its target, with the bounds or limit check that fixed it named in the pull request.
 
 ## Capability matrix
 
@@ -81,14 +98,15 @@ None. Neither the 187 million libFuzzer executions above nor the 54 million exec
 tools/fuzz.sh --host mercury --seconds 300                      # all six targets, arm64, the smoke budget
 tools/fuzz.sh --host mars --seconds 300 fuzz_header             # one target, native x86_64
 tools/fuzz.sh --host jupiter --no-checksum-gate fuzz_directory_traversal
-tools/fuzz.sh --host mars --seconds 14400                       # the nightly: 4 hours per target
+tools/fuzz.sh --host mars --seconds 14400                       # the nightly: 4 hours per target, one after the other
+RUN_ID=a CORPUS_VOL=corpus-a FUZZ_CPUS=1 tools/fuzz.sh --host nas --seconds 14400 fuzz_header   # parallel: one invocation per target, image built first
 ```
 
-Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is off, so nothing schedules the nightly.
+Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is off, so nothing schedules the nightly; the long run above was started by hand.
 
 ## What is not claimed
 
-* The 4 hour nightly has not run. The acceptance criterion that each target reaches 10^6 executions in the nightly window with no crash is therefore not demonstrated, and neither is the claim P8.7 needs to freeze the security limits. The smoke runs above are 2 to 5 minutes. At the measured rates a target passes 10^6 executions in under a minute, so the count is not the open question; four hours of coverage-guided search is.
+* Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.
 * The P8.1 benchmark corpus and the EPIC O gold fixtures are not in the seed corpus (see above), and the P2.8 and P4.8 conformance gates they would be judged by are not on main.
 * Fuzzing the exporters, converters and a WASM host embedding is out of scope (phase 6, EPICs N, O and M).
