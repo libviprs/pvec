@@ -338,7 +338,7 @@ engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'
 engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
 engine.rs: Core::in_flight(&self, entry: &BlockEntry) -> u64
 engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
-engine.rs: Core::advanced_chunks(&self) -> Result<Vec<[BlockId; 6]>, ReadError>
+engine.rs: Core::advanced_chunks(&self) -> Result<&[[BlockId; 6]], ReadError>
 engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
 engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
 engine.rs: Validation<'a>::feed_gap(&mut self, offset: u64, bytes: &[u8]) -> Result<(), ReadError>

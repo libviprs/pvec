@@ -418,8 +418,8 @@
       "redistribution": "regenerated from the seed, nothing is redistributed",
       "on_demand_only": true,
       "generation": [
-        {"platform": "linux-x86_64", "host": "mars", "millis": 15244, "peak_rss_kib": 5226252, "sha256": "ef39f5940e84b9c8ff88ace99198383bc63cbf1d9725b25b7a478be4445613d9"},
-        {"platform": "linux-aarch64", "host": "mercury", "millis": 23180, "peak_rss_kib": 5226484, "sha256": "ef39f5940e84b9c8ff88ace99198383bc63cbf1d9725b25b7a478be4445613d9"}
+        {"platform": "linux-x86_64", "host": "mars", "millis": 40257, "peak_rss_kib": 4268728, "sha256": "1ae62767ebd5ec3da5bbdc89a0f77f143883a4cd2fdc7647cce1569199bf0541"},
+        {"platform": "linux-aarch64", "host": "mercury", "millis": 45979, "peak_rss_kib": 4270436, "sha256": "1ae62767ebd5ec3da5bbdc89a0f77f143883a4cd2fdc7647cce1569199bf0541"}
       ],
       "baseline_eligible": true
     },
