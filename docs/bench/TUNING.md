@@ -6,10 +6,9 @@ log of `feat/65-tune-192` as rows, not as a second document.
 
 ## Rules
 
-The rule of this log is that a parameter with no measurement behind it is not tuned here. A row names a metric id that P8.2 to P8.5
-measured, the numbers before and after on both platforms, the digest of the corpus they were taken on and the result of
-the conformance and security re-run. Tuning does not relax a P1.2 tolerance, a P4.8 limit, the decompression expansion
-ratio, a checksum, a conformance test (none is deleted or weakened) or the Tier 0 coverage requirement.
+The rule of this log is that a parameter with no measurement behind it is not tuned here. A row names a metric id that P8.2 to P8.5 measured, the numbers before and after on both platforms, the digest of the corpus they were taken on and the result of the conformance and security re-run.
+
+Tuning does not relax a P1.2 tolerance, does not relax a P4.8 limit, does not widen the decompression expansion ratio, does not disable a checksum, does not delete or weaken a conformance test and does not lower the Tier 0 coverage requirement.
 
 Numbers are native x64 (mars, `linux-x86_64`) and native arm64 (mercury, `linux-aarch64`), never read across the two. Both
 hosts were shared, so a time is the median of three runs taken back to back, and a byte or request count is exact.
