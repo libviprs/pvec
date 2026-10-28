@@ -436,10 +436,10 @@ struct AdvancedItem {
 }
 
 /// The default size of one chunk of the advanced curves, in bytes of records and arena data
-/// (`docs/STREAMING.md` section 2.8). It was 64 KiB until P8.6 (`docs/bench/TUNING.md`): a viewport that
-/// touches the advanced set reads every chunk, six blocks and six requests a chunk, and `spline-heavy-1e5`
-/// was 406 ranges and 37.5 ms at the 95th percentile, `spline-heavy-1e6` about 8,000 ranges.
-pub const ADVANCED_CHUNK_BYTES: u32 = 1024 * 1024;
+/// (`docs/STREAMING.md` section 2.8). It was 64 KiB until P8.6, and is 256 KiB since (`docs/bench/TUNING.md`): a
+/// viewport reads only the chunks it touches (`ReadPlan::advanced_chunks`), so a smaller chunk moves fewer bytes,
+/// and below 256 KiB the file and its block directory grow faster than the bytes shrink.
+pub const ADVANCED_CHUNK_BYTES: u32 = 256 * 1024;
 
 /// A block ready to be placed.
 struct Planned {
