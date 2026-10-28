@@ -496,6 +496,7 @@ viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct ReadPlan
 viewport.rs: ReadPlan.requests: Vec<PlannedRequest>
 viewport.rs: ReadPlan.deferred: Vec<PlannedRequest>
 viewport.rs: ReadPlan.advanced_in_view: bool
+viewport.rs: ReadPlan.advanced_chunks: Vec<usize>
 viewport.rs: ReadPlan.metrics: PlanMetrics
 viewport.rs: ReadPlan::block_ids(&self) -> Vec<BlockId>
 viewport.rs: ReadPlan::visible_block_ids(&self) -> Vec<BlockId>
