@@ -13,6 +13,9 @@
 # added to it without overwriting what a run has grown. Crashes come back to .fuzz-out/<run>/<host>/<target>/
 # and are never deleted from the host's volume until the volumes are removed at the end of the run.
 #
+# Parallel runs: build the image once first (a run that finds it missing builds it and would race on the tag), give each
+# invocation its own RUN_ID and its own CORPUS_VOL, and set FUZZ_CPUS to cap a container's cpus.
+#
 # What it removes at the end: the volumes it created and, if it built it, the image. No docker prune.
 set -euo pipefail
 
@@ -48,7 +51,7 @@ esac
 RUN=${RUN_ID:-fz$(date +%m%d%H%M%S)-$$}
 SRC_VOL=pvec-fuzz-src-$RUN
 OUT_VOL=pvec-fuzz-out-$RUN
-CORPUS_VOL=pvec-fuzz-corpus
+CORPUS_VOL=${CORPUS_VOL:-pvec-fuzz-corpus}
 IMAGE=pvec-fuzz-nightly:1
 OUT=$ROOT/.fuzz-out/$RUN/$HOST
 mkdir -p "$OUT"
@@ -87,7 +90,7 @@ tar -C "$ROOT" --exclude=target --exclude=.git --exclude=.fuzz-out --exclude=fuz
 
 for T in "${TARGETS[@]}"; do
   echo "[$HOST] $T for ${SECONDS_PER_TARGET}s ($PLATFORM${FEATURES:+, no-checksum-gate})"
-  d run --rm --platform "$PLATFORM" --memory "$MEM" \
+  d run --rm --platform "$PLATFORM" --memory "$MEM" ${FUZZ_CPUS:+--cpus "$FUZZ_CPUS"} \
     -v "$SRC_VOL":/src -v "$OUT_VOL":/out -v "$CORPUS_VOL":/corpus "$IMAGE" sh -c "
       set -e
       export CARGO_TARGET_DIR=/out/target CARGO_HOME=/out/cargo
