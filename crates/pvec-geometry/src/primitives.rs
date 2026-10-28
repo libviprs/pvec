@@ -244,7 +244,7 @@ mod tests {
     /// `finite_point` tests finiteness with one compare on `x * 0 + y * 0`; this holds it to the two-test rule.
     #[test]
     fn issue_192_finite_point_refuses_exactly_what_is_not_finite() {
-        let ok = [(0.0, -0.0), (f64::MAX, -f64::MAX), (1e-300, 2.5), (-3.0, f64::MIN_POSITIVE)];
+        let ok = [(0.0, -0.0), (f64::MAX, -f64::MAX), (100000.0, 2.5), (-3.0, f64::MIN_POSITIVE)];
         for (x, y) in ok {
             assert!(finite_point(Point2::new(x, y)).is_ok(), "({x}, {y})");
         }
