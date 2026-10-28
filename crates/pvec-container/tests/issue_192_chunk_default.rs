@@ -25,9 +25,21 @@ fn about_650_kib_of_curves_are_cut_in_three_chunks_by_default_and_none_is_over_t
         let mut knots = vec![0.0; 4];
         knots.extend((1..=6).map(f64::from));
         knots.extend([7.0; 4]);
-        let spec =
-            SplineSpec { degree: 3, knots: &knots, x: &x, y: &y, weights: None, closed: false, periodic: false };
-        let meta = EntityMeta { id: eid(id), style: 0, cell: 0, bounds: Bounds { min: [0.0, 0.0], max: [10.0, 10.0] } };
+        let spec = SplineSpec {
+            degree: 3,
+            knots: &knots,
+            x: &x,
+            y: &y,
+            weights: None,
+            closed: false,
+            periodic: false,
+        };
+        let meta = EntityMeta {
+            id: eid(id),
+            style: 0,
+            cell: 0,
+            bounds: Bounds { min: [0.0, 0.0], max: [10.0, 10.0] },
+        };
         w.push_spline(meta, spec).expect("a spline");
     }
     let bytes = w.finish().expect("the splines write");

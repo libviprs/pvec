@@ -17,7 +17,12 @@ fn six_chunks() -> Vec<u8> {
     w.advanced_chunk_bytes(1);
     for id in 0..6u32 {
         let x = f64::from(id) * 10.0;
-        let meta = EntityMeta { id: eid(id), style: 0, cell: 0, bounds: Bounds { min: [x, 0.0], max: [x + 5.0, 5.0] } };
+        let meta = EntityMeta {
+            id: eid(id),
+            style: 0,
+            cell: 0,
+            bounds: Bounds { min: [x, 0.0], max: [x + 5.0, 5.0] },
+        };
         let spec = SplineSpec {
             degree: 1,
             knots: &[0.0, 0.0, 1.0, 1.0],
@@ -84,7 +89,12 @@ fn the_chunk_table_is_worked_out_once_and_not_for_every_chunk_asked_for() {
     w.advanced_chunk_bytes(1);
     for id in 0..2000u32 {
         let x = f64::from(id);
-        let meta = EntityMeta { id: eid(id), style: 0, cell: 0, bounds: Bounds { min: [x, 0.0], max: [x + 1.0, 1.0] } };
+        let meta = EntityMeta {
+            id: eid(id),
+            style: 0,
+            cell: 0,
+            bounds: Bounds { min: [x, 0.0], max: [x + 1.0, 1.0] },
+        };
         let spec = SplineSpec {
             degree: 1,
             knots: &[0.0, 0.0, 1.0, 1.0],
