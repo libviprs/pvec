@@ -67,10 +67,10 @@ touch them).
 
 ## Re-runs
 
-On \`tune-geom\`, mars (x64) and mercury (arm64), one container each: \`cargo test --workspace --locked --no-fail-fast\` gave 1637 passed on both, with the nine
-tests of \`issue_65_tuning.rs\` failing, as they do on the base (there is no TUNING.md yet, and \`layout.csv\` and \`progressive.csv\` hold the old runs),
-and one tolerance literal check that my own unit test tripped (fixed in the last commit, passing locally). Clippy with \`-D warnings\` is clean on mars
+On `tune-geom`, mars (x64) and mercury (arm64), one container each: `cargo test --workspace --locked --no-fail-fast` gave 1637 passed on both, with the nine
+tests of `issue_65_tuning.rs` failing, as they do on the base (there is no TUNING.md yet, and `layout.csv` and `progressive.csv` hold the old runs),
+and one tolerance literal check that my own unit test tripped (fixed in the last commit, passing locally). Clippy with `-D warnings` is clean on mars
 (mercury's image has no clippy). That run covers P2.5, P2.6, P2.7, P4.8 and the P7.8 matrix and fuzz seed suites unchanged, and no test file of those suites was touched.
-I did not run \`tools/tune-check.sh\` on this branch, so the P7.8 fuzz targets at the final configuration and the other headline metrics belong to the final run on the merged branch.
-The base is not rustfmt clean on mars either: \`tools/fmt.sh\` wants the import order of three \`pvec-harness\` tests changed (\`issue_36_evidence\`, \`issue_38_structural\`,
-\`issue_39_geometric\`), which I left alone. My files are clean.
+I did not run `tools/tune-check.sh` on this branch, so the P7.8 fuzz targets at the final configuration and the other headline metrics belong to the final run on the merged branch.
+The base is not rustfmt clean on mars either: `tools/fmt.sh` wants the import order of three `pvec-harness` tests changed (`issue_36_evidence`, `issue_38_structural`,
+`issue_39_geometric`), which I left alone. My files are clean.
