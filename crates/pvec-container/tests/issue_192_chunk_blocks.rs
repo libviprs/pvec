@@ -75,3 +75,32 @@ fn the_chunks_of_one_viewport_are_one_request_when_they_are_fetched_together() {
     let four = apart.source().requests().len();
     assert!(one < four, "{one} requests together, {four} chunk by chunk");
 }
+
+#[test]
+fn the_chunk_table_is_worked_out_once_and_not_for_every_chunk_asked_for() {
+    // 600 chunks, 3,600 blocks: working the table out again for each of 3,000 calls costs seconds, and
+    // looking it up costs milliseconds, so the bound is far from both
+    let mut w = ContainerWriter::with_options(config(&[], None), WriterOptions::default());
+    w.advanced_chunk_bytes(1);
+    for id in 0..600u32 {
+        let x = f64::from(id);
+        let meta = EntityMeta { id: eid(id), style: 0, cell: 0, bounds: Bounds { min: [x, 0.0], max: [x + 1.0, 1.0] } };
+        let spec = SplineSpec {
+            degree: 1,
+            knots: &[0.0, 0.0, 1.0, 1.0],
+            x: &[x, x + 1.0],
+            y: &[0.0, 1.0],
+            weights: None,
+            closed: false,
+            periodic: false,
+        };
+        w.push_spline(meta, spec).expect("a spline");
+    }
+    let r = open(w.finish().expect("writes"));
+    let start = std::time::Instant::now();
+    for i in 0..3000usize {
+        assert_eq!(r.advanced_chunk_blocks(&[i % 600]).unwrap().len(), 6);
+    }
+    let took = start.elapsed();
+    assert!(took.as_millis() < 300, "3,000 lookups took {took:?}");
+}
