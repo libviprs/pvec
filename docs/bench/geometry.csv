@@ -1,206 +1,206 @@
 table,entry,platform,curve,transform,budget_px,metric,value,note
-eval,synthetic,linux-x86_64,line,identity,,point_at_ns,4.639376328866693,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,line,identity,,derivative_ns,5.724180227499513,first derivative from the right
-eval,synthetic,linux-x86_64,line,identity,,bounds_ns,12.16762705705238,
+eval,synthetic,linux-x86_64,line,identity,,point_at_ns,3.862296206825658,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,line,identity,,derivative_ns,4.896241866331049,first derivative from the right
+eval,synthetic,linux-x86_64,line,identity,,bounds_ns,11.768591047174311,
 eval,synthetic,linux-x86_64,line,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,line,translation,,point_at_ns,4.6866177219868925,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,line,translation,,derivative_ns,5.775175082608589,first derivative from the right
-eval,synthetic,linux-x86_64,line,translation,,bounds_ns,12.01962590386933,
+eval,synthetic,linux-x86_64,line,translation,,point_at_ns,3.830363040677192,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,line,translation,,derivative_ns,4.889562825520834,first derivative from the right
+eval,synthetic,linux-x86_64,line,translation,,bounds_ns,11.698838643964162,
 eval,synthetic,linux-x86_64,line,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,line,uniform-scale,,point_at_ns,4.5743096178012,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,line,uniform-scale,,derivative_ns,5.676449424342105,first derivative from the right
-eval,synthetic,linux-x86_64,line,uniform-scale,,bounds_ns,12.038760529830238,
+eval,synthetic,linux-x86_64,line,uniform-scale,,point_at_ns,3.810666026791515,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,line,uniform-scale,,derivative_ns,4.825296341745477,first derivative from the right
+eval,synthetic,linux-x86_64,line,uniform-scale,,bounds_ns,11.77168689259436,
 eval,synthetic,linux-x86_64,line,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,line,rotation-scale,,point_at_ns,4.585634765625,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,line,rotation-scale,,derivative_ns,5.679446949678309,first derivative from the right
-eval,synthetic,linux-x86_64,line,rotation-scale,,bounds_ns,12.547870854301623,
+eval,synthetic,linux-x86_64,line,rotation-scale,,point_at_ns,3.8329002986891996,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,line,rotation-scale,,derivative_ns,4.816859768444472,first derivative from the right
+eval,synthetic,linux-x86_64,line,rotation-scale,,bounds_ns,12.166822942352116,
 eval,synthetic,linux-x86_64,line,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,line,chain-offset,,point_at_ns,4.5711172203767925,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,line,chain-offset,,derivative_ns,5.634250383435583,first derivative from the right
-eval,synthetic,linux-x86_64,line,chain-offset,,bounds_ns,11.979902613790284,
+eval,synthetic,linux-x86_64,line,chain-offset,,point_at_ns,3.8165815989176433,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,line,chain-offset,,derivative_ns,4.780279954274495,first derivative from the right
+eval,synthetic,linux-x86_64,line,chain-offset,,bounds_ns,11.707802197287577,
 eval,synthetic,linux-x86_64,line,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,polyline,identity,,point_at_ns,4.740777225149387,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,polyline,identity,,derivative_ns,5.209699457341975,first derivative from the right
-eval,synthetic,linux-x86_64,polyline,identity,,bounds_ns,28.67210723897486,
+eval,synthetic,linux-x86_64,polyline,identity,,point_at_ns,4.084871083962625,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,polyline,identity,,derivative_ns,5.203655936501243,first derivative from the right
+eval,synthetic,linux-x86_64,polyline,identity,,bounds_ns,28.44303004216977,
 eval,synthetic,linux-x86_64,polyline,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,polyline,translation,,point_at_ns,4.750019449026474,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,polyline,translation,,derivative_ns,5.212199818004262,first derivative from the right
-eval,synthetic,linux-x86_64,polyline,translation,,bounds_ns,28.75370618137766,
+eval,synthetic,linux-x86_64,polyline,translation,,point_at_ns,4.091221536908831,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,polyline,translation,,derivative_ns,5.204324722290039,first derivative from the right
+eval,synthetic,linux-x86_64,polyline,translation,,bounds_ns,28.41511335394314,
 eval,synthetic,linux-x86_64,polyline,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,polyline,uniform-scale,,point_at_ns,4.734391717639697,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,polyline,uniform-scale,,derivative_ns,5.230692023904915,first derivative from the right
-eval,synthetic,linux-x86_64,polyline,uniform-scale,,bounds_ns,28.392494132344034,
+eval,synthetic,linux-x86_64,polyline,uniform-scale,,point_at_ns,4.085015991482809,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,polyline,uniform-scale,,derivative_ns,5.201456648094458,first derivative from the right
+eval,synthetic,linux-x86_64,polyline,uniform-scale,,bounds_ns,28.403834865790113,
 eval,synthetic,linux-x86_64,polyline,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,polyline,rotation-scale,,point_at_ns,4.737949736050549,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,polyline,rotation-scale,,derivative_ns,5.221883138020833,first derivative from the right
-eval,synthetic,linux-x86_64,polyline,rotation-scale,,bounds_ns,27.447690376507786,
+eval,synthetic,linux-x86_64,polyline,rotation-scale,,point_at_ns,4.084251624704204,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,polyline,rotation-scale,,derivative_ns,5.201124153461402,first derivative from the right
+eval,synthetic,linux-x86_64,polyline,rotation-scale,,bounds_ns,27.485489042802698,
 eval,synthetic,linux-x86_64,polyline,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,polyline,chain-offset,,point_at_ns,4.734900501655361,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,polyline,chain-offset,,derivative_ns,5.213023619218306,first derivative from the right
-eval,synthetic,linux-x86_64,polyline,chain-offset,,bounds_ns,28.458601148919378,
+eval,synthetic,linux-x86_64,polyline,chain-offset,,point_at_ns,4.085446771906319,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,polyline,chain-offset,,derivative_ns,5.207058819857511,first derivative from the right
+eval,synthetic,linux-x86_64,polyline,chain-offset,,bounds_ns,28.40571502696643,
 eval,synthetic,linux-x86_64,polyline,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,circle,identity,,point_at_ns,16.347407248167865,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,circle,identity,,derivative_ns,17.809676975879853,first derivative from the right
-eval,synthetic,linux-x86_64,circle,identity,,bounds_ns,59.565821553367215,
+eval,synthetic,linux-x86_64,circle,identity,,point_at_ns,16.148200319524395,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,circle,identity,,derivative_ns,17.75106459397536,first derivative from the right
+eval,synthetic,linux-x86_64,circle,identity,,bounds_ns,59.535216773558545,
 eval,synthetic,linux-x86_64,circle,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,circle,translation,,point_at_ns,16.36129379272461,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,circle,translation,,derivative_ns,17.819667779126213,first derivative from the right
-eval,synthetic,linux-x86_64,circle,translation,,bounds_ns,59.588794569086055,
+eval,synthetic,linux-x86_64,circle,translation,,point_at_ns,16.203850461725605,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,circle,translation,,derivative_ns,17.615219116210938,first derivative from the right
+eval,synthetic,linux-x86_64,circle,translation,,bounds_ns,59.54060356598501,
 eval,synthetic,linux-x86_64,circle,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,circle,uniform-scale,,point_at_ns,16.405399322509766,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,circle,uniform-scale,,derivative_ns,17.825995287848908,first derivative from the right
-eval,synthetic,linux-x86_64,circle,uniform-scale,,bounds_ns,59.5122726767805,
+eval,synthetic,linux-x86_64,circle,uniform-scale,,point_at_ns,16.18359000222725,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,circle,uniform-scale,,derivative_ns,17.737896259014423,first derivative from the right
+eval,synthetic,linux-x86_64,circle,uniform-scale,,bounds_ns,59.565551540660735,
 eval,synthetic,linux-x86_64,circle,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,circle,rotation-scale,,point_at_ns,16.38971492222377,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,circle,rotation-scale,,derivative_ns,17.85761742452973,first derivative from the right
-eval,synthetic,linux-x86_64,circle,rotation-scale,,bounds_ns,94.27413344560627,
+eval,synthetic,linux-x86_64,circle,rotation-scale,,point_at_ns,16.203469259697094,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,circle,rotation-scale,,derivative_ns,17.757354149451622,first derivative from the right
+eval,synthetic,linux-x86_64,circle,rotation-scale,,bounds_ns,94.21551886555466,
 eval,synthetic,linux-x86_64,circle,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,circle,chain-offset,,point_at_ns,16.36416244506836,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,circle,chain-offset,,derivative_ns,17.86057733332069,first derivative from the right
-eval,synthetic,linux-x86_64,circle,chain-offset,,bounds_ns,59.53755238760478,
+eval,synthetic,linux-x86_64,circle,chain-offset,,point_at_ns,16.193059017783717,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,circle,chain-offset,,derivative_ns,17.811141819629853,first derivative from the right
+eval,synthetic,linux-x86_64,circle,chain-offset,,bounds_ns,59.522741159852714,
 eval,synthetic,linux-x86_64,circle,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,ellipse,identity,,point_at_ns,16.47848674229213,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,ellipse,identity,,derivative_ns,17.8243900039821,first derivative from the right
-eval,synthetic,linux-x86_64,ellipse,identity,,bounds_ns,60.417694371052974,
+eval,synthetic,linux-x86_64,ellipse,identity,,point_at_ns,16.223073233545353,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,ellipse,identity,,derivative_ns,17.68373812161959,first derivative from the right
+eval,synthetic,linux-x86_64,ellipse,identity,,bounds_ns,60.414430016754736,
 eval,synthetic,linux-x86_64,ellipse,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,ellipse,translation,,point_at_ns,16.449266161237443,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,ellipse,translation,,derivative_ns,17.762097872220554,first derivative from the right
-eval,synthetic,linux-x86_64,ellipse,translation,,bounds_ns,60.455835294686615,
+eval,synthetic,linux-x86_64,ellipse,translation,,point_at_ns,16.20167300575658,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,ellipse,translation,,derivative_ns,17.75745098407452,first derivative from the right
+eval,synthetic,linux-x86_64,ellipse,translation,,bounds_ns,60.44833978078659,
 eval,synthetic,linux-x86_64,ellipse,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,ellipse,uniform-scale,,point_at_ns,16.45822252546038,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,ellipse,uniform-scale,,derivative_ns,17.77570343017578,first derivative from the right
-eval,synthetic,linux-x86_64,ellipse,uniform-scale,,bounds_ns,60.41735001288826,
+eval,synthetic,linux-x86_64,ellipse,uniform-scale,,point_at_ns,16.20774152637583,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,ellipse,uniform-scale,,derivative_ns,17.778919997724515,first derivative from the right
+eval,synthetic,linux-x86_64,ellipse,uniform-scale,,bounds_ns,60.4283280162413,
 eval,synthetic,linux-x86_64,ellipse,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,ellipse,rotation-scale,,point_at_ns,16.816486323645357,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,ellipse,rotation-scale,,derivative_ns,25.282332746949916,first derivative from the right
-eval,synthetic,linux-x86_64,ellipse,rotation-scale,,bounds_ns,130.5099352728285,
+eval,synthetic,linux-x86_64,ellipse,rotation-scale,,point_at_ns,16.14206628632127,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,ellipse,rotation-scale,,derivative_ns,17.71241995004507,first derivative from the right
+eval,synthetic,linux-x86_64,ellipse,rotation-scale,,bounds_ns,92.83717821782179,
 eval,synthetic,linux-x86_64,ellipse,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,ellipse,chain-offset,,point_at_ns,19.645603910405587,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,ellipse,chain-offset,,derivative_ns,17.948379664745147,first derivative from the right
-eval,synthetic,linux-x86_64,ellipse,chain-offset,,bounds_ns,60.62971457902225,
+eval,synthetic,linux-x86_64,ellipse,chain-offset,,point_at_ns,16.14527170281661,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,ellipse,chain-offset,,derivative_ns,17.700394263634315,first derivative from the right
+eval,synthetic,linux-x86_64,ellipse,chain-offset,,bounds_ns,60.42146418675087,
 eval,synthetic,linux-x86_64,ellipse,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,trimmed,identity,,point_at_ns,14.858434861706149,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,trimmed,identity,,derivative_ns,19.39051385176809,first derivative from the right
-eval,synthetic,linux-x86_64,trimmed,identity,,bounds_ns,44.01413145539906,
+eval,synthetic,linux-x86_64,trimmed,identity,,point_at_ns,14.461793433962844,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,trimmed,identity,,derivative_ns,19.09739049275716,first derivative from the right
+eval,synthetic,linux-x86_64,trimmed,identity,,bounds_ns,44.01331447751385,
 eval,synthetic,linux-x86_64,trimmed,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,trimmed,translation,,point_at_ns,15.087481389280226,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,trimmed,translation,,derivative_ns,19.397169253700657,first derivative from the right
-eval,synthetic,linux-x86_64,trimmed,translation,,bounds_ns,44.250019173588825,
+eval,synthetic,linux-x86_64,trimmed,translation,,point_at_ns,14.65368701171875,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,trimmed,translation,,derivative_ns,19.0559333722616,first derivative from the right
+eval,synthetic,linux-x86_64,trimmed,translation,,bounds_ns,44.01143085156323,
 eval,synthetic,linux-x86_64,trimmed,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,trimmed,uniform-scale,,point_at_ns,14.85226095876386,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,trimmed,uniform-scale,,derivative_ns,19.348862176192434,first derivative from the right
-eval,synthetic,linux-x86_64,trimmed,uniform-scale,,bounds_ns,44.04817585980079,
+eval,synthetic,linux-x86_64,trimmed,uniform-scale,,point_at_ns,14.6718125,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,trimmed,uniform-scale,,derivative_ns,18.998337578527707,first derivative from the right
+eval,synthetic,linux-x86_64,trimmed,uniform-scale,,bounds_ns,43.99913471466116,
 eval,synthetic,linux-x86_64,trimmed,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,trimmed,rotation-scale,,point_at_ns,15.031717769435195,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,trimmed,rotation-scale,,derivative_ns,19.354936137952304,first derivative from the right
-eval,synthetic,linux-x86_64,trimmed,rotation-scale,,bounds_ns,78.89809828340626,
+eval,synthetic,linux-x86_64,trimmed,rotation-scale,,point_at_ns,14.643751356336805,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,trimmed,rotation-scale,,derivative_ns,19.080717086791992,first derivative from the right
+eval,synthetic,linux-x86_64,trimmed,rotation-scale,,bounds_ns,78.840173541036,
 eval,synthetic,linux-x86_64,trimmed,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,trimmed,chain-offset,,point_at_ns,14.926352896341463,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,trimmed,chain-offset,,derivative_ns,19.449806614925986,first derivative from the right
-eval,synthetic,linux-x86_64,trimmed,chain-offset,,bounds_ns,44.03484323626115,
+eval,synthetic,linux-x86_64,trimmed,chain-offset,,point_at_ns,14.67586083984375,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,trimmed,chain-offset,,derivative_ns,19.083520889282227,first derivative from the right
+eval,synthetic,linux-x86_64,trimmed,chain-offset,,bounds_ns,44.00058956729867,
 eval,synthetic,linux-x86_64,trimmed,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,composite,identity,,point_at_ns,22.957131958007814,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,composite,identity,,derivative_ns,36.434943704044116,first derivative from the right
-eval,synthetic,linux-x86_64,composite,identity,,bounds_ns,131.68697331460675,
+eval,synthetic,linux-x86_64,composite,identity,,point_at_ns,22.457401926924543,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,composite,identity,,derivative_ns,36.385093539368874,first derivative from the right
+eval,synthetic,linux-x86_64,composite,identity,,bounds_ns,131.4733375981492,
 eval,synthetic,linux-x86_64,composite,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,composite,translation,,point_at_ns,23.068021392822267,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,composite,translation,,derivative_ns,36.42946849149816,first derivative from the right
-eval,synthetic,linux-x86_64,composite,translation,,bounds_ns,131.4850322490185,
+eval,synthetic,linux-x86_64,composite,translation,,point_at_ns,22.399658947456174,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,composite,translation,,derivative_ns,36.37696509267769,first derivative from the right
+eval,synthetic,linux-x86_64,composite,translation,,bounds_ns,131.53117546997754,
 eval,synthetic,linux-x86_64,composite,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,composite,uniform-scale,,point_at_ns,22.993761444091795,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,composite,uniform-scale,,derivative_ns,36.42685355392157,first derivative from the right
-eval,synthetic,linux-x86_64,composite,uniform-scale,,bounds_ns,131.5592294472503,
+eval,synthetic,linux-x86_64,composite,uniform-scale,,point_at_ns,22.4215713128811,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,composite,uniform-scale,,derivative_ns,36.39024682138481,first derivative from the right
+eval,synthetic,linux-x86_64,composite,uniform-scale,,bounds_ns,131.3682316475203,
 eval,synthetic,linux-x86_64,composite,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,composite,rotation-scale,,point_at_ns,22.993875122070314,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,composite,rotation-scale,,derivative_ns,36.45297181372549,first derivative from the right
-eval,synthetic,linux-x86_64,composite,rotation-scale,,bounds_ns,189.27245029269278,
+eval,synthetic,linux-x86_64,composite,rotation-scale,,point_at_ns,22.39052228229802,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,composite,rotation-scale,,derivative_ns,36.38000009574142,first derivative from the right
+eval,synthetic,linux-x86_64,composite,rotation-scale,,bounds_ns,189.6437980380259,
 eval,synthetic,linux-x86_64,composite,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,composite,chain-offset,,point_at_ns,22.985723876953124,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,composite,chain-offset,,derivative_ns,36.43818694469976,first derivative from the right
-eval,synthetic,linux-x86_64,composite,chain-offset,,bounds_ns,131.9982712204392,
+eval,synthetic,linux-x86_64,composite,chain-offset,,point_at_ns,22.481010623094512,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,composite,chain-offset,,derivative_ns,36.38099700329351,first derivative from the right
+eval,synthetic,linux-x86_64,composite,chain-offset,,bounds_ns,131.36233013449146,
 eval,synthetic,linux-x86_64,composite,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bezier,identity,,point_at_ns,21.95217532203311,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bezier,identity,,derivative_ns,25.688087463378906,first derivative from the right
-eval,synthetic,linux-x86_64,bezier,identity,,bounds_ns,80.52177892047406,
+eval,synthetic,linux-x86_64,bezier,identity,,point_at_ns,20.254405262706044,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bezier,identity,,derivative_ns,25.835530885508362,first derivative from the right
+eval,synthetic,linux-x86_64,bezier,identity,,bounds_ns,80.09823754912011,
 eval,synthetic,linux-x86_64,bezier,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bezier,translation,,point_at_ns,21.978527250744047,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bezier,translation,,derivative_ns,25.667022705078125,first derivative from the right
-eval,synthetic,linux-x86_64,bezier,translation,,bounds_ns,80.55849909778313,
+eval,synthetic,linux-x86_64,bezier,translation,,point_at_ns,20.19338888650412,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bezier,translation,,derivative_ns,25.82993026518486,first derivative from the right
+eval,synthetic,linux-x86_64,bezier,translation,,bounds_ns,80.03658016049172,
 eval,synthetic,linux-x86_64,bezier,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bezier,uniform-scale,,point_at_ns,21.957326253255207,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bezier,uniform-scale,,derivative_ns,25.672766791449654,first derivative from the right
-eval,synthetic,linux-x86_64,bezier,uniform-scale,,bounds_ns,80.47258583690987,
+eval,synthetic,linux-x86_64,bezier,uniform-scale,,point_at_ns,20.1798337160886,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bezier,uniform-scale,,derivative_ns,25.824817066461268,first derivative from the right
+eval,synthetic,linux-x86_64,bezier,uniform-scale,,bounds_ns,80.10533791866028,
 eval,synthetic,linux-x86_64,bezier,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bezier,rotation-scale,,point_at_ns,21.952035086495535,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bezier,rotation-scale,,derivative_ns,25.680937872992622,first derivative from the right
-eval,synthetic,linux-x86_64,bezier,rotation-scale,,bounds_ns,91.6657857107939,
+eval,synthetic,linux-x86_64,bezier,rotation-scale,,point_at_ns,20.18242938701923,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bezier,rotation-scale,,derivative_ns,25.816640074823944,first derivative from the right
+eval,synthetic,linux-x86_64,bezier,rotation-scale,,bounds_ns,91.6838481566595,
 eval,synthetic,linux-x86_64,bezier,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bezier,chain-offset,,point_at_ns,22.009822300502233,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bezier,chain-offset,,derivative_ns,25.658172607421875,first derivative from the right
-eval,synthetic,linux-x86_64,bezier,chain-offset,,bounds_ns,84.10031507893792,
+eval,synthetic,linux-x86_64,bezier,chain-offset,,point_at_ns,20.16528052026099,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bezier,chain-offset,,derivative_ns,25.829243404764526,first derivative from the right
+eval,synthetic,linux-x86_64,bezier,chain-offset,,bounds_ns,80.05006883965164,
 eval,synthetic,linux-x86_64,bezier,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,identity,,point_at_ns,19.65846934217088,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline3,identity,,derivative_ns,22.410629644626525,first derivative from the right
-eval,synthetic,linux-x86_64,bspline3,identity,,bounds_ns,26.756390018550228,
+eval,synthetic,linux-x86_64,bspline3,identity,,point_at_ns,18.00431853649663,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline3,identity,,derivative_ns,21.568711942784926,first derivative from the right
+eval,synthetic,linux-x86_64,bspline3,identity,,bounds_ns,26.686177309859957,
 eval,synthetic,linux-x86_64,bspline3,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,translation,,point_at_ns,19.704431021085348,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline3,translation,,derivative_ns,22.460420934165395,first derivative from the right
-eval,synthetic,linux-x86_64,bspline3,translation,,bounds_ns,26.728914535579882,
+eval,synthetic,linux-x86_64,bspline3,translation,,point_at_ns,17.999325621361827,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline3,translation,,derivative_ns,21.533436619958213,first derivative from the right
+eval,synthetic,linux-x86_64,bspline3,translation,,bounds_ns,26.662756491382744,
 eval,synthetic,linux-x86_64,bspline3,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,uniform-scale,,point_at_ns,19.71559586063508,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline3,uniform-scale,,derivative_ns,22.495361328125,first derivative from the right
-eval,synthetic,linux-x86_64,bspline3,uniform-scale,,bounds_ns,26.687012524907487,
+eval,synthetic,linux-x86_64,bspline3,uniform-scale,,point_at_ns,17.97218951056985,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline3,uniform-scale,,derivative_ns,21.626325539981618,first derivative from the right
+eval,synthetic,linux-x86_64,bspline3,uniform-scale,,bounds_ns,26.598332706820244,
 eval,synthetic,linux-x86_64,bspline3,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,rotation-scale,,point_at_ns,19.736651020665324,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline3,rotation-scale,,derivative_ns,22.523396561785443,first derivative from the right
-eval,synthetic,linux-x86_64,bspline3,rotation-scale,,bounds_ns,25.72320436399056,
+eval,synthetic,linux-x86_64,bspline3,rotation-scale,,point_at_ns,18.016077976600798,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline3,rotation-scale,,derivative_ns,21.582073615579045,first derivative from the right
+eval,synthetic,linux-x86_64,bspline3,rotation-scale,,bounds_ns,25.670188516510596,
 eval,synthetic,linux-x86_64,bspline3,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,chain-offset,,point_at_ns,19.778610393565188,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline3,chain-offset,,derivative_ns,22.389737757240855,first derivative from the right
-eval,synthetic,linux-x86_64,bspline3,chain-offset,,bounds_ns,26.661640811625524,
+eval,synthetic,linux-x86_64,bspline3,chain-offset,,point_at_ns,18.007981244255514,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline3,chain-offset,,derivative_ns,21.52189458802689,first derivative from the right
+eval,synthetic,linux-x86_64,bspline3,chain-offset,,bounds_ns,26.661726126151745,
 eval,synthetic,linux-x86_64,bspline3,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline7,identity,,point_at_ns,40.17605723505435,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline7,identity,,derivative_ns,43.25114121547965,first derivative from the right
-eval,synthetic,linux-x86_64,bspline7,identity,,bounds_ns,29.925679503958122,
+eval,synthetic,linux-x86_64,bspline7,identity,,point_at_ns,37.348533935546875,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline7,identity,,derivative_ns,43.418525163517444,first derivative from the right
+eval,synthetic,linux-x86_64,bspline7,identity,,bounds_ns,29.923098788778248,
 eval,synthetic,linux-x86_64,bspline7,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline7,translation,,point_at_ns,40.21319049337636,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline7,translation,,derivative_ns,43.11089804006178,first derivative from the right
-eval,synthetic,linux-x86_64,bspline7,translation,,bounds_ns,29.98601216177317,
+eval,synthetic,linux-x86_64,bspline7,translation,,point_at_ns,37.34096435546875,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline7,translation,,derivative_ns,43.37079141306322,first derivative from the right
+eval,synthetic,linux-x86_64,bspline7,translation,,bounds_ns,29.92477657197574,
 eval,synthetic,linux-x86_64,bspline7,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline7,uniform-scale,,point_at_ns,40.243965480638586,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline7,uniform-scale,,derivative_ns,43.22102675327035,first derivative from the right
-eval,synthetic,linux-x86_64,bspline7,uniform-scale,,bounds_ns,30.41245985792137,
+eval,synthetic,linux-x86_64,bspline7,uniform-scale,,point_at_ns,37.3305810546875,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline7,uniform-scale,,derivative_ns,43.336248353470204,first derivative from the right
+eval,synthetic,linux-x86_64,bspline7,uniform-scale,,bounds_ns,29.97517365551861,
 eval,synthetic,linux-x86_64,bspline7,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline7,rotation-scale,,point_at_ns,40.25575322690217,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline7,rotation-scale,,derivative_ns,47.611936911558495,first derivative from the right
-eval,synthetic,linux-x86_64,bspline7,rotation-scale,,bounds_ns,29.01256324658043,
+eval,synthetic,linux-x86_64,bspline7,rotation-scale,,point_at_ns,37.3475634765625,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline7,rotation-scale,,derivative_ns,43.34966189362282,first derivative from the right
+eval,synthetic,linux-x86_64,bspline7,rotation-scale,,bounds_ns,28.942712513892317,
 eval,synthetic,linux-x86_64,bspline7,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline7,chain-offset,,point_at_ns,40.2887427288553,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,bspline7,chain-offset,,derivative_ns,43.18410758085029,first derivative from the right
-eval,synthetic,linux-x86_64,bspline7,chain-offset,,bounds_ns,29.97067103286235,
+eval,synthetic,linux-x86_64,bspline7,chain-offset,,point_at_ns,37.327886962890624,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,bspline7,chain-offset,,derivative_ns,43.35384918922602,first derivative from the right
+eval,synthetic,linux-x86_64,bspline7,chain-offset,,bounds_ns,29.88404170119852,
 eval,synthetic,linux-x86_64,bspline7,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,nurbs,identity,,point_at_ns,23.28158762485166,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,nurbs,identity,,derivative_ns,51.39301045735677,first derivative from the right
-eval,synthetic,linux-x86_64,nurbs,identity,,bounds_ns,25.264869603589524,
+eval,synthetic,linux-x86_64,nurbs,identity,,point_at_ns,23.360377058198182,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,nurbs,identity,,derivative_ns,53.70909075055803,first derivative from the right
+eval,synthetic,linux-x86_64,nurbs,identity,,bounds_ns,25.23577725437416,
 eval,synthetic,linux-x86_64,nurbs,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,nurbs,translation,,point_at_ns,23.289545373071597,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,nurbs,translation,,derivative_ns,51.365580240885414,first derivative from the right
-eval,synthetic,linux-x86_64,nurbs,translation,,bounds_ns,25.27280906297175,
+eval,synthetic,linux-x86_64,nurbs,translation,,point_at_ns,23.363154544106013,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,nurbs,translation,,derivative_ns,53.70860595703125,first derivative from the right
+eval,synthetic,linux-x86_64,nurbs,translation,,bounds_ns,25.244290719747966,
 eval,synthetic,linux-x86_64,nurbs,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,nurbs,uniform-scale,,point_at_ns,23.30954790718948,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,nurbs,uniform-scale,,derivative_ns,51.50355190700955,first derivative from the right
-eval,synthetic,linux-x86_64,nurbs,uniform-scale,,bounds_ns,25.241308693662162,
+eval,synthetic,linux-x86_64,nurbs,uniform-scale,,point_at_ns,23.356673228589795,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,nurbs,uniform-scale,,derivative_ns,53.73372105189732,first derivative from the right
+eval,synthetic,linux-x86_64,nurbs,uniform-scale,,bounds_ns,25.234673604382,
 eval,synthetic,linux-x86_64,nurbs,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,nurbs,rotation-scale,,point_at_ns,23.311847928204113,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,nurbs,rotation-scale,,derivative_ns,51.35483635796441,first derivative from the right
-eval,synthetic,linux-x86_64,nurbs,rotation-scale,,bounds_ns,24.388425257530827,
+eval,synthetic,linux-x86_64,nurbs,rotation-scale,,point_at_ns,23.352122632763052,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,nurbs,rotation-scale,,derivative_ns,53.73737095424107,first derivative from the right
+eval,synthetic,linux-x86_64,nurbs,rotation-scale,,bounds_ns,24.229123862872797,
 eval,synthetic,linux-x86_64,nurbs,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,nurbs,chain-offset,,point_at_ns,23.308065293710442,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-x86_64,nurbs,chain-offset,,derivative_ns,51.456380208333336,first derivative from the right
-eval,synthetic,linux-x86_64,nurbs,chain-offset,,bounds_ns,25.49342302044812,
+eval,synthetic,linux-x86_64,nurbs,chain-offset,,point_at_ns,23.3318296022053,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-x86_64,nurbs,chain-offset,,derivative_ns,53.67769426618304,first derivative from the right
+eval,synthetic,linux-x86_64,nurbs,chain-offset,,bounds_ns,25.236970193550125,
 eval,synthetic,linux-x86_64,nurbs,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-x86_64,bspline3,identity,,point_at_ns,19.757405,the reference cubic alone; 200;000 parameters; median of 15; as the prototype is measured
-eval,synthetic,linux-x86_64,bspline3,identity,,prototype_point_at_ns,18.594605,the P1.3 prototype on the same curve and parameters (spikes/geometry-api corpus_eval)
+eval,synthetic,linux-x86_64,bspline3,identity,,point_at_ns,18.060055,the reference cubic alone; 200;000 parameters; median of 15; as the prototype is measured
+eval,synthetic,linux-x86_64,bspline3,identity,,prototype_point_at_ns,18.731185,the P1.3 prototype on the same curve and parameters (spikes/geometry-api corpus_eval)
 accuracy,synthetic,linux-x86_64,line,chain-offset,,error,0.00000000046551917876058724,world units; against the local frame placed with a two-sum
 accuracy,synthetic,linux-x86_64,line,chain-offset,,tolerance,0.00000002,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
 accuracy,synthetic,linux-x86_64,polyline,chain-offset,,error,0.00000000046560444388887845,world units; against the local frame placed with a two-sum
@@ -221,413 +221,413 @@ accuracy,synthetic,linux-x86_64,bspline7,chain-offset,,error,0.00000000328068949
 accuracy,synthetic,linux-x86_64,bspline7,chain-offset,,tolerance,0.00000007694153624668539,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
 accuracy,synthetic,linux-x86_64,nurbs,chain-offset,,error,0.0000000033265905585722066,world units; against the local frame placed with a two-sum
 accuracy,synthetic,linux-x86_64,nurbs,chain-offset,,tolerance,0.000000037947331922020554,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
-eval,huge-coordinate-1e5,linux-x86_64,mixed,chain-offset,,point_at_ns,9.814747721354166,6000 curves of the entry at their own coordinates
-eval,huge-coordinate-1e5,linux-x86_64,mixed,identity,,point_at_ns,10.117579752604167,the same curves moved to the origin by an exact translation
+eval,huge-coordinate-1e5,linux-x86_64,mixed,chain-offset,,point_at_ns,9.267922092013889,6000 curves of the entry at their own coordinates
+eval,huge-coordinate-1e5,linux-x86_64,mixed,identity,,point_at_ns,9.314597005208332,the same curves moved to the origin by an exact translation
 tess,synthetic,linux-x86_64,line,identity,0.1,segments_per_curve,1,
-tess,synthetic,linux-x86_64,line,identity,0.1,ns_per_segment,53.46875,
-tess,synthetic,linux-x86_64,line,identity,0.1,ns_per_tess,53.46875,
+tess,synthetic,linux-x86_64,line,identity,0.1,ns_per_segment,127.15625,
+tess,synthetic,linux-x86_64,line,identity,0.1,ns_per_tess,127.15625,
 tess,synthetic,linux-x86_64,line,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,line,identity,0.1,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,line,identity,0.25,segments_per_curve,1,
-tess,synthetic,linux-x86_64,line,identity,0.25,ns_per_segment,38.75,
-tess,synthetic,linux-x86_64,line,identity,0.25,ns_per_tess,38.75,
+tess,synthetic,linux-x86_64,line,identity,0.25,ns_per_segment,55.96875,
+tess,synthetic,linux-x86_64,line,identity,0.25,ns_per_tess,55.96875,
 tess,synthetic,linux-x86_64,line,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,line,identity,0.25,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,line,identity,0.5,segments_per_curve,1,
-tess,synthetic,linux-x86_64,line,identity,0.5,ns_per_segment,32.328125,
-tess,synthetic,linux-x86_64,line,identity,0.5,ns_per_tess,32.328125,
+tess,synthetic,linux-x86_64,line,identity,0.5,ns_per_segment,55.890625,
+tess,synthetic,linux-x86_64,line,identity,0.5,ns_per_tess,55.890625,
 tess,synthetic,linux-x86_64,line,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,line,identity,0.5,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,line,identity,1,segments_per_curve,1,
-tess,synthetic,linux-x86_64,line,identity,1,ns_per_segment,26.765625,
-tess,synthetic,linux-x86_64,line,identity,1,ns_per_tess,26.765625,
+tess,synthetic,linux-x86_64,line,identity,1,ns_per_segment,56.734375,
+tess,synthetic,linux-x86_64,line,identity,1,ns_per_tess,56.734375,
 tess,synthetic,linux-x86_64,line,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,line,identity,1,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,polyline,identity,0.1,segments_per_curve,15,
-tess,synthetic,linux-x86_64,polyline,identity,0.1,ns_per_segment,1.4541666666666666,
-tess,synthetic,linux-x86_64,polyline,identity,0.1,ns_per_tess,21.8125,
+tess,synthetic,linux-x86_64,polyline,identity,0.1,ns_per_segment,2.0541666666666667,
+tess,synthetic,linux-x86_64,polyline,identity,0.1,ns_per_tess,30.8125,
 tess,synthetic,linux-x86_64,polyline,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,polyline,identity,0.1,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,polyline,identity,0.25,segments_per_curve,15,
-tess,synthetic,linux-x86_64,polyline,identity,0.25,ns_per_segment,1.409375,
-tess,synthetic,linux-x86_64,polyline,identity,0.25,ns_per_tess,21.140625,
+tess,synthetic,linux-x86_64,polyline,identity,0.25,ns_per_segment,1.9041666666666666,
+tess,synthetic,linux-x86_64,polyline,identity,0.25,ns_per_tess,28.5625,
 tess,synthetic,linux-x86_64,polyline,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,polyline,identity,0.25,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,polyline,identity,0.5,segments_per_curve,15,
-tess,synthetic,linux-x86_64,polyline,identity,0.5,ns_per_segment,1.546875,
-tess,synthetic,linux-x86_64,polyline,identity,0.5,ns_per_tess,23.203125,
+tess,synthetic,linux-x86_64,polyline,identity,0.5,ns_per_segment,2.064583333333333,
+tess,synthetic,linux-x86_64,polyline,identity,0.5,ns_per_tess,30.96875,
 tess,synthetic,linux-x86_64,polyline,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,polyline,identity,0.5,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,polyline,identity,1,segments_per_curve,15,
-tess,synthetic,linux-x86_64,polyline,identity,1,ns_per_segment,2.1927083333333335,
-tess,synthetic,linux-x86_64,polyline,identity,1,ns_per_tess,32.890625,
+tess,synthetic,linux-x86_64,polyline,identity,1,ns_per_segment,1.84375,
+tess,synthetic,linux-x86_64,polyline,identity,1,ns_per_tess,27.65625,
 tess,synthetic,linux-x86_64,polyline,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-x86_64,polyline,identity,1,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,circle,identity,0.1,segments_per_curve,256,
-tess,synthetic,linux-x86_64,circle,identity,0.1,ns_per_segment,300.68701171875,
-tess,synthetic,linux-x86_64,circle,identity,0.1,ns_per_tess,76975.875,
-tess,synthetic,linux-x86_64,circle,identity,0.1,allocs_per_tess,9,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,circle,identity,0.1,achieved_error_px,0.05324383697674113,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,circle,identity,0.25,segments_per_curve,128,
-tess,synthetic,linux-x86_64,circle,identity,0.25,ns_per_segment,304.6375732421875,
-tess,synthetic,linux-x86_64,circle,identity,0.25,ns_per_tess,38993.609375,
-tess,synthetic,linux-x86_64,circle,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,circle,identity,0.25,achieved_error_px,0.2129673295801029,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,circle,identity,0.5,segments_per_curve,128,
-tess,synthetic,linux-x86_64,circle,identity,0.5,ns_per_segment,332.755859375,
-tess,synthetic,linux-x86_64,circle,identity,0.5,ns_per_tess,42592.75,
-tess,synthetic,linux-x86_64,circle,identity,0.5,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,circle,identity,0.5,achieved_error_px,0.2129673295801029,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,circle,identity,1,segments_per_curve,64,
-tess,synthetic,linux-x86_64,circle,identity,1,ns_per_segment,322.7021484375,
-tess,synthetic,linux-x86_64,circle,identity,1,ns_per_tess,20652.9375,
-tess,synthetic,linux-x86_64,circle,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,circle,identity,1,achieved_error_px,0.8517410347562515,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,ellipse,identity,0.1,segments_per_curve,256,
-tess,synthetic,linux-x86_64,ellipse,identity,0.1,ns_per_segment,323.31597900390625,
-tess,synthetic,linux-x86_64,ellipse,identity,0.1,ns_per_tess,82768.890625,
-tess,synthetic,linux-x86_64,ellipse,identity,0.1,allocs_per_tess,9,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,ellipse,identity,0.1,achieved_error_px,0.07047144168335773,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,ellipse,identity,0.25,segments_per_curve,144,
-tess,synthetic,linux-x86_64,ellipse,identity,0.25,ns_per_segment,295.9697265625,
-tess,synthetic,linux-x86_64,ellipse,identity,0.25,ns_per_tess,42619.640625,
-tess,synthetic,linux-x86_64,ellipse,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,ellipse,identity,0.25,achieved_error_px,0.2479669155124943,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,ellipse,identity,0.5,segments_per_curve,104,
-tess,synthetic,linux-x86_64,ellipse,identity,0.5,ns_per_segment,325.3466045673077,
-tess,synthetic,linux-x86_64,ellipse,identity,0.5,ns_per_tess,33836.046875,
-tess,synthetic,linux-x86_64,ellipse,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,ellipse,identity,0.5,achieved_error_px,0.481081830579194,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,ellipse,identity,1,segments_per_curve,72,
-tess,synthetic,linux-x86_64,ellipse,identity,1,ns_per_segment,276.896484375,
-tess,synthetic,linux-x86_64,ellipse,identity,1,ns_per_tess,19936.546875,
-tess,synthetic,linux-x86_64,ellipse,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,ellipse,identity,1,achieved_error_px,0.9668385763908552,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,trimmed,identity,0.1,segments_per_curve,128,
-tess,synthetic,linux-x86_64,trimmed,identity,0.1,ns_per_segment,324.402099609375,
-tess,synthetic,linux-x86_64,trimmed,identity,0.1,ns_per_tess,41523.46875,
-tess,synthetic,linux-x86_64,trimmed,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,trimmed,identity,0.1,achieved_error_px,0.04980433300091858,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,trimmed,identity,0.25,segments_per_curve,64,
-tess,synthetic,linux-x86_64,trimmed,identity,0.25,ns_per_segment,323.877685546875,
-tess,synthetic,linux-x86_64,trimmed,identity,0.25,ns_per_tess,20728.171875,
-tess,synthetic,linux-x86_64,trimmed,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,trimmed,identity,0.25,achieved_error_px,0.1992121947586053,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,trimmed,identity,0.5,segments_per_curve,64,
-tess,synthetic,linux-x86_64,trimmed,identity,0.5,ns_per_segment,290.6943359375,
-tess,synthetic,linux-x86_64,trimmed,identity,0.5,ns_per_tess,18604.4375,
-tess,synthetic,linux-x86_64,trimmed,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,trimmed,identity,0.5,achieved_error_px,0.1992121947586053,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,trimmed,identity,1,segments_per_curve,32,
-tess,synthetic,linux-x86_64,trimmed,identity,1,ns_per_segment,273.51318359375,
-tess,synthetic,linux-x86_64,trimmed,identity,1,ns_per_tess,8752.421875,
-tess,synthetic,linux-x86_64,trimmed,identity,1,allocs_per_tess,6,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,trimmed,identity,1,achieved_error_px,0.7967665873698495,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,composite,identity,0.1,segments_per_curve,193,
-tess,synthetic,linux-x86_64,composite,identity,0.1,ns_per_segment,416.08759715025906,
-tess,synthetic,linux-x86_64,composite,identity,0.1,ns_per_tess,80304.90625,
-tess,synthetic,linux-x86_64,composite,identity,0.1,allocs_per_tess,19,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,composite,identity,0.1,achieved_error_px,0.07541622947969695,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,composite,identity,0.25,segments_per_curve,119,
-tess,synthetic,linux-x86_64,composite,identity,0.25,ns_per_segment,438.7236081932773,
-tess,synthetic,linux-x86_64,composite,identity,0.25,ns_per_tess,52208.109375,
-tess,synthetic,linux-x86_64,composite,identity,0.25,allocs_per_tess,17,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,composite,identity,0.25,achieved_error_px,0.24504326548104075,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,composite,identity,0.5,segments_per_curve,65,
-tess,synthetic,linux-x86_64,composite,identity,0.5,ns_per_segment,421.97836538461536,
-tess,synthetic,linux-x86_64,composite,identity,0.5,ns_per_tess,27428.59375,
-tess,synthetic,linux-x86_64,composite,identity,0.5,allocs_per_tess,16,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,composite,identity,0.5,achieved_error_px,0.49629702681812365,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,composite,identity,1,segments_per_curve,59,
-tess,synthetic,linux-x86_64,composite,identity,1,ns_per_segment,405.1374470338983,
-tess,synthetic,linux-x86_64,composite,identity,1,ns_per_tess,23903.109375,
-tess,synthetic,linux-x86_64,composite,identity,1,allocs_per_tess,15,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,composite,identity,1,achieved_error_px,0.9946517178293254,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bezier,identity,0.1,segments_per_curve,128,
-tess,synthetic,linux-x86_64,bezier,identity,0.1,ns_per_segment,585.302490234375,
-tess,synthetic,linux-x86_64,bezier,identity,0.1,ns_per_tess,74918.71875,
-tess,synthetic,linux-x86_64,bezier,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bezier,identity,0.1,achieved_error_px,0.05004474957215527,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bezier,identity,0.25,segments_per_curve,64,
-tess,synthetic,linux-x86_64,bezier,identity,0.25,ns_per_segment,575.45263671875,
-tess,synthetic,linux-x86_64,bezier,identity,0.25,ns_per_tess,36828.96875,
-tess,synthetic,linux-x86_64,bezier,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bezier,identity,0.25,achieved_error_px,0.2003195869937879,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bezier,identity,0.5,segments_per_curve,64,
-tess,synthetic,linux-x86_64,bezier,identity,0.5,ns_per_segment,575.4873046875,
-tess,synthetic,linux-x86_64,bezier,identity,0.5,ns_per_tess,36831.1875,
-tess,synthetic,linux-x86_64,bezier,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bezier,identity,0.5,achieved_error_px,0.2003195869937879,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bezier,identity,1,segments_per_curve,32,
-tess,synthetic,linux-x86_64,bezier,identity,1,ns_per_segment,530.71923828125,
-tess,synthetic,linux-x86_64,bezier,identity,1,ns_per_tess,16983.015625,
-tess,synthetic,linux-x86_64,bezier,identity,1,allocs_per_tess,6,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bezier,identity,1,achieved_error_px,0.8013477256281683,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline3,identity,0.1,segments_per_curve,229,
-tess,synthetic,linux-x86_64,bspline3,identity,0.1,ns_per_segment,458.06229530567686,
-tess,synthetic,linux-x86_64,bspline3,identity,0.1,ns_per_tess,104896.265625,
-tess,synthetic,linux-x86_64,bspline3,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline3,identity,0.1,achieved_error_px,0.09973222083843243,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline3,identity,0.25,segments_per_curve,151,
-tess,synthetic,linux-x86_64,bspline3,identity,0.25,ns_per_segment,442.9278766556291,
-tess,synthetic,linux-x86_64,bspline3,identity,0.25,ns_per_tess,66882.109375,
-tess,synthetic,linux-x86_64,bspline3,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline3,identity,0.25,achieved_error_px,0.2501847091740568,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline3,identity,0.5,segments_per_curve,103,
-tess,synthetic,linux-x86_64,bspline3,identity,0.5,ns_per_segment,445.23862257281553,
-tess,synthetic,linux-x86_64,bspline3,identity,0.5,ns_per_tess,45859.578125,
-tess,synthetic,linux-x86_64,bspline3,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline3,identity,0.5,achieved_error_px,0.48094190358348843,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline3,identity,1,segments_per_curve,74,
-tess,synthetic,linux-x86_64,bspline3,identity,1,ns_per_segment,438.1307010135135,
-tess,synthetic,linux-x86_64,bspline3,identity,1,ns_per_tess,32421.671875,
-tess,synthetic,linux-x86_64,bspline3,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline3,identity,1,achieved_error_px,0.9991952932530721,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline7,identity,0.1,segments_per_curve,220,
-tess,synthetic,linux-x86_64,bspline7,identity,0.1,ns_per_segment,785.2938920454545,
-tess,synthetic,linux-x86_64,bspline7,identity,0.1,ns_per_tess,172764.65625,
-tess,synthetic,linux-x86_64,bspline7,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline7,identity,0.1,achieved_error_px,0.09916756946306308,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline7,identity,0.25,segments_per_curve,138,
-tess,synthetic,linux-x86_64,bspline7,identity,0.25,ns_per_segment,755.9291213768116,
-tess,synthetic,linux-x86_64,bspline7,identity,0.25,ns_per_tess,104318.21875,
-tess,synthetic,linux-x86_64,bspline7,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline7,identity,0.25,achieved_error_px,0.24790343591843342,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline7,identity,0.5,segments_per_curve,100,
-tess,synthetic,linux-x86_64,bspline7,identity,0.5,ns_per_segment,753.28578125,
-tess,synthetic,linux-x86_64,bspline7,identity,0.5,ns_per_tess,75328.578125,
-tess,synthetic,linux-x86_64,bspline7,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline7,identity,0.5,achieved_error_px,0.4833831586507367,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,bspline7,identity,1,segments_per_curve,72,
-tess,synthetic,linux-x86_64,bspline7,identity,1,ns_per_segment,775.1026475694445,
-tess,synthetic,linux-x86_64,bspline7,identity,1,ns_per_tess,55807.390625,
-tess,synthetic,linux-x86_64,bspline7,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,bspline7,identity,1,achieved_error_px,0.8370449997219367,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,nurbs,identity,0.1,segments_per_curve,211,
-tess,synthetic,linux-x86_64,nurbs,identity,0.1,ns_per_segment,636.0839751184834,
-tess,synthetic,linux-x86_64,nurbs,identity,0.1,ns_per_tess,134213.71875,
-tess,synthetic,linux-x86_64,nurbs,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,nurbs,identity,0.1,achieved_error_px,0.09991822979636086,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,nurbs,identity,0.25,segments_per_curve,125,
-tess,synthetic,linux-x86_64,nurbs,identity,0.25,ns_per_segment,620.487,
-tess,synthetic,linux-x86_64,nurbs,identity,0.25,ns_per_tess,77560.875,
-tess,synthetic,linux-x86_64,nurbs,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,nurbs,identity,0.25,achieved_error_px,0.24889386722185097,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,nurbs,identity,0.5,segments_per_curve,99,
-tess,synthetic,linux-x86_64,nurbs,identity,0.5,ns_per_segment,622.3443813131313,
-tess,synthetic,linux-x86_64,nurbs,identity,0.5,ns_per_tess,61612.09375,
-tess,synthetic,linux-x86_64,nurbs,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,nurbs,identity,0.5,achieved_error_px,0.48397486199218415,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-x86_64,nurbs,identity,1,segments_per_curve,64,
-tess,synthetic,linux-x86_64,nurbs,identity,1,ns_per_segment,613.496337890625,
-tess,synthetic,linux-x86_64,nurbs,identity,1,ns_per_tess,39263.765625,
-tess,synthetic,linux-x86_64,nurbs,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-x86_64,nurbs,identity,1,achieved_error_px,0.9778557642992041,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,circle,identity,0.1,segments_per_curve,216,
+tess,synthetic,linux-x86_64,circle,identity,0.1,ns_per_segment,152.29304108796296,
+tess,synthetic,linux-x86_64,circle,identity,0.1,ns_per_tess,32895.296875,
+tess,synthetic,linux-x86_64,circle,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,circle,identity,0.1,achieved_error_px,0.07478896031224185,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,circle,identity,0.25,segments_per_curve,136,
+tess,synthetic,linux-x86_64,circle,identity,0.25,ns_per_segment,155.93462775735293,
+tess,synthetic,linux-x86_64,circle,identity,0.25,ns_per_tess,21207.109375,
+tess,synthetic,linux-x86_64,circle,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,circle,identity,0.25,achieved_error_px,0.18865034217662704,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,circle,identity,0.5,segments_per_curve,96,
+tess,synthetic,linux-x86_64,circle,identity,0.5,ns_per_segment,160.4619140625,
+tess,synthetic,linux-x86_64,circle,identity,0.5,ns_per_tess,15404.34375,
+tess,synthetic,linux-x86_64,circle,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,circle,identity,0.5,achieved_error_px,0.37859362298348154,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,circle,identity,1,segments_per_curve,72,
+tess,synthetic,linux-x86_64,circle,identity,1,ns_per_segment,165.85329861111111,
+tess,synthetic,linux-x86_64,circle,identity,1,ns_per_tess,11941.4375,
+tess,synthetic,linux-x86_64,circle,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,circle,identity,1,achieved_error_px,0.6730057222813794,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,ellipse,identity,0.1,segments_per_curve,212,
+tess,synthetic,linux-x86_64,ellipse,identity,0.1,ns_per_segment,175.81235259433961,
+tess,synthetic,linux-x86_64,ellipse,identity,0.1,ns_per_tess,37272.21875,
+tess,synthetic,linux-x86_64,ellipse,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,ellipse,identity,0.1,achieved_error_px,0.09334548623887638,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,ellipse,identity,0.25,segments_per_curve,132,
+tess,synthetic,linux-x86_64,ellipse,identity,0.25,ns_per_segment,172.97514204545453,
+tess,synthetic,linux-x86_64,ellipse,identity,0.25,ns_per_tess,22832.71875,
+tess,synthetic,linux-x86_64,ellipse,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,ellipse,identity,0.25,achieved_error_px,0.23208516661424153,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,ellipse,identity,0.5,segments_per_curve,92,
+tess,synthetic,linux-x86_64,ellipse,identity,0.5,ns_per_segment,177.40047554347825,
+tess,synthetic,linux-x86_64,ellipse,identity,0.5,ns_per_tess,16320.84375,
+tess,synthetic,linux-x86_64,ellipse,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,ellipse,identity,0.5,achieved_error_px,0.46501356688403817,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,ellipse,identity,1,segments_per_curve,64,
+tess,synthetic,linux-x86_64,ellipse,identity,1,ns_per_segment,170.798583984375,
+tess,synthetic,linux-x86_64,ellipse,identity,1,ns_per_tess,10931.109375,
+tess,synthetic,linux-x86_64,ellipse,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,ellipse,identity,1,achieved_error_px,0.8860373689078535,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,trimmed,identity,0.1,segments_per_curve,104,
+tess,synthetic,linux-x86_64,trimmed,identity,0.1,ns_per_segment,175.12830528846155,
+tess,synthetic,linux-x86_64,trimmed,identity,0.1,ns_per_tess,18213.34375,
+tess,synthetic,linux-x86_64,trimmed,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,trimmed,identity,0.1,achieved_error_px,0.07544216031689387,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,trimmed,identity,0.25,segments_per_curve,72,
+tess,synthetic,linux-x86_64,trimmed,identity,0.25,ns_per_segment,180.99479166666666,
+tess,synthetic,linux-x86_64,trimmed,identity,0.25,ns_per_tess,13031.625,
+tess,synthetic,linux-x86_64,trimmed,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,trimmed,identity,0.25,achieved_error_px,0.15740261287217522,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,trimmed,identity,0.5,segments_per_curve,48,
+tess,synthetic,linux-x86_64,trimmed,identity,0.5,ns_per_segment,191.39680989583334,
+tess,synthetic,linux-x86_64,trimmed,identity,0.5,ns_per_tess,9187.046875,
+tess,synthetic,linux-x86_64,trimmed,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,trimmed,identity,0.5,achieved_error_px,0.3541453730077386,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,trimmed,identity,1,segments_per_curve,40,
+tess,synthetic,linux-x86_64,trimmed,identity,1,ns_per_segment,196.923828125,
+tess,synthetic,linux-x86_64,trimmed,identity,1,ns_per_tess,7876.953125,
+tess,synthetic,linux-x86_64,trimmed,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,trimmed,identity,1,achieved_error_px,0.5099551347357643,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,composite,identity,0.1,segments_per_curve,151,
+tess,synthetic,linux-x86_64,composite,identity,0.1,ns_per_segment,254.77173013245033,
+tess,synthetic,linux-x86_64,composite,identity,0.1,ns_per_tess,38470.53125,
+tess,synthetic,linux-x86_64,composite,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,composite,identity,0.1,achieved_error_px,0.078054862487389,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,composite,identity,0.25,segments_per_curve,97,
+tess,synthetic,linux-x86_64,composite,identity,0.25,ns_per_segment,269.8529317010309,
+tess,synthetic,linux-x86_64,composite,identity,0.25,ns_per_tess,26175.734375,
+tess,synthetic,linux-x86_64,composite,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,composite,identity,0.25,achieved_error_px,0.19294756044368114,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,composite,identity,0.5,segments_per_curve,73,
+tess,synthetic,linux-x86_64,composite,identity,0.5,ns_per_segment,287.59482020547944,
+tess,synthetic,linux-x86_64,composite,identity,0.5,ns_per_tess,20994.421875,
+tess,synthetic,linux-x86_64,composite,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,composite,identity,0.5,achieved_error_px,0.31764896715191726,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,composite,identity,1,segments_per_curve,57,
+tess,synthetic,linux-x86_64,composite,identity,1,ns_per_segment,300.405701754386,
+tess,synthetic,linux-x86_64,composite,identity,1,ns_per_tess,17123.125,
+tess,synthetic,linux-x86_64,composite,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,composite,identity,1,achieved_error_px,0.5360179447502842,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bezier,identity,0.1,segments_per_curve,104,
+tess,synthetic,linux-x86_64,bezier,identity,0.1,ns_per_segment,331.6554987980769,
+tess,synthetic,linux-x86_64,bezier,identity,0.1,ns_per_tess,34492.171875,
+tess,synthetic,linux-x86_64,bezier,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bezier,identity,0.1,achieved_error_px,0.07587326058988299,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bezier,identity,0.25,segments_per_curve,68,
+tess,synthetic,linux-x86_64,bezier,identity,0.25,ns_per_segment,346.1789981617647,
+tess,synthetic,linux-x86_64,bezier,identity,0.25,ns_per_tess,23540.171875,
+tess,synthetic,linux-x86_64,bezier,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bezier,identity,0.25,achieved_error_px,0.19536184202242185,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bezier,identity,0.5,segments_per_curve,48,
+tess,synthetic,linux-x86_64,bezier,identity,0.5,ns_per_segment,361.0559895833333,
+tess,synthetic,linux-x86_64,bezier,identity,0.5,ns_per_tess,17330.6875,
+tess,synthetic,linux-x86_64,bezier,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bezier,identity,0.5,achieved_error_px,0.35619503972229954,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bezier,identity,1,segments_per_curve,36,
+tess,synthetic,linux-x86_64,bezier,identity,1,ns_per_segment,379.5447048611111,
+tess,synthetic,linux-x86_64,bezier,identity,1,ns_per_tess,13663.609375,
+tess,synthetic,linux-x86_64,bezier,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bezier,identity,1,achieved_error_px,0.7805671974502736,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline3,identity,0.1,segments_per_curve,255,
+tess,synthetic,linux-x86_64,bspline3,identity,0.1,ns_per_segment,291.14424019607844,
+tess,synthetic,linux-x86_64,bspline3,identity,0.1,ns_per_tess,74241.78125,
+tess,synthetic,linux-x86_64,bspline3,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline3,identity,0.1,achieved_error_px,0.09475971055954481,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline3,identity,0.25,segments_per_curve,160,
+tess,synthetic,linux-x86_64,bspline3,identity,0.25,ns_per_segment,289.83671875,
+tess,synthetic,linux-x86_64,bspline3,identity,0.25,ns_per_tess,46373.875,
+tess,synthetic,linux-x86_64,bspline3,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline3,identity,0.25,achieved_error_px,0.23517646991088192,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline3,identity,0.5,segments_per_curve,112,
+tess,synthetic,linux-x86_64,bspline3,identity,0.5,ns_per_segment,296.89369419642856,
+tess,synthetic,linux-x86_64,bspline3,identity,0.5,ns_per_tess,33252.09375,
+tess,synthetic,linux-x86_64,bspline3,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline3,identity,0.5,achieved_error_px,0.47401039395033645,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline3,identity,1,segments_per_curve,81,
+tess,synthetic,linux-x86_64,bspline3,identity,1,ns_per_segment,302.9533179012346,
+tess,synthetic,linux-x86_64,bspline3,identity,1,ns_per_tess,24539.21875,
+tess,synthetic,linux-x86_64,bspline3,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline3,identity,1,achieved_error_px,0.8971561347314563,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline7,identity,0.1,segments_per_curve,234,
+tess,synthetic,linux-x86_64,bspline7,identity,0.1,ns_per_segment,500.5703125,
+tess,synthetic,linux-x86_64,bspline7,identity,0.1,ns_per_tess,117133.453125,
+tess,synthetic,linux-x86_64,bspline7,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline7,identity,0.1,achieved_error_px,0.09159070970078388,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline7,identity,0.25,segments_per_curve,146,
+tess,synthetic,linux-x86_64,bspline7,identity,0.25,ns_per_segment,502.7575984589041,
+tess,synthetic,linux-x86_64,bspline7,identity,0.25,ns_per_tess,73402.609375,
+tess,synthetic,linux-x86_64,bspline7,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline7,identity,0.25,achieved_error_px,0.23252809922168607,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline7,identity,0.5,segments_per_curve,108,
+tess,synthetic,linux-x86_64,bspline7,identity,0.5,ns_per_segment,516.1348379629629,
+tess,synthetic,linux-x86_64,bspline7,identity,0.5,ns_per_tess,55742.5625,
+tess,synthetic,linux-x86_64,bspline7,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline7,identity,0.5,achieved_error_px,0.4700896030076694,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,bspline7,identity,1,segments_per_curve,74,
+tess,synthetic,linux-x86_64,bspline7,identity,1,ns_per_segment,531.3029983108108,
+tess,synthetic,linux-x86_64,bspline7,identity,1,ns_per_tess,39316.421875,
+tess,synthetic,linux-x86_64,bspline7,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,bspline7,identity,1,achieved_error_px,0.9141049922635772,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,nurbs,identity,0.1,segments_per_curve,217,
+tess,synthetic,linux-x86_64,nurbs,identity,0.1,ns_per_segment,392.8777361751152,
+tess,synthetic,linux-x86_64,nurbs,identity,0.1,ns_per_tess,85254.46875,
+tess,synthetic,linux-x86_64,nurbs,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,nurbs,identity,0.1,achieved_error_px,0.09452577897299931,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,nurbs,identity,0.25,segments_per_curve,137,
+tess,synthetic,linux-x86_64,nurbs,identity,0.25,ns_per_segment,403.178147810219,
+tess,synthetic,linux-x86_64,nurbs,identity,0.25,ns_per_tess,55235.40625,
+tess,synthetic,linux-x86_64,nurbs,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,nurbs,identity,0.25,achieved_error_px,0.23441129576609174,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,nurbs,identity,0.5,segments_per_curve,95,
+tess,synthetic,linux-x86_64,nurbs,identity,0.5,ns_per_segment,411.3327302631579,
+tess,synthetic,linux-x86_64,nurbs,identity,0.5,ns_per_tess,39076.609375,
+tess,synthetic,linux-x86_64,nurbs,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,nurbs,identity,0.5,achieved_error_px,0.46877665636921356,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-x86_64,nurbs,identity,1,segments_per_curve,67,
+tess,synthetic,linux-x86_64,nurbs,identity,1,ns_per_segment,412.1513526119403,
+tess,synthetic,linux-x86_64,nurbs,identity,1,ns_per_tess,27614.140625,
+tess,synthetic,linux-x86_64,nurbs,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-x86_64,nurbs,identity,1,achieved_error_px,0.9231810862285984,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-x86_64,all,identity,,simd_variance,,perf is not available in the container and pvec-geometry has no SIMD kernel; so there is no scalar against SIMD pair to measure
-summary,architectural-1e5,linux-x86_64,mix,identity,,weighted_point_at_ns,5.813375238573299,per-type cost weighted by the entry's capability counts; 100.0% of the entities mapped
-summary,architectural-1e5,linux-x86_64,mix,identity,0.5,weighted_ns_per_tess,3021.5747487500003,at 0.5 px; same weights
-eval,synthetic,linux-aarch64,line,identity,,point_at_ns,7.610315346618906,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,line,identity,,derivative_ns,7.796820171808792,first derivative from the right
-eval,synthetic,linux-aarch64,line,identity,,bounds_ns,20.807150644724576,
+summary,architectural-1e5,linux-x86_64,mix,identity,,weighted_point_at_ns,5.091040636701718,per-type cost weighted by the entry's capability counts; 100.0% of the entities mapped
+summary,architectural-1e5,linux-x86_64,mix,identity,0.5,weighted_ns_per_tess,1459.3108884375001,at 0.5 px; same weights
+eval,synthetic,linux-aarch64,line,identity,,point_at_ns,5.557150730942235,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,line,identity,,derivative_ns,5.880551264836238,first derivative from the right
+eval,synthetic,linux-aarch64,line,identity,,bounds_ns,15.496255165289256,
 eval,synthetic,linux-aarch64,line,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,line,translation,,point_at_ns,7.421979911834839,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,line,translation,,derivative_ns,7.558552306375386,first derivative from the right
-eval,synthetic,linux-aarch64,line,translation,,bounds_ns,18.660126860992793,
+eval,synthetic,linux-aarch64,line,translation,,point_at_ns,5.55123993844697,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,line,translation,,derivative_ns,5.8760845477764425,first derivative from the right
+eval,synthetic,linux-aarch64,line,translation,,bounds_ns,15.517179276043564,
 eval,synthetic,linux-aarch64,line,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,line,uniform-scale,,point_at_ns,6.926395747346698,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,line,uniform-scale,,derivative_ns,6.890738580459939,first derivative from the right
-eval,synthetic,linux-aarch64,line,uniform-scale,,bounds_ns,18.788879008016032,
+eval,synthetic,linux-aarch64,line,uniform-scale,,point_at_ns,5.5512012828480115,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,line,uniform-scale,,derivative_ns,5.873769711225461,first derivative from the right
+eval,synthetic,linux-aarch64,line,uniform-scale,,bounds_ns,15.511358371939114,
 eval,synthetic,linux-aarch64,line,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,line,rotation-scale,,point_at_ns,7.100629703019017,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,line,rotation-scale,,derivative_ns,7.396779460291708,first derivative from the right
-eval,synthetic,linux-aarch64,line,rotation-scale,,bounds_ns,21.79439699762879,
+eval,synthetic,linux-aarch64,line,rotation-scale,,point_at_ns,5.550261341441761,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,line,rotation-scale,,derivative_ns,5.877038222092849,first derivative from the right
+eval,synthetic,linux-aarch64,line,rotation-scale,,bounds_ns,15.253348613777618,
 eval,synthetic,linux-aarch64,line,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,line,chain-offset,,point_at_ns,8.033316896672835,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,line,chain-offset,,derivative_ns,7.37634718561747,first derivative from the right
-eval,synthetic,linux-aarch64,line,chain-offset,,bounds_ns,38.40660205858255,
+eval,synthetic,linux-aarch64,line,chain-offset,,point_at_ns,5.550461462772254,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,line,chain-offset,,derivative_ns,5.874332134540264,first derivative from the right
+eval,synthetic,linux-aarch64,line,chain-offset,,bounds_ns,15.512514271295254,
 eval,synthetic,linux-aarch64,line,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,polyline,identity,,point_at_ns,5.328496001487554,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,polyline,identity,,derivative_ns,5.627146153362251,first derivative from the right
-eval,synthetic,linux-aarch64,polyline,identity,,bounds_ns,24.33239764469245,
+eval,synthetic,linux-aarch64,polyline,identity,,point_at_ns,3.616473497018306,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,polyline,identity,,derivative_ns,4.254965797654437,first derivative from the right
+eval,synthetic,linux-aarch64,polyline,identity,,bounds_ns,18.140706632159443,
 eval,synthetic,linux-aarch64,polyline,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,polyline,translation,,point_at_ns,5.331852402797965,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,polyline,translation,,derivative_ns,5.62750506254793,first derivative from the right
-eval,synthetic,linux-aarch64,polyline,translation,,bounds_ns,24.320563810054995,
+eval,synthetic,linux-aarch64,polyline,translation,,point_at_ns,3.6190670450685523,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,polyline,translation,,derivative_ns,4.2548476925029,first derivative from the right
+eval,synthetic,linux-aarch64,polyline,translation,,bounds_ns,18.141458889662914,
 eval,synthetic,linux-aarch64,polyline,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,polyline,uniform-scale,,point_at_ns,5.3278453738190406,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,polyline,uniform-scale,,derivative_ns,5.620725854042849,first derivative from the right
-eval,synthetic,linux-aarch64,polyline,uniform-scale,,bounds_ns,24.290587107472277,
+eval,synthetic,linux-aarch64,polyline,uniform-scale,,point_at_ns,3.6160721336831236,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,polyline,uniform-scale,,derivative_ns,4.2549184989486655,first derivative from the right
+eval,synthetic,linux-aarch64,polyline,uniform-scale,,bounds_ns,18.153326741731856,
 eval,synthetic,linux-aarch64,polyline,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,polyline,rotation-scale,,point_at_ns,4.714213628695373,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,polyline,rotation-scale,,derivative_ns,5.0635782315586155,first derivative from the right
-eval,synthetic,linux-aarch64,polyline,rotation-scale,,bounds_ns,21.8170763811319,
+eval,synthetic,linux-aarch64,polyline,rotation-scale,,point_at_ns,3.6119137976531683,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,polyline,rotation-scale,,derivative_ns,4.253779789687862,first derivative from the right
+eval,synthetic,linux-aarch64,polyline,rotation-scale,,bounds_ns,18.163149507904524,
 eval,synthetic,linux-aarch64,polyline,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,polyline,chain-offset,,point_at_ns,4.724312221881041,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,polyline,chain-offset,,derivative_ns,5.059559858964952,first derivative from the right
-eval,synthetic,linux-aarch64,polyline,chain-offset,,bounds_ns,21.825141569280195,
+eval,synthetic,linux-aarch64,polyline,chain-offset,,point_at_ns,3.6140406380978796,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,polyline,chain-offset,,derivative_ns,4.252835656540023,first derivative from the right
+eval,synthetic,linux-aarch64,polyline,chain-offset,,bounds_ns,18.136570939410355,
 eval,synthetic,linux-aarch64,polyline,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,circle,identity,,point_at_ns,26.988794663373163,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,circle,identity,,derivative_ns,27.872718579841383,first derivative from the right
-eval,synthetic,linux-aarch64,circle,identity,,bounds_ns,95.51144177872861,
+eval,synthetic,linux-aarch64,circle,identity,,point_at_ns,20.915694496848367,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,circle,identity,,derivative_ns,21.80768548874628,first derivative from the right
+eval,synthetic,linux-aarch64,circle,identity,,bounds_ns,76.34417752442997,
 eval,synthetic,linux-aarch64,circle,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,circle,translation,,point_at_ns,25.977798676826584,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,circle,translation,,derivative_ns,26.464837646484376,first derivative from the right
-eval,synthetic,linux-aarch64,circle,translation,,bounds_ns,91.34677330962587,
+eval,synthetic,linux-aarch64,circle,translation,,point_at_ns,20.930519797585227,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,circle,translation,,derivative_ns,21.7993897937593,first derivative from the right
+eval,synthetic,linux-aarch64,circle,translation,,bounds_ns,76.37626771749756,
 eval,synthetic,linux-aarch64,circle,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,circle,uniform-scale,,point_at_ns,26.867036238960598,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,circle,uniform-scale,,derivative_ns,27.50312827950093,first derivative from the right
-eval,synthetic,linux-aarch64,circle,uniform-scale,,bounds_ns,91.78030173257635,
+eval,synthetic,linux-aarch64,circle,uniform-scale,,point_at_ns,20.94820612127131,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,circle,uniform-scale,,derivative_ns,21.790026137408088,first derivative from the right
+eval,synthetic,linux-aarch64,circle,uniform-scale,,bounds_ns,76.38019051401108,
 eval,synthetic,linux-aarch64,circle,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,circle,rotation-scale,,point_at_ns,25.672131008572048,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,circle,rotation-scale,,derivative_ns,28.038658939190764,first derivative from the right
-eval,synthetic,linux-aarch64,circle,rotation-scale,,bounds_ns,135.53184627059844,
+eval,synthetic,linux-aarch64,circle,rotation-scale,,point_at_ns,20.72511960147472,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,circle,rotation-scale,,derivative_ns,22.09077324924699,first derivative from the right
+eval,synthetic,linux-aarch64,circle,rotation-scale,,bounds_ns,112.19779200574438,
 eval,synthetic,linux-aarch64,circle,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,circle,chain-offset,,point_at_ns,24.777316531619512,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,circle,chain-offset,,derivative_ns,26.634177387624547,first derivative from the right
-eval,synthetic,linux-aarch64,circle,chain-offset,,bounds_ns,90.21448153135822,
+eval,synthetic,linux-aarch64,circle,chain-offset,,point_at_ns,20.859746759588067,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,circle,chain-offset,,derivative_ns,21.969959803989955,first derivative from the right
+eval,synthetic,linux-aarch64,circle,chain-offset,,bounds_ns,78.50552932925808,
 eval,synthetic,linux-aarch64,circle,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,ellipse,identity,,point_at_ns,27.03984249339384,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,ellipse,identity,,derivative_ns,27.78906619910038,first derivative from the right
-eval,synthetic,linux-aarch64,ellipse,identity,,bounds_ns,94.38216945059368,
+eval,synthetic,linux-aarch64,ellipse,identity,,point_at_ns,21.06800298581178,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,ellipse,identity,,derivative_ns,21.865208217075892,first derivative from the right
+eval,synthetic,linux-aarch64,ellipse,identity,,bounds_ns,76.76204560340592,
 eval,synthetic,linux-aarch64,ellipse,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,ellipse,translation,,point_at_ns,26.78679977638134,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,ellipse,translation,,derivative_ns,28.74131679534912,first derivative from the right
-eval,synthetic,linux-aarch64,ellipse,translation,,bounds_ns,98.23321941127173,
+eval,synthetic,linux-aarch64,ellipse,translation,,point_at_ns,20.98805722323331,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,ellipse,translation,,derivative_ns,21.84562029157366,first derivative from the right
+eval,synthetic,linux-aarch64,ellipse,translation,,bounds_ns,76.30581156412761,
 eval,synthetic,linux-aarch64,ellipse,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,ellipse,uniform-scale,,point_at_ns,27.247254315544577,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,ellipse,uniform-scale,,derivative_ns,28.769609451293945,first derivative from the right
-eval,synthetic,linux-aarch64,ellipse,uniform-scale,,bounds_ns,98.50177586659665,
+eval,synthetic,linux-aarch64,ellipse,uniform-scale,,point_at_ns,21.053387521327227,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,ellipse,uniform-scale,,derivative_ns,21.75409366383272,first derivative from the right
+eval,synthetic,linux-aarch64,ellipse,uniform-scale,,bounds_ns,76.33683439179286,
 eval,synthetic,linux-aarch64,ellipse,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,ellipse,rotation-scale,,point_at_ns,27.48922280704274,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,ellipse,rotation-scale,,derivative_ns,28.749184608459473,first derivative from the right
-eval,synthetic,linux-aarch64,ellipse,rotation-scale,,bounds_ns,149.4055479206501,
+eval,synthetic,linux-aarch64,ellipse,rotation-scale,,point_at_ns,20.887055830522016,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,ellipse,rotation-scale,,derivative_ns,21.830543154761905,first derivative from the right
+eval,synthetic,linux-aarch64,ellipse,rotation-scale,,bounds_ns,112.34610891445004,
 eval,synthetic,linux-aarch64,ellipse,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,ellipse,chain-offset,,point_at_ns,27.18880058737362,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,ellipse,chain-offset,,derivative_ns,28.899584770202637,first derivative from the right
-eval,synthetic,linux-aarch64,ellipse,chain-offset,,bounds_ns,98.58413512092534,
+eval,synthetic,linux-aarch64,ellipse,chain-offset,,point_at_ns,20.843129938299004,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,ellipse,chain-offset,,derivative_ns,21.82249014718192,first derivative from the right
+eval,synthetic,linux-aarch64,ellipse,chain-offset,,bounds_ns,76.22755589430895,
 eval,synthetic,linux-aarch64,ellipse,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,trimmed,identity,,point_at_ns,27.46642428725513,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,trimmed,identity,,derivative_ns,33.29026358468192,first derivative from the right
-eval,synthetic,linux-aarch64,trimmed,identity,,bounds_ns,77.73836546434494,
+eval,synthetic,linux-aarch64,trimmed,identity,,point_at_ns,19.747059811827956,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,trimmed,identity,,derivative_ns,24.930315997149492,first derivative from the right
+eval,synthetic,linux-aarch64,trimmed,identity,,bounds_ns,58.74902478380749,
 eval,synthetic,linux-aarch64,trimmed,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,trimmed,translation,,point_at_ns,26.196177455357144,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,trimmed,translation,,derivative_ns,32.95189448765346,first derivative from the right
-eval,synthetic,linux-aarch64,trimmed,translation,,bounds_ns,78.35329266254388,
+eval,synthetic,linux-aarch64,trimmed,translation,,point_at_ns,19.77068566763273,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,trimmed,translation,,derivative_ns,24.897289379222972,first derivative from the right
+eval,synthetic,linux-aarch64,trimmed,translation,,bounds_ns,58.809293062351024,
 eval,synthetic,linux-aarch64,trimmed,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,trimmed,uniform-scale,,point_at_ns,26.298338099888394,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,trimmed,uniform-scale,,derivative_ns,33.16029248918806,first derivative from the right
-eval,synthetic,linux-aarch64,trimmed,uniform-scale,,bounds_ns,78.26259651502504,
+eval,synthetic,linux-aarch64,trimmed,uniform-scale,,point_at_ns,19.639845178482382,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,trimmed,uniform-scale,,derivative_ns,24.94261870513091,first derivative from the right
+eval,synthetic,linux-aarch64,trimmed,uniform-scale,,bounds_ns,58.99481264158067,
 eval,synthetic,linux-aarch64,trimmed,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,trimmed,rotation-scale,,point_at_ns,26.34869123186384,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,trimmed,rotation-scale,,derivative_ns,33.33258710588728,first derivative from the right
-eval,synthetic,linux-aarch64,trimmed,rotation-scale,,bounds_ns,124.9920104638763,
+eval,synthetic,linux-aarch64,trimmed,rotation-scale,,point_at_ns,19.656023390749667,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,trimmed,rotation-scale,,derivative_ns,24.93815159153294,first derivative from the right
+eval,synthetic,linux-aarch64,trimmed,rotation-scale,,bounds_ns,94.16523955403777,
 eval,synthetic,linux-aarch64,trimmed,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,trimmed,chain-offset,,point_at_ns,26.25187203543527,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,trimmed,chain-offset,,derivative_ns,33.359244210379465,first derivative from the right
-eval,synthetic,linux-aarch64,trimmed,chain-offset,,bounds_ns,78.3660617268472,
+eval,synthetic,linux-aarch64,trimmed,chain-offset,,point_at_ns,19.64173921625665,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,trimmed,chain-offset,,derivative_ns,24.937945391680742,first derivative from the right
+eval,synthetic,linux-aarch64,trimmed,chain-offset,,bounds_ns,58.866168137008664,
 eval,synthetic,linux-aarch64,trimmed,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,composite,identity,,point_at_ns,36.859686279296874,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,composite,identity,,derivative_ns,56.24573308771307,first derivative from the right
-eval,synthetic,linux-aarch64,composite,identity,,bounds_ns,254.6587707088539,
+eval,synthetic,linux-aarch64,composite,identity,,point_at_ns,28.95219612121582,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,composite,identity,,derivative_ns,43.174261048782704,first derivative from the right
+eval,synthetic,linux-aarch64,composite,identity,,bounds_ns,190.7091194568755,
 eval,synthetic,linux-aarch64,composite,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,composite,translation,,point_at_ns,36.223611270680145,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,composite,translation,,derivative_ns,56.72160015684186,first derivative from the right
-eval,synthetic,linux-aarch64,composite,translation,,bounds_ns,255.048218171926,
+eval,synthetic,linux-aarch64,composite,translation,,point_at_ns,28.948023796081543,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,composite,translation,,derivative_ns,43.176569029342296,first derivative from the right
+eval,synthetic,linux-aarch64,composite,translation,,bounds_ns,190.58530233739836,
 eval,synthetic,linux-aarch64,composite,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,composite,uniform-scale,,point_at_ns,36.09062164905024,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,composite,uniform-scale,,derivative_ns,56.45449736624053,first derivative from the right
-eval,synthetic,linux-aarch64,composite,uniform-scale,,bounds_ns,254.1284195557963,
+eval,synthetic,linux-aarch64,composite,uniform-scale,,point_at_ns,28.953388214111328,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,composite,uniform-scale,,derivative_ns,43.13836244095204,first derivative from the right
+eval,synthetic,linux-aarch64,composite,uniform-scale,,bounds_ns,190.4265142668562,
 eval,synthetic,linux-aarch64,composite,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,composite,rotation-scale,,point_at_ns,36.59231028837316,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,composite,rotation-scale,,derivative_ns,56.24966338186553,first derivative from the right
-eval,synthetic,linux-aarch64,composite,rotation-scale,,bounds_ns,320.6268702975376,
+eval,synthetic,linux-aarch64,composite,rotation-scale,,point_at_ns,28.93836784362793,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,composite,rotation-scale,,derivative_ns,43.15350341796875,first derivative from the right
+eval,synthetic,linux-aarch64,composite,rotation-scale,,bounds_ns,244.41997686392074,
 eval,synthetic,linux-aarch64,composite,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,composite,chain-offset,,point_at_ns,36.68726318359375,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,composite,chain-offset,,derivative_ns,57.43474601976799,first derivative from the right
-eval,synthetic,linux-aarch64,composite,chain-offset,,bounds_ns,256.11004061987984,
+eval,synthetic,linux-aarch64,composite,chain-offset,,point_at_ns,29.06645953466022,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,composite,chain-offset,,derivative_ns,43.194192575853926,first derivative from the right
+eval,synthetic,linux-aarch64,composite,chain-offset,,bounds_ns,190.68345872305815,
 eval,synthetic,linux-aarch64,composite,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bezier,identity,,point_at_ns,29.401621985057044,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bezier,identity,,derivative_ns,31.13348699020127,first derivative from the right
-eval,synthetic,linux-aarch64,bezier,identity,,bounds_ns,137.34517836214474,
+eval,synthetic,linux-aarch64,bezier,identity,,point_at_ns,22.957038116455077,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bezier,identity,,derivative_ns,23.58330516326122,first derivative from the right
+eval,synthetic,linux-aarch64,bezier,identity,,bounds_ns,103.31305434662848,
 eval,synthetic,linux-aarch64,bezier,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bezier,translation,,point_at_ns,29.422410753038193,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bezier,translation,,derivative_ns,31.122496524099578,first derivative from the right
-eval,synthetic,linux-aarch64,bezier,translation,,bounds_ns,137.32001501171646,
+eval,synthetic,linux-aarch64,bezier,translation,,point_at_ns,22.965207672119142,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bezier,translation,,derivative_ns,23.611996381710735,first derivative from the right
+eval,synthetic,linux-aarch64,bezier,translation,,bounds_ns,103.20458016842801,
 eval,synthetic,linux-aarch64,bezier,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bezier,uniform-scale,,point_at_ns,29.53551753874748,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bezier,uniform-scale,,derivative_ns,31.142021567134535,first derivative from the right
-eval,synthetic,linux-aarch64,bezier,uniform-scale,,bounds_ns,137.79768794091711,
+eval,synthetic,linux-aarch64,bezier,uniform-scale,,point_at_ns,22.947565460205077,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bezier,uniform-scale,,derivative_ns,23.570589505709133,first derivative from the right
+eval,synthetic,linux-aarch64,bezier,uniform-scale,,bounds_ns,103.11620793004839,
 eval,synthetic,linux-aarch64,bezier,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bezier,rotation-scale,,point_at_ns,29.577683971774192,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bezier,rotation-scale,,derivative_ns,31.189823473914196,first derivative from the right
-eval,synthetic,linux-aarch64,bezier,rotation-scale,,bounds_ns,171.89168995053134,
+eval,synthetic,linux-aarch64,bezier,rotation-scale,,point_at_ns,22.9481689453125,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bezier,rotation-scale,,derivative_ns,23.579359788161057,first derivative from the right
+eval,synthetic,linux-aarch64,bezier,rotation-scale,,bounds_ns,130.24668310641846,
 eval,synthetic,linux-aarch64,bezier,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bezier,chain-offset,,point_at_ns,29.647291614163308,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bezier,chain-offset,,derivative_ns,31.14409055548199,first derivative from the right
-eval,synthetic,linux-aarch64,bezier,chain-offset,,bounds_ns,137.48128207478007,
+eval,synthetic,linux-aarch64,bezier,chain-offset,,point_at_ns,22.93602523803711,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bezier,chain-offset,,derivative_ns,23.561753493088943,first derivative from the right
+eval,synthetic,linux-aarch64,bezier,chain-offset,,bounds_ns,103.1744883362676,
 eval,synthetic,linux-aarch64,bezier,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,identity,,point_at_ns,37.69376918247768,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline3,identity,,derivative_ns,40.73062201605903,first derivative from the right
-eval,synthetic,linux-aarch64,bspline3,identity,,bounds_ns,19.963613533282228,
+eval,synthetic,linux-aarch64,bspline3,identity,,point_at_ns,26.173473249162946,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline3,identity,,derivative_ns,30.01808141489498,first derivative from the right
+eval,synthetic,linux-aarch64,bspline3,identity,,bounds_ns,14.837271112271706,
 eval,synthetic,linux-aarch64,bspline3,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,translation,,point_at_ns,37.67918676259566,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline3,translation,,derivative_ns,40.72090250651042,first derivative from the right
-eval,synthetic,linux-aarch64,bspline3,translation,,bounds_ns,19.929867517643057,
+eval,synthetic,linux-aarch64,bspline3,translation,,point_at_ns,26.142563510948502,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline3,translation,,derivative_ns,30.014482067477317,first derivative from the right
+eval,synthetic,linux-aarch64,bspline3,translation,,bounds_ns,14.849186676381146,
 eval,synthetic,linux-aarch64,bspline3,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,uniform-scale,,point_at_ns,37.66901257573342,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline3,uniform-scale,,derivative_ns,42.952064691587935,first derivative from the right
-eval,synthetic,linux-aarch64,bspline3,uniform-scale,,bounds_ns,19.91295173845631,
+eval,synthetic,linux-aarch64,bspline3,uniform-scale,,point_at_ns,26.152484732614436,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline3,uniform-scale,,derivative_ns,30.006073982484878,first derivative from the right
+eval,synthetic,linux-aarch64,bspline3,uniform-scale,,bounds_ns,14.843115223552136,
 eval,synthetic,linux-aarch64,bspline3,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,rotation-scale,,point_at_ns,37.03296377144608,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline3,rotation-scale,,derivative_ns,40.83919359290081,first derivative from the right
-eval,synthetic,linux-aarch64,bspline3,rotation-scale,,bounds_ns,20.071009955041745,
+eval,synthetic,linux-aarch64,bspline3,rotation-scale,,point_at_ns,26.13486190580986,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline3,rotation-scale,,derivative_ns,30.00750929309476,first derivative from the right
+eval,synthetic,linux-aarch64,bspline3,rotation-scale,,bounds_ns,14.85696025878736,
 eval,synthetic,linux-aarch64,bspline3,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,chain-offset,,point_at_ns,37.944083077566965,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline3,chain-offset,,derivative_ns,40.84071044921875,first derivative from the right
-eval,synthetic,linux-aarch64,bspline3,chain-offset,,bounds_ns,19.915656332313706,
+eval,synthetic,linux-aarch64,bspline3,chain-offset,,point_at_ns,26.13486190580986,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline3,chain-offset,,derivative_ns,29.98880595545615,first derivative from the right
+eval,synthetic,linux-aarch64,bspline3,chain-offset,,bounds_ns,14.844504579929065,
 eval,synthetic,linux-aarch64,bspline3,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline7,identity,,point_at_ns,125.69302978515626,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline7,identity,,derivative_ns,115.50615310668945,first derivative from the right
-eval,synthetic,linux-aarch64,bspline7,identity,,bounds_ns,26.03692842562764,
+eval,synthetic,linux-aarch64,bspline7,identity,,point_at_ns,122.64386393229167,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline7,identity,,derivative_ns,91.89986572265624,first derivative from the right
+eval,synthetic,linux-aarch64,bspline7,identity,,bounds_ns,18.748010863696358,
 eval,synthetic,linux-aarch64,bspline7,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline7,translation,,point_at_ns,131.52367350260417,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline7,translation,,derivative_ns,116.58776473999023,first derivative from the right
-eval,synthetic,linux-aarch64,bspline7,translation,,bounds_ns,25.24463150950509,
+eval,synthetic,linux-aarch64,bspline7,translation,,point_at_ns,122.32530110677084,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline7,translation,,derivative_ns,91.9287322998047,first derivative from the right
+eval,synthetic,linux-aarch64,bspline7,translation,,bounds_ns,18.745735398504358,
 eval,synthetic,linux-aarch64,bspline7,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline7,uniform-scale,,point_at_ns,125.78186848958333,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline7,uniform-scale,,derivative_ns,129.4593276977539,first derivative from the right
-eval,synthetic,linux-aarch64,bspline7,uniform-scale,,bounds_ns,25.42763425549227,
+eval,synthetic,linux-aarch64,bspline7,uniform-scale,,point_at_ns,122.53756510416666,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline7,uniform-scale,,derivative_ns,91.92339172363282,first derivative from the right
+eval,synthetic,linux-aarch64,bspline7,uniform-scale,,bounds_ns,18.748348948126225,
 eval,synthetic,linux-aarch64,bspline7,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline7,rotation-scale,,point_at_ns,125.90885416666667,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline7,rotation-scale,,derivative_ns,115.37232208251953,first derivative from the right
-eval,synthetic,linux-aarch64,bspline7,rotation-scale,,bounds_ns,25.344583795144896,
+eval,synthetic,linux-aarch64,bspline7,rotation-scale,,point_at_ns,122.38056640625,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline7,rotation-scale,,derivative_ns,91.93508911132813,first derivative from the right
+eval,synthetic,linux-aarch64,bspline7,rotation-scale,,bounds_ns,18.767292158786084,
 eval,synthetic,linux-aarch64,bspline7,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline7,chain-offset,,point_at_ns,126.14366861979167,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,bspline7,chain-offset,,derivative_ns,115.60978317260742,first derivative from the right
-eval,synthetic,linux-aarch64,bspline7,chain-offset,,bounds_ns,25.223073042776434,
+eval,synthetic,linux-aarch64,bspline7,chain-offset,,point_at_ns,122.51264241536458,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,bspline7,chain-offset,,derivative_ns,91.92275390625,first derivative from the right
+eval,synthetic,linux-aarch64,bspline7,chain-offset,,bounds_ns,18.750234375,
 eval,synthetic,linux-aarch64,bspline7,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,nurbs,identity,,point_at_ns,59.842003606980846,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,nurbs,identity,,derivative_ns,104.60757446289063,first derivative from the right
-eval,synthetic,linux-aarch64,nurbs,identity,,bounds_ns,17.71576318027211,
+eval,synthetic,linux-aarch64,nurbs,identity,,point_at_ns,46.92419281005859,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,nurbs,identity,,derivative_ns,78.89966328938802,first derivative from the right
+eval,synthetic,linux-aarch64,nurbs,identity,,bounds_ns,13.205097382246887,
 eval,synthetic,linux-aarch64,nurbs,identity,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,nurbs,translation,,point_at_ns,60.22453455771169,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,nurbs,translation,,derivative_ns,100.39059287623355,first derivative from the right
-eval,synthetic,linux-aarch64,nurbs,translation,,bounds_ns,17.861089612307104,
+eval,synthetic,linux-aarch64,nurbs,translation,,point_at_ns,46.922795104980466,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,nurbs,translation,,derivative_ns,78.9017842610677,first derivative from the right
+eval,synthetic,linux-aarch64,nurbs,translation,,bounds_ns,13.209843507820207,
 eval,synthetic,linux-aarch64,nurbs,translation,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,nurbs,uniform-scale,,point_at_ns,60.42297757056452,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,nurbs,uniform-scale,,derivative_ns,100.40638491981908,first derivative from the right
-eval,synthetic,linux-aarch64,nurbs,uniform-scale,,bounds_ns,17.720229628964578,
+eval,synthetic,linux-aarch64,nurbs,uniform-scale,,point_at_ns,46.971507537059296,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,nurbs,uniform-scale,,derivative_ns,79.44017791748047,first derivative from the right
+eval,synthetic,linux-aarch64,nurbs,uniform-scale,,bounds_ns,13.223106488011284,
 eval,synthetic,linux-aarch64,nurbs,uniform-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,nurbs,rotation-scale,,point_at_ns,59.873013404107866,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,nurbs,rotation-scale,,derivative_ns,101.81186252170139,first derivative from the right
-eval,synthetic,linux-aarch64,nurbs,rotation-scale,,bounds_ns,17.817334188521475,
+eval,synthetic,linux-aarch64,nurbs,rotation-scale,,point_at_ns,46.97424785907452,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,nurbs,rotation-scale,,derivative_ns,79.25506337483723,first derivative from the right
+eval,synthetic,linux-aarch64,nurbs,rotation-scale,,bounds_ns,13.237933316859644,
 eval,synthetic,linux-aarch64,nurbs,rotation-scale,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,nurbs,chain-offset,,point_at_ns,60.26875157510081,mean over 64 images of the base curve; 256 parameters each
-eval,synthetic,linux-aarch64,nurbs,chain-offset,,derivative_ns,101.8502909342448,first derivative from the right
-eval,synthetic,linux-aarch64,nurbs,chain-offset,,bounds_ns,17.71578798185941,
+eval,synthetic,linux-aarch64,nurbs,chain-offset,,point_at_ns,46.936972045898436,mean over 64 images of the base curve; 256 parameters each
+eval,synthetic,linux-aarch64,nurbs,chain-offset,,derivative_ns,79.25569915771484,first derivative from the right
+eval,synthetic,linux-aarch64,nurbs,chain-offset,,bounds_ns,13.232382674664784,
 eval,synthetic,linux-aarch64,nurbs,chain-offset,,hit_test_ns,,there is no analytic hit test in the codebase yet (P7.5; pvec#56)
-eval,synthetic,linux-aarch64,bspline3,identity,,point_at_ns,30.20833,the reference cubic alone; 200;000 parameters; median of 15; as the prototype is measured
-eval,synthetic,linux-aarch64,bspline3,identity,,prototype_point_at_ns,40.02465,the P1.3 prototype on the same curve and parameters (spikes/geometry-api corpus_eval)
+eval,synthetic,linux-aarch64,bspline3,identity,,point_at_ns,26.273385,the reference cubic alone; 200;000 parameters; median of 15; as the prototype is measured
+eval,synthetic,linux-aarch64,bspline3,identity,,prototype_point_at_ns,24.142375,the P1.3 prototype on the same curve and parameters (spikes/geometry-api corpus_eval)
 accuracy,synthetic,linux-aarch64,line,chain-offset,,error,0.00000000046550496790587204,world units; against the local frame placed with a two-sum
 accuracy,synthetic,linux-aarch64,line,chain-offset,,tolerance,0.00000002,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
 accuracy,synthetic,linux-aarch64,polyline,chain-offset,,error,0.00000000046560444388887845,world units; against the local frame placed with a two-sum
@@ -648,208 +648,208 @@ accuracy,synthetic,linux-aarch64,bspline7,chain-offset,,error,0.0000000032806894
 accuracy,synthetic,linux-aarch64,bspline7,chain-offset,,tolerance,0.00000007694153624668539,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
 accuracy,synthetic,linux-aarch64,nurbs,chain-offset,,error,0.0000000033265905585722066,world units; against the local frame placed with a two-sum
 accuracy,synthetic,linux-aarch64,nurbs,chain-offset,,tolerance,0.000000037947331922020554,P1.2 NP-04 tol(scale = curve diagonal; mag = offset)
-eval,huge-coordinate-1e5,linux-aarch64,mixed,chain-offset,,point_at_ns,17.15074837239583,6000 curves of the entry at their own coordinates
-eval,huge-coordinate-1e5,linux-aarch64,mixed,identity,,point_at_ns,17.153054036458332,the same curves moved to the origin by an exact translation
+eval,huge-coordinate-1e5,linux-aarch64,mixed,chain-offset,,point_at_ns,12.165737955729167,6000 curves of the entry at their own coordinates
+eval,huge-coordinate-1e5,linux-aarch64,mixed,identity,,point_at_ns,12.157735677083334,the same curves moved to the origin by an exact translation
 tess,synthetic,linux-aarch64,line,identity,0.1,segments_per_curve,1,
-tess,synthetic,linux-aarch64,line,identity,0.1,ns_per_segment,59.875,
-tess,synthetic,linux-aarch64,line,identity,0.1,ns_per_tess,59.875,
+tess,synthetic,linux-aarch64,line,identity,0.1,ns_per_segment,276.09375,
+tess,synthetic,linux-aarch64,line,identity,0.1,ns_per_tess,276.09375,
 tess,synthetic,linux-aarch64,line,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,line,identity,0.1,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,line,identity,0.25,segments_per_curve,1,
-tess,synthetic,linux-aarch64,line,identity,0.25,ns_per_segment,52.171875,
-tess,synthetic,linux-aarch64,line,identity,0.25,ns_per_tess,52.171875,
+tess,synthetic,linux-aarch64,line,identity,0.25,ns_per_segment,141.28125,
+tess,synthetic,linux-aarch64,line,identity,0.25,ns_per_tess,141.28125,
 tess,synthetic,linux-aarch64,line,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,line,identity,0.25,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,line,identity,0.5,segments_per_curve,1,
-tess,synthetic,linux-aarch64,line,identity,0.5,ns_per_segment,53.390625,
-tess,synthetic,linux-aarch64,line,identity,0.5,ns_per_tess,53.390625,
+tess,synthetic,linux-aarch64,line,identity,0.5,ns_per_segment,136.75,
+tess,synthetic,linux-aarch64,line,identity,0.5,ns_per_tess,136.75,
 tess,synthetic,linux-aarch64,line,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,line,identity,0.5,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,line,identity,1,segments_per_curve,1,
-tess,synthetic,linux-aarch64,line,identity,1,ns_per_segment,50.859375,
-tess,synthetic,linux-aarch64,line,identity,1,ns_per_tess,50.859375,
+tess,synthetic,linux-aarch64,line,identity,1,ns_per_segment,139.984375,
+tess,synthetic,linux-aarch64,line,identity,1,ns_per_tess,139.984375,
 tess,synthetic,linux-aarch64,line,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,line,identity,1,achieved_error_px,0.0000000000025421149729252077,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,polyline,identity,0.1,segments_per_curve,15,
-tess,synthetic,linux-aarch64,polyline,identity,0.1,ns_per_segment,7.5,
-tess,synthetic,linux-aarch64,polyline,identity,0.1,ns_per_tess,112.5,
+tess,synthetic,linux-aarch64,polyline,identity,0.1,ns_per_segment,3.859375,
+tess,synthetic,linux-aarch64,polyline,identity,0.1,ns_per_tess,57.890625,
 tess,synthetic,linux-aarch64,polyline,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,polyline,identity,0.1,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,polyline,identity,0.25,segments_per_curve,15,
-tess,synthetic,linux-aarch64,polyline,identity,0.25,ns_per_segment,6.647916666666666,
-tess,synthetic,linux-aarch64,polyline,identity,0.25,ns_per_tess,99.71875,
+tess,synthetic,linux-aarch64,polyline,identity,0.25,ns_per_segment,3.8645833333333335,
+tess,synthetic,linux-aarch64,polyline,identity,0.25,ns_per_tess,57.96875,
 tess,synthetic,linux-aarch64,polyline,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,polyline,identity,0.25,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,polyline,identity,0.5,segments_per_curve,15,
-tess,synthetic,linux-aarch64,polyline,identity,0.5,ns_per_segment,9.38125,
-tess,synthetic,linux-aarch64,polyline,identity,0.5,ns_per_tess,140.71875,
+tess,synthetic,linux-aarch64,polyline,identity,0.5,ns_per_segment,3.908333333333333,
+tess,synthetic,linux-aarch64,polyline,identity,0.5,ns_per_tess,58.625,
 tess,synthetic,linux-aarch64,polyline,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,polyline,identity,0.5,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,polyline,identity,1,segments_per_curve,15,
-tess,synthetic,linux-aarch64,polyline,identity,1,ns_per_segment,3.903125,
-tess,synthetic,linux-aarch64,polyline,identity,1,ns_per_tess,58.546875,
+tess,synthetic,linux-aarch64,polyline,identity,1,ns_per_segment,3.859375,
+tess,synthetic,linux-aarch64,polyline,identity,1,ns_per_tess,57.890625,
 tess,synthetic,linux-aarch64,polyline,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
 tess,synthetic,linux-aarch64,polyline,identity,1,achieved_error_px,0.0000000000007218539297653207,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,circle,identity,0.1,segments_per_curve,256,
-tess,synthetic,linux-aarch64,circle,identity,0.1,ns_per_segment,532.5930786132813,
-tess,synthetic,linux-aarch64,circle,identity,0.1,ns_per_tess,136343.828125,
-tess,synthetic,linux-aarch64,circle,identity,0.1,allocs_per_tess,9,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,circle,identity,0.1,achieved_error_px,0.053243836976741135,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,circle,identity,0.25,segments_per_curve,128,
-tess,synthetic,linux-aarch64,circle,identity,0.25,ns_per_segment,505.6336669921875,
-tess,synthetic,linux-aarch64,circle,identity,0.25,ns_per_tess,64721.109375,
-tess,synthetic,linux-aarch64,circle,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,circle,identity,0.25,achieved_error_px,0.2129673295801029,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,circle,identity,0.5,segments_per_curve,128,
-tess,synthetic,linux-aarch64,circle,identity,0.5,ns_per_segment,489.8974609375,
-tess,synthetic,linux-aarch64,circle,identity,0.5,ns_per_tess,62706.875,
-tess,synthetic,linux-aarch64,circle,identity,0.5,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,circle,identity,0.5,achieved_error_px,0.2129673295801029,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,circle,identity,1,segments_per_curve,64,
-tess,synthetic,linux-aarch64,circle,identity,1,ns_per_segment,468.65234375,
-tess,synthetic,linux-aarch64,circle,identity,1,ns_per_tess,29993.75,
-tess,synthetic,linux-aarch64,circle,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,circle,identity,1,achieved_error_px,0.8517410347562515,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,ellipse,identity,0.1,segments_per_curve,256,
-tess,synthetic,linux-aarch64,ellipse,identity,0.1,ns_per_segment,495.802001953125,
-tess,synthetic,linux-aarch64,ellipse,identity,0.1,ns_per_tess,126925.3125,
-tess,synthetic,linux-aarch64,ellipse,identity,0.1,allocs_per_tess,9,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,ellipse,identity,0.1,achieved_error_px,0.07047144168335773,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,ellipse,identity,0.25,segments_per_curve,144,
-tess,synthetic,linux-aarch64,ellipse,identity,0.25,ns_per_segment,496.4527994791667,
-tess,synthetic,linux-aarch64,ellipse,identity,0.25,ns_per_tess,71489.203125,
-tess,synthetic,linux-aarch64,ellipse,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,ellipse,identity,0.25,achieved_error_px,0.2479669155124943,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,ellipse,identity,0.5,segments_per_curve,104,
-tess,synthetic,linux-aarch64,ellipse,identity,0.5,ns_per_segment,520.6882512019231,
-tess,synthetic,linux-aarch64,ellipse,identity,0.5,ns_per_tess,54151.578125,
-tess,synthetic,linux-aarch64,ellipse,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,ellipse,identity,0.5,achieved_error_px,0.481081830579194,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,ellipse,identity,1,segments_per_curve,72,
-tess,synthetic,linux-aarch64,ellipse,identity,1,ns_per_segment,507.0998263888889,
-tess,synthetic,linux-aarch64,ellipse,identity,1,ns_per_tess,36511.1875,
-tess,synthetic,linux-aarch64,ellipse,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,ellipse,identity,1,achieved_error_px,0.9668385763908552,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,trimmed,identity,0.1,segments_per_curve,128,
-tess,synthetic,linux-aarch64,trimmed,identity,0.1,ns_per_segment,573.5086669921875,
-tess,synthetic,linux-aarch64,trimmed,identity,0.1,ns_per_tess,73409.109375,
-tess,synthetic,linux-aarch64,trimmed,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,trimmed,identity,0.1,achieved_error_px,0.04980433300091858,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,trimmed,identity,0.25,segments_per_curve,64,
-tess,synthetic,linux-aarch64,trimmed,identity,0.25,ns_per_segment,533.449462890625,
-tess,synthetic,linux-aarch64,trimmed,identity,0.25,ns_per_tess,34140.765625,
-tess,synthetic,linux-aarch64,trimmed,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,trimmed,identity,0.25,achieved_error_px,0.1992121947586053,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,trimmed,identity,0.5,segments_per_curve,64,
-tess,synthetic,linux-aarch64,trimmed,identity,0.5,ns_per_segment,503.838623046875,
-tess,synthetic,linux-aarch64,trimmed,identity,0.5,ns_per_tess,32245.671875,
-tess,synthetic,linux-aarch64,trimmed,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,trimmed,identity,0.5,achieved_error_px,0.1992121947586053,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,trimmed,identity,1,segments_per_curve,32,
-tess,synthetic,linux-aarch64,trimmed,identity,1,ns_per_segment,521.0087890625,
-tess,synthetic,linux-aarch64,trimmed,identity,1,ns_per_tess,16672.28125,
-tess,synthetic,linux-aarch64,trimmed,identity,1,allocs_per_tess,6,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,trimmed,identity,1,achieved_error_px,0.7967665873698495,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,composite,identity,0.1,segments_per_curve,193,
-tess,synthetic,linux-aarch64,composite,identity,0.1,ns_per_segment,698.3047279792746,
-tess,synthetic,linux-aarch64,composite,identity,0.1,ns_per_tess,134772.8125,
-tess,synthetic,linux-aarch64,composite,identity,0.1,allocs_per_tess,19,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,composite,identity,0.1,achieved_error_px,0.07541622947969695,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,composite,identity,0.25,segments_per_curve,119,
-tess,synthetic,linux-aarch64,composite,identity,0.25,ns_per_segment,661.3010766806723,
-tess,synthetic,linux-aarch64,composite,identity,0.25,ns_per_tess,78694.828125,
-tess,synthetic,linux-aarch64,composite,identity,0.25,allocs_per_tess,17,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,composite,identity,0.25,achieved_error_px,0.24504326548104075,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,composite,identity,0.5,segments_per_curve,65,
-tess,synthetic,linux-aarch64,composite,identity,0.5,ns_per_segment,571.6865384615385,
-tess,synthetic,linux-aarch64,composite,identity,0.5,ns_per_tess,37159.625,
-tess,synthetic,linux-aarch64,composite,identity,0.5,allocs_per_tess,16,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,composite,identity,0.5,achieved_error_px,0.49629702681812365,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,composite,identity,1,segments_per_curve,59,
-tess,synthetic,linux-aarch64,composite,identity,1,ns_per_segment,599.5900423728814,
-tess,synthetic,linux-aarch64,composite,identity,1,ns_per_tess,35375.8125,
-tess,synthetic,linux-aarch64,composite,identity,1,allocs_per_tess,15,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,composite,identity,1,achieved_error_px,0.9946517178293254,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bezier,identity,0.1,segments_per_curve,128,
-tess,synthetic,linux-aarch64,bezier,identity,0.1,ns_per_segment,783.644775390625,
-tess,synthetic,linux-aarch64,bezier,identity,0.1,ns_per_tess,100306.53125,
-tess,synthetic,linux-aarch64,bezier,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bezier,identity,0.1,achieved_error_px,0.05004474957215527,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bezier,identity,0.25,segments_per_curve,64,
-tess,synthetic,linux-aarch64,bezier,identity,0.25,ns_per_segment,768.227783203125,
-tess,synthetic,linux-aarch64,bezier,identity,0.25,ns_per_tess,49166.578125,
-tess,synthetic,linux-aarch64,bezier,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bezier,identity,0.25,achieved_error_px,0.2003195869937879,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bezier,identity,0.5,segments_per_curve,64,
-tess,synthetic,linux-aarch64,bezier,identity,0.5,ns_per_segment,728.485107421875,
-tess,synthetic,linux-aarch64,bezier,identity,0.5,ns_per_tess,46623.046875,
-tess,synthetic,linux-aarch64,bezier,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bezier,identity,0.5,achieved_error_px,0.2003195869937879,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bezier,identity,1,segments_per_curve,32,
-tess,synthetic,linux-aarch64,bezier,identity,1,ns_per_segment,768.0751953125,
-tess,synthetic,linux-aarch64,bezier,identity,1,ns_per_tess,24578.40625,
-tess,synthetic,linux-aarch64,bezier,identity,1,allocs_per_tess,6,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bezier,identity,1,achieved_error_px,0.8013477256281684,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline3,identity,0.1,segments_per_curve,229,
-tess,synthetic,linux-aarch64,bspline3,identity,0.1,ns_per_segment,773.5942276200873,
-tess,synthetic,linux-aarch64,bspline3,identity,0.1,ns_per_tess,177153.078125,
-tess,synthetic,linux-aarch64,bspline3,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline3,identity,0.1,achieved_error_px,0.09973222083843243,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline3,identity,0.25,segments_per_curve,151,
-tess,synthetic,linux-aarch64,bspline3,identity,0.25,ns_per_segment,802.274834437086,
-tess,synthetic,linux-aarch64,bspline3,identity,0.25,ns_per_tess,121143.5,
-tess,synthetic,linux-aarch64,bspline3,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline3,identity,0.25,achieved_error_px,0.2501847091740568,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline3,identity,0.5,segments_per_curve,103,
-tess,synthetic,linux-aarch64,bspline3,identity,0.5,ns_per_segment,748.2638046116505,
-tess,synthetic,linux-aarch64,bspline3,identity,0.5,ns_per_tess,77071.171875,
-tess,synthetic,linux-aarch64,bspline3,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline3,identity,0.5,achieved_error_px,0.48094190358348843,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline3,identity,1,segments_per_curve,74,
-tess,synthetic,linux-aarch64,bspline3,identity,1,ns_per_segment,736.0099239864865,
-tess,synthetic,linux-aarch64,bspline3,identity,1,ns_per_tess,54464.734375,
-tess,synthetic,linux-aarch64,bspline3,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline3,identity,1,achieved_error_px,0.9991952932530721,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline7,identity,0.1,segments_per_curve,220,
-tess,synthetic,linux-aarch64,bspline7,identity,0.1,ns_per_segment,1899.7990767045455,
-tess,synthetic,linux-aarch64,bspline7,identity,0.1,ns_per_tess,417955.796875,
-tess,synthetic,linux-aarch64,bspline7,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline7,identity,0.1,achieved_error_px,0.09916756946306308,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline7,identity,0.25,segments_per_curve,138,
-tess,synthetic,linux-aarch64,bspline7,identity,0.25,ns_per_segment,1884.9148550724638,
-tess,synthetic,linux-aarch64,bspline7,identity,0.25,ns_per_tess,260118.25,
-tess,synthetic,linux-aarch64,bspline7,identity,0.25,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline7,identity,0.25,achieved_error_px,0.24790343591843342,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline7,identity,0.5,segments_per_curve,100,
-tess,synthetic,linux-aarch64,bspline7,identity,0.5,ns_per_segment,1950.64328125,
-tess,synthetic,linux-aarch64,bspline7,identity,0.5,ns_per_tess,195064.328125,
-tess,synthetic,linux-aarch64,bspline7,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline7,identity,0.5,achieved_error_px,0.4833831586507367,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,bspline7,identity,1,segments_per_curve,72,
-tess,synthetic,linux-aarch64,bspline7,identity,1,ns_per_segment,1890.869357638889,
-tess,synthetic,linux-aarch64,bspline7,identity,1,ns_per_tess,136142.59375,
-tess,synthetic,linux-aarch64,bspline7,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,bspline7,identity,1,achieved_error_px,0.8370449997219367,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,nurbs,identity,0.1,segments_per_curve,211,
-tess,synthetic,linux-aarch64,nurbs,identity,0.1,ns_per_segment,996.1107079383886,
-tess,synthetic,linux-aarch64,nurbs,identity,0.1,ns_per_tess,210179.359375,
-tess,synthetic,linux-aarch64,nurbs,identity,0.1,allocs_per_tess,8,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,nurbs,identity,0.1,achieved_error_px,0.09991822979636086,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,nurbs,identity,0.25,segments_per_curve,125,
-tess,synthetic,linux-aarch64,nurbs,identity,0.25,ns_per_segment,979.418875,
-tess,synthetic,linux-aarch64,nurbs,identity,0.25,ns_per_tess,122427.359375,
-tess,synthetic,linux-aarch64,nurbs,identity,0.25,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,nurbs,identity,0.25,achieved_error_px,0.24889386722185097,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,nurbs,identity,0.5,segments_per_curve,99,
-tess,synthetic,linux-aarch64,nurbs,identity,0.5,ns_per_segment,1040.342960858586,
-tess,synthetic,linux-aarch64,nurbs,identity,0.5,ns_per_tess,102993.953125,
-tess,synthetic,linux-aarch64,nurbs,identity,0.5,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,nurbs,identity,0.5,achieved_error_px,0.48397486199218415,the most any instance deviated; against 4096 points of the exact curve
-tess,synthetic,linux-aarch64,nurbs,identity,1,segments_per_curve,64,
-tess,synthetic,linux-aarch64,nurbs,identity,1,ns_per_segment,1058.80322265625,
-tess,synthetic,linux-aarch64,nurbs,identity,1,ns_per_tess,67763.40625,
-tess,synthetic,linux-aarch64,nurbs,identity,1,allocs_per_tess,7,the most allocation calls any one instance made; reallocations included
-tess,synthetic,linux-aarch64,nurbs,identity,1,achieved_error_px,0.9778557642992041,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,circle,identity,0.1,segments_per_curve,216,
+tess,synthetic,linux-aarch64,circle,identity,0.1,ns_per_segment,167.53566261574073,
+tess,synthetic,linux-aarch64,circle,identity,0.1,ns_per_tess,36187.703125,
+tess,synthetic,linux-aarch64,circle,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,circle,identity,0.1,achieved_error_px,0.07478896031224185,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,circle,identity,0.25,segments_per_curve,136,
+tess,synthetic,linux-aarch64,circle,identity,0.25,ns_per_segment,172.69634650735293,
+tess,synthetic,linux-aarch64,circle,identity,0.25,ns_per_tess,23486.703125,
+tess,synthetic,linux-aarch64,circle,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,circle,identity,0.25,achieved_error_px,0.18865034217662704,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,circle,identity,0.5,segments_per_curve,96,
+tess,synthetic,linux-aarch64,circle,identity,0.5,ns_per_segment,178.0634765625,
+tess,synthetic,linux-aarch64,circle,identity,0.5,ns_per_tess,17094.09375,
+tess,synthetic,linux-aarch64,circle,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,circle,identity,0.5,achieved_error_px,0.37859362298348154,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,circle,identity,1,segments_per_curve,72,
+tess,synthetic,linux-aarch64,circle,identity,1,ns_per_segment,185.70833333333334,
+tess,synthetic,linux-aarch64,circle,identity,1,ns_per_tess,13371,
+tess,synthetic,linux-aarch64,circle,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,circle,identity,1,achieved_error_px,0.6730057222813794,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,ellipse,identity,0.1,segments_per_curve,212,
+tess,synthetic,linux-aarch64,ellipse,identity,0.1,ns_per_segment,202.06272110849056,
+tess,synthetic,linux-aarch64,ellipse,identity,0.1,ns_per_tess,42837.296875,
+tess,synthetic,linux-aarch64,ellipse,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,ellipse,identity,0.1,achieved_error_px,0.09334548623887638,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,ellipse,identity,0.25,segments_per_curve,132,
+tess,synthetic,linux-aarch64,ellipse,identity,0.25,ns_per_segment,199.18158143939394,
+tess,synthetic,linux-aarch64,ellipse,identity,0.25,ns_per_tess,26291.96875,
+tess,synthetic,linux-aarch64,ellipse,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,ellipse,identity,0.25,achieved_error_px,0.23208516661424153,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,ellipse,identity,0.5,segments_per_curve,92,
+tess,synthetic,linux-aarch64,ellipse,identity,0.5,ns_per_segment,202.08169157608697,
+tess,synthetic,linux-aarch64,ellipse,identity,0.5,ns_per_tess,18591.515625,
+tess,synthetic,linux-aarch64,ellipse,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,ellipse,identity,0.5,achieved_error_px,0.46501356688403817,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,ellipse,identity,1,segments_per_curve,64,
+tess,synthetic,linux-aarch64,ellipse,identity,1,ns_per_segment,192.959228515625,
+tess,synthetic,linux-aarch64,ellipse,identity,1,ns_per_tess,12349.390625,
+tess,synthetic,linux-aarch64,ellipse,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,ellipse,identity,1,achieved_error_px,0.8860373689078535,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,trimmed,identity,0.1,segments_per_curve,104,
+tess,synthetic,linux-aarch64,trimmed,identity,0.1,ns_per_segment,222.13371394230768,
+tess,synthetic,linux-aarch64,trimmed,identity,0.1,ns_per_tess,23101.90625,
+tess,synthetic,linux-aarch64,trimmed,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,trimmed,identity,0.1,achieved_error_px,0.07544216031689387,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,trimmed,identity,0.25,segments_per_curve,72,
+tess,synthetic,linux-aarch64,trimmed,identity,0.25,ns_per_segment,234.49934895833334,
+tess,synthetic,linux-aarch64,trimmed,identity,0.25,ns_per_tess,16883.953125,
+tess,synthetic,linux-aarch64,trimmed,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,trimmed,identity,0.25,achieved_error_px,0.15740261287217522,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,trimmed,identity,0.5,segments_per_curve,48,
+tess,synthetic,linux-aarch64,trimmed,identity,0.5,ns_per_segment,254.79752604166666,
+tess,synthetic,linux-aarch64,trimmed,identity,0.5,ns_per_tess,12230.28125,
+tess,synthetic,linux-aarch64,trimmed,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,trimmed,identity,0.5,achieved_error_px,0.3541453730077386,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,trimmed,identity,1,segments_per_curve,40,
+tess,synthetic,linux-aarch64,trimmed,identity,1,ns_per_segment,273.483203125,
+tess,synthetic,linux-aarch64,trimmed,identity,1,ns_per_tess,10939.328125,
+tess,synthetic,linux-aarch64,trimmed,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,trimmed,identity,1,achieved_error_px,0.5099551347357643,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,composite,identity,0.1,segments_per_curve,151,
+tess,synthetic,linux-aarch64,composite,identity,0.1,ns_per_segment,290.15407698675494,
+tess,synthetic,linux-aarch64,composite,identity,0.1,ns_per_tess,43813.265625,
+tess,synthetic,linux-aarch64,composite,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,composite,identity,0.1,achieved_error_px,0.07805486248738899,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,composite,identity,0.25,segments_per_curve,97,
+tess,synthetic,linux-aarch64,composite,identity,0.25,ns_per_segment,306.1258054123711,
+tess,synthetic,linux-aarch64,composite,identity,0.25,ns_per_tess,29694.203125,
+tess,synthetic,linux-aarch64,composite,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,composite,identity,0.25,achieved_error_px,0.19294756044368114,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,composite,identity,0.5,segments_per_curve,73,
+tess,synthetic,linux-aarch64,composite,identity,0.5,ns_per_segment,334.12392979452056,
+tess,synthetic,linux-aarch64,composite,identity,0.5,ns_per_tess,24391.046875,
+tess,synthetic,linux-aarch64,composite,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,composite,identity,0.5,achieved_error_px,0.31764896715191726,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,composite,identity,1,segments_per_curve,57,
+tess,synthetic,linux-aarch64,composite,identity,1,ns_per_segment,344.82949561403507,
+tess,synthetic,linux-aarch64,composite,identity,1,ns_per_tess,19655.28125,
+tess,synthetic,linux-aarch64,composite,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,composite,identity,1,achieved_error_px,0.5360179447502842,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bezier,identity,0.1,segments_per_curve,104,
+tess,synthetic,linux-aarch64,bezier,identity,0.1,ns_per_segment,367.4079026442308,
+tess,synthetic,linux-aarch64,bezier,identity,0.1,ns_per_tess,38210.421875,
+tess,synthetic,linux-aarch64,bezier,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bezier,identity,0.1,achieved_error_px,0.07587326058988299,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bezier,identity,0.25,segments_per_curve,68,
+tess,synthetic,linux-aarch64,bezier,identity,0.25,ns_per_segment,380.5087316176471,
+tess,synthetic,linux-aarch64,bezier,identity,0.25,ns_per_tess,25874.59375,
+tess,synthetic,linux-aarch64,bezier,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bezier,identity,0.25,achieved_error_px,0.19536184202242185,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bezier,identity,0.5,segments_per_curve,48,
+tess,synthetic,linux-aarch64,bezier,identity,0.5,ns_per_segment,399.1100260416667,
+tess,synthetic,linux-aarch64,bezier,identity,0.5,ns_per_tess,19157.28125,
+tess,synthetic,linux-aarch64,bezier,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bezier,identity,0.5,achieved_error_px,0.3561950397222996,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bezier,identity,1,segments_per_curve,36,
+tess,synthetic,linux-aarch64,bezier,identity,1,ns_per_segment,421.85112847222223,
+tess,synthetic,linux-aarch64,bezier,identity,1,ns_per_tess,15186.640625,
+tess,synthetic,linux-aarch64,bezier,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bezier,identity,1,achieved_error_px,0.7805671974502736,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline3,identity,0.1,segments_per_curve,255,
+tess,synthetic,linux-aarch64,bspline3,identity,0.1,ns_per_segment,352.78051470588235,
+tess,synthetic,linux-aarch64,bspline3,identity,0.1,ns_per_tess,89959.03125,
+tess,synthetic,linux-aarch64,bspline3,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline3,identity,0.1,achieved_error_px,0.09475971055954481,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline3,identity,0.25,segments_per_curve,160,
+tess,synthetic,linux-aarch64,bspline3,identity,0.25,ns_per_segment,353.35234375,
+tess,synthetic,linux-aarch64,bspline3,identity,0.25,ns_per_tess,56536.375,
+tess,synthetic,linux-aarch64,bspline3,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline3,identity,0.25,achieved_error_px,0.23517646991088192,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline3,identity,0.5,segments_per_curve,112,
+tess,synthetic,linux-aarch64,bspline3,identity,0.5,ns_per_segment,366.58956473214283,
+tess,synthetic,linux-aarch64,bspline3,identity,0.5,ns_per_tess,41058.03125,
+tess,synthetic,linux-aarch64,bspline3,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline3,identity,0.5,achieved_error_px,0.47401039395033645,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline3,identity,1,segments_per_curve,81,
+tess,synthetic,linux-aarch64,bspline3,identity,1,ns_per_segment,397.3786651234568,
+tess,synthetic,linux-aarch64,bspline3,identity,1,ns_per_tess,32187.671875,
+tess,synthetic,linux-aarch64,bspline3,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline3,identity,1,achieved_error_px,0.8971561347314563,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline7,identity,0.1,segments_per_curve,234,
+tess,synthetic,linux-aarch64,bspline7,identity,0.1,ns_per_segment,1019.8986378205128,
+tess,synthetic,linux-aarch64,bspline7,identity,0.1,ns_per_tess,238656.28125,
+tess,synthetic,linux-aarch64,bspline7,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline7,identity,0.1,achieved_error_px,0.09159070970078388,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline7,identity,0.25,segments_per_curve,146,
+tess,synthetic,linux-aarch64,bspline7,identity,0.25,ns_per_segment,1028.164169520548,
+tess,synthetic,linux-aarch64,bspline7,identity,0.25,ns_per_tess,150111.96875,
+tess,synthetic,linux-aarch64,bspline7,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline7,identity,0.25,achieved_error_px,0.23252809922168607,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline7,identity,0.5,segments_per_curve,108,
+tess,synthetic,linux-aarch64,bspline7,identity,0.5,ns_per_segment,1063.908420138889,
+tess,synthetic,linux-aarch64,bspline7,identity,0.5,ns_per_tess,114902.109375,
+tess,synthetic,linux-aarch64,bspline7,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline7,identity,0.5,achieved_error_px,0.4700896030076694,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,bspline7,identity,1,segments_per_curve,74,
+tess,synthetic,linux-aarch64,bspline7,identity,1,ns_per_segment,1111.3826013513512,
+tess,synthetic,linux-aarch64,bspline7,identity,1,ns_per_tess,82242.3125,
+tess,synthetic,linux-aarch64,bspline7,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,bspline7,identity,1,achieved_error_px,0.9141049922635772,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,nurbs,identity,0.1,segments_per_curve,217,
+tess,synthetic,linux-aarch64,nurbs,identity,0.1,ns_per_segment,505.92137096774195,
+tess,synthetic,linux-aarch64,nurbs,identity,0.1,ns_per_tess,109784.9375,
+tess,synthetic,linux-aarch64,nurbs,identity,0.1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,nurbs,identity,0.1,achieved_error_px,0.09452577897299931,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,nurbs,identity,0.25,segments_per_curve,137,
+tess,synthetic,linux-aarch64,nurbs,identity,0.25,ns_per_segment,522.5506386861314,
+tess,synthetic,linux-aarch64,nurbs,identity,0.25,ns_per_tess,71589.4375,
+tess,synthetic,linux-aarch64,nurbs,identity,0.25,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,nurbs,identity,0.25,achieved_error_px,0.23441129576609174,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,nurbs,identity,0.5,segments_per_curve,95,
+tess,synthetic,linux-aarch64,nurbs,identity,0.5,ns_per_segment,520.6008223684211,
+tess,synthetic,linux-aarch64,nurbs,identity,0.5,ns_per_tess,49457.078125,
+tess,synthetic,linux-aarch64,nurbs,identity,0.5,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,nurbs,identity,0.5,achieved_error_px,0.46877665636921356,the most any instance deviated; against 4096 points of the exact curve
+tess,synthetic,linux-aarch64,nurbs,identity,1,segments_per_curve,67,
+tess,synthetic,linux-aarch64,nurbs,identity,1,ns_per_segment,534.3710354477612,
+tess,synthetic,linux-aarch64,nurbs,identity,1,ns_per_tess,35802.859375,
+tess,synthetic,linux-aarch64,nurbs,identity,1,allocs_per_tess,1,the most allocation calls any one instance made; reallocations included
+tess,synthetic,linux-aarch64,nurbs,identity,1,achieved_error_px,0.9231810862285984,the most any instance deviated; against 4096 points of the exact curve
 tess,synthetic,linux-aarch64,all,identity,,simd_variance,,perf is not available in the container and pvec-geometry has no SIMD kernel; so there is no scalar against SIMD pair to measure
-summary,architectural-1e5,linux-aarch64,mix,identity,,weighted_point_at_ns,9.358536158202757,per-type cost weighted by the entry's capability counts; 100.0% of the entities mapped
-summary,architectural-1e5,linux-aarch64,mix,identity,0.5,weighted_ns_per_tess,4872.9625125,at 0.5 px; same weights
+summary,architectural-1e5,linux-aarch64,mix,identity,,weighted_point_at_ns,6.804425945613541,per-type cost weighted by the entry's capability counts; 100.0% of the entities mapped
+summary,architectural-1e5,linux-aarch64,mix,identity,0.5,weighted_ns_per_tess,1835.8962589062498,at 0.5 px; same weights

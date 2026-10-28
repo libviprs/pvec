@@ -209,11 +209,8 @@ impl CurveKind {
 /// Refuses a result that is not finite (an overflow in an intermediate), so no consumer ever sees
 /// a NaN or an infinity come out of a successful call.
 pub(crate) fn finite_point(p: Point2) -> Result<Point2> {
-    if p.x.is_finite() && p.y.is_finite() {
-        Ok(p)
-    } else {
-        Err(pvec_numeric::NumericError::OutOfRange.into())
-    }
+    // a finite number times zero is zero, and an infinity or a NaN times zero is a NaN, so one compare covers both
+    if p.x * 0.0 + p.y * 0.0 == 0.0 { Ok(p) } else { Err(pvec_numeric::NumericError::OutOfRange.into()) }
 }
 
 /// As [`finite_point`], for vectors.
@@ -238,4 +235,24 @@ pub(crate) fn param_in(t: f64, lo: f64, hi: f64) -> Result<f64> {
     }
     let tp = pvec_numeric::Policy::V1.tol(hi - lo, lo.abs().max(hi.abs()).max(t.abs()));
     if t >= lo - tp && t <= hi + tp { Ok(t.clamp(lo, hi)) } else { Err(crate::GeometryError::OutsideDomain) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `finite_point` tests finiteness with one compare on `x * 0 + y * 0`; this holds it to the two-test rule.
+    #[test]
+    fn issue_192_finite_point_refuses_exactly_what_is_not_finite() {
+        let ok = [(0.0, -0.0), (f64::MAX, -f64::MAX), (100000.0, 2.5), (-3.0, f64::MIN_POSITIVE)];
+        for (x, y) in ok {
+            assert!(finite_point(Point2::new(x, y)).is_ok(), "({x}, {y})");
+        }
+        let bad = [f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+        for b in bad {
+            assert!(finite_point(Point2::new(b, 1.0)).is_err(), "x = {b}");
+            assert!(finite_point(Point2::new(1.0, b)).is_err(), "y = {b}");
+        }
+        assert!(finite_point(Point2::new(f64::INFINITY, f64::NEG_INFINITY)).is_err());
+    }
 }
