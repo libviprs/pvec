@@ -37,16 +37,16 @@ the verdict. A red row is a result and stays red here; the failures are tracked 
 | P8.3 | `index-share-15pct` | linux-x86_64 (native x64) | PASS | 9 entries, none above 15% of the file |
 | P8.3 | `block-size-within-10pct` | linux-x86_64 (native x64) | FAIL | 2 of 2 scales more than 10% off the best arm: architectural-1e5 (shipped 267742768 bytes against 163488853, 63.8% over); architectural-1e6 (shipped 2213891512 bytes against 1078894209, 105.2% over) |
 | P8.3 | `compression-crossover-25mbit` | linux-x86_64 (native x64) | PASS | LZ4 wins on any link slower than its crossover; the lowest of 18 crossovers is 4132 Mbit/s (link 25 Mbit/s) |
-| P8.4 | `bspline3-point-at-150ns` | linux-aarch64 (arm64) | PASS | point_at on the reference cubic 37.7 ns (limit 150 ns), P1.3 prototype 40.0 ns |
-| P8.4 | `tessellate-one-allocation` | linux-aarch64 (arm64) | FAIL | 19 allocations for one tessellation of a composite at 0.1 px, the most of 40 rows (limit 1) |
-| P8.4 | `conic-halving-1.5x` | linux-aarch64 (arm64) | FAIL | the largest growth over 4 halvings is 2.00x, circle from 1 px to 0.5 px: 64.0 to 128.0 segments (limit 1.5x) |
-| P8.4 | `offset-1.2x-and-accuracy` | linux-aarch64 (arm64) | PASS | the dearest offset costs 1.06x (synthetic line: 8.0 ns against 7.6 ns; limit 1.2x); accuracy inside P1.2's tolerance everywhere |
-| P8.4 | `error-budget-never-exceeded` | linux-aarch64 (arm64) | FAIL | 1 of 40 rows over the budget: bspline3 at 0.25 px reached 0.250185 px |
-| P8.4 | `bspline3-point-at-150ns` | linux-x86_64 (native x64) | FAIL | point_at on the reference cubic 19.7 ns (limit 150 ns), P1.3 prototype 18.6 ns |
-| P8.4 | `tessellate-one-allocation` | linux-x86_64 (native x64) | FAIL | 19 allocations for one tessellation of a composite at 0.1 px, the most of 40 rows (limit 1) |
-| P8.4 | `conic-halving-1.5x` | linux-x86_64 (native x64) | FAIL | the largest growth over 4 halvings is 2.00x, circle from 1 px to 0.5 px: 64.0 to 128.0 segments (limit 1.5x) |
-| P8.4 | `offset-1.2x-and-accuracy` | linux-x86_64 (native x64) | PASS | the dearest offset costs 1.19x (synthetic ellipse: 19.6 ns against 16.5 ns; limit 1.2x); accuracy inside P1.2's tolerance everywhere |
-| P8.4 | `error-budget-never-exceeded` | linux-x86_64 (native x64) | FAIL | 1 of 40 rows over the budget: bspline3 at 0.25 px reached 0.250185 px |
+| P8.4 | `bspline3-point-at-150ns` | linux-aarch64 (arm64) | FAIL | point_at on the reference cubic 26.2 ns (limit 150 ns), P1.3 prototype 24.1 ns |
+| P8.4 | `tessellate-one-allocation` | linux-aarch64 (arm64) | PASS | at most 1 allocations over 40 rows |
+| P8.4 | `conic-halving-1.5x` | linux-aarch64 (arm64) | PASS | the largest growth over 4 halvings is 1.44x, ellipse from 1 px to 0.5 px: 64.0 to 92.0 segments (limit 1.5x) |
+| P8.4 | `offset-1.2x-and-accuracy` | linux-aarch64 (arm64) | PASS | the dearest offset costs 1.00x (synthetic composite: 29.1 ns against 29.0 ns; limit 1.2x); accuracy inside P1.2's tolerance everywhere |
+| P8.4 | `error-budget-never-exceeded` | linux-aarch64 (arm64) | PASS | 40 rows, none above its budget |
+| P8.4 | `bspline3-point-at-150ns` | linux-x86_64 (native x64) | PASS | point_at on the reference cubic 18.0 ns (limit 150 ns), P1.3 prototype 18.7 ns |
+| P8.4 | `tessellate-one-allocation` | linux-x86_64 (native x64) | PASS | at most 1 allocations over 40 rows |
+| P8.4 | `conic-halving-1.5x` | linux-x86_64 (native x64) | PASS | the largest growth over 4 halvings is 1.44x, ellipse from 1 px to 0.5 px: 64.0 to 92.0 segments (limit 1.5x) |
+| P8.4 | `offset-1.2x-and-accuracy` | linux-x86_64 (native x64) | PASS | the dearest offset costs 1.01x (synthetic trimmed: 14.7 ns against 14.5 ns; limit 1.2x); accuracy inside P1.2's tolerance everywhere |
+| P8.4 | `error-budget-never-exceeded` | linux-x86_64 (native x64) | PASS | 40 rows, none above its budget |
 
 ## Not measured
 
