@@ -695,6 +695,21 @@ impl<S: BlockSource> ContainerReader<S> {
         self.shared.core.advanced_chunks().map(|c| c.iter().map(|six| six[0]).collect())
     }
 
+    /// The six blocks of each of `chunks` (the record block, then the five arenas), chunk after chunk in the
+    /// order given. A caller that wants several chunks puts these in the `read_blocks` call that fetches
+    /// its hot blocks, so the planner coalesces the lot; `advanced` called chunk by chunk makes a plan of
+    /// its own for each. A chunk the file does not have is `NoSuchBlock` with the chunk number in `id` and
+    /// the number of chunks in `blocks`.
+    pub fn advanced_chunk_blocks(&self, chunks: &[usize]) -> Result<Vec<BlockId>, ReadError> {
+        let all = self.shared.core.advanced_chunks()?;
+        let mut out = Vec::with_capacity(chunks.len() * 6);
+        for &c in chunks {
+            let six = all.get(c).ok_or(ReadError::NoSuchBlock { id: c as u32, blocks: all.len() })?;
+            out.extend_from_slice(six);
+        }
+        Ok(out)
+    }
+
     /// Chunk `chunk` of the advanced curves (its record block and five arenas, one range when they are
     /// adjacent), or `None` when the file has no such chunk. Each block is cached on its own.
     pub fn advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError> {

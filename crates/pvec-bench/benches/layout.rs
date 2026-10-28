@@ -17,10 +17,12 @@
 use pvec_bench::dump::dump;
 use pvec_bench::layout_bench::{HEADER, Row, parse_rows, verdicts};
 use pvec_bench::shape::{Shape, from_artifact};
-use pvec_bench::{bounds, build, viewports};
+use pvec_bench::{bounds, build, build_with, viewports};
 use pvec_container::blocks::advanced::CurveView;
+use pvec_container::compress::CodecPolicy;
 use pvec_container::directory::BlockKind;
 use pvec_container::source::{MemorySource, ReadAt, ReadAtSource, Recording, SourceError};
+use pvec_container::writer::WriterOptions;
 use pvec_container::{BlockId, ContainerReader, ReaderConfig};
 use pvec_stream::{Aabb, SpatialDirectory, StraddlerIndex, ViewportConfig, ViewportQuery};
 use std::f64::consts::TAU;
@@ -63,9 +65,20 @@ fn path(out: &Path, entry: &str) -> PathBuf {
     out.join(format!("{entry}.pvec"))
 }
 
+/// The file the shipped writer defaults make, which is compressed since P8.6 (the one `path` names is not).
+fn default_path(out: &Path, entry: &str) -> PathBuf {
+    out.join(format!("{entry}.default.pvec"))
+}
+
 fn prepare(entry: &str, out: &Path) {
-    let raw = build(entry).unwrap_or_else(|e| panic!("{e}"));
+    // The layout arms are measured on the file with no compression, the way the spikes read it: block size is
+    // what P8.3 compares, and a compressed file would be a different experiment from the models'. The writer
+    // defaults compress, so this one names the policy.
+    let uncompressed = WriterOptions { codecs: CodecPolicy::NONE, ..WriterOptions::default() };
+    let raw = build_with(entry, uncompressed).unwrap_or_else(|e| panic!("{e}"));
     fs::write(path(out, entry), &raw).expect("write .pvec");
+    fs::write(default_path(out, entry), build(entry).unwrap_or_else(|e| panic!("{e}")))
+        .expect("write default");
     let shapes = from_artifact(&raw).expect("shapes");
     fs::write(out.join(format!("{entry}.shapes")), dump(&shapes, bounds(&raw).expect("bounds")))
         .expect("write dump");
@@ -464,7 +477,7 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
         .expect("opens");
     let dir = SpatialDirectory::open(&r).expect("directory");
     let long = StraddlerIndex::open(&r).expect("straddler index");
-    let (ids, advanced): (Vec<BlockId>, bool) = match &dir {
+    let (ids, chunks): (Vec<BlockId>, Vec<usize>) = match &dir {
         Some(dir) => {
             let win = Aabb::new([window[0], window[1]], [window[2], window[3]]).expect("a window");
             let scale = 1000.0 / (window[2] - window[0]).max(0.000_001);
@@ -479,7 +492,7 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
                 payload.dedup();
                 ids.extend(payload);
             }
-            (ids, plan.advanced_in_view)
+            (ids, plan.advanced_chunks)
         }
         None => (
             r.entries()
@@ -488,15 +501,11 @@ fn viewport_reads(file: &Path, window: [f64; 4]) -> Vec<(u64, u64)> {
                 .filter(|(_, e)| e.block_kind() == Some(BlockKind::Hot))
                 .map(|(i, _)| BlockId(i as u32))
                 .collect(),
-            true,
+            (0..r.advanced_chunk_count().expect("chunks")).collect(),
         ),
     };
     let _ = r.read_blocks(&ids).expect("blocks");
-    if advanced {
-        for c in 0..r.advanced_chunk_count().expect("chunks") {
-            let _ = r.advanced(c).expect("chunk");
-        }
-    }
+    pvec_bench::read_advanced(&r, &chunks).expect("advanced chunks");
     r.source().requests().iter().map(|q| (q.offset, u64::from(q.len))).collect()
 }
 
@@ -562,6 +571,26 @@ fn shipped(entry: &str, dir: &Path, platform: &str) {
     );
     let mean_block = hot.iter().map(|e| f64::from(e.stored_length)).sum::<f64>() / hot.len().max(1) as f64;
     o.row("block", "shipped", "", "mean_block_bytes", Some(mean_block), &format!("{} hot blocks", hot.len()));
+    // The same 200 viewports over the file the writer defaults make: stored bytes, compression included.
+    let file = default_path(dir, entry);
+    let bytes = fs::read(&file).expect("the default .pvec");
+    let (mut mid_r, mut mid_b, mut mid_n, mut all_r, mut all_b) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for (i, w) in viewports(entry, bounds(&bytes).expect("bounds")).iter().enumerate() {
+        let (r, b) = merge(&viewport_reads(&file, *w), 64 * 1024);
+        all_r += r as f64;
+        all_b += b as f64;
+        if i % 4 == 2 {
+            mid_r += r as f64;
+            mid_b += b as f64;
+            mid_n += 1.0;
+        }
+    }
+    let note = "the file the writer defaults make (compressed); stored bytes of the same 200 viewports, reads at most 64 KiB apart merged";
+    o.row("default", "shipped", "mid", "ranges_mean", Some(mid_r / mid_n), note);
+    o.row("default", "shipped", "mid", "bytes_mean", Some(mid_b / mid_n), note);
+    o.row("default", "shipped", "all", "ranges_total", Some(all_r), note);
+    o.row("default", "shipped", "all", "bytes_total", Some(all_b), note);
+    o.row("default", "shipped", "", "file_bytes", Some(bytes.len() as f64), note);
 }
 
 fn main() {

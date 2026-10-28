@@ -1,10 +1,11 @@
 //! The named seed corpus.
 
 use crate::layout::Layout;
-use pvec_container::compress::{Codec, compress};
+use pvec_container::compress::{Codec, CodecPolicy, compress};
 use pvec_container::directory::BlockKind;
+use pvec_container::writer::WriterOptions;
 use pvec_corpus::Bundle;
-use pvec_testkit::generate::generate_all;
+use pvec_testkit::generate::{generate_all, generate_all_with};
 use pvec_testkit::hostile::{bases, catalog};
 use std::collections::BTreeSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -62,11 +63,25 @@ fn is_sweep(name: &str) -> bool {
 pub fn corpus() -> Vec<Seed> {
     let bundle = Bundle::vendored().expect("the vendored bundle opens");
     let mut out = Vec::new();
-    for o in generate_all(&bundle).expect("the bundle registers") {
+    // The known-truth seeds are written without compression, as the corpus always was: the mutator and the
+    // checksum-gate statistics are about files whose blocks are bytes a flip can land in. The same fixtures
+    // as the writer's defaults make them (compressed since P8.6) are seeds too, so the fuzzer starts from the
+    // shipped configuration as well.
+    let plain = WriterOptions { codecs: CodecPolicy::NONE, ..WriterOptions::default() };
+    for o in generate_all_with(&bundle, plain).expect("the bundle registers") {
         if let Ok(a) = o.result {
             out.push(Seed {
                 name: format!("known-truth/{}", a.fixture_id),
                 source: Source::KnownTruth,
+                bytes: a.bytes,
+            });
+        }
+    }
+    for o in generate_all(&bundle).expect("the bundle registers") {
+        if let Ok(a) = o.result {
+            out.push(Seed {
+                name: format!("writer/known-truth-default/{}", a.fixture_id),
+                source: Source::Writer,
                 bytes: a.bytes,
             });
         }

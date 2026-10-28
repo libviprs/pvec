@@ -39,8 +39,10 @@ const RUN_LEN: usize = 8;
 
 /// The margin kept over a measured deviation, because the measurement samples the curve.
 const BOUND_MARGIN: f64 = 1.1;
-/// What the stored bound adds for floating point rounding, per unit of coordinate magnitude (an `f32`
-/// carries about 0.00000006 of its value). It is a rounding allowance, not a geometric tolerance.
+/// What the stored bound adds for floating point rounding, per unit of the preview's own extent (an `f32`
+/// carries about 0.00000006 of its value, and the vertices are stored as offsets from an `f64` origin, so
+/// the value that is rounded is the offset and not the absolute coordinate). It is a rounding allowance,
+/// not a geometric tolerance.
 const ROUNDING_SLACK: f64 = 0.0000001;
 /// The share of the budget the chord polyline is built to, before measuring.
 const CHORD_TARGETS: [f64; 3] = [0.5, 0.25, 0.1];
@@ -330,6 +332,14 @@ impl Tier0Entry<'_> {
         }
     }
 }
+
+/// The error budget a writer holds Tier 0 previews to, in pixels at the fit zoom of a 1,920 px screen
+/// (`docs/STREAMING.md` section 4.3). A caller turns it into world units with the extent of the drawing:
+/// `PREVIEW_BUDGET_PX * extent / 1920`. It was 0.5 until P8.6 (`docs/bench/TUNING.md`): a viewer that zooms in
+/// before the exact refinement arrives shows a preview at up to 32 times the fit zoom, and 0.5 px at the fit
+/// zoom is 6.2 px there against the 2 px the progressive benchmark allows. Of the budgets swept, 0.13 px gives
+/// 2.06 px at the worst recorded viewport and 0.125 px gives 1.79 px (1.98 px on the 10^5 entries).
+pub const PREVIEW_BUDGET_PX: f64 = 0.125;
 
 /// What the writer is asked to hold previews to.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -638,9 +648,9 @@ fn quantise(id: EntityId, form: PreviewForm, pts: &[Point2], bound: f32) -> Resu
 }
 
 /// The stored bound for a measured deviation: the margin and a sliver for the floating point, rounded up
-/// to an `f32`.
-fn stored_bound(measured: f64, magnitude: f64) -> Option<f32> {
-    let want = measured * BOUND_MARGIN + ROUNDING_SLACK * magnitude.max(1.0);
+/// to an `f32`. `extent` is the largest offset of the preview from its origin.
+fn stored_bound(measured: f64, extent: f64) -> Option<f32> {
+    let want = measured * BOUND_MARGIN + ROUNDING_SLACK * extent.max(1.0);
     let mut f = want as f32;
     if f64::from(f) < want {
         f = f32::from_bits(f.to_bits() + 1);
@@ -655,7 +665,6 @@ fn try_shape(
     form: PreviewForm,
     pts: &[Point2],
     params: &Tier0Params,
-    magnitude: f64,
 ) -> Result<Option<Preview>, Tier0Error> {
     if pts.is_empty() || pts.len() > MAX_PREVIEW_VERTICES {
         return Ok(None);
@@ -663,7 +672,8 @@ fn try_shape(
     // Measure with a placeholder bound, then store the real one.
     let probe = quantise(id, form, pts, 1.0)?;
     let measured = measure_deviation(curve, &probe)?;
-    let Some(bound) = stored_bound(measured, magnitude) else { return Ok(None) };
+    let extent = probe.offsets().iter().flatten().fold(0.0f64, |m, v| m.max(f64::from(v.abs())));
+    let Some(bound) = stored_bound(measured, extent) else { return Ok(None) };
     if f64::from(bound) > params.max_error {
         return Ok(None);
     }
@@ -728,15 +738,16 @@ pub fn build_preview(
     params: &Tier0Params,
 ) -> Result<Result<Preview, InfeasibleReason>, Tier0Error> {
     params.check()?;
-    let Ok(bounds) = curve.bounds() else { return Ok(Err(InfeasibleReason::EvaluatorRefused)) };
-    let magnitude = bounds.magnitude();
+    if curve.bounds().is_err() {
+        return Ok(Err(InfeasibleReason::EvaluatorRefused));
+    }
     let is_ellipse_arc = matches!(curve, Curve::Trimmed(t) if matches!(t.basis(), Curve::Ellipse(_)));
     if let Curve::Polyline(line) = curve {
         // Its control polygon is itself, which saves nothing: drop the vertices that are within the
         // budget of the rest.
         for share in CHORD_TARGETS {
             let pts = simplify(line.vertices(), params.max_error * share);
-            match try_shape(id, curve, PreviewForm::ChordPolyline, &pts, params, magnitude) {
+            match try_shape(id, curve, PreviewForm::ChordPolyline, &pts, params) {
                 Ok(Some(p)) => return Ok(Ok(p)),
                 Ok(None) => {}
                 Err(Tier0Error::Geometry(_)) => return Ok(Err(InfeasibleReason::EvaluatorRefused)),
@@ -747,7 +758,7 @@ pub fn build_preview(
         return Ok(Err(if capped { InfeasibleReason::VertexCap } else { InfeasibleReason::BoundNotMet }));
     }
     if !is_ellipse_arc && let Some(poly) = control_polygon(curve) {
-        match try_shape(id, curve, PreviewForm::ControlPolygon, &poly, params, magnitude) {
+        match try_shape(id, curve, PreviewForm::ControlPolygon, &poly, params) {
             Ok(Some(p)) => return Ok(Ok(p)),
             Ok(None) => {}
             Err(Tier0Error::Geometry(_)) => return Ok(Err(InfeasibleReason::EvaluatorRefused)),
@@ -759,7 +770,7 @@ pub fn build_preview(
             Ok(pts) => pts,
             Err(reason) => return Ok(Err(reason)),
         };
-        match try_shape(id, curve, PreviewForm::ChordPolyline, &pts, params, magnitude) {
+        match try_shape(id, curve, PreviewForm::ChordPolyline, &pts, params) {
             Ok(Some(p)) => return Ok(Ok(p)),
             Ok(None) => {}
             Err(Tier0Error::Geometry(_)) => return Ok(Err(InfeasibleReason::EvaluatorRefused)),

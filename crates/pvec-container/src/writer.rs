@@ -77,8 +77,9 @@ pub struct WriterConfig {
     pub capabilities: Vec<CapabilityId>,
 }
 
-/// How an artifact is compressed and sealed. The default compresses nothing and writes both the block
-/// checksum table and the artifact digest.
+/// How an artifact is compressed and sealed. The default is the one P8.6 settled on (`CodecPolicy::default`:
+/// deflate for hot blocks, LZ4 for the advanced records and arenas, deflate for Tier 0 whatever the policy)
+/// and writes both the block checksum table and the artifact digest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct WriterOptions {
     /// What is recorded for integrity.
@@ -435,8 +436,10 @@ struct AdvancedItem {
 }
 
 /// The default size of one chunk of the advanced curves, in bytes of records and arena data
-/// (`docs/STREAMING.md` section 2.8). Like a hot leaf it is tuned against real drawings in P8.6.
-pub const ADVANCED_CHUNK_BYTES: u32 = 64 * 1024;
+/// (`docs/STREAMING.md` section 2.8). It was 64 KiB until P8.6, and is 256 KiB since (`docs/bench/TUNING.md`): a
+/// viewport reads only the chunks it touches (`ReadPlan::advanced_chunks`), so a smaller chunk moves fewer bytes,
+/// and below 256 KiB the file and its block directory grow faster than the bytes shrink.
+pub const ADVANCED_CHUNK_BYTES: u32 = 256 * 1024;
 
 /// A block ready to be placed.
 struct Planned {

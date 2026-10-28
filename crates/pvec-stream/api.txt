@@ -53,7 +53,7 @@ directory.rs: BuiltDirectory.bytes: Vec<u8>
 directory.rs: BuiltDirectory.nodes: u32
 directory.rs: BuiltDirectory.bounds: Aabb
 directory.rs: BuiltDirectory.cells: Vec<CellId>
-directory.rs: pub fn build_directory(entities: &[EntityBox]) -> Result<BuiltDirectory, DirectoryError>
+directory.rs: pub fn build_directory(entities: &[EntityBox], cell_capacity: u32) -> Result<BuiltDirectory, DirectoryError>
 directory.rs: #[derive(Debug)] pub struct SpatialDirectory
 directory.rs: SpatialDirectory::find(entries: &[BlockEntry]) -> Result<Option<BlockId>, DirectoryError>
 directory.rs: SpatialDirectory::parse(bytes: &[u8], entries: &[BlockEntry], limits: &Limits) -> Result<SpatialDirectory, DirectoryError>
@@ -289,7 +289,7 @@ straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct Classification
 straddler.rs: Classification.local: Vec<EntityBox>
 straddler.rs: Classification.long: Vec<EntityBox>
 straddler.rs: Classification.scale: LevelScale
-straddler.rs: pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, StraddlerError>
+straddler.rs: pub fn classify(entities: &[EntityBox], factor: f64, cell_capacity: u32) -> Result<Classification, StraddlerError>
 straddler.rs: #[derive(Clone, Debug, PartialEq)] pub struct BuiltStraddlers
 straddler.rs: BuiltStraddlers.bytes: Vec<u8>
 straddler.rs: BuiltStraddlers.entries: u32
@@ -408,6 +408,7 @@ tiers.rs: Tier0Entry::Exact { id: EntityId }
 tiers.rs: Tier0Entry::Preview(&'a Preview)
 tiers.rs: Tier0Entry<'_>::id(&self) -> EntityId
 tiers.rs: Tier0Entry<'_>::fidelity(&self) -> Fidelity
+tiers.rs: pub const PREVIEW_BUDGET_PX: f64
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Tier0Params
 tiers.rs: Tier0Params.max_error: f64
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Conformance
@@ -495,6 +496,7 @@ viewport.rs: #[derive(Clone, Debug, PartialEq)] pub struct ReadPlan
 viewport.rs: ReadPlan.requests: Vec<PlannedRequest>
 viewport.rs: ReadPlan.deferred: Vec<PlannedRequest>
 viewport.rs: ReadPlan.advanced_in_view: bool
+viewport.rs: ReadPlan.advanced_chunks: Vec<usize>
 viewport.rs: ReadPlan.metrics: PlanMetrics
 viewport.rs: ReadPlan::block_ids(&self) -> Vec<BlockId>
 viewport.rs: ReadPlan::visible_block_ids(&self) -> Vec<BlockId>

@@ -137,7 +137,7 @@ fn one_viewport(path: &Path, window: [f64; 4]) -> (f64, u64, usize) {
             .expect("opens");
     let dir = SpatialDirectory::open(&r).expect("directory");
     let long = StraddlerIndex::open(&r).expect("straddler index");
-    let (ids, advanced): (Vec<BlockId>, bool) = match &dir {
+    let (ids, chunks): (Vec<BlockId>, Vec<usize>) = match &dir {
         Some(dir) => {
             let win = Aabb::new([window[0], window[1]], [window[2], window[3]]).expect("a window");
             let scale = 1000.0 / (window[2] - window[0]).max(0.000_001);
@@ -152,7 +152,7 @@ fn one_viewport(path: &Path, window: [f64; 4]) -> (f64, u64, usize) {
                 payload.dedup();
                 ids.extend(payload);
             }
-            (ids, plan.advanced_in_view)
+            (ids, plan.advanced_chunks)
         }
         // A file without a spatial directory (the known-truth fixtures) has no index to select with: the
         // viewport reads every hot block and every advanced chunk.
@@ -164,18 +164,12 @@ fn one_viewport(path: &Path, window: [f64; 4]) -> (f64, u64, usize) {
                 .filter(|(_, e)| e.block_kind() == Some(BlockKind::Hot))
                 .map(|(i, _)| BlockId(i as u32))
                 .collect();
-            (ids, true)
+            (ids, (0..r.advanced_chunk_count().expect("chunk count")).collect())
         }
     };
     let blocks = r.read_blocks(&ids).expect("blocks");
     let drawn: usize = blocks.iter().map(|b| b.hot().map_or(0, |h| h.len())).sum();
-    let mut sets = 0;
-    if advanced {
-        for c in 0..r.advanced_chunk_count().expect("chunk count") {
-            let set = r.advanced(c).expect("chunk").expect("exists");
-            sets += set.view().expect("view").len();
-        }
-    }
+    let sets = pvec_bench::read_advanced(&r, &chunks).expect("advanced chunks");
     let ms = start.elapsed().as_secs_f64() * 1000.0;
     assert!(drawn + sets > 0 || dir.is_some(), "a file without a directory draws everything");
     let source = r.source();
@@ -261,7 +255,7 @@ fn assemble(out: &Path, platform: &str, host: &str, entries: &[String]) {
             r.viewport_bytes_max = num(&kv, "viewport_bytes_max");
             r.peak_rss_kib = num(&kv, "peak_rss_kib");
             r.note = format!(
-                "compressed is the smaller of lz4 ({}) and deflate ({}) per block; timings on the uncompressed default file; viewport bytes include the open; at most {} ranges",
+                "compressed is the smaller of lz4 ({}) and deflate ({}) per block; encoded bytes and timings are of the default file as the writer makes it (compressed since P8.6); viewport bytes include the open; at most {} ranges",
                 lz4.unwrap_or(0.0),
                 dfl.unwrap_or(0.0),
                 num(&kv, "viewport_ranges_max").unwrap_or(0.0)

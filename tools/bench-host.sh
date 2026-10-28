@@ -6,6 +6,7 @@
 #   mars     native x86_64, bind-mounted scratch under /work/nas-work, image pvec-rust:1.99.1 (it has libhdf5)
 #   mercury  native arm64 (Colima), a named volume per job, rust:1.99.1-bookworm
 #
+# `BH_CPUS=4` caps the containers `rust` starts at that many cpus (the hosts are shared).
 # `rust 'sh command'` runs the command in the Rust image with the tree at /work and the cargo caches inside it;
 # `fetch FILE` prints a file from the tree; `host_cleanup` removes the scratch from inside a container (call it
 # from a trap).
@@ -32,7 +33,7 @@ host_push() { # host_push ROOT
 }
 
 rust() {
-  "${SSH[@]}" "$D run --rm --platform $PLATFORM -v ${MOUNT}/work -w /work -e CARGO_TARGET_DIR=/work/.target -e CARGO_HOME=/work/.cargo $RUST_IMAGE sh -c $(printf '%q' "$1")"
+  "${SSH[@]}" "$D run --rm ${BH_CPUS:+--cpus $BH_CPUS} --platform $PLATFORM -v ${MOUNT}/work -w /work -e CARGO_TARGET_DIR=/work/.target -e CARGO_HOME=/work/.cargo $RUST_IMAGE sh -c $(printf '%q' "$1")"
 }
 
 fetch() { # fetch PATH-IN-TREE

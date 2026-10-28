@@ -18,6 +18,7 @@ const POLICY: Policy = Policy::V1;
 const WIN: usize = MAX_DEGREE + 1;
 
 /// Index of the knot span containing `t`, chosen from the side requested at a knot.
+#[inline(always)]
 fn find_span(knots: &[f64], p: usize, n_cp: usize, t: f64, side: Side) -> usize {
     match side {
         Side::Left => {
@@ -46,6 +47,7 @@ fn find_span(knots: &[f64], p: usize, n_cp: usize, t: f64, side: Side) -> usize 
 /// Q_g^{r-1}) / (u_{g+p+1} - u_{g+r})`, a zero denominator giving zero), step two is de Boor on the
 /// resulting degree `p - k` curve, whose knot vector is the original shifted by `k`. A derivative
 /// above the degree is the zero vector.
+#[inline(always)]
 fn local_eval<const N: usize>(
     get: impl Fn(usize) -> [f64; N],
     knots: &[f64],
@@ -61,11 +63,12 @@ fn local_eval<const N: usize>(
     for (j, slot) in w.iter_mut().enumerate().take(p + 1) {
         *slot = get(i - p + j);
     }
+    // the knots this span reads, as one slice, so the loops below index inside it
+    let kn = &knots[i - p..i + p + 2];
     for r in 1..=k {
         let f = (p - r + 1) as f64;
         for j in 0..=(p - r) {
-            let g = i - p + j;
-            let den = knots[g + p + 1] - knots[g + r];
+            let den = kn[j + p + 1] - kn[j + r];
             for c in 0..N {
                 w[j][c] = if den != 0.0 { f * (w[j + 1][c] - w[j][c]) / den } else { 0.0 };
             }
@@ -74,8 +77,8 @@ fn local_eval<const N: usize>(
     let q = p - k;
     for r in 1..=q {
         for j in (r..=q).rev() {
-            let lo = knots[i - p + j + k];
-            let alpha = (t - lo) / (knots[i + 1 + j - r] - lo);
+            let lo = kn[j + k];
+            let alpha = (t - lo) / (kn[p + 1 + j - r] - lo);
             for c in 0..N {
                 w[j][c] = (1.0 - alpha) * w[j - 1][c] + alpha * w[j][c];
             }

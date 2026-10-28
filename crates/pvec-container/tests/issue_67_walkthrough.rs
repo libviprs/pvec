@@ -6,7 +6,8 @@
 
 use pvec_capabilities::{CapabilityId, Version};
 use pvec_components::Stream;
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
+use pvec_container::compress::CodecPolicy;
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, LengthUnit, Manifest, Metadata};
 use pvec_entity::EntityId;
 use std::fs;
@@ -61,7 +62,9 @@ fn the_dump_in_the_document_is_the_file_the_writer_produces() {
         bounds: Some(Bounds { min: [0.0, 0.0], max: [10.0, 0.0] }),
         capabilities: vec![CapabilityId::new(1), CapabilityId::new(14)],
     };
-    let mut w = ContainerWriter::new(config);
+    // stored as written, so that the dump can be read by eye: the default compresses the hot block
+    let options = WriterOptions { codecs: CodecPolicy::NONE, ..WriterOptions::default() };
+    let mut w = ContainerWriter::with_options(config, options);
     let meta = EntityMeta {
         id: EntityId::new(0).unwrap(),
         style: 0,

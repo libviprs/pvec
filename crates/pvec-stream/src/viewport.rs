@@ -2,7 +2,7 @@
 
 use crate::directory::{Aabb, DirectoryError, SpatialDirectory};
 use crate::tier0_leaf::Tier0Leaves;
-use pvec_container::directory::BlockEntry;
+use pvec_container::directory::{BlockEntry, BlockKind};
 use pvec_container::reader::RangeRequest;
 use pvec_container::source::{AsyncBlockSource, BlockSource};
 use pvec_container::{AsyncContainerReader, BlockId, ContainerReader, ReadError};
@@ -140,6 +140,8 @@ pub struct ReadPlan {
     pub deferred: Vec<PlannedRequest>,
     /// Whether the advanced curve set, which no cell holds, touches the viewport (a cell references its curves by row, see `docs/STREAMING.md` section 2.8).
     pub advanced_in_view: bool,
+    /// The advanced chunks (numbered as `ContainerReader::advanced` numbers them) whose record block's bounds touch the viewport: the only ones a reader needs to fetch to draw it. A record block with no bounds is always listed.
+    pub advanced_chunks: Vec<usize>,
     /// What the plan costs.
     pub metrics: PlanMetrics,
 }
@@ -433,7 +435,20 @@ impl ViewportQuery {
         metrics.deferred_ranges = deferred.len() as u32;
         metrics.deferred_bytes = deferred.iter().map(|p| u64::from(p.request.len)).sum();
         let advanced_in_view = dir.advanced_bounds().is_some_and(|b| b.intersects(&self.bounds));
-        Ok(ReadPlan { requests, deferred, advanced_in_view, metrics })
+        // chunk k is the k-th record block by (cell, position), which is how the reader numbers them
+        let mut records: Vec<(u32, usize)> = (entries.iter().enumerate())
+            .filter(|(_, e)| e.block_kind() == Some(BlockKind::Records))
+            .map(|(i, e)| (e.cell, i))
+            .collect();
+        records.sort_unstable();
+        let advanced_chunks: Vec<usize> = (records.iter().enumerate())
+            .filter(|(_, (_, i))| match entries[*i].bounds {
+                Some(b) => Aabb::new(b.min, b.max).map_or(true, |b| b.intersects(&self.bounds)),
+                None => true,
+            })
+            .map(|(k, _)| k)
+            .collect();
+        Ok(ReadPlan { requests, deferred, advanced_in_view, advanced_chunks, metrics })
     }
 }
 

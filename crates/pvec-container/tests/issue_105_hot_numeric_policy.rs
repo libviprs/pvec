@@ -8,6 +8,7 @@ mod support;
 
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::hot::*;
+use pvec_container::compress::{Codec, decompress};
 use pvec_container::directory::{BlockKind, parse_directory};
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError};
 use pvec_container::{Bounds, Header, Manifest};
@@ -163,8 +164,11 @@ fn writer_stores_negative_zero_as_positive_zero_np03() {
     let hot: Vec<_> = entries.iter().filter(|e| e.kind == BlockKind::Hot.id()).collect();
     assert_eq!(hot.len(), 4);
     for e in hot {
-        let block =
-            AlignedBytes::from_bytes(&bytes[e.offset as usize..e.offset as usize + e.stored_length as usize]);
+        let stored = &bytes[e.offset as usize..e.offset as usize + e.stored_length as usize];
+        // the writer compresses hot blocks by default, so the columns are read after the codec the entry names
+        let raw =
+            decompress(Codec::from_id(e.codec).unwrap(), stored, e.uncompressed_length as usize).unwrap();
+        let block = AlignedBytes::from_bytes(&raw);
         let v = HotBlockView::parse(block.as_bytes()).unwrap();
         for col in v.f64_columns() {
             for x in *col {

@@ -13,15 +13,18 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Limits, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    Aabb, BuiltDirectory, CELL_CAPACITY, CellId, DuplicationPolicy, EntityBox, HEADER_LEN, LevelScale,
-    LongEntity, NODE_LEN, PAGE_LEN, PayloadRef, PlacedEntity, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR,
-    STRADDLER_HEADER_LEN, STRADDLER_PAGE, STRADDLER_RULES, SpatialDirectory, StraddlerError, StraddlerLists,
-    ViewportHits, ancestor_placement, build_directory, build_straddlers, classify, congestion, extent,
-    query_viewport, unique_entities,
+    Aabb, BuiltDirectory, CellId, DuplicationPolicy, EntityBox, HEADER_LEN, LevelScale, LongEntity, NODE_LEN,
+    PAGE_LEN, PayloadRef, PlacedEntity, STRADDLER_ENTRY_LEN, STRADDLER_FACTOR, STRADDLER_HEADER_LEN,
+    STRADDLER_PAGE, STRADDLER_RULES, SpatialDirectory, StraddlerError, StraddlerLists, ViewportHits,
+    ancestor_placement, build_directory, build_straddlers, classify, congestion, extent, query_viewport,
+    unique_entities,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::sync::OnceLock;
+
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
 
 // ---------------------------------------------------------------- fixtures
 
@@ -186,8 +189,8 @@ struct Split {
 }
 
 fn split(all: &[EntityBox]) -> Split {
-    let c = classify(all, STRADDLER_FACTOR).expect("classified");
-    let built = build_directory(&c.local).expect("directory");
+    let c = classify(all, STRADDLER_FACTOR, LEAF).expect("classified");
+    let built = build_directory(&c.local, LEAF).expect("directory");
     let block = build_straddlers(&c.scale, &long_entities(&c.long)).expect("straddlers").bytes;
     let lists = StraddlerLists::parse(&block, &Limits::DEFAULT).expect("a block the builder wrote");
     Split { local: c.local, long: c.long, built, block, lists }
@@ -336,7 +339,7 @@ fn the_factor_is_a_named_constant_and_an_entity_is_long_by_it() {
 #[test]
 fn classification_keeps_plan_entities_local_and_lifts_the_spanning_lines() {
     let f = drawing_100k();
-    let c = classify(&f.all, STRADDLER_FACTOR).unwrap();
+    let c = classify(&f.all, STRADDLER_FACTOR, LEAF).unwrap();
     assert_eq!(c.local.len(), 100_000, "every room entity, wall included, stays in a cell");
     assert_eq!(c.long.len(), 1000);
     assert!(c.local.iter().all(|e| e.id.index() < 100_000));
@@ -345,7 +348,7 @@ fn classification_keeps_plan_entities_local_and_lifts_the_spanning_lines() {
     assert!(c.local.windows(2).all(|w| w[0].id < w[1].id));
     assert!(c.long.windows(2).all(|w| w[0].id < w[1].id));
     // spanning lines are listed below the root: a viewport that reads the root does not read them
-    let built = build_directory(&c.local).unwrap();
+    let built = build_directory(&c.local, LEAF).unwrap();
     let top = (c.scale.sizes().len() - 1) as u16;
     for e in &c.long {
         let level = c.scale.level_of(extent(&e.bounds)).unwrap();
@@ -360,8 +363,8 @@ fn the_estimated_cell_sizes_match_the_cells_of_the_directory_over_the_local_enti
     // `drawing-100k` only: on `stress-long` the lines between one and four cells long stay in cells by
     // the factor, and they do swell the cells they are in, which the next test measures
     for f in [drawing_100k()] {
-        let c = classify(&f.all, STRADDLER_FACTOR).unwrap();
-        let built = build_directory(&c.local).unwrap();
+        let c = classify(&f.all, STRADDLER_FACTOR, LEAF).unwrap();
+        let built = build_directory(&c.local, LEAF).unwrap();
         // the longer side of every node, by level, read from the builder's own bytes
         let mut sides: BTreeMap<u16, Vec<f64>> = BTreeMap::new();
         for i in 0..built.nodes as usize {
@@ -397,7 +400,7 @@ fn classification_does_not_depend_on_arrival_order_or_on_how_many_straddlers_the
     // `stress-long`: a third of the entities are long, at random positions and lengths, so almost every
     // leaf of a directory over everything is swollen and a cell size read from it would be useless
     let f = stress_long();
-    let c = classify(&f.all, STRADDLER_FACTOR).unwrap();
+    let c = classify(&f.all, STRADDLER_FACTOR, LEAF).unwrap();
     eprintln!(
         "stress-long: {} local, {} long, level sizes {:?}",
         c.local.len(),
@@ -413,7 +416,7 @@ fn classification_does_not_depend_on_arrival_order_or_on_how_many_straddlers_the
     for i in (1..shuffled.len()).rev() {
         shuffled.swap(i, (rng.next() % (i as u64 + 1)) as usize);
     }
-    let d = classify(&shuffled, STRADDLER_FACTOR).unwrap();
+    let d = classify(&shuffled, STRADDLER_FACTOR, LEAF).unwrap();
     let ids = |v: &[EntityBox]| v.iter().map(|e| e.id).collect::<BTreeSet<_>>();
     assert_eq!(ids(&c.local), ids(&d.local));
     assert_eq!(ids(&c.long), ids(&d.long));
@@ -422,9 +425,9 @@ fn classification_does_not_depend_on_arrival_order_or_on_how_many_straddlers_the
     let points: Vec<EntityBox> = (0..200)
         .map(|i| EntityBox { id: eid(i), bounds: bx(f64::from(i), 0.0, f64::from(i), 0.0) })
         .collect();
-    let p = classify(&points, STRADDLER_FACTOR).unwrap();
+    let p = classify(&points, STRADDLER_FACTOR, LEAF).unwrap();
     assert_eq!((p.local.len(), p.long.len()), (200, 0));
-    assert!(classify(&[], STRADDLER_FACTOR).is_err());
+    assert!(classify(&[], STRADDLER_FACTOR, LEAF).is_err());
 }
 
 #[test]
@@ -463,7 +466,7 @@ const VIEWPORT_BYTE_BUDGET: u64 = 64 * 1024;
 /// The stated fraction of the artifact the same query may transfer.
 const VIEWPORT_ARTIFACT_FRACTION: f64 = 0.02;
 /// The stated ceiling on the references the root level carries: what one cell may hold.
-const ROOT_REFERENCE_CEILING: u64 = CELL_CAPACITY as u64;
+const ROOT_REFERENCE_CEILING: u64 = LEAF as u64;
 
 #[test]
 fn a_one_screen_viewport_on_drawing_100k_stays_under_a_byte_budget_and_a_fraction_of_the_artifact() {
@@ -528,7 +531,7 @@ fn a_one_screen_viewport_on_drawing_100k_stays_under_a_byte_budget_and_a_fractio
 
 /// The status quo artifact: one directory over every entity.
 fn split_status_quo(all: &[EntityBox]) -> (Vec<u8>, BuiltDirectory) {
-    let built = build_directory(all).unwrap();
+    let built = build_directory(all, LEAF).unwrap();
     (artifact(all, &built), built)
 }
 

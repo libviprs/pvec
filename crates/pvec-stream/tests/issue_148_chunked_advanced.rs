@@ -14,6 +14,9 @@ use pvec_stream::{
 use std::collections::HashMap;
 use support::fixtures::*;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 type Mem = Recording<MemorySource<Vec<u8>>>;
 
 fn config() -> WriterConfig {
@@ -59,7 +62,7 @@ fn spline(w: &mut ContainerWriter, id: u32, x: f64) -> Aabb {
 fn build() -> (Vec<u8>, Vec<(u32, Aabb)>, Vec<Fx>) {
     let lines = rooms(3, 2, 200, 2000.0);
     let boxes: Vec<EntityBox> = lines.iter().map(|e| EntityBox { id: e.id, bounds: e.bounds() }).collect();
-    let built = build_directory(&boxes).unwrap();
+    let built = build_directory(&boxes, LEAF).unwrap();
     let mut w = ContainerWriter::new(config());
     w.advanced_chunk_bytes(1);
     for (e, cell) in lines.iter().zip(built.cells.iter()) {
@@ -160,4 +163,51 @@ fn the_directory_reports_the_union_of_the_chunks_bounds_and_each_chunk_its_own()
         .collect();
     assert_eq!(per_chunk.len(), 5);
     assert!(per_chunk.iter().any(|b| *b != dir.advanced_bounds().unwrap()), "the chunks differ");
+}
+
+// ---- pvec#192 / #65: the plan names the chunks a viewport needs, so a reader fetches those and not the whole set
+
+fn expected_chunks(r: &ContainerReader<Mem>, window: &Aabb) -> Vec<usize> {
+    let mut records: Vec<(u32, usize)> = r
+        .entries()
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.block_kind() == Some(BlockKind::Records))
+        .map(|(i, e)| (e.cell, i))
+        .collect();
+    records.sort_unstable();
+    records
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, i))| {
+            let b = r.entries()[*i].bounds.unwrap();
+            Aabb::new(b.min, b.max).unwrap().intersects(window)
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+#[test]
+fn the_plan_names_the_chunks_whose_bounds_touch_the_viewport_and_no_others() {
+    use pvec_stream::{ViewportConfig, ViewportQuery};
+    let (bytes, _, _) = build();
+    let r = open(bytes);
+    let dir = SpatialDirectory::open(&r).unwrap().unwrap();
+    let plan = |w: Aabb| {
+        ViewportQuery::new(w, 1.0).plan(&dir, &r, &ViewportConfig { prefetch_margin_px: 0.0 }).unwrap()
+    };
+    let left = bx(0.0, 0.0, 700.0, 600.0);
+    let p = plan(left);
+    assert_eq!(p.advanced_chunks, expected_chunks(&r, &left), "the left viewport");
+    assert!(!p.advanced_chunks.is_empty() && p.advanced_chunks.len() < 5, "{:?}", p.advanced_chunks);
+    assert!(p.advanced_in_view, "chunks are in view");
+    let right = bx(3000.0, 0.0, 3700.0, 600.0);
+    let p = plan(right);
+    assert_eq!(p.advanced_chunks, expected_chunks(&r, &right), "the right viewport");
+    assert!(p.advanced_chunks.len() < 5);
+    let far = bx(1500.0, 3500.0, 2000.0, 3900.0);
+    let p = plan(far);
+    assert!(p.advanced_chunks.is_empty() && !p.advanced_in_view, "nothing is near {far:?}");
+    let all = bx(-10.0, -10.0, 6000.0, 6000.0);
+    assert_eq!(plan(all).advanced_chunks, vec![0, 1, 2, 3, 4], "the whole drawing needs the whole set");
 }

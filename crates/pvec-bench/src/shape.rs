@@ -5,11 +5,11 @@ use pvec_container::blocks::advanced::SplineSpec;
 use pvec_container::directory::STRADDLER_CELL_FIRST;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterConfig, WriterOptions};
-use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Metadata, ReaderConfig};
+use pvec_container::{BlockId, Bounds, ContainerReader, LengthUnit, Limits, Metadata, ReaderConfig};
 use pvec_entity::EntityId;
 use pvec_stream::{
-    Aabb, EntityBox, LongEntity, PayloadRef, STRADDLER_FACTOR, Tier0Builder, Tier0Params, build_directory,
-    build_straddlers, classify, payload_cells, scan_payloads, tier0_blocks,
+    Aabb, CELL_CAPACITY, EntityBox, LongEntity, PayloadRef, STRADDLER_FACTOR, Tier0Builder, Tier0Params,
+    build_directory, build_straddlers, classify, payload_cells, scan_payloads, tier0_blocks,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::TAU;
@@ -145,12 +145,43 @@ fn push(w: &mut ContainerWriter, id: usize, cell: u32, shape: &Shape) -> Result<
 /// straddler strategy (P5.3b: lay out once to learn the block ids, then again with the lists). With
 /// `tier0_max_error` the file also carries a Tier 0 block per index leaf (P5.4b), previews held to that error
 /// in source units; without it the bytes are the corpus's, unchanged.
+///
+/// The leaf holds `CELL_CAPACITY` entities, and the capacity is halved until no block of the file is over
+/// 16 MiB, a quarter of what the browser preset of the limits allows a block. A leaf of long polylines
+/// would otherwise be one block the reader's limits refuse (the container's layout rule allows one hot
+/// block of a kind per cell, so a leaf cannot be cut into two). The corpus never triggers it.
 pub fn artifact(
     shapes: &[Shape],
     unit: LengthUnit,
     producer: &str,
     options: WriterOptions,
     tier0_max_error: Option<f64>,
+) -> Result<Vec<u8>, String> {
+    const CEILING: u32 = 16 << 20;
+    let mut capacity = CELL_CAPACITY;
+    loop {
+        let bytes = artifact_at(shapes, unit, producer, options, tier0_max_error, capacity)?;
+        // opened with the block ceiling off, so that a file whose blocks are far over it is measured, not refused
+        let config = ReaderConfig {
+            limits: Limits { max_block_bytes: u32::MAX, ..Limits::DEFAULT },
+            ..ReaderConfig::default()
+        };
+        let r =
+            ContainerReader::open(MemorySource::new(bytes.as_slice()), config).map_err(|e| e.to_string())?;
+        if capacity == 1 || r.entries().iter().all(|e| e.uncompressed_length <= CEILING) {
+            return Ok(bytes);
+        }
+        capacity /= 2;
+    }
+}
+
+fn artifact_at(
+    shapes: &[Shape],
+    unit: LengthUnit,
+    producer: &str,
+    options: WriterOptions,
+    tier0_max_error: Option<f64>,
+    cell_capacity: u32,
 ) -> Result<Vec<u8>, String> {
     let (_, all) = summarise(shapes);
     let config = WriterConfig {
@@ -169,12 +200,12 @@ pub fn artifact(
         .filter(|(_, s)| !matches!(s, Shape::Spline(_)))
         .map(|(i, s)| EntityBox { id: eid(i), bounds: aabb(s.bounds()) })
         .collect();
-    let classified = classify(&hot, STRADDLER_FACTOR).ok().filter(|c| !c.local.is_empty());
+    let classified = classify(&hot, STRADDLER_FACTOR, cell_capacity).ok().filter(|c| !c.local.is_empty());
     let (local, long) = match &classified {
         Some(c) => (c.local.as_slice(), c.long.as_slice()),
         None => (hot.as_slice(), &[][..]),
     };
-    let built = build_directory(local).expect("a directory");
+    let built = build_directory(local, cell_capacity).expect("a directory");
     let leaves = match tier0_max_error {
         None => Vec::new(),
         Some(max_error) => {

@@ -336,6 +336,7 @@ impl Opening {
                     checksums: self.checksums,
                     partial: self.partial,
                     skipped,
+                    chunks: std::sync::OnceLock::new(),
                     _held: held,
                 })
             }
@@ -414,6 +415,8 @@ pub(crate) struct Core {
     /// What negotiation left out, when it left anything out.
     pub partial: Option<PartialOpen>,
     skipped: Vec<bool>,
+    /// The advanced chunks, worked out by the first call that asks (a pass over the directory).
+    chunks: std::sync::OnceLock<Vec<[BlockId; 6]>>,
     _held: Reservation,
 }
 
@@ -561,7 +564,15 @@ impl Core {
     /// The chunks of the advanced curves, in ascending cell order: each is the record block and the five
     /// arenas that share its cell, in subtype order. Empty when the file has none. A chunk with a block
     /// missing, two record blocks in one cell, or an arena in a cell with no record block is refused.
-    pub fn advanced_chunks(&self) -> Result<Vec<[BlockId; 6]>, ReadError> {
+    pub fn advanced_chunks(&self) -> Result<&[[BlockId; 6]], ReadError> {
+        if let Some(done) = self.chunks.get() {
+            return Ok(done);
+        }
+        let built = self.build_advanced_chunks()?;
+        Ok(self.chunks.get_or_init(|| built))
+    }
+
+    fn build_advanced_chunks(&self) -> Result<Vec<[BlockId; 6]>, ReadError> {
         let mut records: Vec<(u32, usize)> = Vec::new();
         for (i, e) in self.entries.iter().enumerate() {
             if e.block_kind() == Some(BlockKind::Records) {
@@ -775,7 +786,7 @@ impl<'a> Validation<'a> {
 
     pub fn finish(mut self) -> Result<Validated, ReadError> {
         if !self.advanced.is_empty() {
-            for ids in self.core.advanced_chunks()? {
+            for ids in self.core.advanced_chunks()?.iter().copied() {
                 let mut six: Vec<Arc<DecodedBlock>> = Vec::with_capacity(6);
                 for id in ids {
                     let b = self.advanced.iter().find(|b| b.id() == id).ok_or_else(internal)?;

@@ -25,7 +25,10 @@ use pvec_entity::EntityId;
 use pvec_numeric::{MAX_ENTITIES, check_value};
 use std::num::NonZeroU32;
 
-/// Entities per cell (the leaf capacity).
+/// Entities per cell (the leaf capacity) that a writer cuts the directory at, and the checked-in default
+/// of this crate. [`build_directory`] and [`classify`] take the capacity as an argument, because a file
+/// records the one it was built with (SPD-02) and the structural fixtures of the tests are small leaves;
+/// a writer passes this.
 ///
 /// P1.6 (`docs/spikes/01-6-spatial-index.md`, ADR 0005) measured two settings of the packed R-tree on
 /// the `million` fixture, native x64, byte model at a 64 KiB merge gap, interactive steps only:
@@ -35,19 +38,23 @@ use std::num::NonZeroU32;
 /// | 64 / 32 | 516,256 | 29.08 / 95 | 15.89 |
 /// | 512 / 64 | 63,616 | 31.12 / 80 | 20.02 |
 ///
-/// The small leaf won on bytes read, so it is the default. The spike counted entities, and ADR 0005 says
-/// a leaf is sized in bytes: tuning this against real drawings is P8.6, not this issue.
-pub const CELL_CAPACITY: u32 = 64;
+/// The small leaf won on bytes read, so it was the default (64) until P8.6. P8.5 then measured what a
+/// small leaf costs in time on a link: the block directory and the spatial directory of a million entities
+/// are 5.7 MB that every viewer reads before it can show anything, and a Tier 0 block per 64 entities is
+/// about 26 requests per viewport. `docs/bench/TUNING.md` has the sweep; 32,768 is the smallest power of
+/// two at which every progressive threshold the capacity can move is met on both platforms. The price is
+/// bytes: a viewport reads whole leaves, and the writer cuts a leaf's blocks of one kind at 16 MiB.
+pub const CELL_CAPACITY: u32 = 32768;
 
-/// Children per internal node, from the same P1.6 setting as [`CELL_CAPACITY`] (64 / 32).
+/// Children per internal node, from the P1.6 setting (64 / 32). P8.6 did not tune it: no benchmark moved with it.
 pub const FANOUT: u32 = 32;
 
 /// The most children a node of a file may declare, whatever [`FANOUT`] is, so a hostile header cannot
 /// ask for a wide walk.
 pub const MAX_FANOUT: u32 = 256;
 
-/// The tallest tree a file may declare. At [`FANOUT`] 32 and [`CELL_CAPACITY`] 64 the entity ceiling of
-/// NP-18 (2^28) needs 5 levels, so 8 leaves room for the narrowest fanouts a writer may choose.
+/// The tallest tree a file may declare. At [`FANOUT`] 32 and a leaf of 64 the entity ceiling of NP-18
+/// (2^28) needs 5 levels, so 8 leaves room for the narrowest fanouts and leaves a writer may choose.
 pub const MAX_HEIGHT: u32 = 8;
 
 /// Bytes of the block header.
@@ -63,7 +70,7 @@ const VERSION: u16 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitPolicy {
     /// Sort by the Hilbert key of the bounds centre (ties by entity id), then cut every
-    /// [`CELL_CAPACITY`] entities; internal levels cut every [`FANOUT`] nodes.
+    /// the leaf capacity entities; internal levels cut every [`FANOUT`] nodes.
     HilbertPack,
 }
 
@@ -410,10 +417,14 @@ pub(crate) fn hilbert(mut x: u32, mut y: u32) -> u32 {
 /// The result depends on the set of boxes and nothing else: not on the order they arrive in, not on a
 /// display scale (there is no parameter for one), not on the machine (comparisons, one division and a
 /// floor, no transcendental function). Entities are ordered by the Hilbert key of their bounds centre
-/// and then by entity id, cut into cells of [`CELL_CAPACITY`], and the cells into nodes of [`FANOUT`]
-/// children, level by level. Cell ids run from 1 in that order.
-pub fn build_directory(entities: &[EntityBox]) -> Result<BuiltDirectory, DirectoryError> {
+/// and then by entity id, cut into cells of `cell_capacity` ([`CELL_CAPACITY`] unless a fixture wants small
+/// leaves), and the cells into nodes of [`FANOUT`] children, level by level. Cell ids run from 1 in that
+/// order. The capacity is written in the header, and a capacity of 0 is refused.
+pub fn build_directory(entities: &[EntityBox], cell_capacity: u32) -> Result<BuiltDirectory, DirectoryError> {
     let build = |reason| DirectoryError::Build { reason };
+    if cell_capacity == 0 {
+        return Err(build("a leaf holds no entity"));
+    }
     let first = entities.first().ok_or(build("there is no entity"))?;
     if entities.len() > MAX_ENTITIES {
         return Err(build("more entities than NP-18 allows"));
@@ -441,7 +452,7 @@ pub fn build_directory(entities: &[EntityBox]) -> Result<BuiltDirectory, Directo
 
     let mut cells = vec![CellId::new(1).ok_or(build("no cell"))?; entities.len()];
     let mut nodes: Vec<Node> = Vec::new();
-    for (leaf, chunk) in order.chunks(CELL_CAPACITY as usize).enumerate() {
+    for (leaf, chunk) in order.chunks(cell_capacity as usize).enumerate() {
         let cell = CellId::new(leaf as u32 + 1).ok_or(build("no cell"))?;
         let mut bounds = entities[chunk[0].2].bounds;
         for (_, _, i) in chunk {
@@ -481,7 +492,7 @@ pub fn build_directory(entities: &[EntityBox]) -> Result<BuiltDirectory, Directo
         leaf_count as u32,
         u32::from(level) + 1,
         FANOUT,
-        CELL_CAPACITY,
+        cell_capacity,
         entities.len() as u32,
     ] {
         bytes.extend_from_slice(&v.to_le_bytes());

@@ -19,6 +19,9 @@ use pvec_stream::{
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 /// Range requests a full-extent view of `rooms-1m` may issue for complete Tier 0 at the default
 /// reader configuration (64 KiB gap, 16 MiB request ceiling).
 const FULL_EXTENT_MAX_RANGES: u32 = 4;
@@ -95,7 +98,7 @@ fn config() -> WriterConfig {
 }
 
 fn artifact(entities: &[EntityBox]) -> Vec<u8> {
-    let built = build_directory(entities).expect("directory");
+    let built = build_directory(entities, LEAF).expect("directory");
     let mut w = ContainerWriter::new(config());
     for (e, cell) in entities.iter().zip(&built.cells) {
         let (lo, hi) = (e.bounds.min(), e.bounds.max());

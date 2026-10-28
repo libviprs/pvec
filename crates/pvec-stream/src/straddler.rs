@@ -26,8 +26,8 @@
 //! the writer put it.
 
 use crate::directory::{
-    Aabb, BuiltDirectory, CELL_CAPACITY, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN,
-    SpatialDirectory, hilbert,
+    Aabb, BuiltDirectory, Cell, EntityBox, FANOUT, HEADER_LEN, MAX_HEIGHT, NODE_LEN, SpatialDirectory,
+    hilbert,
 };
 use crate::ownership::{PayloadRef, PlacedEntity};
 use pvec_container::directory::{BlockEntry, BlockKind, CODEC_NONE, STRADDLER_CELL_FIRST};
@@ -308,9 +308,9 @@ pub struct Classification {
     pub scale: LevelScale,
 }
 
-/// The height of the directory `n` entities make at the default capacity and fanout.
-fn height_for(n: usize) -> usize {
-    let mut nodes = n.div_ceil(CELL_CAPACITY as usize);
+/// The height of the directory `n` entities make at this leaf capacity and the default fanout.
+fn height_for(n: usize, cell_capacity: u32) -> usize {
+    let mut nodes = n.div_ceil(cell_capacity as usize);
     let mut h = 1;
     while nodes > 1 {
         nodes = nodes.div_ceil(FANOUT as usize);
@@ -353,8 +353,8 @@ fn built_nodes(built: &BuiltDirectory) -> Vec<(Aabb, u32, u32, u16)> {
 
 /// The finest cell size of a directory over `entities`: the lower quartile of the longer sides of its
 /// leaves.
-fn finest_cell(entities: &[EntityBox]) -> Result<f64, StraddlerError> {
-    let built = crate::directory::build_directory(entities)
+fn finest_cell(entities: &[EntityBox], cell_capacity: u32) -> Result<f64, StraddlerError> {
+    let built = crate::directory::build_directory(entities, cell_capacity)
         .map_err(|_| StraddlerError::Build { reason: "a directory cannot be built over the entities" })?;
     let mut leaves: Vec<f64> =
         built_nodes(&built).into_iter().filter(|n| n.3 == 0).map(|n| extent(&n.0)).collect();
@@ -377,7 +377,11 @@ fn finest_cell(entities: &[EntityBox]) -> Result<f64, StraddlerError> {
 /// Each level above the leaves grows the cell by the square root of [`FANOUT`] (a node covers [`FANOUT`]
 /// times the area of the one below), capped at the longer side of the local drawing. The tests hold the
 /// estimate to the cells a directory over the local entities really builds.
-pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, StraddlerError> {
+pub fn classify(
+    entities: &[EntityBox],
+    factor: f64,
+    cell_capacity: u32,
+) -> Result<Classification, StraddlerError> {
     let build = |reason| StraddlerError::Build { reason };
     if entities.is_empty() {
         return Err(build("there is no entity"));
@@ -389,7 +393,7 @@ pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, S
             .then(entities[*a].id.cmp(&entities[*b].id))
     });
     let shorter: Vec<EntityBox> = order[..entities.len().div_ceil(2)].iter().map(|i| entities[*i]).collect();
-    let s0 = finest_cell(&shorter)?;
+    let s0 = finest_cell(&shorter, cell_capacity)?;
     if !(s0.is_finite() && s0 > 0.0) {
         // entities that cell sizes cannot measure (points): nothing is long
         let scale = LevelScale::new(factor, vec![f64::MAX])?;
@@ -403,7 +407,8 @@ pub fn classify(entities: &[EntityBox], factor: f64) -> Result<Classification, S
     let world = local.iter().skip(1).fold(local[0].bounds, |w, e| union(&w, &e.bounds));
     let cap = extent(&world).max(s0);
     let grow = f64::from(FANOUT).sqrt();
-    let sizes: Vec<f64> = (0..height_for(local.len())).map(|l| (s0 * grow.powi(l as i32)).min(cap)).collect();
+    let sizes: Vec<f64> =
+        (0..height_for(local.len(), cell_capacity)).map(|l| (s0 * grow.powi(l as i32)).min(cap)).collect();
     let scale = LevelScale::new(factor, sizes)?;
     Ok(Classification { local, long, scale })
 }

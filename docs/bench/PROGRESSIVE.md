@@ -1,8 +1,10 @@
 # Progressive coverage benchmark (P8.5)
 
 This measures how long a viewer waits before it can show something true, and how much of the drawing is on screen at each stage:
-latency to coverage, not a frame rate. It measures and reports only. Nothing here was tuned, no threshold was moved after the run,
-and every missed threshold is a result below. P8.6 tunes against these numbers and P8.7 decides what the freeze does about each one.
+latency to coverage, not a frame rate. It measures and reports only, and no threshold was moved. This file holds the re-run of P8.6 (pvec#65) at the final
+configuration of the tuning pass, on mars and mercury: the first run, which found eight of nine verdicts failing on x64, is in the history of
+`main`, and `docs/bench/TUNING.md` says what changed in between and which verdicts are still missed. Every missed threshold is a result below
+and P8.7 decides what the freeze does about each one.
 The harness is `crates/pvec-bench/benches/progressive.rs`, the driver is `tools/progressive-bench.sh`, the rows are
 `docs/bench/progressive.csv` (one number per row, columns `table,entry,platform,arm,param,metric,value,note`), and the test that holds
 this document to that file is `crates/pvec-bench/tests/issue_64_progressive.rs`.
@@ -32,7 +34,7 @@ request plus the measured decode and index time on that host. Nothing was fetche
   It is 1 for an empty viewport. A viewport that loses an entity is a failure on any entry and any arm, not a slow result.
 * **Previews are display fidelity, not geometric exactness.** A Tier 0 preview is a drawing aid with a stated error bound; it is not
   geometric exactness and never replaces the exact entity. `worst_preview_px` is the preview error bound times the viewport scale on a
-  1920 px screen, over the viewports that show Tier 0. The writer is given a 0.5 px budget at the fit zoom (the `fit` rows), and the
+  1920 px screen, over the viewports that show Tier 0. The writer is given a 0.125 px budget at the fit zoom (`PREVIEW_BUDGET_PX`; it was 0.5 px in the first run) (the `fit` rows), and the
   threshold is held against the worst recorded viewport. `previews_without_identity` counts previews that replace no named entity
   of the file, or one already replaced.
 * **Interaction.** The view changes halfway through the refinement on the 25 Mbit/s arm (a pan and a zoom, `interaction` rows) and
@@ -56,59 +58,53 @@ Declared in `tests/issue_64_progressive.rs` and `src/progressive_bench.rs` befor
 ## Verdicts
 
 Computed from `docs/bench/progressive.csv` by `cargo bench -p pvec-bench --bench progressive -- report`, and held to this list by the
-test. A failure is a result of this task; the thresholds were not changed and nothing was tuned to move them.
+test. A failure is a result of this task; the thresholds were not changed. The values below are those of the re-run after the tuning pass.
 
 ### linux-x86_64
 
-- directory-300ms on linux-x86_64: FAIL (architectural-1e6 on 25mbit-60ms: 2.1427 s (limit 0.3 s))
-- tier0-1500ms on linux-x86_64: FAIL (architectural-1e6 on 25mbit-60ms: 3.3232 s (limit 1.5 s))
-- tier0-4s-5mbit on linux-x86_64: FAIL (architectural-1e6 on 5mbit-200ms: 15.8492 s (limit 4 s))
-- coverage-complete on linux-x86_64: FAIL (3 of 27 entry and arm rows are below 1.0: huge-coordinate-1e5 on local (0.941935); huge-coordinate-1e5 on 25mbit-60ms (0.941935); huge-coordinate-1e5 on 5mbit-200ms (0.941935))
-- preview-2px on linux-x86_64: FAIL (architectural-1e6 on 25mbit-60ms: 6.1886 px (limit 2 px))
+- directory-300ms on linux-x86_64: PASS (architectural-1e6 on 25mbit-60ms: 0.1864 s (limit 0.3 s))
+- tier0-1500ms on linux-x86_64: PASS (architectural-1e6 on 25mbit-60ms: 0.7923 s (limit 1.5 s))
+- tier0-4s-5mbit on linux-x86_64: PASS (architectural-1e6 on 5mbit-200ms: 3.5353 s (limit 4 s))
+- coverage-complete on linux-x86_64: PASS (27 entry and arm rows, coverage 1.0 on every viewport)
+- preview-2px on linux-x86_64: PASS (architectural-1e6 on 25mbit-60ms: 1.7802 px (limit 2 px))
 - preview-identity on linux-x86_64: PASS (27 rows, every preview replaces a named entity)
-- refine-5s on linux-x86_64: FAIL (architectural-1e6 on 25mbit-60ms: 10.3745 s (limit 5 s))
-- pan-discard-20pct on linux-x86_64: FAIL (architectural-1e6 on 25mbit-60ms: 0.4374 of decoded bytes (limit 0.2 of decoded bytes))
-- repeat-spread-20pct on linux-x86_64: FAIL (5 of 108 stage times vary by more than 20%: architectural-1e3 local directory_s (54.3%); architectural-1e3 local refine_first_s (44.5%); architectural-1e3 local refine_full_s (44.5%); architectural-1e3 local tier0_s (41.7%); pathological-1e3 local directory_s (55.0%))
+- refine-5s on linux-x86_64: PASS (architectural-1e6 on 25mbit-60ms: 4.6193 s (limit 5 s))
+- pan-discard-20pct on linux-x86_64: PASS (architectural-1e6 on 25mbit-60ms: 0.0872 of decoded bytes (limit 0.2 of decoded bytes))
+- repeat-spread-20pct on linux-x86_64: FAIL (5 of 108 stage times vary by more than 20%: architectural-1e3 local directory_s (161.2%); architectural-1e3 local refine_first_s (60.8%); architectural-1e3 local refine_full_s (60.8%); architectural-1e3 local tier0_s (65.1%); architectural-1e5 local directory_s (38.1%))
 
 ### linux-aarch64
 
-- directory-300ms on linux-aarch64: FAIL (architectural-1e6 on 25mbit-60ms: 2.1440 s (limit 0.3 s))
-- tier0-1500ms on linux-aarch64: FAIL (architectural-1e6 on 25mbit-60ms: 3.3251 s (limit 1.5 s))
-- tier0-4s-5mbit on linux-aarch64: FAIL (architectural-1e6 on 5mbit-200ms: 15.8511 s (limit 4 s))
-- coverage-complete on linux-aarch64: FAIL (3 of 27 entry and arm rows are below 1.0: huge-coordinate-1e5 on local (0.941935); huge-coordinate-1e5 on 25mbit-60ms (0.941935); huge-coordinate-1e5 on 5mbit-200ms (0.941935))
-- preview-2px on linux-aarch64: FAIL (architectural-1e6 on 25mbit-60ms: 6.1886 px (limit 2 px))
+- directory-300ms on linux-aarch64: PASS (architectural-1e6 on 25mbit-60ms: 0.1865 s (limit 0.3 s))
+- tier0-1500ms on linux-aarch64: PASS (architectural-1e6 on 25mbit-60ms: 0.7943 s (limit 1.5 s))
+- tier0-4s-5mbit on linux-aarch64: PASS (architectural-1e6 on 5mbit-200ms: 3.5373 s (limit 4 s))
+- coverage-complete on linux-aarch64: PASS (27 entry and arm rows, coverage 1.0 on every viewport)
+- preview-2px on linux-aarch64: PASS (architectural-1e6 on 25mbit-60ms: 1.7802 px (limit 2 px))
 - preview-identity on linux-aarch64: PASS (27 rows, every preview replaces a named entity)
-- refine-5s on linux-aarch64: FAIL (architectural-1e6 on 25mbit-60ms: 10.3830 s (limit 5 s))
-- pan-discard-20pct on linux-aarch64: FAIL (architectural-1e6 on 25mbit-60ms: 0.4374 of decoded bytes (limit 0.2 of decoded bytes))
-- repeat-spread-20pct on linux-aarch64: PASS (108 stage times, the widest spread 7.2% (limit 20%))
+- refine-5s on linux-aarch64: PASS (architectural-1e6 on 25mbit-60ms: 4.6357 s (limit 5 s))
+- pan-discard-20pct on linux-aarch64: PASS (architectural-1e6 on 25mbit-60ms: 0.0872 of decoded bytes (limit 0.2 of decoded bytes))
+- repeat-spread-20pct on linux-aarch64: PASS (108 stage times, the widest spread 16.7% (limit 20%))
 
 ### What the verdicts say
 
-* **Directory (fail, both platforms).** 2.14 s against 0.3 s at 25 Mbit/s on `architectural-1e6`. The directory stage reads about
-  5.7 MB per viewport (mean `bytes_directory` 5,739,088, in 5 ranges), which is 1.8 s of link before the round trips. The index and
-  directory are too big to be "ready" inside 300 ms on that link, whatever the CPU does (local p95 is 6 ms).
-* **Tier 0 (fail, both platforms).** 3.32 s against 1.5 s at 25 Mbit/s and 15.85 s against 4 s at 5 Mbit/s on `architectural-1e6`,
-  from about 1.54 MB of Tier 0 over about 26 ranges per viewport on top of the directory. On the smaller entries Tier 0 is inside
-  1.5 s at 25 Mbit/s (0.25 s to 1.37 s) except `spline-heavy-1e5` (7.5 s) and `spline-heavy-1e6` (74.8 s); those are not the
-  judged entry but are in the table below. At `spline-heavy-1e6` the local p95 is 2.9 s on x64 and 5.5 s on arm64, so the
-  curve-heavy Tier 0 is CPU bound as well as link bound.
-* **Coverage (fail, both platforms).** `huge-coordinate-1e5` represents 0.9419 of the entities that intersect its worst viewport
-  on all three arms, on both platforms (3 of 27 entry and arm rows). Every other entry and arm is 1.0. Because the number is the
-  same on the local arm it is not a network effect. This task does not find the cause; it is for P8.6.
-* **Preview error (fail, both platforms).** The worst recorded viewport shows a preview with an error bound of 6.19 px on
-  `architectural-1e6` (7.9 px on several 10^5 and 10^6 entries) against 2 px. The same previews are 0.19 to 0.25 px at the fit zoom,
-  inside the 0.5 px budget the writer is given, so the budget holds where it is set and does not hold once the viewer zooms in
-  before the exact refinement arrives. These previews are display fidelity, not geometric exactness.
+The re-run after the tuning pass; the changes are in `docs/bench/TUNING.md`. Eight of nine verdicts failed on x64 in the first run and seven on arm64. Now:
+
+* **Directory (pass, both platforms).** 0.186 s (x64) and 0.186 s (arm64) against 0.3 s at 25 Mbit/s on `architectural-1e6` (it was 2.14 s). A leaf of 32,768 entities made the block and
+  spatial directory a few kilobytes and three round trips instead of 5.7 MB.
+* **Tier 0 (pass, both platforms).** 0.792 s against 1.5 s at 25 Mbit/s and 3.535 s against 4 s at 5 Mbit/s on x64, 0.794 s and 3.537 s on arm64
+  (they were 3.32 s and 15.85 s). The Tier 0 blocks are deflated now, which stores less than LZ4 and is what the 5 Mbit/s link waits on. On the smaller entries Tier 0 at 25 Mbit/s is
+  0.24 s to 1.00 s; the two spline entries are not the judged entry and are slow
+  (`spline-heavy-1e5` 2.65 s, `spline-heavy-1e6` 14.51 s on x64): the curve previews of a drawing made of splines are most of its bytes.
+* **Coverage (pass, both platforms).** Every entity of every viewport of every entry and arm is represented. `huge-coordinate-1e5` was 0.9419 on all three arms in the first run: the rounding
+  allowance of a preview was taken from the largest absolute coordinate, which at UTM-scale offsets was five times the whole budget, and 12,010 curves had no preview.
+* **Preview error (pass, both platforms).** The worst preview on screen is 1.78 px on `architectural-1e6` (it was 6.19 px) and the worst of any entry is 1.98 px (`spline-heavy-1e6`, x64) and 1.98 px (`spline-heavy-1e6`, arm64),
+  against 2 px. The `huge-coordinate-1e5` row was 0 in the first run, and that 0 meant no previews at all (`preview_fraction` 0 on every arm), not a perfect one: the real figure is 1.98 px on x64
+  and 1.98 px on arm64, which is at most 2.0 px by construction (a preview is held to 0.125 px at the fit zoom and the benchmark's viewports show it up to 16 times larger). These previews are display fidelity, not geometric exactness.
 * **Preview identity (pass, both platforms).** Every preview replaces a named entity, none is anonymous and none is replaced twice.
-* **Refinement (fail, both platforms).** 10.37 s (x64) and 10.38 s (arm64) against 5 s at 25 Mbit/s on `architectural-1e6`;
-  about 5.5 MB of exact data over about 7 ranges per viewport. At 5 Mbit/s the same figure is 51 s.
-* **Pan (fail, both platforms).** A pan halfway through the refinement discards 43.7% of the decoded bytes (the worst viewport 91.8%)
-  against 20%; a zoom discards 68.9% (the worst viewport 100%). On average 3.4 requests and about 258 kB are cancelled before decoding.
-* **Repeat spread (fail on x64, pass on arm64).** On arm64 the widest spread is 7.2%. On x64 five of 108 stage times pass 20%, all of them
-  on the `local` arm of the 10^3 entries, where a stage is 10 to 100 microseconds and a single scheduler hiccup is a large share:
-  `architectural-1e3` directory 54.3%, first refinement 44.5%, full refinement 44.5%, Tier 0 41.7%, and `pathological-1e3` directory
-  55.0%. No modelled-network stage and no entry of 10^5 or more is over 20% on either platform. It is recorded as measured: the
-  threshold says any stage time, and the run did not exclude the noisy ones.
+* **Refinement (pass, both platforms).** 4.62 s (x64) and 4.64 s (arm64) against 5 s at 25 Mbit/s on `architectural-1e6` (it was 10.37 s), because the hot blocks are deflated and the bytes of a viewport are fewer.
+  At 5 Mbit/s it is 22.4 s.
+* **Pan (pass, both platforms).** A pan halfway through the refinement discards 8.7% of the decoded bytes against 20% (it was 43.7%); a zoom discards 14.9% (it was 68.9%).
+* **Repeat spread (fail on x64, pass on arm64).** On x64 five stage times pass 20%, all of them on the `local` arm of the 10^3 and 10^5 entries, where a stage is 10 to 100 microseconds and a single
+  scheduler hiccup is a large share. No modelled-network stage and no entry of 10^6 is over 20% on either platform. It is recorded as measured: the threshold says any stage time, and the run did not exclude the noisy ones.
 
 ## Stage times (p95, seconds)
 
@@ -117,22 +113,22 @@ identical on both; they differ where the CPU matters (`spline-heavy`, local arm)
 
 | entry | directory, 25 Mbit/s | Tier 0, 25 Mbit/s | Tier 0, 5 Mbit/s | full refinement, 25 Mbit/s | Tier 0, local, x64 | Tier 0, local, arm64 | worst preview px | min coverage |
 |---|---|---|---|---|---|---|---|---|
-| pathological-1e3 | 0.30 | 0.71 | 2.94 | 0.72 | 0.00 | 0.00 | 0.00 | 1.000 |
-| architectural-1e3 | 0.18 | 0.25 | 0.83 | 0.26 | 0.00 | 0.00 | 7.67 | 1.000 |
-| architectural-1e5 | 0.49 | 0.70 | 2.86 | 1.65 | 0.00 | 0.00 | 7.80 | 1.000 |
-| mep-1e5 | 0.49 | 0.88 | 3.72 | 1.94 | 0.00 | 0.00 | 7.92 | 1.000 |
-| industrial-1e5 | 0.50 | 1.15 | 5.04 | 2.13 | 0.00 | 0.00 | 7.92 | 1.000 |
-| huge-coordinate-1e5 | 0.50 | 1.37 | 6.16 | 2.36 | 0.00 | 0.00 | 0.00 | 0.942 |
-| spline-heavy-1e5 | 0.32 | 7.51 | 37.01 | 7.80 | 0.04 | 0.07 | 7.92 | 1.000 |
-| architectural-1e6 | 2.14 | 3.32 | 15.85 | 10.37 | 0.02 | 0.02 | 6.19 | 1.000 |
-| spline-heavy-1e6 | 1.55 | 74.78 | 361.75 | 74.78 | 2.93 | 5.53 | 7.93 | 1.000 |
+| pathological-1e3 | 0.30 | 0.60 | 2.40 | 0.60 | 0.00 | 0.00 | 0.00 | 1.000 |
+| architectural-1e3 | 0.18 | 0.24 | 0.82 | 0.25 | 0.00 | 0.00 | 1.97 | 1.000 |
+| architectural-1e5 | 0.18 | 0.34 | 1.29 | 0.90 | 0.00 | 0.00 | 1.95 | 1.000 |
+| mep-1e5 | 0.18 | 0.45 | 1.85 | 1.12 | 0.00 | 0.00 | 1.98 | 1.000 |
+| industrial-1e5 | 0.18 | 1.00 | 4.57 | 1.64 | 0.01 | 0.01 | 1.98 | 1.000 |
+| huge-coordinate-1e5 | 0.18 | 0.93 | 4.23 | 1.78 | 0.01 | 0.01 | 1.98 | 1.000 |
+| spline-heavy-1e5 | 0.20 | 2.65 | 12.79 | 2.92 | 0.01 | 0.02 | 1.98 | 1.000 |
+| architectural-1e6 | 0.19 | 0.79 | 3.54 | 4.62 | 0.01 | 0.01 | 1.78 | 1.000 |
+| spline-heavy-1e6 | 0.32 | 14.51 | 71.85 | 16.51 | 0.07 | 0.09 | 1.98 | 1.000 |
 
-The figures in the table are native x64 except the arm64 Tier 0 local column; the arm64 rows are all in the CSV.
+The figures in the table are native x64 except the arm64 Tier 0 local column; the arm64 rows are all in the CSV. Before the tuning pass the same table had `architectural-1e6` at 2.14, 3.32, 15.85 and 10.37 s, and `huge-coordinate-1e5` at a worst preview of 0.00 px and a coverage of 0.942. Before the tuning pass the same table had `architectural-1e6` at 2.14, 3.32, 15.85 and 10.37 s, and `huge-coordinate-1e5` at a worst preview of 0.00 px and a coverage of 0.942. Before the tuning pass the same table had `architectural-1e6` at 2.14, 3.32, 15.85 and 10.37 s, and `huge-coordinate-1e5` at a worst preview of 0.00 px and a coverage of 0.942.
 
 ## What this does not do
 
-* It does not tune. The thresholds, the arms and the model were fixed before the run, and nothing was adjusted afterwards.
-  Tuning is P8.6 (pvec#65) and what the freeze does about each miss is P8.7 (pvec#66).
+* It does not tune. The thresholds, the arms and the model were fixed before the first run, and nothing was adjusted afterwards.
+  Tuning is P8.6 (pvec#65, `docs/bench/TUNING.md`) and what the freeze does about each miss is P8.7 (pvec#66).
 * It does not fetch over a real network. The link is a model, so read absolute network seconds as the model's answer to the
   recorded byte counts, and read the CPU part as the host's.
 * It does not test geometric exactness. That is the oracle and the fidelity reports; a preview here is display fidelity only.

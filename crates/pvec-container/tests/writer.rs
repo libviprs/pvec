@@ -7,8 +7,9 @@ use pvec_components::Stream;
 use pvec_container::blocks::advanced::SplineSpec;
 use pvec_container::blocks::arena::ArenaError;
 use pvec_container::blocks::hot::HotError;
+use pvec_container::compress::CodecPolicy;
 use pvec_container::directory::{BlockKind, FLAG_HAS_BOUNDS, FLAG_MUST_UNDERSTAND, parse_directory};
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError};
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterOptions};
 use pvec_container::{Bounds, ContainerError, Header, Manifest};
 use pvec_geometry::{
     BSpline, Bezier, Circle, Curve, Ellipse, Line, Placement2, Point2, Polyline, RationalBSpline, Trimmed,
@@ -88,7 +89,10 @@ fn the_file_is_header_manifest_blocks_and_directory_with_nothing_else() {
 
 #[test]
 fn every_scalar_is_little_endian_so_the_magic_and_marker_read_the_same_everywhere() {
-    let bytes = minimal().write().unwrap();
+    // stored as written, so the columns can be read off the file: the default compresses them
+    let bytes = minimal()
+        .write_with(WriterOptions { codecs: CodecPolicy::NONE, ..WriterOptions::default() })
+        .unwrap();
     assert_eq!(&bytes[..8], &[0x89, 0x50, 0x56, 0x45, 0x43, 0x0d, 0x0a, 0x1a]);
     assert_eq!(&bytes[12..16], &[0x04, 0x03, 0x02, 0x01]);
     assert_eq!(&bytes[16..18], &[64, 0]);
@@ -198,10 +202,13 @@ fn a_block_entry_carries_the_union_of_its_entities_bounds() {
 #[test]
 fn advanced_curves_are_chunks_of_a_record_block_and_five_arenas_in_cell_k() {
     let fx = spline_heavy();
-    let (_, _, entries) = open(&fx.write().unwrap());
+    // chunks of 64 KiB, the size this fixture was written for: the default is 1 MiB since P8.6, one chunk here
+    let mut w = fx.load(&[]).unwrap();
+    w.advanced_chunk_bytes(64 * 1024);
+    let (_, _, entries) = open(&w.finish().unwrap());
     let records: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Records)).collect();
     let arenas: Vec<_> = entries.iter().filter(|e| e.block_kind() == Some(BlockKind::Arena)).collect();
-    assert!(records.len() > 1, "370 curves are more than one default chunk");
+    assert!(records.len() > 1, "370 curves are more than one 64 KiB chunk");
     assert_eq!(records.iter().map(|e| e.count).sum::<u32>(), 370, "300 splines and 70 composites");
     for (k, r) in records.iter().enumerate() {
         assert_eq!(r.cell as usize, k);

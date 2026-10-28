@@ -20,6 +20,9 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use support::fixtures::*;
 
+/// The leaf size these fixtures are built for (the 64 of P1.6). The shipped default is `CELL_CAPACITY`.
+const LEAF: u32 = 64;
+
 type Mem = Recording<MemorySource<Vec<u8>>>;
 
 fn config() -> WriterConfig {
@@ -59,7 +62,7 @@ struct Build {
 
 fn build(lines: Vec<Fx>) -> Build {
     let boxes: Vec<EntityBox> = lines.iter().map(|e| EntityBox { id: e.id, bounds: e.bounds() }).collect();
-    let built = build_directory(&boxes).unwrap();
+    let built = build_directory(&boxes, LEAF).unwrap();
     Build {
         cells: built.cells.iter().map(|c| c.get()).collect(),
         dir_nodes: built.nodes,
