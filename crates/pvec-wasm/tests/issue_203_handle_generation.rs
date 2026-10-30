@@ -9,12 +9,17 @@ use pvec_wasm::{AbiError, Precision, Runtime};
 fn one_line() -> Vec<u8> {
     let mut w = ContainerWriter::new(WriterConfig {
         unit: LengthUnit::Metre,
-        metadata: Metadata { producer_id: "issue-203".into(), producer_version: "1".into(), corpus_revision: None },
+        metadata: Metadata {
+            producer_id: "issue-203".into(),
+            producer_version: "1".into(),
+            corpus_revision: None,
+        },
         bounds: None,
         capabilities: Vec::new(),
     });
     let (a, b) = ([0.0, 0.0], [1.0, 0.5]);
-    let meta = EntityMeta { id: EntityId::new(1).unwrap(), style: 0, cell: 0, bounds: Bounds { min: a, max: b } };
+    let meta =
+        EntityMeta { id: EntityId::new(1).unwrap(), style: 0, cell: 0, bounds: Bounds { min: a, max: b } };
     w.push_line(meta, a, b).unwrap();
     w.finish().unwrap()
 }
@@ -50,7 +55,8 @@ fn issue_203_results_and_batches_stay_in_range_too() {
     let bytes = one_line();
     let mut rt = Runtime::new();
     let file = rt.open(bytes).unwrap();
-    let everything = Bounds2 { min: [-1e9, -1e9], max: [1e9, 1e9] };
+    let everything =
+        Bounds2 { min: [-1_000_000_000.0, -1_000_000_000.0], max: [1_000_000_000.0, 1_000_000_000.0] };
     let ctx = pvec::TessellationContext {
         source_to_map: pvec::Transform2::IDENTITY,
         map_to_screen: pvec::Transform2::IDENTITY,

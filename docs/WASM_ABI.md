@@ -78,7 +78,8 @@ exact geometry in a packed buffer.
   are views, not copies.
 * `release(handle)` frees a handle of any kind. A released handle, a second `release` of it and any use
   of it return -1; they never read freed memory. A handle carries a generation, so a handle that was
-  released stays refused after its slot is reused.
+  released stays refused after its slot is reused, for 32,768 reuses of that slot. The generation is 15 bits so a
+  handle is always below 2^31 and never reads as an error code.
 * Memory can grow (`memory.grow`) during any call that allocates. When it does, every typed array made over the old
   `memory.buffer` is detached. The rule: read `memory_epoch()` when you read a pointer; a view is
   current while `memory_epoch()` still returns that value. `view_current(handle, epoch)` checks it
