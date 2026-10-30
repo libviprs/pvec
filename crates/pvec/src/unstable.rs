@@ -53,7 +53,9 @@ impl Indexing {
         }
         let entities = boxes
             .iter()
-            .map(|(id, b)| Ok(EntityBox { id: *id, bounds: Aabb::new(b.min, b.max).map_err(|e| write_error(e.rule()))? }))
+            .map(|(id, b)| {
+                Ok(EntityBox { id: *id, bounds: Aabb::new(b.min, b.max).map_err(|e| write_error(e.rule()))? })
+            })
             .collect::<Result<Vec<_>, PvecError>>()?;
         let built = build_directory(&entities, self.capacity).map_err(|e| write_error(e.rule()))?;
         let blocks = match self.tier0_max_error {
@@ -68,7 +70,8 @@ impl Indexing {
                     })
                     .max()
                     .unwrap_or(0);
-                let mut plan = Tier0Builder::new(count, Tier0Params { max_error }).map_err(|e| write_error(e.rule()))?;
+                let mut plan =
+                    Tier0Builder::new(count, Tier0Params { max_error }).map_err(|e| write_error(e.rule()))?;
                 for op in &self.log {
                     match op {
                         Op::Curve(id, curve) => plan.add_curve(*id, curve),
@@ -93,7 +96,12 @@ impl Indexing {
                     w.push_curve(id, 0, cell_of.get(&id.index()).copied().unwrap_or(0), &curve)
                 }
                 Op::Composite { id, segments, bounds, closed } => {
-                    let meta = EntityMeta { id, style: 0, cell: 0, bounds: Bounds { min: bounds.min, max: bounds.max } };
+                    let meta = EntityMeta {
+                        id,
+                        style: 0,
+                        cell: 0,
+                        bounds: Bounds { min: bounds.min, max: bounds.max },
+                    };
                     w.push_composite(meta, &segments, None, closed)
                 }
                 Op::Components(stream) => w.push_stream(stream),

@@ -221,7 +221,8 @@ pub fn directory_bound(file: u32, which: u32) -> f64 {
     RUNTIME.with(|r| {
         let Ok(Some(d)) = r.borrow().directory(file) else { return f64::NAN };
         let b = if which < 4 { Some(d.bounds) } else { d.advanced_bounds };
-        b.and_then(|b| [b.min[0], b.min[1], b.max[0], b.max[1]].get(which as usize % 4).copied()).unwrap_or(f64::NAN)
+        b.and_then(|b| [b.min[0], b.min[1], b.max[0], b.max[1]].get(which as usize % 4).copied())
+            .unwrap_or(f64::NAN)
     })
 }
 

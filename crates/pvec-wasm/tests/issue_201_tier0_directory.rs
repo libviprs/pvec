@@ -5,9 +5,7 @@ use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter, Transform2};
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
 use pvec_geometry::{BSpline, Ellipse, Placement2, Point2, Polyline, Vector2};
-use pvec_wasm::{
-    AbiError, Precision, Runtime, TIER0_CHORD_POLYLINE, TIER0_EXACT, WASM_ABI_VERSION,
-};
+use pvec_wasm::{AbiError, Precision, Runtime, TIER0_CHORD_POLYLINE, TIER0_EXACT, WASM_ABI_VERSION};
 use std::fs;
 use std::path::Path;
 
@@ -78,7 +76,8 @@ fn window(x0: f64, y0: f64, x1: f64, y1: f64) -> Bounds2 {
 #[test]
 fn issue_201_the_abi_is_version_2_and_the_document_names_the_new_exports() {
     assert_eq!(WASM_ABI_VERSION, 2);
-    let doc = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
+    let doc =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
     for needle in [
         "**2**",
         "directory_stat",
@@ -198,8 +197,10 @@ fn issue_201_the_declared_error_holds_against_the_exact_vertices() {
     let f = rt.open(indexed()).unwrap();
     let t = rt.tier0_viewport(f, everything()).unwrap();
     let s = rt.tier0(t).unwrap();
-    let preview: Vec<[f64; 2]> =
-        s.vertices[2 * s.offsets[100] as usize..2 * s.offsets[101] as usize].chunks(2).map(|c| [c[0], c[1]]).collect();
+    let preview: Vec<[f64; 2]> = s.vertices[2 * s.offsets[100] as usize..2 * s.offsets[101] as usize]
+        .chunks(2)
+        .map(|c| [c[0], c[1]])
+        .collect();
     let dist = |q: Point2| -> f64 {
         preview
             .windows(2)
@@ -207,7 +208,11 @@ fn issue_201_the_declared_error_holds_against_the_exact_vertices() {
                 let (a, b) = (w[0], w[1]);
                 let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
                 let len2 = dx * dx + dy * dy;
-                let u = if len2 == 0.0 { 0.0 } else { (((q.x - a[0]) * dx + (q.y - a[1]) * dy) / len2).clamp(0.0, 1.0) };
+                let u = if len2 == 0.0 {
+                    0.0
+                } else {
+                    (((q.x - a[0]) * dx + (q.y - a[1]) * dy) / len2).clamp(0.0, 1.0)
+                };
                 ((a[0] + u * dx - q.x).powi(2) + (a[1] + u * dy - q.y).powi(2)).sqrt()
             })
             .fold(f64::INFINITY, f64::min)

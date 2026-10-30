@@ -1,8 +1,8 @@
-use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use crate::abi::{
     TIER0_BOUND_NOT_MET, TIER0_CHORD_POLYLINE, TIER0_CONTROL_POLYGON, TIER0_EVALUATOR_REFUSED, TIER0_EXACT,
     TIER0_INFEASIBLE_OTHER, TIER0_VERTEX_CAP,
 };
+use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{Aabb, InfeasibleReason, PreviewForm, SpatialDirectory, Tier0Leaves};
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::rc::Rc;
@@ -267,7 +267,12 @@ impl Runtime {
             list.entities.push(cell.entities);
             list.has_tier0.push(u32::from(index.leaves.block(cell.id).is_some()));
             list.stored_bytes.push(index.reader.stored_bytes(cell.blocks) as f64);
-            list.bounds.extend([cell.bounds.min()[0], cell.bounds.min()[1], cell.bounds.max()[0], cell.bounds.max()[1]]);
+            list.bounds.extend([
+                cell.bounds.min()[0],
+                cell.bounds.min()[1],
+                cell.bounds.max()[0],
+                cell.bounds.max()[1],
+            ]);
         }
         Ok(self.insert(Item::Cells(list)))
     }
@@ -336,7 +341,8 @@ impl Runtime {
         };
         rows.retain(|r| in_window(r.0));
         rows.sort_unstable_by_key(|r| r.0);
-        let wanted = file.entities.iter().filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds))).count();
+        let wanted =
+            file.entities.iter().filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds))).count();
         let mut s = Tier0Stream {
             ids: Vec::with_capacity(rows.len()),
             codes: Vec::with_capacity(rows.len()),

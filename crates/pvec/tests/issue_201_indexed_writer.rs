@@ -35,13 +35,18 @@ fn push_all(w: &mut PvecWriter) {
         let seg = Polyline::new(vec![p(x, y), p(x + 4.0, y + 3.0)]).unwrap();
         w.push(id(i), &Curve::Polyline(seg)).unwrap();
     }
-    let wave: Vec<Point2> = (0..300).map(|k| p(f64::from(k) * 3.0, 500.0 + (f64::from(k) * 0.1).sin() * 40.0)).collect();
+    let wave: Vec<Point2> =
+        (0..300).map(|k| p(f64::from(k) * 3.0, 500.0 + (f64::from(k) * 0.1).sin() * 40.0)).collect();
     w.push(id(100), &Curve::Polyline(Polyline::new(wave).unwrap())).unwrap();
     let frame = Placement2::new(p(700.0, 700.0), Vector2::new(1.0, 0.0)).unwrap();
     w.push(id(101), &Curve::Ellipse(Ellipse::new(frame, 90.0, 30.0).unwrap())).unwrap();
     let spline = |dy: f64| {
-        BSpline::new(2, vec![p(10.0, 900.0 + dy), p(60.0, 960.0 + dy), p(120.0, 900.0 + dy)], vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
-            .unwrap()
+        BSpline::new(
+            2,
+            vec![p(10.0, 900.0 + dy), p(60.0, 960.0 + dy), p(120.0, 900.0 + dy)],
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        )
+        .unwrap()
     };
     w.push(id(102), &Curve::BSpline(spline(0.0))).unwrap();
     w.push(id(103), &Curve::BSpline(spline(5.0))).unwrap();
