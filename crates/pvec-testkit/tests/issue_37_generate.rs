@@ -236,6 +236,12 @@ fn truth(e: &Entity) -> Vec<u64> {
             let c = xy(g.get("center").unwrap());
             bits(&[c[0], c[1], num(g.get("radius").unwrap()), 0.0, TAU])
         }
+        EntityClass::Ellipse => {
+            // only an axis-aligned one gets here: a rotated one has a derived angle and is skipped by the caller
+            let c = xy(g.get("center").unwrap());
+            let (a, b) = (num(g.get("semi_major").unwrap()), num(g.get("semi_minor").unwrap()));
+            bits(&[c[0], c[1], a, b, 0.0, 0.0, TAU])
+        }
         EntityClass::CircularArc => {
             let c = xy(g.get("center").unwrap());
             bits(&[
