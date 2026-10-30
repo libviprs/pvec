@@ -67,3 +67,23 @@ fn issue_203_results_and_batches_stay_in_range_too() {
         rt.release(batch).unwrap();
     }
 }
+
+#[test]
+fn issue_203_a_released_handle_is_refused_for_32767_reuses_and_the_generation_then_wraps_to_zero() {
+    let bytes = one_line();
+    let mut rt = Runtime::new();
+    let first = rt.open(bytes.clone()).unwrap();
+    rt.release(first).unwrap();
+    // The generation is 15 bits, so the slot's handle comes round again after 32768 reuses.
+    for round in 1..=32_768u32 {
+        let file = rt.open(bytes.clone()).unwrap();
+        assert!(file <= I32_MAX, "round {round}: handle {file:#x}");
+        if round == 32_768 {
+            assert_eq!(file, first, "the generation wraps at 0x8000, back to the first handle");
+        } else {
+            assert_ne!(file, first, "round {round}: a stale handle must not come back early");
+            assert_eq!(rt.release(first), Err(AbiError::Released), "round {round}");
+        }
+        rt.release(file).unwrap();
+    }
+}
