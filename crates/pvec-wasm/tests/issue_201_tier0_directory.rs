@@ -68,7 +68,7 @@ fn indexed() -> Vec<u8> {
 }
 
 fn everything() -> Bounds2 {
-    Bounds2 { min: [-1e9, -1e9], max: [1e9, 1e9] }
+    Bounds2 { min: [-1_000_000_000.0, -1_000_000_000.0], max: [1_000_000_000.0, 1_000_000_000.0] }
 }
 
 fn window(x0: f64, y0: f64, x1: f64, y1: f64) -> Bounds2 {
@@ -151,7 +151,7 @@ fn issue_201_a_directory_query_lists_the_cells_a_window_touches_in_ascending_ord
     let few = rt.cells(small).unwrap();
     assert!(!few.ids.is_empty() && few.ids.len() < 7);
     assert!(few.ids.iter().all(|c| cells.ids.contains(c)));
-    let far = rt.directory_query(f, window(5e6, 5e6, 6e6, 6e6)).unwrap();
+    let far = rt.directory_query(f, window(5_000_000.0, 5_000_000.0, 6_000_000.0, 6_000_000.0)).unwrap();
     assert!(rt.cells(far).unwrap().ids.is_empty());
 }
 
