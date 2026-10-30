@@ -19,7 +19,7 @@ use std::f64::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-const EMITTED: [&str; 22] = [
+const EMITTED: [&str; 29] = [
     "arc-seam-001",
     "bezier-d3-001",
     "bspline-d3-001",
@@ -35,25 +35,20 @@ const EMITTED: [&str; 22] = [
     "layer-state-001",
     "line-001",
     "lwpolyline-closed-001",
+    "nested-blocks-001",
+    "nonuniform-scale-circle-001",
+    "nonuniform-scale-rotated-001",
     "nonunit-weight-001",
     "nurbs-d2-offconic-001",
     "nurbs-d3-001",
     "polyline-001",
     "polyline2d-001",
+    "reflection-001",
     "repeated-knot-c0-001",
+    "rotation-irrational-001",
     "tiny-radius-001",
-];
-
-/// The fixtures the current capability set cannot hold exactly, and the capability each one is
-/// missing. A refusal is the right answer for all of them: none may be approximated.
-const MISSING: [(&str, &str); 7] = [
-    ("nested-blocks-001", "affine_transform_2d"),
-    ("nonuniform-scale-circle-001", "affine_transform_2d"),
-    ("nonuniform-scale-rotated-001", "affine_transform_2d"),
-    ("reflection-001", "affine_transform_2d"),
-    ("rotation-irrational-001", "affine_transform_2d"),
-    ("translation-001", "affine_transform_2d"),
-    ("uniform-scale-001", "affine_transform_2d"),
+    "translation-001",
+    "uniform-scale-001",
 ];
 
 fn outcomes() -> Vec<Outcome> {
@@ -76,15 +71,7 @@ fn every_fixture_of_the_bundle_is_accounted_for_with_its_documented_outcome() {
                 assert_eq!(r.fixture, o.fixture);
                 let text = r.to_string();
                 assert!(text.contains(&o.fixture), "the refusal names the fixture: {text}");
-                if let Some((_, cap)) = MISSING.iter().find(|(f, _)| *f == o.fixture) {
-                    match &r.cause {
-                        Cause::MissingCapability { capability, .. } => {
-                            assert_eq!(capability, cap, "{}", o.fixture);
-                            assert!(text.contains(cap), "the refusal names the capability: {text}");
-                        }
-                        other => panic!("{}: expected a missing capability, got {other:?}", o.fixture),
-                    }
-                } else if o.fixture == "near-singular-001" {
+                if o.fixture == "near-singular-001" {
                     assert_eq!(r.cause, Cause::NotEmitted);
                 } else if ["general-affine-001", "shear-001", "singular-001"].contains(&o.fixture.as_str()) {
                     assert_eq!(r.cause, Cause::Quarantined, "{}", o.fixture);

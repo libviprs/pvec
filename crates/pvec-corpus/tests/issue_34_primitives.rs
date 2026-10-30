@@ -36,7 +36,7 @@ fn issue_34_sha256_of_the_vendored_bundle_is_the_published_pin() {
     // and the pin file together does not go unnoticed.
     assert_eq!(
         hex_digest(&vendored_tar()),
-        "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50"
+        "b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb"
     );
 }
 
@@ -102,7 +102,7 @@ fn issue_34_tar_reads_the_vendored_bundle() {
     assert!(entries.iter().all(|e| e.path.starts_with("r0-open/")));
     assert!(entries.iter().any(|e| e.path == "r0-open/manifest.json"));
     let manifest = entries.iter().find(|e| e.path == "r0-open/manifest.json").unwrap();
-    assert_eq!(hex_digest(manifest.data), "de3903df3e4d7bc0556a2d593298aaea34dcdbdcdec9015d753df14f1566bf21");
+    assert_eq!(hex_digest(manifest.data), "aaa7fcac8eeecd5e0e60dd7084ca40601df9194967107cd0330ab3f515b98ace");
 }
 
 #[test]
