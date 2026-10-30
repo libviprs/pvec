@@ -130,8 +130,8 @@ struct Slot {
 
 /// Every handle, every batch and every packed result of one module instance.
 ///
-/// A handle is an index and a generation in one `u32`, so a handle that was released stays refused after
-/// its slot is reused. Nothing here is shared between threads: a module instance is one thread.
+/// A handle is a 15 bit generation and a 16 bit index in one `u32` below 2^31, so a handle that was
+/// released stays refused for the next 32,767 reuses of its slot. Nothing here is shared between threads: a module instance is one thread.
 #[derive(Default)]
 pub struct Runtime {
     slots: Vec<Slot>,
@@ -595,7 +595,8 @@ impl Runtime {
         self.get(handle)?;
         let slot = &mut self.slots[(handle & ((1 << INDEX_BITS) - 1)) as usize];
         slot.item = None;
-        slot.generation = slot.generation.wrapping_add(1);
+        // 15 bits, so a handle always fits the non-negative `i32` the exports return (#203).
+        slot.generation = (slot.generation + 1) & 0x7fff;
         Ok(())
     }
 }
