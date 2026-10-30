@@ -104,3 +104,21 @@ exact geometry in a packed buffer.
 `wasm-bindgen` post-processing, rustc 1.99.0 in a `rust:1.99.0-bookworm` container: 466,775 bytes built on
 native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
 ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.
+
+## The loadable module (issue 202)
+
+The raw `cargo build --target wasm32-unknown-unknown` output is not loadable: it has hashed export names
+and `__wbindgen_describe` imports. The post-processing that fixes it is `wasm-bindgen --target web
+--no-typescript`, at the version in `Cargo.lock`, and the result is `pvec_wasm_bg.wasm` (one import,
+`__wbindgen_init_externref_table`, the exports above plus memory and the allocator).
+
+`tools/wasm-release.sh` does all of it in a throw-away container on the docker host, from whatever is
+checked out, so it can be rerun on any commit. It stages a directory (default `dist/wasm-release/<commit>`)
+with `pvec_wasm_bg.wasm`, `pvec-wasm-manifest.json` (commit, dirty flag, `abiVersion` read from
+`WASM_ABI_VERSION`, wasm-bindgen and rustc versions, byte count, sha256) and `SHA256SUMS`.
+`tools/wasm-release.sh --verify DIR` checks a staged or downloaded directory against its own digests.
+Two builds of the same commit gave identical bytes. It never tags, pushes or publishes.
+
+To publish a staged directory, someone with release rights runs, from a clean checkout of the commit in the
+manifest: `git tag wasm-v<abi>-<short commit> <commit>`, `git push origin <tag>`, then
+`gh release create <tag> --draft --verify-tag dist/wasm-release/<commit>/*`, checks the draft, and publishes it.
