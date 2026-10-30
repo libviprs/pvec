@@ -1,4 +1,4 @@
-# The WASM packed output ABI (issue P7.3)
+# The WASM packed output ABI (issues P7.3 and #201)
 
 `pvec-wasm` exports the `pvec` facade to a browser as four typed arrays per batch and integer handles. No
 export returns an object, an array of objects or a string, so a frame does not pay the allocator once
@@ -8,9 +8,18 @@ bumps `wasm_abi_version`.
 
 ## Version
 
-`wasm_abi_version()` returns **1**. A consumer reads it once at start and refuses a module whose number it
+`wasm_abi_version()` returns **2**. A consumer reads it once at start and refuses a module whose number it
 does not know. The number changes for any change to a layout, an element type, an error code, an export
 name or a signature below. Adding an export does not change it; removing or re-signing one does.
+
+Version 2 (issue #201) adds the spatial directory and the Tier 0 stream, and I bumped the number on
+purpose even though nothing was removed or re-signed: a consumer that needs those exports has to be able to
+refuse a version 1 module, which does not have them. Every export of version 1 keeps its name, signature,
+array layout and error code, so a consumer that only uses version 1 calls works unchanged against a version 2
+module as soon as its version check accepts 2. The one addition that touches an old call is the error code -6,
+which only the new calls return. `open` also reads the directory and the Tier 0 leaf table of the file, and the
+module then keeps the file's bytes for as long as the file handle lives (a file with no directory is not
+kept), because a leaf's Tier 0 block is read when a call asks for it.
 
 ## Calls
 
@@ -29,9 +38,16 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `tessellation_origin_x`, `tessellation_origin_y` | result | origin of the `Float32Array` form |
 | `memory_epoch`, `view_current`, `force_grow` | | see Memory |
 | `release` | any handle | 0 |
+| `directory_stat` | file, number | one number about the spatial directory (version 2) |
+| `directory_bound` | file, number | one corner of a box of the directory, NaN if none (version 2) |
+| `directory_query` | file, `min_x, min_y, max_x, max_y` | a cells handle (version 2) |
+| `cells_len`, `cells_ptr`, `cells_elem` | cells handle, array number | length, byte offset, element type (version 2) |
+| `tier0_viewport` | file, `min_x, min_y, max_x, max_y` | a Tier 0 handle (version 2) |
+| `tier0_stat` | Tier 0 handle, number | one count (version 2) |
+| `tier0_buffer_len`, `tier0_buffer_ptr`, `tier0_buffer_elem` | Tier 0 handle, array number | length, byte offset, element type (version 2) |
 
 `open` takes the file whole. The reader works on bytes in memory, and the `http` feature of the facade
-is a marker, so a range callback is not here yet.
+is a marker, so a range callback is not here yet (issue #205).
 
 `query_viewport` keeps the entities whose bounds meet the box, in ascending `EntityId` order, and at
 most `budget` of them; `batch_truncated` says when it cut. A curve with no bounds (an unbounded line)
@@ -65,6 +81,62 @@ A viewport query that returns N entities costs JS four typed arrays, made by the
 memory (`new Float64Array(memory.buffer, ptr, len)`), whatever N is. A test counts them at N = 1, 1,000
 and 100,000.
 
+## The spatial directory and the Tier 0 stream (version 2)
+
+A file may carry a spatial directory (P5.1), an R-tree over the source-space boxes of its hot entities
+(segments, polylines, circles, ellipses and arcs of either), and one Tier 0 block per leaf (P5.4b). The
+writer puts them there with `PvecWriter::new_indexed` (`unstable-stream`). Splines and composites are the
+advanced curves: they are in no leaf, so no leaf has a Tier 0 entry for them.
+
+`directory_stat(file, n)`: 0 whether the file has a directory (0 or 1; the others are 0 when it has not),
+1 leaves, 2 height, 3 hot entities in the leaves, 4 leaves with a Tier 0 block, 5 whether the advanced curves
+have bounds. `directory_bound(file, n)`: 0 to 3 are `min_x, min_y, max_x, max_y` of the whole tree, 4 to 7
+the same for the advanced curves, NaN when there is none.
+
+`directory_query` returns the leaves whose box touches the window (closed boxes), in ascending cell id, as
+five arrays (`cells_len`, `cells_ptr` and `cells_elem` take the array number):
+
+| # | array | element | stride |
+|---|---|---|---|
+| 0 | cell ids | `Uint32Array` | 1 |
+| 1 | hot entities in the cell | `Uint32Array` | 1 |
+| 2 | 1 when the cell has a Tier 0 block | `Uint32Array` | 1 |
+| 3 | bytes the cell's hot blocks take in the file as stored | `Float64Array` | 1 |
+| 4 | `min_x, min_y, max_x, max_y` of the cell | `Float64Array` | 4 |
+
+`tier0_viewport` returns the Tier 0 stream of the window: one entry for each hot entity of the leaves the
+window touches whose own bounds meet it, ascending by entity id. Five arrays (`tier0_buffer_*`):
+
+| # | array | element | stride |
+|---|---|---|---|
+| 0 | entity id | `Uint32Array` | 1 |
+| 1 | code | `Uint32Array` | 1 |
+| 2 | declared error, in world units | `Float64Array` | 1 |
+| 3 | offset table, `entries + 1` entries, in vertices | `Uint32Array` | 1 |
+| 4 | preview vertices, `x, y` in world space | `Float64Array` | 2 |
+
+Codes: 0 exact (the hot block has the geometry, the declared error is 0 and the range is empty), 1 a preview
+that is the control polygon, 2 a preview that is a chord polyline, 3 declared infeasible because the evaluator
+refused the curve, 4 because no preview fits the vertex cap, 5 because the preview misses the bound, 6 for a
+reason this version does not know. For a preview the declared error is the bound the writer measured and
+stored: every point of the curve is within it of the preview polyline, and the vertices are the stored `f32`
+offsets added back to their `f64` origin. An infeasible entry has NaN as its declared error and no vertices.
+A preview is display fidelity, never exact.
+
+`tier0_stat(result, n)`: 0 entries, 1 exact, 2 previews, 3 infeasible, 4 uncovered, 5 leaves read, 6 leaves of
+the window with no Tier 0 block, 7 whether the bounds of the advanced curves meet the window. Uncovered is
+what `query_viewport` would return for the window less the entries: the advanced curves, and every hot entity
+of a leaf that has no block. So `entries + uncovered` is the entity count of the window, and a window is fully
+covered exactly when `uncovered` is 0. The Tier 0 work lives in `pvec-stream`; the evaluator, not this layer,
+computes the bounds.
+
+A file with no directory answers `directory_query` and `tier0_viewport` with -6. A file whose directory or a
+Tier 0 block the reader refuses still opens (the entities do not depend on it), and those calls return -4.
+Windows must be finite and ordered (`min <= max`), or the call returns -3. These are the handles and the
+memory rules below, unchanged: `release` frees them, a view is current while `memory_epoch()` is, and both
+result kinds keep what they need after the file is released. Byte ranges of blocks, and a `open` that takes a
+range callback, are not here: the second waits for the `http` feature of the facade.
+
 ## Conformance
 
 Every result carries the tag `DisplayFidelity` (`tessellation_conformance` returns 1, and no result
@@ -96,10 +168,11 @@ exact geometry in a packed buffer.
 | -3 | an argument is out of range or not a number |
 | -4 | the bytes are not a PVec file this reader accepts |
 | -5 | the handle is live but is not the kind this call takes |
+| -6 | the file has no spatial directory, which the call needs (version 2) |
 
 ## Size
 
-`pvec_wasm.wasm`, `cargo build --release --target wasm32-unknown-unknown`, no `wasm-opt` and no
+(Measured at version 1; version 2 adds 11 entry points and I have not measured it again.) `pvec_wasm.wasm`, `cargo build --release --target wasm32-unknown-unknown`, no `wasm-opt` and no
 `wasm-bindgen` post-processing, rustc 1.99.0 in a `rust:1.99.0-bookworm` container: 466,775 bytes built on
 native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
 ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.

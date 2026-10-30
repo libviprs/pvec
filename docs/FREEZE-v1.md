@@ -27,7 +27,7 @@ result file records a failure, so the table cannot say more than the files do.
 ## Constants
 
 At the freeze the constants are: container 1.0 (`Header::MAJOR` 1, `Header::MINOR` 0), capability format version 1.0.0
-(`FORMAT_VERSION`), and `wasm_abi_version` 1. The registry snapshot `docs/capabilities.toml` has sha256
+(`FORMAT_VERSION`), and `wasm_abi_version` 2 (it was 1 until pvec#201 added the spatial directory and the Tier 0 stream to the ABI, before any tag; `docs/WASM_ABI.md` says what changed and what did not). The registry snapshot `docs/capabilities.toml` has sha256
 `3d20a14b894b6268232446fe60ab68dbf2190f68287c69b74be3779eb7583887`, and the corpus lock
 `crates/pvec-bench/benches/corpus/corpus.lock.json` has sha256
 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`. The freeze tests recompute both, so changing the

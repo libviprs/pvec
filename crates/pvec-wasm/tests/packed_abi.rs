@@ -59,8 +59,9 @@ fn packed(rt: &mut Runtime, n: u32, bounds: Bounds2, budget: u32) -> (u32, u32, 
 }
 
 #[test]
-fn issue_54_the_abi_version_is_one_and_the_document_names_every_array() {
-    assert_eq!(WASM_ABI_VERSION, 1);
+fn issue_54_the_abi_version_is_two_and_the_document_names_every_array() {
+    // 1 until issue 201, which added the Tier 0 and directory exports and bumped it on purpose
+    assert_eq!(WASM_ABI_VERSION, 2);
     let doc = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md"))
         .expect("docs/WASM_ABI.md exists");
     for needle in [

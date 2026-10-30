@@ -891,6 +891,7 @@ writer.rs: ContainerWriter::push_spline(&mut self, meta: EntityMeta, spec: Splin
 writer.rs: ContainerWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve) -> Result<(), WriteError>
 writer.rs: ContainerWriter::derived(&self) -> &[Derived]
+writer.rs: ContainerWriter::hot_boxes(&self) -> Vec<(EntityId, Bounds)>
 writer.rs: ContainerWriter::push_stream(&mut self, stream: Stream) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError>

@@ -853,6 +853,15 @@ impl ContainerWriter {
         Ok((xy(p.origin()), rot))
     }
 
+    /// The box this writer derived for each hot entity pushed so far (a segment, a polyline, a circle or
+    /// an ellipse, or an arc of either), in push order. The advanced curves are not here. A spatial
+    /// directory built over these boxes holds every hot block's bounds, which the directory requires
+    /// (`SPD-10`), where a box computed from the curve model would not: the model's bounds for an arc
+    /// are tighter than the conservative ones this writer stores.
+    pub fn hot_boxes(&self) -> Vec<(EntityId, Bounds)> {
+        self.hot.iter().map(|h| (h.meta.id, h.meta.bounds)).collect()
+    }
+
     /// Adds a component stream. Its capability is declared in the manifest as the registry declares it.
     pub fn push_stream(&mut self, stream: Stream) -> Result<(), WriteError> {
         let seq = self.next_seq();

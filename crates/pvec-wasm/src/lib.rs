@@ -16,5 +16,9 @@ mod runtime;
 #[cfg(target_arch = "wasm32")]
 mod bindings;
 
-pub use abi::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View, WASM_ABI_VERSION};
-pub use runtime::Runtime;
+pub use abi::{
+    AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, TIER0_BOUND_NOT_MET, TIER0_CHORD_POLYLINE,
+    TIER0_CONTROL_POLYGON, TIER0_EVALUATOR_REFUSED, TIER0_EXACT, TIER0_INFEASIBLE_OTHER, TIER0_VERTEX_CAP,
+    View, WASM_ABI_VERSION,
+};
+pub use runtime::{CellList, DirectoryInfo, Runtime, Tier0Stream};

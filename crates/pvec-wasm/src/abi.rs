@@ -1,6 +1,6 @@
 /// The version of the packed layouts and the export set. It changes under the rules in
 /// `docs/WASM_ABI.md` and in P7.6.
-pub const WASM_ABI_VERSION: u32 = 1;
+pub const WASM_ABI_VERSION: u32 = 2;
 
 /// The value of the conformance tag a packed tessellation carries: the display approximation of
 /// `pvec::Conformance::DisplayFidelity`, the only value there is.
@@ -21,10 +21,12 @@ pub enum AbiError {
     Read,
     /// The handle is live but is not the kind this call takes.
     WrongKind,
+    /// The file has no spatial directory, which the call needs (version 2).
+    NoIndex,
 }
 
 impl AbiError {
-    /// The code an export returns: negative, one per variant, fixed for `WASM_ABI_VERSION` 1.
+    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6.
     pub fn code(self) -> i32 {
         match self {
             AbiError::Released => -1,
@@ -32,6 +34,7 @@ impl AbiError {
             AbiError::BadArgument => -3,
             AbiError::Read => -4,
             AbiError::WrongKind => -5,
+            AbiError::NoIndex => -6,
         }
     }
 }
@@ -79,3 +82,18 @@ pub struct View {
     /// Element type.
     pub elem: ElemType,
 }
+
+/// Tier 0 code of an entity that goes out exact: its hot block carries the geometry.
+pub const TIER0_EXACT: u32 = 0;
+/// Tier 0 code of a preview that is the control polygon of the curve.
+pub const TIER0_CONTROL_POLYGON: u32 = 1;
+/// Tier 0 code of a preview that is a polyline whose chords stay within the declared error.
+pub const TIER0_CHORD_POLYLINE: u32 = 2;
+/// Tier 0 code of an entity declared infeasible because the exact evaluator refused its curve.
+pub const TIER0_EVALUATOR_REFUSED: u32 = 3;
+/// Tier 0 code of an entity declared infeasible because no preview fits in the vertex cap.
+pub const TIER0_VERTEX_CAP: u32 = 4;
+/// Tier 0 code of an entity declared infeasible because its preview misses the bound.
+pub const TIER0_BOUND_NOT_MET: u32 = 5;
+/// Tier 0 code of an entity declared infeasible for a reason this version does not know.
+pub const TIER0_INFEASIBLE_OTHER: u32 = 6;

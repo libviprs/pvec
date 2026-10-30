@@ -6,6 +6,9 @@
 //! arrays it makes itself over linear memory (`new Float64Array(memory.buffer, ptr, len)`). A test
 //! reads this file and fails if an export says otherwise.
 //!
+//! Version 2 adds the spatial directory and the Tier 0 stream (`directory_*`, `cells_*`, `tier0_*`), all
+//! of the same shape: a handle, then lengths, offsets and element types of the arrays behind it.
+//!
 //! The reader works on bytes in memory, so `open` takes the file whole. Range requests over HTTP are a
 //! feature of the facade that is not there yet (`http` is a marker), and with it the range callback.
 
@@ -13,7 +16,7 @@
 // this file writes `unsafe` itself.
 #![allow(unsafe_code)]
 
-use crate::{AbiError, BufferKind, ElemType, Precision, Runtime, WASM_ABI_VERSION};
+use crate::{AbiError, BufferKind, ElemType, Precision, Runtime, View, WASM_ABI_VERSION};
 use pvec::{Bounds2, TessellationContext, Transform2};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -177,4 +180,108 @@ pub fn force_grow() {
 #[wasm_bindgen]
 pub fn release(handle: u32) -> i32 {
     RUNTIME.with(|r| unit(r.borrow_mut().release(handle)))
+}
+
+fn elem(v: View) -> u32 {
+    match v.elem {
+        ElemType::F64 => 0,
+        ElemType::F32 => 1,
+        ElemType::U32 => 2,
+    }
+}
+
+fn window(min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Bounds2 {
+    Bounds2 { min: [min_x, min_y], max: [max_x, max_y] }
+}
+
+/// One number about the spatial directory of a file, or a negative code (-4 when the reader refused the
+/// directory): 0 whether the file has one (0 or 1; the rest are 0 when it has not), 1 leaves, 2 height,
+/// 3 hot entities in the leaves, 4 leaves with a Tier 0 block, 5 whether the advanced curves have bounds.
+#[wasm_bindgen]
+pub fn directory_stat(file: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| {
+        code(r.borrow().directory(file).and_then(|d| match (which, d) {
+            (0, d) => Ok(u32::from(d.is_some())),
+            (1..=5, None) => Ok(0),
+            (1, Some(d)) => Ok(d.cells),
+            (2, Some(d)) => Ok(d.height),
+            (3, Some(d)) => Ok(d.entities),
+            (4, Some(d)) => Ok(d.tier0_leaves),
+            (5, Some(d)) => Ok(u32::from(d.advanced_bounds.is_some())),
+            _ => Err(AbiError::BadArgument),
+        }))
+    })
+}
+
+/// A corner of a box of the directory: 0 to 3 are `min_x, min_y, max_x, max_y` of the whole tree, 4 to 7
+/// the same for the advanced curves. NaN when the file has no directory, the box does not exist, or the
+/// handle is not a file.
+#[wasm_bindgen]
+pub fn directory_bound(file: u32, which: u32) -> f64 {
+    RUNTIME.with(|r| {
+        let Ok(Some(d)) = r.borrow().directory(file) else { return f64::NAN };
+        let b = if which < 4 { Some(d.bounds) } else { d.advanced_bounds };
+        b.and_then(|b| [b.min[0], b.min[1], b.max[0], b.max[1]].get(which as usize % 4).copied())
+            .unwrap_or(f64::NAN)
+    })
+}
+
+/// The leaves of the directory that touch the box, in ascending cell id, as a result handle of five
+/// arrays, or a negative code (-6 when the file has no directory).
+#[wasm_bindgen]
+pub fn directory_query(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().directory_query(file, window(min_x, min_y, max_x, max_y))))
+}
+
+/// The number of elements of array `which` of a `directory_query` result (0 cell ids, 1 entities, 2 has
+/// Tier 0, 3 stored bytes, 4 bounds, four per leaf), or a negative code.
+#[wasm_bindgen]
+pub fn cells_len(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().cells_view(result, which).map(|v| v.len)))
+}
+
+/// The byte offset in linear memory of that array, or 0 for a handle or number that is not one.
+#[wasm_bindgen]
+pub fn cells_ptr(result: u32, which: u32) -> u32 {
+    RUNTIME.with(|r| r.borrow().cells_view(result, which).map_or(0, |v| v.ptr))
+}
+
+/// The element type of that array: 0 `Float64Array`, 2 `Uint32Array`, or a negative code.
+#[wasm_bindgen]
+pub fn cells_elem(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().cells_view(result, which).map(elem)))
+}
+
+/// The Tier 0 stream of the box: a result handle of five arrays, or a negative code (-6 when the file
+/// has no directory, -4 when the directory or a Tier 0 block is damaged).
+#[wasm_bindgen]
+pub fn tier0_viewport(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().tier0_viewport(file, window(min_x, min_y, max_x, max_y))))
+}
+
+/// One number about a Tier 0 result, or a negative code: 0 entries, 1 exact, 2 previews, 3 infeasible,
+/// 4 entities of the box no entry covers, 5 leaves read, 6 leaves with no Tier 0 block, 7 whether the
+/// advanced curves meet the box.
+#[wasm_bindgen]
+pub fn tier0_stat(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().tier0_stat(result, which)))
+}
+
+/// The number of elements of array `which` of a Tier 0 result (0 entity ids, 1 codes, 2 declared errors,
+/// 3 offsets, 4 vertices), or a negative code.
+#[wasm_bindgen]
+pub fn tier0_buffer_len(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().tier0_view(result, which).map(|v| v.len)))
+}
+
+/// The byte offset in linear memory of that array, or 0 for a handle or number that is not one.
+#[wasm_bindgen]
+pub fn tier0_buffer_ptr(result: u32, which: u32) -> u32 {
+    RUNTIME.with(|r| r.borrow().tier0_view(result, which).map_or(0, |v| v.ptr))
+}
+
+/// The element type of that array: 0 `Float64Array`, 2 `Uint32Array`, or a negative code.
+#[wasm_bindgen]
+pub fn tier0_buffer_elem(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().tier0_view(result, which).map(elem)))
 }
