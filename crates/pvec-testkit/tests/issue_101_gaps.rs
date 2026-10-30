@@ -308,8 +308,8 @@ fn the_only_refusals_left_are_the_deliberate_one_and_the_quarantined() {
     assert_eq!(refused["near-singular-001"], Cause::NotEmitted);
     assert_eq!(
         refused.len(),
-        1 + 3,
-        "the deliberate refusal and the three quarantined: the seven instance fixtures are emitted (#200)"
+        1 + 1 + 3,
+        "the deliberate refusal, translation-001 (its world curve is at z = 2) and the three quarantined: the other six instance fixtures are emitted (#200)"
     );
 }
 

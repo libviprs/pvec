@@ -179,6 +179,36 @@ pub struct Entity {
     pub node: Node,
 }
 
+impl Entity {
+    /// The world-space curve of an entity that keeps an instance plus a transform (`INSTANCE_PLUS_TRANSFORM`),
+    /// as an entity of its own with the world block's class, geometry and closure. `None` when the entity has
+    /// no world block (a rejected transform has none), `Err` when the block is not a curve of the record.
+    pub fn world(&self) -> Result<Option<Entity>> {
+        let Some(world) = self.node.get("world") else { return Ok(None) };
+        let invalid = |what: String, why: String| CorpusError::Invalid { what, why };
+        let class_name = match world.get("class") {
+            Some(Node::Str(s)) => s.as_str(),
+            _ => return Err(CorpusError::Missing(format!("string field `class` of the world of `{}`", self.id))),
+        };
+        let class = EntityClass::parse(class_name).ok_or_else(|| {
+            invalid(format!("{}.world.class", self.id), format!("`{class_name}` is not a curve class of the record"))
+        })?;
+        let geometry = world
+            .get("geometry")
+            .ok_or_else(|| CorpusError::Missing(format!("`{}.world.geometry`", self.id)))?
+            .clone();
+        for field in class.required_fields() {
+            if geometry.get(field).is_none() {
+                return Err(invalid(
+                    format!("{}.world.geometry", self.id),
+                    format!("a {class_name} needs `{field}`"),
+                ));
+            }
+        }
+        Ok(Some(Entity { id: self.id.clone(), class, geometry, node: world.clone() }))
+    }
+}
+
 /// The drawing's units and the exact factor to metres.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Units {

@@ -19,7 +19,7 @@ use std::f64::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-const EMITTED: [&str; 29] = [
+const EMITTED: [&str; 28] = [
     "arc-seam-001",
     "bezier-d3-001",
     "bspline-d3-001",
@@ -47,7 +47,6 @@ const EMITTED: [&str; 29] = [
     "repeated-knot-c0-001",
     "rotation-irrational-001",
     "tiny-radius-001",
-    "translation-001",
     "uniform-scale-001",
 ];
 
@@ -71,7 +70,16 @@ fn every_fixture_of_the_bundle_is_accounted_for_with_its_documented_outcome() {
                 assert_eq!(r.fixture, o.fixture);
                 let text = r.to_string();
                 assert!(text.contains(&o.fixture), "the refusal names the fixture: {text}");
-                if o.fixture == "near-singular-001" {
+                if o.fixture == "translation-001" {
+                    // its world-space curve sits at z = 2, and the profile is 2D with no implicit promotion
+                    match &r.cause {
+                        Cause::MissingCapability { capability, what } => {
+                            assert_eq!(capability, "line");
+                            assert!(what.contains("off the drawing plane"), "{what}");
+                        }
+                        other => panic!("translation-001: {other:?}"),
+                    }
+                } else if o.fixture == "near-singular-001" {
                     assert_eq!(r.cause, Cause::NotEmitted);
                 } else if ["general-affine-001", "shear-001", "singular-001"].contains(&o.fixture.as_str()) {
                     assert_eq!(r.cause, Cause::Quarantined, "{}", o.fixture);
@@ -279,7 +287,10 @@ fn every_stored_real_is_the_bit_pattern_the_record_authored() {
         let record = registry.get(&id).unwrap().expected.as_ref().unwrap();
         let opened = read(&art.bytes).unwrap_or_else(|e| panic!("{id} does not read back: {e}"));
         assert_eq!(opened.entities.len(), record.entities.len(), "{id}");
-        for (i, (got, want)) in opened.entities.iter().zip(&record.entities).enumerate() {
+        for (i, (got, authored)) in opened.entities.iter().zip(&record.entities).enumerate() {
+            // an instance record is stored as its world-space curve (ADR 0017, #200)
+            let world = authored.world().expect("the world block of the record is a curve");
+            let want = world.as_ref().unwrap_or(authored);
             assert_eq!(art.ids[i], (want.id.clone(), got.id()), "{id}: the id map");
             if art.derived.iter().any(|d| d.entity == want.id) {
                 // a stored number of this entity is derived and says so; issue_101_gaps holds it to its bound

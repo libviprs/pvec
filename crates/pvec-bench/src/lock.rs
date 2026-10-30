@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 /// The fixture commit the vendored bundle was taken from (`docs/CORPUS.md`).
-pub const FIXTURE_COMMIT: &str = "f94f7f22b7aaff36eaaf6d5501fafc42054f22f2";
+pub const FIXTURE_COMMIT: &str = "1df9d1b3e75047fa3978ebd809d0128cdfb28a68";
 
 /// One generation measurement of a `--measure` run, as a row of `measured.csv`:
 /// `name,platform,host,millis,peak_rss_kib,sha256,bytes`.

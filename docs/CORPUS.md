@@ -8,11 +8,11 @@ This is how `libviprs/pvec` consumes the synthetic fixtures of EPIC O (issue P2.
 
 | | |
 |---|---|
-| source | `libviprs/pvec-gold-fixtures`, tag `corpus-r0-open` (commit `f94f7f22b7aaff36eaaf6d5501fafc42054f22f2`, merged PR #43) |
+| source | `libviprs/pvec-gold-fixtures`, commit `1df9d1b3e75047fa3978ebd809d0128cdfb28a68` (merged PR #95; the tag `corpus-r0-open` still names the older `f94f7f22`, so the commit is the pin) |
 | revision | `r0-open`, status `CANDIDATE` |
 | bundle | `tests/corpus/r0-open.tar`, a deterministic tar of `corpus/r0-open/` |
-| bundle sha256 | `901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50` |
-| manifest sha256 | `de3903df3e4d7bc0556a2d593298aaea34dcdbdcdec9015d753df14f1566bf21` |
+| bundle sha256 | `b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb` |
+| manifest sha256 | `aaa7fcac8eeecd5e0e60dd7084ca40601df9194967107cd0330ab3f515b98ace` |
 | pin file | `tests/corpus/r0-open.pin.json`, byte for byte the file the tag publishes |
 | numeric policy | `PVec numeric policy v1` |
 
@@ -30,7 +30,7 @@ to get it into a test run:
 3. Vendor it. Chosen. The suite reads two files from the checkout, the SHA-256, tar and JSON readers are in
    the crate, and nothing opens a socket or starts a process (a test scans the sources to keep it that way).
 
-`tools/corpus-vendor.sh` is the maintenance path. It checks that the tag still resolves to the pinned commit,
+`tools/corpus-vendor.sh` is the maintenance path. It checks that the pinned commit is in the checkout,
 rebuilds the bundle with the corpus's own bundler in a throw-away container, and compares the result with
 what is vendored. Moving to a new revision is: change the constants in that script, run it with `WRITE=1`,
 and update the digests that the tests spell out (they are written out on purpose, so replacing the tar and

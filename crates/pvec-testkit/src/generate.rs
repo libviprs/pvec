@@ -467,7 +467,15 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<Mapped, Refusal> {
         }
         EntityClass::Circle | EntityClass::CircularArc => {
             let c = cx.plane("circle", cx.triple(g.get("center"), "center")?, "center")?;
-            cx.frame("circle", g, "x_axis")?;
+            // An arc about -z whose frame starts along -x is the mirror image (x -> -x) of an arc about +z
+            // along +x: the same points run clockwise from pi - start. That is what a reflection makes of an
+            // arc, so it is held as a negative sweep from the derived start, and nothing else off +z is.
+            let mirrored = e.class == EntityClass::CircularArc
+                && cx.triple(g.get("normal"), "normal")? == [0.0, 0.0, -1.0]
+                && cx.triple(g.get("x_axis"), "x_axis")? == [-1.0, 0.0, 0.0];
+            if !mirrored {
+                cx.frame("circle", g, "x_axis")?;
+            }
             let r = cx.real(g.get("radius"), "radius")?;
             let place = frame(origin(c), x_axis).map_err(|x| cx.geometry(x))?;
             let circle = Circle::new(place, r).map_err(|x| cx.geometry(x))?;
@@ -476,10 +484,23 @@ fn shape_of(fixture: &str, e: &Entity) -> Result<Mapped, Refusal> {
             } else {
                 let start = cx.real(g.get("start_angle"), "start_angle")?;
                 let sweep = cx.real(g.get("sweep_angle"), "sweep_angle")?;
+                let (start_sweep, said) = if mirrored {
+                    (
+                        [std::f64::consts::PI - start, -sweep],
+                        vec![Derived {
+                            entity: e.id.clone(),
+                            what: "the start angle of an arc about -z along -x, held about +z along +x: pi minus the authored start, with the sweep negated (exact); within two ulp of the exact value"
+                                .to_string(),
+                            bound: 4.0 * UNIT,
+                        }],
+                    )
+                } else {
+                    ([start, sweep], Vec::new())
+                };
                 Ok((
-                    Shape::Arc { centre: c, radius: circle.radius(), start_sweep: [start, sweep] },
+                    Shape::Arc { centre: c, radius: circle.radius(), start_sweep },
                     &["circle", "trimmed_curve"],
-                    Vec::new(),
+                    said,
                 ))
             }
         }
@@ -665,6 +686,27 @@ fn periodic_spline(cx: &Ctx<'_>, e: &Entity, rational: bool) -> Result<Mapped, R
     ))
 }
 
+/// Whether the record says that the matrix and determinant of this entity are checked in the source mapping
+/// and not in the artifact: a `SOURCE_MAPPING` assertion for `TRANSFORM_PRESERVED` and no `STRUCTURAL` one.
+/// This is the condition ADR 0017 sets for flattening an instance; a record from before the re-tag has the
+/// structural assertion, and the artifact cannot hold what that asks.
+fn transform_checked_in_the_source_mapping(math: &ExpectedMath, entity: &str) -> bool {
+    let text = |a: &Node, key: &str| match a.get(key) {
+        Some(Node::Str(s)) => s.clone(),
+        _ => String::new(),
+    };
+    let kinds: Vec<String> = math
+        .node
+        .get("assertions")
+        .and_then(Node::as_list)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|a| text(a, "entity") == entity && text(a, "claim") == "TRANSFORM_PRESERVED")
+        .map(|a| text(a, "kind"))
+        .collect();
+    kinds.iter().any(|k| k == "SOURCE_MAPPING") && !kinds.iter().any(|k| k == "STRUCTURAL")
+}
+
 /// Maps one record onto writer calls. Refuses the whole record when any entity cannot be held.
 pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal> {
     let fixture = math.fixture_id.as_str();
@@ -701,12 +743,25 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
     let mut pending: Vec<(usize, u32)> = Vec::new();
     for (i, e) in math.entities.iter().enumerate() {
         let cx = Ctx { fixture, entity: &e.id };
-        if e.node.get("structure") != Some(&Node::Str("CURVE_ONLY".to_string())) {
+        let flat;
+        let e = if e.node.get("structure") == Some(&Node::Str("CURVE_ONLY".to_string())) {
+            e
+        } else if e.node.get("structure") == Some(&Node::Str("INSTANCE_PLUS_TRANSFORM".to_string()))
+            && transform_checked_in_the_source_mapping(math, &e.id)
+        {
+            // ADR 0017: the artifact is curve-only, so the world-space curve the record states is what is stored.
+            // The record puts the matrix and the determinant in the source mapping, so nothing here is lost.
+            flat = e
+                .world()
+                .map_err(|x| cx.unsupported(x.to_string()))?
+                .ok_or_else(|| cx.unsupported("the record keeps an instance plus a transform and states no world-space curve"))?;
+            &flat
+        } else {
             return Err(cx.missing(
                 "affine_transform_2d",
                 "the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one",
             ));
-        }
+        };
         if let Some(l) = e.node.get("layer") {
             let (Some(Node::Str(name)), Some(Node::Bool(on)), Some(Node::Bool(frozen))) =
                 (l.get("name"), l.get("on"), l.get("frozen"))

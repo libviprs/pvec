@@ -6,23 +6,36 @@ use common::*;
 use pvec_corpus::ExpectedMath;
 use pvec_testkit::generate::{Cause, generate_all, generate_record};
 
-const INSTANCE_FIXTURES: [&str; 7] = [
+const INSTANCE_FIXTURES: [&str; 6] = [
     "nested-blocks-001",
     "nonuniform-scale-circle-001",
     "nonuniform-scale-rotated-001",
     "reflection-001",
     "rotation-irrational-001",
-    "translation-001",
     "uniform-scale-001",
 ];
 
 #[test]
-fn issue_200_the_seven_instance_fixtures_of_the_pinned_bundle_are_emitted_as_their_world_space_curve() {
+fn issue_200_the_six_in_plane_instance_fixtures_of_the_pinned_bundle_are_emitted_as_their_world_space_curve() {
     let outcomes = generate_all(&bundle()).unwrap();
     for id in INSTANCE_FIXTURES {
         let o = outcomes.iter().find(|o| o.fixture == id).unwrap();
         let a = o.result.as_ref().unwrap_or_else(|r| panic!("{id} is refused: {r}"));
         assert!(!a.bytes.is_empty(), "{id}");
+    }
+}
+
+#[test]
+fn issue_200_translation_001_stays_refused_because_its_world_curve_is_off_the_drawing_plane() {
+    let outcomes = generate_all(&bundle()).unwrap();
+    let o = outcomes.iter().find(|o| o.fixture == "translation-001").unwrap();
+    let r = o.result.as_ref().expect_err("a line at z = 2 is not held by a 2D profile");
+    match &r.cause {
+        Cause::MissingCapability { capability, what } => {
+            assert_eq!(capability, "line");
+            assert!(what.contains("off the drawing plane"), "{what}");
+        }
+        other => panic!("{other:?}"),
     }
 }
 
