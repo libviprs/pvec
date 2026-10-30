@@ -10,7 +10,7 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pvec = { path = "../pvec" }
+pvec = { path = "../pvec", features = ["unstable-stream"] }
 pvec-geometry = { path = "../pvec-geometry" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
