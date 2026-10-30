@@ -1,4 +1,9 @@
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
+use crate::abi::{
+    TIER0_BOUND_NOT_MET, TIER0_CHORD_POLYLINE, TIER0_CONTROL_POLYGON, TIER0_EVALUATOR_REFUSED, TIER0_EXACT,
+    TIER0_INFEASIBLE_OTHER, TIER0_VERTEX_CAP,
+};
+use pvec::unstable::{Aabb, InfeasibleReason, PreviewForm, SpatialDirectory, Tier0Leaves};
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::rc::Rc;
 
@@ -11,10 +16,88 @@ struct Entity {
     style: u32,
 }
 
-/// What an open file keeps: the entities, in ascending id order. A batch shares it, so releasing the
-/// file does not pull the curves out from under a batch.
+/// The spatial directory and the Tier 0 blocks of a file that has them, with the reader that reads a leaf's
+/// block when a call asks for it (so the file's bytes stay in memory as long as the file is open).
+struct Index {
+    reader: PvecReader,
+    dir: SpatialDirectory,
+    leaves: Tier0Leaves,
+}
+
+/// What an open file keeps: the entities, in ascending id order, and its index. A batch shares it, so
+/// releasing the file does not pull the curves out from under a batch. A directory the reader refused is
+/// kept as the error, so that only the calls that need it fail.
 struct File {
     entities: Vec<Entity>,
+    index: Result<Option<Index>, AbiError>,
+}
+
+/// What the spatial directory of a file says about itself.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DirectoryInfo {
+    /// Leaves.
+    pub cells: u32,
+    /// Levels of the tree; 1 for a single leaf.
+    pub height: u32,
+    /// Hot entities the leaves hold.
+    pub entities: u32,
+    /// Leaves that have a Tier 0 block.
+    pub tier0_leaves: u32,
+    /// The box of the whole tree.
+    pub bounds: Bounds2,
+    /// The box of the advanced curves (splines and composites), which no leaf holds.
+    pub advanced_bounds: Option<Bounds2>,
+}
+
+/// The leaves a window touches, as parallel arrays (a `directory_query` result). Entry `i` of each of
+/// `ids`, `entities`, `has_tier0` and `stored_bytes` is leaf `i`; `bounds` has four numbers per leaf.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CellList {
+    /// The cell ids, ascending.
+    pub ids: Vec<u32>,
+    /// Hot entities in each leaf.
+    pub entities: Vec<u32>,
+    /// 1 when the leaf has a Tier 0 block, else 0.
+    pub has_tier0: Vec<u32>,
+    /// The stored bytes of each leaf's hot blocks.
+    pub stored_bytes: Vec<f64>,
+    /// `min_x, min_y, max_x, max_y` of each leaf.
+    pub bounds: Vec<f64>,
+}
+
+/// The Tier 0 stream of a window (a `tier0_viewport` result): one entry per hot entity of the window,
+/// ascending by entity id, as parallel arrays, and the counts that make the coverage auditable.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Tier0Stream {
+    /// The entity of each entry.
+    pub ids: Vec<u32>,
+    /// `TIER0_*` code of each entry.
+    pub codes: Vec<u32>,
+    /// The declared error of each entry in world units: 0 for an exact entry, the stored bound for a
+    /// preview, NaN for an entity declared infeasible.
+    pub error_bounds: Vec<f64>,
+    /// `entries + 1` indices into `vertices` (points, not numbers); a preview owns a range, any other entry an empty one.
+    pub offsets: Vec<u32>,
+    /// Interleaved `x, y` of the previews, in world space, after the stored `f32` quantisation.
+    pub vertices: Vec<f64>,
+    /// Entries that go out exact.
+    pub exact: u32,
+    /// Entries that are previews.
+    pub previews: u32,
+    /// Entries declared infeasible.
+    pub infeasible: u32,
+    /// Entities of the window that no entry covers: the advanced curves, and the hot entities of a leaf with no block.
+    pub uncovered: u32,
+    /// Leaves of the window whose block was read.
+    pub leaves_read: u32,
+    /// Leaves of the window with no Tier 0 block.
+    pub leaves_without_block: u32,
+    /// 1 when the bounds of the advanced curves meet the window.
+    pub advanced_in_view: u32,
+}
+
+fn meets(b: &Bounds2, q: &Bounds2) -> bool {
+    b.min[0] <= q.max[0] && b.max[0] >= q.min[0] && b.min[1] <= q.max[1] && b.max[1] >= q.min[1]
 }
 
 enum Vertices {
@@ -36,6 +119,8 @@ enum Item {
     File(Rc<File>),
     Batch { file: Rc<File>, picked: Vec<usize>, truncated: bool },
     Tessellation(Packed),
+    Cells(CellList),
+    Tier0(Tier0Stream),
 }
 
 struct Slot {
@@ -112,7 +197,15 @@ impl Runtime {
             .zip(styles)
             .map(|((id, curve), (_, style))| Entity { id, bounds: curve.bounds().ok(), curve, style })
             .collect();
-        Ok(self.insert(Item::File(Rc::new(File { entities }))))
+        let index = match reader.spatial_directory() {
+            Ok(Some(dir)) => match reader.tier0_leaves(&dir) {
+                Ok(leaves) => Ok(Some(Index { reader, dir, leaves })),
+                Err(_) => Err(AbiError::Read),
+            },
+            Ok(None) => Ok(None),
+            Err(_) => Err(AbiError::Read),
+        };
+        Ok(self.insert(Item::File(Rc::new(File { entities, index }))))
     }
 
     /// The entities of `file` whose bounds meet `bounds`, at most `budget` of them in ascending id
@@ -125,18 +218,191 @@ impl Runtime {
         if bounds.min.iter().chain(&bounds.max).any(|v| v.is_nan()) {
             return Err(AbiError::BadArgument);
         }
-        let meets = |b: &Bounds2| {
-            b.min[0] <= bounds.max[0]
-                && b.max[0] >= bounds.min[0]
-                && b.min[1] <= bounds.max[1]
-                && b.max[1] >= bounds.min[1]
-        };
         let mut picked: Vec<usize> = (0..file.entities.len())
-            .filter(|i| file.entities[*i].bounds.as_ref().is_none_or(meets))
+            .filter(|i| file.entities[*i].bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
             .collect();
         let truncated = picked.len() > budget as usize;
         picked.truncate(budget as usize);
         Ok(self.insert(Item::Batch { file, picked, truncated }))
+    }
+
+    fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {
+        match self.get(handle)? {
+            Item::File(f) => Ok(Rc::clone(f)),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// What the spatial directory of `file` says, `None` for a file that has none. A directory the reader
+    /// refused when the file was opened is [`AbiError::Read`] here.
+    pub fn directory(&self, file: u32) -> Result<Option<DirectoryInfo>, AbiError> {
+        let file = self.file(file)?;
+        let Some(index) = file.index.as_ref().map_err(|e| *e)? else { return Ok(None) };
+        let boxed = |a: Aabb| Bounds2 { min: a.min(), max: a.max() };
+        let count = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+        Ok(Some(DirectoryInfo {
+            cells: count(index.dir.cells() as u64),
+            height: index.dir.height(),
+            entities: count(index.dir.entities()),
+            tier0_leaves: count(index.leaves.len() as u64),
+            bounds: boxed(index.dir.bounds()),
+            advanced_bounds: index.dir.advanced_bounds().map(boxed),
+        }))
+    }
+
+    /// The leaves whose bounds touch `bounds`, in ascending cell id, as a handle.
+    pub fn directory_query(&mut self, file: u32, bounds: Bounds2) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let q = Aabb::new(bounds.min, bounds.max).map_err(|_| AbiError::BadArgument)?;
+        let mut list = CellList {
+            ids: Vec::new(),
+            entities: Vec::new(),
+            has_tier0: Vec::new(),
+            stored_bytes: Vec::new(),
+            bounds: Vec::new(),
+        };
+        for cell in index.dir.query(&q) {
+            list.ids.push(cell.id.get());
+            list.entities.push(cell.entities);
+            list.has_tier0.push(u32::from(index.leaves.block(cell.id).is_some()));
+            list.stored_bytes.push(index.reader.stored_bytes(cell.blocks) as f64);
+            list.bounds.extend([cell.bounds.min()[0], cell.bounds.min()[1], cell.bounds.max()[0], cell.bounds.max()[1]]);
+        }
+        Ok(self.insert(Item::Cells(list)))
+    }
+
+    /// The cells of a `directory_query` result.
+    pub fn cells(&self, result: u32) -> Result<&CellList, AbiError> {
+        match self.get(result)? {
+            Item::Cells(c) => Ok(c),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Array `which` of a cells result: 0 ids, 1 entities, 2 has Tier 0 (`Uint32Array`), 3 stored bytes,
+    /// 4 bounds (`Float64Array`).
+    pub fn cells_view(&self, result: u32, which: u32) -> Result<View, AbiError> {
+        let c = self.cells(result)?;
+        match which {
+            0 => Ok(view_u32(&c.ids)),
+            1 => Ok(view_u32(&c.entities)),
+            2 => Ok(view_u32(&c.has_tier0)),
+            3 => Ok(view_f64(&c.stored_bytes)),
+            4 => Ok(view_f64(&c.bounds)),
+            _ => Err(AbiError::BadArgument),
+        }
+    }
+
+    /// The Tier 0 stream of the window: for each hot entity of the leaves it touches (and whose own bounds
+    /// meet it), whether it goes out exact, as a preview with its declared error, or declared infeasible,
+    /// and how many entities of the window no entry covers.
+    pub fn tier0_viewport(&mut self, file: u32, bounds: Bounds2) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let q = Aabb::new(bounds.min, bounds.max).map_err(|_| AbiError::BadArgument)?;
+        let mut rows: Vec<(u32, u32, f64, Vec<[f64; 2]>)> = Vec::new();
+        let (mut leaves_read, mut leaves_without_block) = (0, 0);
+        for cell in index.dir.query(&q) {
+            let plan = index.reader.tier0_plan(&index.leaves, cell.id).map_err(|_| AbiError::Read)?;
+            let Some(plan) = plan else {
+                leaves_without_block += 1;
+                continue;
+            };
+            leaves_read += 1;
+            rows.extend(plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())));
+            rows.extend(plan.previews().iter().map(|p| {
+                let code = match p.form() {
+                    PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
+                    PreviewForm::ChordPolyline => TIER0_CHORD_POLYLINE,
+                };
+                (p.replaces().index(), code, p.error_bound(), p.points())
+            }));
+            rows.extend(plan.infeasible().iter().map(|i| {
+                let code = match i.reason {
+                    InfeasibleReason::EvaluatorRefused => TIER0_EVALUATOR_REFUSED,
+                    InfeasibleReason::VertexCap => TIER0_VERTEX_CAP,
+                    InfeasibleReason::BoundNotMet => TIER0_BOUND_NOT_MET,
+                    _ => TIER0_INFEASIBLE_OTHER,
+                };
+                (i.id.index(), code, f64::NAN, Vec::new())
+            }));
+        }
+        let in_window = |id: u32| {
+            file.entities
+                .binary_search_by_key(&id, |e| e.id.index())
+                .ok()
+                .is_some_and(|at| file.entities[at].bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
+        };
+        rows.retain(|r| in_window(r.0));
+        rows.sort_unstable_by_key(|r| r.0);
+        let wanted = file.entities.iter().filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds))).count();
+        let mut s = Tier0Stream {
+            ids: Vec::with_capacity(rows.len()),
+            codes: Vec::with_capacity(rows.len()),
+            error_bounds: Vec::with_capacity(rows.len()),
+            offsets: vec![0],
+            vertices: Vec::new(),
+            exact: 0,
+            previews: 0,
+            infeasible: 0,
+            uncovered: (wanted - rows.len()) as u32,
+            leaves_read,
+            leaves_without_block,
+            advanced_in_view: u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q))),
+        };
+        for (id, code, error, points) in rows {
+            match code {
+                TIER0_EXACT => s.exact += 1,
+                TIER0_CONTROL_POLYGON | TIER0_CHORD_POLYLINE => s.previews += 1,
+                _ => s.infeasible += 1,
+            }
+            s.ids.push(id);
+            s.codes.push(code);
+            s.error_bounds.push(error);
+            s.vertices.extend(points.iter().flatten());
+            s.offsets.push((s.vertices.len() / 2) as u32);
+        }
+        Ok(self.insert(Item::Tier0(s)))
+    }
+
+    /// The Tier 0 stream of a `tier0_viewport` result.
+    pub fn tier0(&self, result: u32) -> Result<&Tier0Stream, AbiError> {
+        match self.get(result)? {
+            Item::Tier0(t) => Ok(t),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Array `which` of a Tier 0 result: 0 entity ids, 1 codes, 3 offsets (`Uint32Array`), 2 declared
+    /// errors and 4 vertices (`Float64Array`).
+    pub fn tier0_view(&self, result: u32, which: u32) -> Result<View, AbiError> {
+        let t = self.tier0(result)?;
+        match which {
+            0 => Ok(view_u32(&t.ids)),
+            1 => Ok(view_u32(&t.codes)),
+            2 => Ok(view_f64(&t.error_bounds)),
+            3 => Ok(view_u32(&t.offsets)),
+            4 => Ok(view_f64(&t.vertices)),
+            _ => Err(AbiError::BadArgument),
+        }
+    }
+
+    /// Scalar `which` of a Tier 0 result: 0 entries, 1 exact, 2 previews, 3 infeasible, 4 uncovered,
+    /// 5 leaves read, 6 leaves without a block, 7 advanced curves in view.
+    pub fn tier0_stat(&self, result: u32, which: u32) -> Result<u32, AbiError> {
+        let t = self.tier0(result)?;
+        match which {
+            0 => Ok(t.ids.len() as u32),
+            1 => Ok(t.exact),
+            2 => Ok(t.previews),
+            3 => Ok(t.infeasible),
+            4 => Ok(t.uncovered),
+            5 => Ok(t.leaves_read),
+            6 => Ok(t.leaves_without_block),
+            7 => Ok(t.advanced_in_view),
+            _ => Err(AbiError::BadArgument),
+        }
     }
 
     /// How many entities the batch holds.
@@ -326,4 +592,12 @@ impl Runtime {
         slot.generation = slot.generation.wrapping_add(1);
         Ok(())
     }
+}
+
+fn view_u32(v: &[u32]) -> View {
+    View { ptr: v.as_ptr() as usize as u32, len: v.len() as u32, elem: ElemType::U32 }
+}
+
+fn view_f64(v: &[f64]) -> View {
+    View { ptr: v.as_ptr() as usize as u32, len: v.len() as u32, elem: ElemType::F64 }
 }

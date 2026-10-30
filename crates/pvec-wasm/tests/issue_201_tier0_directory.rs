@@ -140,7 +140,7 @@ fn issue_201_a_directory_query_lists_the_cells_a_window_touches_in_ascending_ord
     let mut rt = Runtime::new();
     let f = rt.open(indexed()).unwrap();
     let all = rt.directory_query(f, everything()).unwrap();
-    let cells = rt.cells(all).unwrap();
+    let cells = rt.cells(all).unwrap().clone();
     assert_eq!(cells.ids.len(), 7);
     assert!(cells.ids.windows(2).all(|w| w[0] < w[1]));
     assert_eq!(cells.entities.iter().sum::<u32>(), HOT);

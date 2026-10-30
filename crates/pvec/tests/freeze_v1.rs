@@ -100,10 +100,10 @@ fn the_v1_constants_are_the_frozen_values() {
     assert_eq!((Header::MAJOR, Header::MINOR), (1, 0), "container version");
     assert_eq!(FORMAT_VERSION, Version::new(1, 0, 0), "capability format version");
     let wasm = read("crates/pvec-wasm/src/abi.rs");
-    assert!(wasm.contains("pub const WASM_ABI_VERSION: u32 = 1;"), "wasm_abi_version");
+    assert!(wasm.contains("pub const WASM_ABI_VERSION: u32 = 2;"), "wasm_abi_version");
     let doc = freeze();
     assert!(doc.contains("container 1.0"));
-    assert!(doc.contains("`wasm_abi_version` 1"));
+    assert!(doc.contains("`wasm_abi_version` 2"));
 }
 
 #[test]

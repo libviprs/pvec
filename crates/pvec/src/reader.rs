@@ -13,7 +13,7 @@ use pvec_numeric::detmath;
 
 /// Reads a PVec file held in memory.
 pub struct PvecReader {
-    inner: ContainerReader<MemorySource<Vec<u8>>>,
+    pub(crate) inner: ContainerReader<MemorySource<Vec<u8>>>,
     manifest: Manifest,
 }
 

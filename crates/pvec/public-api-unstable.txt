@@ -1,1 +1,6 @@
-unstable.rs: pub use pvec_stream::{CancelToken, Generation, GenerationClock, ReadPlan, Scene, Tier0Plan, ViewportQuery}
+unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, ViewportQuery, }
+unstable.rs: PvecWriter::new_indexed(manifest: crate::Manifest, cell_capacity: u32, tier0_max_error: Option<f64>) -> Result<PvecWriter, PvecError>
+unstable.rs: PvecReader::spatial_directory(&self) -> Result<Option<SpatialDirectory>, PvecError>
+unstable.rs: PvecReader::tier0_leaves(&self, directory: &SpatialDirectory) -> Result<Tier0Leaves, PvecError>
+unstable.rs: PvecReader::tier0_plan(&self, leaves: &Tier0Leaves, leaf: CellId) -> Result<Option<Tier0Plan>, PvecError>
+unstable.rs: PvecReader::stored_bytes(&self, blocks: BlockRange) -> u64

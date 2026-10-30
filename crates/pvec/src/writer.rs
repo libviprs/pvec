@@ -10,22 +10,34 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError};
 #[derive(Debug)]
 pub struct PvecWriter {
     inner: ContainerWriter,
+    /// Set by `PvecWriter::new_indexed`: what `finish` needs to lay the file out again with a spatial directory.
+    #[cfg(feature = "unstable-stream")]
+    pub(crate) index: Option<crate::unstable::Indexing>,
 }
 
-fn refused(e: WriteError) -> PvecError {
+pub(crate) fn refused(e: WriteError) -> PvecError {
     PvecError::Write { rule: e.rule().to_string() }
 }
 
 impl PvecWriter {
     /// Starts a file with this manifest.
     pub fn new(manifest: Manifest) -> Result<PvecWriter, PvecError> {
-        Ok(PvecWriter { inner: ContainerWriter::new(manifest.config()?) })
+        Ok(PvecWriter {
+            inner: ContainerWriter::new(manifest.config()?),
+            #[cfg(feature = "unstable-stream")]
+            index: None,
+        })
     }
 
     /// Adds an entity. Its bounds are derived from the curve. A composite goes through
     /// [`PvecWriter::push_composite`], which needs its segments by reference.
     pub fn push(&mut self, id: EntityId, curve: &Curve) -> Result<(), PvecError> {
-        self.inner.push_curve(id, 0, 0, curve).map_err(refused)
+        self.inner.push_curve(id, 0, 0, curve).map_err(refused)?;
+        #[cfg(feature = "unstable-stream")]
+        if let Some(index) = &mut self.index {
+            index.log.push(crate::unstable::Op::Curve(id, curve.clone()));
+        }
+        Ok(())
     }
 
     /// Adds a composite whose segments are other entities already pushed, with the bounds of the whole.
@@ -38,16 +50,29 @@ impl PvecWriter {
     ) -> Result<(), PvecError> {
         let meta = EntityMeta { id, style: 0, cell: 0, bounds: Bounds { min: bounds.min, max: bounds.max } };
         let ids: Vec<EntityId> = segments.iter().map(|s| s.entity).collect();
-        self.inner.push_composite(meta, &ids, None, closed).map_err(refused)
+        self.inner.push_composite(meta, &ids, None, closed).map_err(refused)?;
+        #[cfg(feature = "unstable-stream")]
+        if let Some(index) = &mut self.index {
+            index.log.push(crate::unstable::Op::Composite { id, segments: ids, bounds, closed });
+        }
+        Ok(())
     }
 
     /// Attaches a component stream, which refers to entities by id.
     pub fn components(&mut self, stream: Stream) -> Result<(), PvecError> {
+        #[cfg(feature = "unstable-stream")]
+        if let Some(index) = &mut self.index {
+            index.log.push(crate::unstable::Op::Components(stream.clone()));
+        }
         self.inner.push_stream(stream).map_err(refused)
     }
 
     /// Seals the file and returns its bytes.
     pub fn finish(self) -> Result<Vec<u8>, PvecError> {
+        #[cfg(feature = "unstable-stream")]
+        if let Some(index) = self.index {
+            return index.lay_out(self.inner);
+        }
         self.inner.finish().map_err(refused)
     }
 }
