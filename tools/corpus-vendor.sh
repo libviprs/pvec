@@ -9,19 +9,17 @@
 # The corpus's own bundler runs in a throw-away python container; nothing else executes here.
 set -euo pipefail
 
+# The tag corpus-r0-open still points at f94f7f22, before the transform records moved their structural
+# assertion to SOURCE_MAPPING (#200). The pin is the commit, and the bundle hash in the pin file is the proof.
 TAG=corpus-r0-open
-COMMIT=f94f7f22b7aaff36eaaf6d5501fafc42054f22f2
+COMMIT=1df9d1b3e75047fa3978ebd809d0128cdfb28a68
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SRC=${1:-$ROOT/../pvec-gold-fixtures}
 SCRATCH=${SCRATCH:-$(mktemp -d)}
 
-got=$(git -C "$SRC" rev-parse "$TAG^{commit}")
-if [ "$got" != "$COMMIT" ]; then
-  echo "FAIL: tag $TAG is $got, this repository pins $COMMIT" >&2
-  exit 1
-fi
+git -C "$SRC" cat-file -e "$COMMIT^{commit}" || { echo "FAIL: $COMMIT is not in $SRC (fetch it)" >&2; exit 1; }
 mkdir -p "$SCRATCH/src" "$SCRATCH/out"
-git -C "$SRC" archive "$TAG" | tar -x -C "$SCRATCH/src"
+git -C "$SRC" archive "$COMMIT" | tar -x -C "$SCRATCH/src"
 docker run --rm --platform linux/arm64 -e PYTHONDONTWRITEBYTECODE=1 \
   -v "$SCRATCH/src:/g:ro" -v "$SCRATCH/out:/o" -w /g python:3.12-slim \
   python3 -m runner.r0_open bundle corpus/r0-open /o/r0-open.tar
@@ -42,5 +40,5 @@ for f in r0-open.tar:out/r0-open.tar r0-open.pin.json:src/corpus/r0-open.pin.jso
   fi
 done
 echo "scratch left in $SCRATCH (remove it when you are done)"
-[ $status = 0 ] && echo "OK: tests/corpus matches $TAG ($COMMIT), bundle sha256 $have"
+[ $status = 0 ] && echo "OK: tests/corpus matches $COMMIT, bundle sha256 $have"
 exit $status

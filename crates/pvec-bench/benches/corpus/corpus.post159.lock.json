@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "generator": "pvec-bench-corpus/1",
-  "fixture_revision": {"repo": "libviprs/pvec-gold-fixtures", "epic": "libviprs/pvec-gold-fixtures#1", "tag": "corpus-r0-open", "commit": "f94f7f22b7aaff36eaaf6d5501fafc42054f22f2", "corpus_revision": "r0-open", "bundle_sha256": "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50"},
+  "fixture_revision": {"repo": "libviprs/pvec-gold-fixtures", "epic": "libviprs/pvec-gold-fixtures#1", "tag": "corpus-r0-open", "commit": "1df9d1b3e75047fa3978ebd809d0128cdfb28a68", "corpus_revision": "r0-open", "bundle_sha256": "b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb"},
   "entries": [
     {
       "name": "arc-seam-001",
@@ -229,6 +229,51 @@
       "baseline_eligible": true
     },
     {
+      "name": "nested-blocks-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 408,
+      "sha256": "f0eb5e6431862028e04de2cb88e4228e59a08ab57184a516ce53121aa0cf2b9b",
+      "counts": {"line": 1},
+      "bounds": ["0x3ff8000000000000", "0x4000000000000000", "0x400e000000000000", "0x4021000000000000"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
+      "name": "nonuniform-scale-circle-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 432,
+      "sha256": "235e2be96b029ec8aa596856bdb1beb85e4fe896a4f2cbd17b65f6b5d77fc568",
+      "counts": {"ellipse": 1},
+      "bounds": ["0xc008000000000000", "0xbff0000000000000", "0x4022000000000000", "0x4008000000000000"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
+      "name": "nonuniform-scale-rotated-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 448,
+      "sha256": "e649296e81d92dd525c3297c69f4a98f8f3940a46f5859935e58e7b8399b4469",
+      "counts": {"ellipse": 1},
+      "bounds": ["0xc014000000000000", "0x3ff0000000000000", "0x401c000000000000", "0x4014000000000000"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
       "name": "nonunit-weight-001",
       "class": "synthetic-known-truth",
       "entities": 1,
@@ -304,6 +349,21 @@
       "baseline_eligible": true
     },
     {
+      "name": "reflection-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 432,
+      "sha256": "eb866736fc97bae7ff6a166a5f32bab90d134f3a96d3d75f04dc94b1865c9212",
+      "counts": {"trimmed_curve": 1},
+      "bounds": ["0xc00c000000000000", "0xbfe0000000000000", "0xbfe0000000000000", "0x4004000000000000"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
       "name": "repeated-knot-c0-001",
       "class": "synthetic-known-truth",
       "entities": 1,
@@ -319,6 +379,21 @@
       "baseline_eligible": true
     },
     {
+      "name": "rotation-irrational-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 448,
+      "sha256": "931106da5e1203959e0449aa94d3dda4e88e1f82608b532c53c24e0b7b94a9fb",
+      "counts": {"line": 1},
+      "bounds": ["0xbfb3d9e9557e3e3d", "0x3fe1c9344b71c81a", "0x3fae9bee418400a5", "0x4012066c27f4d01b"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
       "name": "tiny-radius-001",
       "class": "synthetic-known-truth",
       "entities": 1,
@@ -327,6 +402,21 @@
       "sha256": "0efe3ff1828571cf314e157d3451f140e610627ec4c49b17f2e83347b3bd63e3",
       "counts": {"circle": 1},
       "bounds": ["0x3fdfffd60e94ee39", "0x3fdfffd60e94ee39", "0x3fe00014f8b588e3", "0x3fe00014f8b588e3"],
+      "unit": "metre",
+      "evidence_class": "KNOWN_TRUTH_EXACT",
+      "licence": "as the r0-open manifest states",
+      "redistribution": "PUBLIC_REDISTRIBUTABLE in the r0-open manifest",
+      "baseline_eligible": true
+    },
+    {
+      "name": "uniform-scale-001",
+      "class": "synthetic-known-truth",
+      "entities": 1,
+      "obtain": "vendored-bundle",
+      "bytes": 424,
+      "sha256": "1bd1763e8c5fb854d59bca5fe8986b6f06906ffceb33e8dba4b9b1afa3114533",
+      "counts": {"circle": 1},
+      "bounds": ["0xbff4000000000000", "0xc021800000000000", "0x4019000000000000", "0xbff4000000000000"],
       "unit": "metre",
       "evidence_class": "KNOWN_TRUTH_EXACT",
       "licence": "as the r0-open manifest states",
@@ -511,13 +601,7 @@
   ],
   "exclusions": [
     {"name": "near-singular-001", "kind": "NOT_EMITTED", "reason": "near-singular-001: the corpus says no curve may be emitted for it"},
-    {"name": "nested-blocks-001", "kind": "MISSING_CAPABILITY", "reason": "nested-blocks-001/nested-blocks-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "nonuniform-scale-circle-001", "kind": "MISSING_CAPABILITY", "reason": "nonuniform-scale-circle-001/nonuniform-scale-circle-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "nonuniform-scale-rotated-001", "kind": "MISSING_CAPABILITY", "reason": "nonuniform-scale-rotated-001/nonuniform-scale-rotated-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "reflection-001", "kind": "MISSING_CAPABILITY", "reason": "reflection-001/reflection-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "rotation-irrational-001", "kind": "MISSING_CAPABILITY", "reason": "rotation-irrational-001/rotation-irrational-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "translation-001", "kind": "MISSING_CAPABILITY", "reason": "translation-001/translation-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
-    {"name": "uniform-scale-001", "kind": "MISSING_CAPABILITY", "reason": "uniform-scale-001/uniform-scale-001: missing capability `affine_transform_2d`: the record keeps an instance plus a transform, and the container stores neither (ADR 0017: PVec is curve-only); emitting the world-space result would pass a geometry check and fail the structural one"},
+    {"name": "translation-001", "kind": "MISSING_CAPABILITY", "reason": "translation-001/translation-001: missing capability `line`: `start` is off the drawing plane (z is not 0), and the profile is 2D with no implicit promotion"},
     {"name": "general-affine-001", "kind": "QUARANTINED", "reason": "general-affine-001: quarantined, the corpus has no record for it"},
     {"name": "shear-001", "kind": "QUARANTINED", "reason": "shear-001: quarantined, the corpus has no record for it"},
     {"name": "singular-001", "kind": "QUARANTINED", "reason": "singular-001: quarantined, the corpus has no record for it"},

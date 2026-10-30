@@ -300,33 +300,16 @@ fn every_number_that_is_derived_is_listed_and_an_authored_one_never_is() {
 }
 
 #[test]
-fn the_gaps_that_remain_are_refused_with_the_capability_named_and_nothing_is_approximated() {
+fn the_only_refusals_left_are_the_deliberate_one_and_the_quarantined() {
     let outcomes = generate_all(&bundle()).unwrap();
     let refused: BTreeMap<String, Cause> =
         outcomes.into_iter().filter_map(|o| o.result.err().map(|r| (o.fixture, r.cause))).collect();
-    for id in [
-        "nested-blocks-001",
-        "nonuniform-scale-circle-001",
-        "nonuniform-scale-rotated-001",
-        "reflection-001",
-        "rotation-irrational-001",
-        "translation-001",
-        "uniform-scale-001",
-    ] {
-        match &refused[id] {
-            Cause::MissingCapability { capability, what } => {
-                assert_eq!(capability, "affine_transform_2d", "{id}");
-                assert!(what.contains("instance"), "{id}: {what}");
-            }
-            other => panic!("{id}: {other:?}"),
-        }
-    }
     assert!(!refused.contains_key("layer-state-001"), "layer state travels in the layer stream (#119)");
     assert_eq!(refused["near-singular-001"], Cause::NotEmitted);
     assert_eq!(
         refused.len(),
-        7 + 1 + 3,
-        "seven capability gaps, the deliberate refusal and the three quarantined"
+        1 + 1 + 3,
+        "the deliberate refusal, translation-001 (its world curve is at z = 2) and the three quarantined: the other six instance fixtures are emitted (#200)"
     );
 }
 

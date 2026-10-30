@@ -19,7 +19,7 @@ use std::f64::consts::TAU;
 use std::fs;
 use std::path::PathBuf;
 
-const EMITTED: [&str; 22] = [
+const EMITTED: [&str; 28] = [
     "arc-seam-001",
     "bezier-d3-001",
     "bspline-d3-001",
@@ -35,25 +35,19 @@ const EMITTED: [&str; 22] = [
     "layer-state-001",
     "line-001",
     "lwpolyline-closed-001",
+    "nested-blocks-001",
+    "nonuniform-scale-circle-001",
+    "nonuniform-scale-rotated-001",
     "nonunit-weight-001",
     "nurbs-d2-offconic-001",
     "nurbs-d3-001",
     "polyline-001",
     "polyline2d-001",
+    "reflection-001",
     "repeated-knot-c0-001",
+    "rotation-irrational-001",
     "tiny-radius-001",
-];
-
-/// The fixtures the current capability set cannot hold exactly, and the capability each one is
-/// missing. A refusal is the right answer for all of them: none may be approximated.
-const MISSING: [(&str, &str); 7] = [
-    ("nested-blocks-001", "affine_transform_2d"),
-    ("nonuniform-scale-circle-001", "affine_transform_2d"),
-    ("nonuniform-scale-rotated-001", "affine_transform_2d"),
-    ("reflection-001", "affine_transform_2d"),
-    ("rotation-irrational-001", "affine_transform_2d"),
-    ("translation-001", "affine_transform_2d"),
-    ("uniform-scale-001", "affine_transform_2d"),
+    "uniform-scale-001",
 ];
 
 fn outcomes() -> Vec<Outcome> {
@@ -76,13 +70,14 @@ fn every_fixture_of_the_bundle_is_accounted_for_with_its_documented_outcome() {
                 assert_eq!(r.fixture, o.fixture);
                 let text = r.to_string();
                 assert!(text.contains(&o.fixture), "the refusal names the fixture: {text}");
-                if let Some((_, cap)) = MISSING.iter().find(|(f, _)| *f == o.fixture) {
+                if o.fixture == "translation-001" {
+                    // its world-space curve sits at z = 2, and the profile is 2D with no implicit promotion
                     match &r.cause {
-                        Cause::MissingCapability { capability, .. } => {
-                            assert_eq!(capability, cap, "{}", o.fixture);
-                            assert!(text.contains(cap), "the refusal names the capability: {text}");
+                        Cause::MissingCapability { capability, what } => {
+                            assert_eq!(capability, "line");
+                            assert!(what.contains("off the drawing plane"), "{what}");
                         }
-                        other => panic!("{}: expected a missing capability, got {other:?}", o.fixture),
+                        other => panic!("translation-001: {other:?}"),
                     }
                 } else if o.fixture == "near-singular-001" {
                     assert_eq!(r.cause, Cause::NotEmitted);
@@ -241,6 +236,12 @@ fn truth(e: &Entity) -> Vec<u64> {
             let c = xy(g.get("center").unwrap());
             bits(&[c[0], c[1], num(g.get("radius").unwrap()), 0.0, TAU])
         }
+        EntityClass::Ellipse => {
+            // only an axis-aligned one gets here: a rotated one has a derived angle and is skipped by the caller
+            let c = xy(g.get("center").unwrap());
+            let (a, b) = (num(g.get("semi_major").unwrap()), num(g.get("semi_minor").unwrap()));
+            bits(&[c[0], c[1], a, b, 0.0, 0.0, TAU])
+        }
         EntityClass::CircularArc => {
             let c = xy(g.get("center").unwrap());
             bits(&[
@@ -292,7 +293,10 @@ fn every_stored_real_is_the_bit_pattern_the_record_authored() {
         let record = registry.get(&id).unwrap().expected.as_ref().unwrap();
         let opened = read(&art.bytes).unwrap_or_else(|e| panic!("{id} does not read back: {e}"));
         assert_eq!(opened.entities.len(), record.entities.len(), "{id}");
-        for (i, (got, want)) in opened.entities.iter().zip(&record.entities).enumerate() {
+        for (i, (got, authored)) in opened.entities.iter().zip(&record.entities).enumerate() {
+            // an instance record is stored as its world-space curve (ADR 0017, #200)
+            let world = authored.world().expect("the world block of the record is a curve");
+            let want = world.as_ref().unwrap_or(authored);
             assert_eq!(art.ids[i], (want.id.clone(), got.id()), "{id}: the id map");
             if art.derived.iter().any(|d| d.entity == want.id) {
                 // a stored number of this entity is derived and says so; issue_101_gaps holds it to its bound

@@ -1,9 +1,9 @@
 {
   "bundle": "the corpus/r0-open directory as a deterministic tar (entries sorted, mtime 0, uid and gid 0, mode 0644, no compression, root r0-open/)",
-  "bundle_sha256": "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50",
+  "bundle_sha256": "b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb",
   "corpus_revision": "r0-open",
   "how_to_verify": "python3 -m runner.r0_open bundle corpus/r0-open OUT.tar && sha256sum OUT.tar, then compare with bundle_sha256; python3 -m runner.r0_open check corpus/r0-open recomputes every verdict",
-  "manifest_sha256": "de3903df3e4d7bc0556a2d593298aaea34dcdbdcdec9015d753df14f1566bf21",
+  "manifest_sha256": "aaa7fcac8eeecd5e0e60dd7084ca40601df9194967107cd0330ab3f515b98ace",
   "numeric_policy_version": "PVec numeric policy v1",
   "status": "CANDIDATE",
   "tag": "corpus-r0-open",

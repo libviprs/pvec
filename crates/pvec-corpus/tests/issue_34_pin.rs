@@ -12,8 +12,8 @@ fn issue_34_the_vendored_pin_names_the_revision_tag_and_digest() {
     let pin = vendored_pin();
     assert_eq!(pin.corpus_revision, "r0-open");
     assert_eq!(pin.tag, "corpus-r0-open");
-    assert_eq!(pin.bundle_sha256, "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50");
-    assert_eq!(pin.manifest_sha256, "de3903df3e4d7bc0556a2d593298aaea34dcdbdcdec9015d753df14f1566bf21");
+    assert_eq!(pin.bundle_sha256, "b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb");
+    assert_eq!(pin.manifest_sha256, "aaa7fcac8eeecd5e0e60dd7084ca40601df9194967107cd0330ab3f515b98ace");
     assert_eq!(pin.numeric_policy_version, "PVec numeric policy v1");
 }
 

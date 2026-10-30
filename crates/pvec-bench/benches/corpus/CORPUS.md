@@ -17,10 +17,10 @@ the current one, so I renamed its output. The 10^7 table below is the old lock's
 | | |
 |---|---|
 | fixture repository | `libviprs/pvec-gold-fixtures`, the EPIC O corpus (`libviprs/pvec-gold-fixtures#1`) |
-| tag and commit | `corpus-r0-open`, `f94f7f22b7aaff36eaaf6d5501fafc42054f22f2` |
-| bundle sha256 | `901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50` (the vendored `tests/corpus/r0-open.tar`, see `docs/CORPUS.md`) |
+| tag and commit | `corpus-r0-open`, `1df9d1b3e75047fa3978ebd809d0128cdfb28a68` |
+| bundle sha256 | `b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb` (the vendored `tests/corpus/r0-open.tar`, see `docs/CORPUS.md`) |
 | generator | `pvec-bench-corpus/1` (change it when a model changes, so a stale lock cannot match) |
-| entries | 32 in the lock (22 known-truth, 10 generated), 16 exclusions |
+| entries | 38 in `corpus.post159.lock.json` (28 known-truth, 10 generated), 10 exclusions; the frozen `corpus.lock.json` keeps its 32 (22 known-truth) |
 
 Nothing in the corpus is stored as a `.pvec`. An entry is either one of the `r0-open` fixtures run through the P2.4 canonical
 generator, or a synthetic drawing from a model and a seed, and `pvec_bench::build(name)` rebuilds any of them from the
@@ -36,7 +36,7 @@ Entity counts are by registry capability, as the lock records them. A full circl
 
 ### synthetic-known-truth
 
-The 22 `r0-open` fixtures the P2.4 generator can hold exactly, each a handful of entities: `arc-seam-001`, `bezier-d3-001`,
+The 28 `r0-open` fixtures the P2.4 generator can hold exactly (the frozen `corpus.lock.json` lists the 22 it knew before the re-pin of pvec#200; the six added are `nested-blocks-001`, `nonuniform-scale-circle-001`, `nonuniform-scale-rotated-001`, `reflection-001`, `rotation-irrational-001` and `uniform-scale-001`, each stored as its world-space curve), each a handful of entities: `arc-seam-001`, `bezier-d3-001`,
 `bspline-d3-001`, `bspline-d5-001`, `bulge-arc-001`, `bulge-arc-neg-001`, `circle-001`, `closed-by-endpoint-001`,
 `closed-periodic-001`, `ellipse-001`, `elliptical-arc-001`, `large-coords-001`, `layer-state-001`, `line-001`,
 `lwpolyline-closed-001`, `nonunit-weight-001`, `nurbs-d2-offconic-001`, `nurbs-d3-001`, `polyline-001`, `polyline2d-001`,
@@ -135,7 +135,7 @@ The pass counts are in the comment on the pull request that carries this file.
 
 ## Evidence classes
 
-An entry carries its EPIC O evidence class unchanged and nothing here promotes one. The 22 known-truth entries are
+An entry carries its EPIC O evidence class unchanged and nothing here promotes one. The 28 known-truth entries are
 `KNOWN_TRUTH_EXACT` as the registry loads them (scope `READER_MAPPING_ONLY`, no oracle), which means two open DWG readers agree
 with the authored mathematics and nothing about STEP. The ten generated entries have `evidence_class: null`: they were made by
 this repository, they are not EPIC O fixtures, and a class would claim an independent source they do not have. No entry is
@@ -155,8 +155,8 @@ lock.
 | name | kind | why |
 |---|---|---|
 | `general-affine-001`, `shear-001`, `singular-001` | QUARANTINED | the corpus could not write the probe, so there is no file and no record |
-| `near-singular-001` | NOT_EMITTED | the manifest says no curve may be emitted for it |
-| `nested-blocks-001`, `nonuniform-scale-circle-001`, `nonuniform-scale-rotated-001`, `reflection-001`, `rotation-irrational-001`, `translation-001`, `uniform-scale-001` | MISSING_CAPABILITY | the container stores no instance transform (`affine_transform_2d`, pvec#120), so the generator refuses rather than emit the world-space result |
+| `near-singular-001` | NOT_EMITTED | the manifest says no curve may be emitted for it (a near-singular transform is quarantined by design, and its record has no world-space curve) |
+| `translation-001` | MISSING_CAPABILITY | its world-space line is at z = 2 and the profile is 2D with no implicit promotion (pvec#200) |
 | `pathological-zero-length-line`, `pathological-coincident-vertices` | WRITER_REFUSAL | `HOT-25` / NP-06, the writer rejects degenerate length |
 | `architectural-real-world`, `mep-real-world`, `industrial-real-world` | REAL_WORLD_ABSENT | no real-world entry exists in the fixture repository yet |
 
@@ -168,7 +168,7 @@ distribution. Each entry's lock row repeats both statements.
 
 ## Viewports
 
-`viewports.csv` records 200 viewports per entry (32 entries, 6,400 rows, columns `entry,index,x0,y0,x1,y1`). The first is
+`viewports.csv` records 200 viewports per entry (38 entries, 7,600 rows, columns `entry,index,x0,y0,x1,y1`). The first is
 the whole drawing, for a cold open, and the rest cycle through half, a quarter, an eighth and a thirty-second of each side at
 positions drawn from a stream seeded by the entry name. They are rounded to three decimals so the CSV round-trips exactly,
 and a test recomputes the whole file from the bounds in the lock, so a later task's claim to replay the same viewport is

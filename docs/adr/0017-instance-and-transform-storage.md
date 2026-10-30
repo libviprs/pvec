@@ -45,8 +45,10 @@ lands the generator keeps refusing them and its message cites this ADR.
 * A consumer that wants to know a drawing used blocks cannot learn it from the artifact. That is the
   trade: the file is smaller to read and simpler to verify, and it is larger on disk than one that shares
   a block (deduplication is a non-goal in #1).
-* Two follow-ups, neither done here: the re-tag in `libviprs/pvec-gold-fixtures`, and the generator
-  emitting the world-space curve for the seven once it is.
+* Both follow-ups are done (#200): the corpus re-tagged `TRANSFORM_PRESERVED` as `SOURCE_MAPPING` (gold `1df9d1b`),
+  and the generator emits the world-space curve for six of the seven when the record carries that assertion.
+  `translation-001` is still refused: its world-space line is at z = 2 and the profile is 2D with no implicit
+  promotion, which is a different gap from this ADR's.
 
 ## Reversal threshold
 

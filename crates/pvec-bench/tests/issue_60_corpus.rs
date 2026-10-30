@@ -8,8 +8,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-const FIXTURE_COMMIT: &str = "f94f7f22b7aaff36eaaf6d5501fafc42054f22f2";
-const BUNDLE_SHA256: &str = "901370036bbffbbb8cb30471c2bf90f171b4f966c5bdfea6b140591cd840ca50";
+const FIXTURE_COMMIT: &str = "1df9d1b3e75047fa3978ebd809d0128cdfb28a68";
+const BUNDLE_SHA256: &str = "b0e3377be9581fac4c0e172982bdeb3319f93c95383428823097ef82918c3eeb";
 const QUARANTINED: [&str; 3] = ["general-affine-001", "shear-001", "singular-001"];
 /// Entries up to this size are rebuilt by the default test run; the bigger ones by the ignored test.
 const FAST: i64 = 100_000;
