@@ -139,8 +139,8 @@ fn adr_0017_and_0018_are_accepted_with_a_date_and_0018_records_the_four_decision
     let r = section(&t, "Ratification");
     for needle in [
         "ADR 0017",
-        "scan-only sheets stay out of v1",
-        "capability-owned block kinds",
+        "Scan-only sheets stay out of v1",
+        "Capability-owned block kinds",
         "`Raster` class",
         "256 to 1024",
         "nine",

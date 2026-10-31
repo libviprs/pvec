@@ -7,7 +7,7 @@
 use crate::{Registry, Version};
 
 /// The version of the format (container and registry together) this build writes.
-pub const FORMAT_VERSION: Version = Version::new(1, 0, 0);
+pub const FORMAT_VERSION: Version = Version::new(1, 1, 0);
 
 /// Minor releases a capability stays `deprecated` before it may become `write-disabled`.
 pub const DEPRECATED_MIN_MINORS: u16 = 2;
@@ -79,7 +79,7 @@ impl Status {
 }
 
 impl Snapshot {
-    /// The snapshot of a registry: every entry active since 1.0.0.
+    /// The snapshot of a registry: every entry active, since the format version whose readers first understand it.
     pub fn from_registry(registry: &Registry) -> Snapshot {
         let mut entries: Vec<SnapshotEntry> = registry
             .entries()
@@ -92,7 +92,7 @@ impl Snapshot {
                 requirement: c.requirement.label().to_string(),
                 min_reader: c.min_reader,
                 status: Status::Active,
-                status_since: FORMAT_VERSION,
+                status_since: c.min_reader,
             })
             .collect();
         entries.sort_by_key(|e| e.id);

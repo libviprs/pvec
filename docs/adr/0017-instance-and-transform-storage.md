@@ -1,6 +1,6 @@
 # ADR 0017: Instance and transform storage
 
-Status: Proposed, 2026-10-25. Decides #120. Awaiting Rom's ratification. Builds on ADR 0001 (the profile is
+Status: Accepted, 2026-10-31 (proposed 2026-10-25). Decides #120. Ratified by Rom with ADR 0018, which amends it below. Builds on ADR 0001 (the profile is
 for flattened drawings), ADR 0012 / #49 (what a transform does to a curve) and the no-silent-approximation
 rule of #37.
 
@@ -49,6 +49,18 @@ lands the generator keeps refusing them and its message cites this ADR.
   and the generator emits the world-space curve for six of the seven when the record carries that assertion.
   `translation-001` is still refused: its world-space line is at z = 2 and the profile is 2D with no implicit
   promotion, which is a different gap from this ADR's.
+
+## Amendment 2026-10-31: the curve-only rule is for geometry
+
+ADR 0018 (raster graphics inside a PVec artifact) is the one exception to "PVec stays curve-only", and I say so here
+without rewriting the Decision above. The rule stands for **geometry**: an artifact holds no instance, no block
+table and no transform on a curve, and every entity is a curve. A raster placement is not an entity.
+
+The exactness argument is why a transform is stored for pixels and not for curves. Flattening a curve through a
+`Transform2` is exact (ADR 0012): the world-space curve is derived, not approximated, so storing the matrix buys
+nothing. Pixels have no such flattening: resampling them into source space is lossy and cannot be undone, so ADR 0002's
+authored-bits rule points the other way: keep the bytes and carry the 2x3 map. The other two reasons for refusing a transform still hold:
+tiles stay out of the spatial index, and a viewer applies one affine per raster, never a tree of instances.
 
 ## Reversal threshold
 
