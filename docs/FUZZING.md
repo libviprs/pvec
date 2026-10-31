@@ -82,6 +82,17 @@ Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 
 
 The same targets also run on stable Rust without libFuzzer, so the pull request gate does not need a nightly toolchain: `PVEC_FUZZ_EXECUTIONS=3000000 cargo test --release -p pvec-fuzz --test smoke -- --nocapture` ran three seeds of 3,000,000 executions per target (54 million in about 40 seconds on the MacBook), with the allocator counted per execution against the same budget. That driver is not coverage guided and is the weaker evidence; it is the one a test can run every time.
 
+## The raster targets (issues #218 and #219)
+
+The smoke budget of a pull request for the raster work is 300 seconds a target, run on MARS (native x86_64, one container, two cpus) with `tools/fuzz.sh --host mars --seconds 300 fuzz_raster_index fuzz_directory_traversal`. `fuzz_directory_traversal` has the kind 9 and kind 10 seed entries of issue #216 in its corpus, which is where the traversal changed. No run produced a crash, an out-of-memory or a timeout.
+
+| target | host | platform | time | executions | exec/s | edges | features | corpus | peak RSS |
+|---|---|---|---|---|---|---|---|---|---|
+| `fuzz_raster_index` | mars | native x86_64 | 301 s | 38,193,245 | 126,887 | 479 | 1,159 | 69 -> 102 | 457 MB |
+| `fuzz_directory_traversal` | mars | native x86_64 | 301 s | 7,927,434 | 26,336 | 4,251 | 9,976 | 257 -> 1,067 | 466 MB |
+
+The index target plateaus early (479 edges after 1.3 million executions): its parser is a short chain of checks, and the structure-aware mutator keeps the length so the counts keep adding up. The corpus of the run lives in a docker volume that `tools/fuzz.sh` removes at the end unless `--keep-corpus` is given; the seeds are rebuilt from the tiler by `seed-corpus`, so nothing is lost by that.
+
 ## The long run (P7.8, issue #190)
 
 `--seconds` is per target and the targets of one invocation run one after the other, so six targets at 14,400 s on one host is 24 hours. To fit the window I ran separate `tools/fuzz.sh` invocations in parallel, one container each (`--cpus 1`, libFuzzer is single threaded), each with its own `RUN_ID` and its own corpus volume (`CORPUS_VOL`), after building the image once on every host so they did not race on the image tag. All of it started at 00:07 PDT on 2026-10-28 and ended by 04:12.
