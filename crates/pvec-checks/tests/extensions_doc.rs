@@ -137,3 +137,11 @@ fn the_registry_with_the_sample_registered_still_validates_against_the_profile()
     r.register_extension(cap, &read("docs/extensions/sample-proposal.md")).unwrap();
     r.validate_against_profile(&sections).unwrap();
 }
+
+#[test]
+fn the_governance_document_says_raster_is_not_a_geometry_extension() {
+    let d = flat(&read("docs/EXTENSIONS.md"));
+    assert!(d.contains("raster is not a geometry extension") && d.contains("ADR 0018"));
+    let r = Registry::v1();
+    assert!(r.entries().iter().filter(|c| c.class == Class::Extension).all(|c| c.id.get() != 21));
+}

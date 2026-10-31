@@ -65,3 +65,10 @@ fn a_single_changed_byte_in_the_document_is_detected() {
     assert_ne!(format!("{generated} "), generated);
     assert_ne!(generated.replacen('|', "!", 1), generated);
 }
+
+#[test]
+fn the_generated_document_lists_entry_21_as_an_optional_raster_class_capability() {
+    let generated = render_markdown(&Registry::v1());
+    let row = generated.lines().find(|l| l.starts_with("| 21 | `raster` |")).expect("a row for capability 21");
+    assert!(row.contains("| raster | 1.0.0 |") && row.contains("| optional |") && row.contains("| 1.1.0 |") && row.contains("ADR 0018"), "{row}");
+}

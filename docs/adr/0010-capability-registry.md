@@ -43,3 +43,12 @@ data, so the crate itself stays dependency free and does no I/O; `pvec-checks` f
 Relax the contiguity rule if capability ids ever need to be allocated from separate ranges by separate
 authors (a second registry); until then one counter is simpler to audit. Move the GIS column to measured
 values once P6.8's fidelity reports exist.
+
+## Amendment 2026-10-31: the `Raster` class
+
+ADR 0018 adds a fourth class to the registry's class list (geometry, component, extension): `Raster`. Its first and
+so far only entry is capability 21 `raster`. A `Raster` entry is optional by construction (a file cannot declare it
+required and `Registry::new` refuses one that is), it refers to no entity, and it may own block kinds: kinds 9 and 10
+are reserved for capability 21 in `docs/CONTAINER.md`. It is not a component (a component is information about
+entities) and not a geometry extension (`docs/EXTENSIONS.md`), so neither of their rules applies to it. The `Class`
+enum is `#[non_exhaustive]`, so the variant is a compatible addition, and the format version moves to 1.1.0 with it.

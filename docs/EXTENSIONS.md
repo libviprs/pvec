@@ -16,7 +16,8 @@ An `ARC`, a `CIRCLE` and an `ELLIPSE` that happens to be round already land on t
 Source mapping belongs to EPIC N in `libviprs/libviprs`. So "the source format has an entity for it" is
 never an argument in a proposal, and a proposal that rests on it is refused. An extension is justified
 only when no suitable ISO 10303-42 representation exists. Style, text and hatch are not geometry
-extensions at all: they are component streams (P3.7) and stay outside the geometry oracle.
+extensions at all: they are component streams (P3.7) and stay outside the geometry oracle. A raster is not a geometry
+extension either: it is the `Raster` registry class (ADR 0018, capability 21), so this page's proposal process does not apply to it.
 
 ## What a proposal has to carry
 

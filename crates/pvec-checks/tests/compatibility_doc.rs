@@ -97,3 +97,14 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         "the document counts {pairs} pairs differently"
     );
 }
+
+#[test]
+fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
+    let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
+    assert!(text.starts_with("# ") && text.contains("format_version = \"1.1.0\""));
+    let s = Snapshot::parse(&text).unwrap();
+    let e = s.entries.iter().find(|e| e.id == 21).expect("entry 21");
+    assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("raster", "raster", "optional"));
+    assert_eq!(e.min_reader.to_string(), "1.1.0");
+    assert_eq!(e.status_since.to_string(), "1.1.0");
+}

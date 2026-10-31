@@ -14,7 +14,7 @@ container layout of [`CONTAINER.md`](CONTAINER.md) for someone who has to decide
 
 ## What may change within v1.x
 
-* New optional blocks and new capabilities added through the extension rules, which an older reader skips or refuses by name.
+* New optional blocks and new capabilities added through the extension rules, which an older reader skips or refuses by name. 1.1.0 is the first such step: capability 21 `raster` (ADR 0018) with block kinds 9 and 10, optional, so a 1.0.0 reader opens the file degraded and the container stays 1.0.
 * A new minor container version that only adds optional fields after the existing header.
 * Writer defaults that do not change what a reader must accept (codec choice, block packing, index tuning).
 * Tightened limits in the browser preset, and faster or smaller readers behind the same behaviour.
