@@ -6,7 +6,7 @@ use pvec_container::blocks::raster::KIND_TILES;
 use pvec_container::source::{MemorySource, Recording};
 use pvec_container::{ContainerReader, ReaderConfig};
 use pvec_stream::{Aabb, RasterPlanError, TileSlot, ViewportQuery, plan_placed};
-use pvec_testkit::raster_file::{RasterIn, raster_file};
+use pvec_testkit::raster_file::{RasterIn, line_writer, raster_file};
 use pvec_testkit::tiler::{Shape, tiles};
 
 /// The test vector of docs/RASTER.md chapter 5, cut at 256: 1024 by 512 pixels, three levels.
@@ -35,6 +35,7 @@ fn placement(codec: TileCodec) -> Placement {
 fn file() -> Vec<u8> {
     let tiles = tiles(SHAPE, |level, col, row| !(level == 2 && (col, row) == (3, 1)));
     raster_file(
+        line_writer(),
         &[RasterIn { placement: placement(TileCodec::Png), tiles, inline_levels: 1, chunk_bytes: 1 << 22 }],
         1 << 20,
     )

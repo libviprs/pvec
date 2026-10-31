@@ -24,8 +24,8 @@ pub struct RasterIn {
     pub chunk_bytes: u32,
 }
 
-/// The artifact: sealed with the digest, the raster blocks after the geometry in the canonical order.
-pub fn raster_file(rasters: &[RasterIn], max_tiles: u64) -> Vec<u8> {
+/// A writer with the one line of geometry the artifact needs (WRT-01 refuses a file with no entity).
+pub fn line_writer() -> ContainerWriter {
     let mut writer = ContainerWriter::new(WriterConfig {
         unit: LengthUnit::Metre,
         metadata: Metadata {
@@ -39,6 +39,13 @@ pub fn raster_file(rasters: &[RasterIn], max_tiles: u64) -> Vec<u8> {
     let id = EntityId::new(0).expect("id 0");
     let bounds = Bounds { min: [0.0, 0.0], max: [1.0, 1.0] };
     writer.push_line(EntityMeta { id, style: 0, cell: 0, bounds }, [0.0, 0.0], [1.0, 1.0]).expect("a line");
+    writer
+}
+
+/// `writer`, finished with the raster stream pushed to it, and the raster blocks assembled after its geometry
+/// in the canonical order: every kind 9 block by raster, then every kind 10 block by raster and subtype. Sealed
+/// with the artifact digest.
+pub fn raster_file(mut writer: ContainerWriter, rasters: &[RasterIn], max_tiles: u64) -> Vec<u8> {
     let placements: Vec<Placement> = rasters.iter().map(|r| r.placement.clone()).collect();
     let version = pvec_capabilities::Registry::v1().get(RASTER_CAPABILITY).expect("capability 21").version;
     let payload = encode_rasters(&placements).expect("the placements encode");
@@ -86,7 +93,7 @@ pub fn raster_file(rasters: &[RasterIn], max_tiles: u64) -> Vec<u8> {
         let corners =
             [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(u, v)| [a * u + b * v + tx, c * u + dd * v + ty]);
         let fold = |f: fn(f64, f64) -> f64, i: usize| {
-            corners.iter().map(|q| q[i]).fold(corners[0][i], |m, v| f(m, v))
+            corners.iter().map(|q| q[i]).fold(corners[0][i], f)
         };
         let footprint = Some(Bounds {
             min: [fold(f64::min, 0), fold(f64::min, 1)],

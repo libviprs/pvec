@@ -1,5 +1,6 @@
 //! The viewport plan for one raster (issue pvec#220, `docs/STREAMING.md` chapter 9).
 
+use crate::directory::Aabb;
 use crate::viewport::{PlanSource, ViewportQuery};
 use pvec_components::{PixelFormat, Placement};
 use pvec_container::blocks::raster::{KIND_TILES, RasterIndex, subtype};
@@ -291,4 +292,19 @@ pub fn plan_placed<R: PlanSource>(
         config.max_request_bytes,
         slot,
     )
+}
+
+/// The extent a reader reports for fit-to-view: the box of `root` (the spatial directory's root box, a union
+/// of entities, which stays as it is) grown by the footprint of every raster's `visible_box` in source space
+/// (ADR 0018, "Spatial index and range fetch"). A raster whose corners are not finite adds nothing.
+pub fn reported_extent(root: Aabb, placements: &[Placement]) -> Aabb {
+    placements.iter().fold(root, |extent, p| {
+        let [x0, y0, x1, y1] = p.visible_box.map(f64::from);
+        let [a, b, c, d, tx, ty] = p.pixel_to_source;
+        let corners =
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(u, v)| [a * u + b * v + tx, c * u + d * v + ty]);
+        let low = corners.iter().fold([f64::INFINITY; 2], |m, q| [m[0].min(q[0]), m[1].min(q[1])]);
+        let high = corners.iter().fold([f64::NEG_INFINITY; 2], |m, q| [m[0].max(q[0]), m[1].max(q[1])]);
+        Aabb::new(low, high).map_or(extent, |footprint| extent.union(&footprint))
+    })
 }

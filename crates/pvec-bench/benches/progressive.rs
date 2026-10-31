@@ -107,7 +107,7 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
     let (win, scale) = (aabb(window), scale_of(window));
     let t = Instant::now();
     let plan = ViewportQuery::new(win, scale)
-        .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0 })
+        .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() })
         .expect("plan");
     let mut t0_ids: Vec<BlockId> = Vec::new();
     let mut exact: Vec<Vec<BlockId>> = Vec::new();
@@ -400,7 +400,7 @@ fn interaction(o: &Out, file: &Path, truth: &Truth, wins: &[[f64; 4]]) {
                 let dir = SpatialDirectory::open(&r).expect("directory").expect("a directory");
                 let leaves = Tier0Leaves::new(r.entries(), &dir).expect("leaves");
                 let plan = ViewportQuery::new(aabb(next), scale_of(next))
-                    .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0 })
+                    .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() })
                     .expect("plan");
                 plan.block_ids().into_iter().collect()
             };

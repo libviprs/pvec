@@ -512,3 +512,17 @@ The plan sums `tile_edge^2 * channels` over the tiles it would hand on (stored a
 ### 6.4 The ranges
 
 The stored tiles that are not inline are sorted by file offset and merged: a gap of at most `ReaderConfig::gap_threshold` (64 KiB) is bridged while a range stays within `max_request_bytes`. Only tiles merge with tiles. Kinds 9 and 10 sort after every geometry block in the canonical order, and a range never starts before its first tile or ends after its last, so a gap is never bridged into a hot block. A tile the index says is not stored (length 0) gives no tile and no range. An inline tile (the coarse levels kept in the index block for Tier 0) is in the plan as `TileSlot::Inline`, already present, and is not requested.
+
+### 6.5 From a file
+
+`plan_placed(reader, raster, placement, index, query, config)` is `plan_raster` for an open file. The caller has the placement (the raster stream, `pvec-components`) and the parsed index block (`ContainerReader::raster_index`, which fetches it lazily; in the browser the `-7` protocol of `WASM_ABI.md` does). The function reads nothing: it asks the reader for its directory only, to turn the index's `(chunk, offset)` into a block and a file offset (`offset` of the chunk's block plus the tile's offset in it). `LIMIT-16`, the gap and the request ceiling come from the `ReaderConfig`. A raster with an unknown tile codec is `RasterPlanError::Skipped`, and a tile whose chunk the directory lacks or whose range is past the chunk is planned as not stored (the open-time check, `check_raster_blocks`, refuses such a file first). The channels that size a decoded tile are the placement's pixel format (1 to 4).
+
+### 6.6 The Tier 0 share
+
+`plan_tiered` adds the raster share to Tier 0: the index blocks (kind 9) of the rasters whose footprint touches the viewport, in raster order, while their stored bytes stay within `ViewportConfig::raster_tier0_cap` (`RASTER_TIER0_CAP`, 256 KB over all rasters of the file, from the 290 KB of headroom of `tier0-4s-5mbit`). Their inline part is the coarse levels of each raster, so the index block is the first paint of a raster. They are `Tier::Tier0` requests with no entity gain, so they rank after the geometry's Tier 0 requests and before every exact one, and they count against `tier_budget` like those (a tight budget defers them after the first request). Index blocks coalesce with each other only: kind 9 sorts after every geometry block and before kind 10, so no gap bridges a raster and a hot block. A file with no raster plans exactly as `plan` does (a test compares them), and a raster that does not fit the cap is not planned at Tier 0 and is fetched by its own plan when the viewport needs it.
+
+**Which cap wins.** The cap is configured in one place for the plan, `ViewportConfig::raster_tier0_cap`, and the writer decides how much it puts inline (`inline_levels` of `blocks::raster::build`). The writer owns the amount, the plan can only lower what it fetches, so when the two differ the smaller wins in the plan (ADR 0018, Ratification).
+
+### 6.7 The extent
+
+`reported_extent(root, placements)` is the extent a reader reports for fit-to-view: the spatial directory's root box grown by the source-space footprint of every raster's `visible_box`. The directory's own root box is not changed (it is a union of entities, and a raster is in no leaf).

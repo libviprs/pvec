@@ -343,7 +343,7 @@ fn query(window: Aabb) -> ViewportQuery {
 }
 
 fn no_margin() -> ViewportConfig {
-    ViewportConfig { prefetch_margin_px: 0.0 }
+    ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() }
 }
 
 pub struct Measured {
