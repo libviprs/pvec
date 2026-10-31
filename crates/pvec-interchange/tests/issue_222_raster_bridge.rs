@@ -113,7 +113,7 @@ fn exported() -> (Vec<u8>, Vec<u8>) {
 #[test]
 fn issue_222_the_directory_has_one_entry_per_stored_tile_and_none_for_a_not_stored_one() {
     let (_, a) = exported();
-    let stored = 12 + 3 + 1;
+    let stored = 12 + 4 + 1 - MISSING.len();
     assert_eq!(all_tiles(&a).len(), stored);
     for (l, c, r) in MISSING {
         assert!(find(&a, ref_tile_id(l, u64::from(c), u64::from(r))).is_none(), "{l}/{c}/{r}");
@@ -295,17 +295,16 @@ fn issue_222_the_accepted_tiles_import() {
 
 #[test]
 fn issue_222_the_edge_is_sniffed_from_the_tile_and_a_tile_that_says_another_edge_is_refused() {
-    let p = Placement {
-        width: 256,
-        height: 256,
-        visible_box: [0, 0, 256, 256],
-        levels: 1,
-        ..placement()
-    };
+    let p = Placement { width: 256, height: 256, visible_box: [0, 0, 256, 256], levels: 1, ..placement() };
     let with_edge = |edge: u32| {
         let a = write_raster_archive(&RasterArchive {
             tile_type: RasterTileType::Png,
-            tiles: vec![RasterTile { z: 0, x: 0, y: 0, bytes: tilegen::png(edge, 4, 8, &tilegen::payload(40, 1)) }],
+            tiles: vec![RasterTile {
+                z: 0,
+                x: 0,
+                y: 0,
+                bytes: tilegen::png(edge, 4, 8, &tilegen::payload(40, 1)),
+            }],
             pvec: Some(placement_json(&p)),
             attribution: None,
         })
@@ -332,11 +331,13 @@ fn issue_222_a_tile_outside_the_pyramid_is_refused() {
     let (_, a) = exported();
     let mut ar = read_raster_archive(&a, &RasterReadLimits::default()).unwrap();
     ar.tiles.push(RasterTile { z: 3, x: 0, y: 0, bytes: tile_bytes(0, 0, 0) });
-    let e = import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
+    let e =
+        import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
     assert!(matches!(e, ImportError::TileOutsidePyramid { .. }), "{e}");
     let mut ar = read_raster_archive(&a, &RasterReadLimits::default()).unwrap();
-    ar.tiles.push(RasterTile { z: 0, x: 1, y: 0, bytes: tile_bytes(0, 0, 0) });
-    let e = import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
+    ar.tiles.push(RasterTile { z: 2, x: 0, y: 3, bytes: tile_bytes(0, 0, 0) });
+    let e =
+        import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
     assert!(matches!(e, ImportError::TileOutsidePyramid { .. }), "{e}");
 }
 
@@ -347,7 +348,8 @@ fn issue_222_a_refusal_is_a_report_line_that_names_the_rule() {
     let (_, a) = exported();
     let mut ar = read_raster_archive(&a, &RasterReadLimits::default()).unwrap();
     ar.tiles[0].bytes = tilegen::png(255, 4, 8, &tilegen::payload(40, 1));
-    let e = import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
+    let e =
+        import_raster(&write_raster_archive(&ar).unwrap(), None, &RasterReadLimits::default()).unwrap_err();
     let row = RasterRow::refused(0, &e);
     match &row.outcome {
         RasterOutcome::Unsupported(r) => assert!(r.as_str().contains("RASTER-03"), "{}", r.as_str()),

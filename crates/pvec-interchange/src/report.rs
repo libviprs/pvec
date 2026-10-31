@@ -78,6 +78,11 @@ impl RasterRow {
         let text = format!("the {target} export carries no raster");
         RasterRow { raster, outcome: RasterOutcome::Unsupported(Reason(text)) }
     }
+
+    /// The row of a raster that was refused, with the refusal as the reason (its text starts with the rule).
+    pub fn refused(raster: u32, why: &impl std::fmt::Display) -> RasterRow {
+        RasterRow { raster, outcome: RasterOutcome::Unsupported(Reason(why.to_string())) }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

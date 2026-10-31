@@ -18,8 +18,10 @@
 //! that order alone, and the metadata keys are written sorted. The writer never reads a clock; the
 //! only date in an archive is the string the caller passes in [`Provenance::created`].
 
+mod bridge;
 mod json;
 mod raster;
+pub use bridge::*;
 pub use raster::*;
 
 use crate::fidelity::FidelityKind;
