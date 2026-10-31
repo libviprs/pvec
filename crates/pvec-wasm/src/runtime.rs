@@ -8,7 +8,7 @@ use pvec::unstable::{
     SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -159,6 +159,17 @@ struct Ranged {
     loaded: RefCell<Loaded>,
 }
 
+/// The number and the family (0 `RASTER`, 1 `LIMIT`) of the rule a reader error names, when it is one of those.
+fn rule_number(error: &PvecError) -> Option<(u32, u32)> {
+    let PvecError::Read { rule } = error else { return None };
+    let (family, rest) = match rule.split_once('-')? {
+        ("RASTER", rest) => (0, rest),
+        ("LIMIT", rest) => (1, rest),
+        _ => return None,
+    };
+    Some((rest.get(..2)?.parse().ok()?, family))
+}
+
 /// What reading the raster stream gave: the placements, no stream, or the error of a damaged one.
 type Placements = Result<Option<Rc<Vec<Placement>>>, AbiError>;
 
@@ -174,8 +185,11 @@ struct File {
     ranged: Option<Ranged>,
     /// The raster placements once read (`None` until then): the error of a damaged stream, no stream, or the placements.
     rasters: RefCell<Option<Placements>>,
-    /// The rasters a call found it cannot draw, by raster id, with the number of the `RASTER-NN` rule.
-    skipped: RefCell<BTreeMap<u32, u32>>,
+    /// The rasters a call found it cannot draw, by raster id, with the rule: its number and its family (0
+    /// `RASTER-NN`, 1 `LIMIT-NN`).
+    skipped: RefCell<BTreeMap<u32, (u32, u32)>>,
+    /// The rule that refused the whole raster stream, when it names one, in the same form.
+    stream_rule: Cell<Option<(u32, u32)>>,
 }
 
 /// What the spatial directory of a file says about itself.
@@ -399,6 +413,7 @@ impl Runtime {
             entities: RefCell::new(entities),
             index,
             ranged: None,
+            stream_rule: Cell::new(rasters.as_ref().err().and_then(rule_number)),
             rasters: RefCell::new(Some(rasters.map(|p| p.map(Rc::new)).map_err(|_| AbiError::Read))),
             skipped: RefCell::default(),
         }))))
@@ -473,6 +488,7 @@ impl Runtime {
             ranged: Some(Ranged { ranges, loaded: RefCell::new(Loaded::default()) }),
             rasters: RefCell::default(),
             skipped: RefCell::default(),
+            stream_rule: Cell::default(),
         };
         let at = (handle & ((1 << INDEX_BITS) - 1)) as usize;
         self.slots[at].item = Some(Item::File(Rc::new(file)));
@@ -809,7 +825,10 @@ impl Runtime {
                 Err(_) if file.ranged.as_ref().is_some_and(|r| !r.ranges.needed().is_empty()) => {
                     return Err(AbiError::NeedRange);
                 }
-                Err(_) => Err(AbiError::Read),
+                Err(e) => {
+                    file.stream_rule.set(rule_number(&e));
+                    Err(AbiError::Read)
+                }
             };
             *file.rasters.borrow_mut() = Some(read);
         }
@@ -822,11 +841,11 @@ impl Runtime {
 
     /// The rasters that are not drawn, by raster id, with the number of the rule: a tile codec this build does not
     /// know (`RASTER-04`), and the rasters a call found refused.
-    fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, u32>, AbiError> {
+    fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, (u32, u32)>, AbiError> {
         let mut out = file.skipped.borrow().clone();
         match self.placements(file) {
             Ok(p) => out
-                .extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, 4))),
+                .extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, (4, 0)))),
             Err(AbiError::NoRaster) => {}
             Err(e) => return Err(e),
         }
@@ -848,18 +867,21 @@ impl Runtime {
             1 => Ok(skipped),
             2 => Ok(u32::from(skipped > 0 || placed == Err(AbiError::Read))),
             3 => Ok(u32::from(count > 0)),
+            4 => Ok(file.stream_rule.get().map_or(0, |r| r.0)),
+            5 => Ok(file.stream_rule.get().map_or(0, |r| r.1)),
             _ => Err(AbiError::BadArgument),
         }
     }
 
-    /// For the `i`th skipped raster: 0 its id, 1 the number of the rule.
+    /// For the `i`th skipped raster: 0 its id, 1 the number of the rule, 2 its family (0 `RASTER`, 1 `LIMIT`).
     pub fn raster_skipped(&mut self, file: u32, i: u32, which: u32) -> Result<u32, AbiError> {
         let file = self.file(file)?;
         let list = self.skip_list(&file)?;
         let (id, rule) = list.iter().nth(i as usize).ok_or(AbiError::BadArgument)?;
         match which {
             0 => Ok(*id),
-            1 => Ok(*rule),
+            1 => Ok(rule.0),
+            2 => Ok(rule.1),
             _ => Err(AbiError::BadArgument),
         }
     }
@@ -899,13 +921,12 @@ impl Runtime {
         }))
     }
 
-    /// Notes that `raster` is refused by the rule a reader error names (`RASTER-NN`), and returns the error the call
-    /// gives for it: skipped when the rule is one, a failed read otherwise.
+    /// Notes that `raster` is refused by the rule a reader error names (`RASTER-NN` or `LIMIT-NN`), and returns the
+    /// error the call gives for it: skipped when the rule is one, a failed read otherwise.
     fn refused(file: &File, raster: u32, error: &PvecError) -> AbiError {
-        let PvecError::Read { rule } = error else { return AbiError::Read };
-        match rule.strip_prefix("RASTER-").and_then(|n| n.get(..2)).and_then(|n| n.parse::<u32>().ok()) {
-            Some(n) => {
-                file.skipped.borrow_mut().insert(raster, n);
+        match rule_number(error) {
+            Some(rule) => {
+                file.skipped.borrow_mut().insert(raster, rule);
                 AbiError::RasterSkipped
             }
             None => AbiError::Read,

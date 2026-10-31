@@ -159,7 +159,7 @@ fn issue_221_the_stats_of_the_fixture_are_right() {
     assert_eq!(rt.raster_stat(f, 1), Ok(1), "skipped");
     assert_eq!(rt.raster_stat(f, 2), Ok(1), "an image this reader cannot show");
     assert_eq!(rt.raster_stat(f, 3), Ok(1), "has a stream");
-    assert_eq!(rt.raster_stat(f, 4), Err(AbiError::BadArgument));
+    assert_eq!(rt.raster_stat(f, 6), Err(AbiError::BadArgument));
     // the skipped raster and its reason: RASTER-04, an unknown tile codec
     assert_eq!(rt.raster_skipped(f, 0, 0), Ok(2));
     assert_eq!(rt.raster_skipped(f, 0, 1), Ok(4));

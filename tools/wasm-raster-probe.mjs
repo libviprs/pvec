@@ -47,7 +47,8 @@ want("raster_stat 0 (rasters)", x.raster_stat(file, 0), 2);
 want("raster_stat 1 (skipped)", x.raster_stat(file, 1), 1);
 want("raster_stat 2 (unrastered)", x.raster_stat(file, 2), 1);
 want("raster_stat 3 (has a stream)", x.raster_stat(file, 3), 1);
-want("raster_skipped (id, rule)", [x.raster_skipped(file, 0, 0), x.raster_skipped(file, 0, 1)], [1, 4]);
+want("raster_skipped (id, rule, family)", [x.raster_skipped(file, 0, 0), x.raster_skipped(file, 0, 1), x.raster_skipped(file, 0, 2)], [1, 4, 0]);
+want("raster_stat 4 and 5 (stream refusal, none here)", [x.raster_stat(file, 4), x.raster_stat(file, 5)], [0, 0]);
 
 const array = (h, n, Type, elem) => {
   const len = x.raster_buffer_len(h, n), at = x.raster_buffer_ptr(h, n) >>> 0;
