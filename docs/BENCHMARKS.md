@@ -66,6 +66,42 @@ the verdict. A red row is a result and stays red here; the failures are tracked 
 | P8.5 | `pan-discard-20pct` | linux-x86_64 (native x64) | PASS | architectural-1e6 on 25mbit-60ms: 0.0872 of decoded bytes (limit 0.2 of decoded bytes) |
 | P8.5 | `repeat-spread-20pct` | linux-x86_64 (native x64) | FAIL | 5 of 108 stage times vary by more than 20%: architectural-1e3 local directory_s (161.2%); architectural-1e3 local refine_first_s (60.8%); architectural-1e3 local refine_full_s (60.8%); architectural-1e3 local tier0_s (65.1%); architectural-1e5 local directory_s (38.1%) |
 
+## Rasters (pvec#220)
+
+The first measurements of ADR 0018, which the ADR had only as arithmetic. They are new rows, not copies, and they sit beside the P8.5 report they extend. Rows: `bench/raster.csv`, produced by `tools/progressive-bench.sh mars OUT architectural-1e6 architectural-1e6+r1 architectural-1e6+r10`, and read by `crates/pvec-bench/tests/issue_220_raster_bench.rs`.
+
+* Platform: `linux-x86_64`, native x64 on MARS (`linux/amd64` container `pvec-rust:1.99.1`, rustc 1.99.1, release build, 28 cores), 2026-10-31. Not re-run on arm64 (mercury): the arm64 column is empty and the verdicts below are x86_64 only.
+* Conditions: the host is shared. The load average was 10.14, 45.54, 68.60 when the run started and 48.33, 120.52, 93.93 when it ended, with other jobs (and my own test runs) on the machine. The network arms are modelled as in P8.5 and the CPU part is measured, so the modelled numbers move little with load and the `local` CPU numbers move a lot; they are on the `local` rows of the CSV, not in the verdicts. Three repeat runs, median of the p95 over the 200 recorded viewports of `architectural-1e6`, the same windows for all three files.
+* Fixture: `architectural-1e6` (the 1,000,000 entity corpus entry) with 0, 1 or 10 scanned sheets laid over its drawing. A sheet is 8192 by 6144 px at a 512 px tile edge, five levels, 257 tiles, bilevel PNG tiles of 33 KB from the test-only tiler (a stored deflate stream, so a tile is far heavier than the few hundred bytes a real bilevel scan compresses to: the Tier 0 and file-size numbers are on the heavy side). The coarsest level is inline in each index block.
+
+| measurement | 0 rasters | 1 raster | 10 rasters | note |
+|---|---|---|---|---|
+| cold open bytes (`bytes_directory`, mean per viewport) | 19,952 | 20,456 | 24,344 | +504 bytes for the first raster, +4,392 for ten: 432 bytes of directory per raster (one index block and five chunk blocks, 72 bytes each with the checksum), and 72 once for the block of the placement stream |
+| cold open time, 25 Mbit/s, 60 ms (`directory_s`, p95) | 0.18642 s | 0.18658 s | 0.18783 s | the P8.5 `directory-300ms` limit is 0.3 s |
+| complete Tier 0, 25 Mbit/s (`tier0_s`, p95) | 0.79247 s | 0.80526 s | 0.86992 s | limit 1.5 s |
+| complete Tier 0, 5 Mbit/s, 200 ms (`tier0_s`, p95) | 3.53546 s | 3.59962 s | 3.92290 s | `tier0-4s-5mbit`, limit 4 s |
+| Tier 0 bytes (`bytes_tier0`, mean per viewport) | 739,071 | 778,699 | 976,859 | |
+| raster index bytes in the Tier 0 plan of the fit-to-view | 0 | 39,628 | 237,768 | six of the ten index blocks fit the 262,144 byte cap |
+| index bytes per tile (kind 9 block less its inline tiles, over every entry) | | 24.44 | 24.44 | the ADR estimated about 24 |
+
+Requests per viewport on an A0 sheet at 300 dpi (14,043 by 9,933 px, 512 px tiles, 12,800 bytes a tile, full resolution, one device pixel per image pixel), viewports every 256 px over the sheet, `plan_raster` with the 64 KiB gap and the 16 MiB ceiling:
+
+| screen | order | viewports | mean ranges | p95 | max |
+|---|---|---|---|---|---|
+| 1080p (1920 by 1080) | Hilbert | 1,680 | 2.31 | 4 | 5 |
+| 1080p | row-major | 1,680 | 3.00 | 3 | 3 |
+| 4K (3840 by 2160) | Hilbert | 1,240 | 3.82 | 5 | 5 |
+| 4K | row-major | 1,240 | 5.00 | 5 | 5 |
+
+The verdicts, re-run on `architectural-1e6+r10` (`raster_verdicts`, ids `directory-300ms-raster` and `tier0-4s-5mbit-raster`):
+
+| phase | threshold | platform | verdict | declared limit and measured number |
+|---|---|---|---|---|
+| pvec#220 | `directory-300ms-raster` | linux-x86_64 (native x64) | PASS | architectural-1e6+r10 on 25mbit-60ms: 0.1878 s (limit 0.3 s) |
+| pvec#220 | `tier0-4s-5mbit-raster` | linux-x86_64 (native x64) | PASS | architectural-1e6+r10 on 5mbit-200ms: 3.9229 s (limit 4 s) |
+
+What I take from them. The Tier 0 cap of 256 KB (`RASTER_TIER0_CAP`) is kept: at the cap the 5 Mbit/s verdict passes with 77 ms to spare under ten sheets, and a bigger cap would take that headroom first. With ten sheets only six overviews are inside the cap; a real scan's overview is much smaller than this fixture's, so the cap bites later in practice, and a file whose overviews do not fit is still correct (the rest are fetched by the raster's own plan). `max_plan_decoded_bytes` (LIMIT-16, 256 MiB) is kept: the plan test shows it picks the level and the number of tiles, and what the decoder and the textures cost in a browser is not measured here (libviprs/maplibre-pvec#102 owns that). The Hilbert order lowers the mean requests per viewport by 23% at 1080p and 24% at 4K against row-major, and has the same p95 at 4K, but it has a worse tail at 1080p (p95 4 and max 5 against 3): I read that as worth keeping, with the tail as the cost.
+
 ## Not measured
 
 * The 4 hour nightly fuzz run of the hardening task (P7.8, pvec#190) is not measured here: the shorter runs are in [FUZZING.md](FUZZING.md), and the ones at the final tuning configuration are in `bench/TUNING.md`.

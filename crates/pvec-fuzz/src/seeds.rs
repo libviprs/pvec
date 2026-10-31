@@ -382,6 +382,8 @@ fn raster_index_inputs() -> Vec<Vec<u8>> {
     }
     out.push(Vec::new());
     one_of(out, |v| v.as_slice())
+}
+
 /// Placements and viewports for `fuzz_raster_plan`: an upright image, a rotated and sheared one, a tiny scale
 /// that LIMIT-16 has to coarsen, overzoom, a viewport off the image, a huge viewport and a singular map.
 fn raster_plan_frames() -> Vec<Vec<u8>> {
@@ -454,7 +456,7 @@ fn raster_plan_frames() -> Vec<Vec<u8>> {
             6,
             u64::MAX,
             [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-            [-1e9, -1e9, 1e9, 1e9, 1e-9],
+            [-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0, 1.0 / 1_000_000_000.0],
         ),
         (4_096, 4_096, 0, 5, 4, 7, 256 << 20, [1.0, 2.0, 2.0, 4.0, 0.0, 0.0], [0.0, 0.0, 100.0, 100.0, 1.0]),
     ];

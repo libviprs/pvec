@@ -1,0 +1,310 @@
+table,entry,platform,arm,param,metric,value,note
+stage,architectural-1e6,linux-x86_64,local,p95,directory_s,0.000038511,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,local,run1,directory_s,0.000036766,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run2,directory_s,0.000040821,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run3,directory_s,0.000038511,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,local,mean,directory_s,0.00003104085666666665,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,local,p95,tier0_s,0.006781563,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,local,run1,tier0_s,0.006828608,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run2,tier0_s,0.006781563,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run3,tier0_s,0.006769912,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,local,mean,tier0_s,0.003074167818333334,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,local,p95,refine_first_s,0.03937064954787634,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,local,run1,refine_first_s,0.03937922005857736,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run2,refine_first_s,0.03937064954787634,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run3,refine_first_s,0.038775695203122164,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,local,mean,refine_first_s,0.011611477459837627,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,local,p95,refine_full_s,0.074364109,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,local,run1,refine_full_s,0.07482573299999999,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run2,refine_full_s,0.07368393799999999,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,local,run3,refine_full_s,0.074364109,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,local,mean,refine_full_s,0.028920803176666666,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,local,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6,linux-x86_64,local,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6,linux-x86_64,local,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6,linux-x86_64,local,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6,linux-x86_64,local,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,p95,directory_s,0.186423151,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run1,directory_s,0.186421406,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run2,directory_s,0.18642546100000001,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run3,directory_s,0.186423151,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,mean,directory_s,0.18641568085666674,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,p95,tier0_s,0.792472095,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run1,tier0_s,0.792520146,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run2,tier0_s,0.792260002,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run3,tier0_s,0.792472095,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,mean,tier0_s,0.48596157581833327,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,p95,refine_first_s,2.5627633211574774,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run1,refine_first_s,2.5627580340423988,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run2,refine_first_s,2.5627633211574774,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run3,refine_first_s,2.5635814085661726,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,mean,refine_first_s,0.9692207184981712,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,p95,refine_full_s,4.618760755,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run1,refine_full_s,4.619703313,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run2,refine_full_s,4.617816965,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,25mbit-60ms,run3,refine_full_s,4.618760755,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,mean,refine_full_s,1.9607759770149995,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6,linux-x86_64,25mbit-60ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,p95,directory_s,0.631961711,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run1,directory_s,0.631959966,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run2,directory_s,0.631964021,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run3,directory_s,0.631961711,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,mean,directory_s,0.6319542408566666,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,p95,tier0_s,3.5354634550000004,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run1,tier0_s,3.5355115060000006,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run2,tier0_s,3.5352513620000003,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run3,tier0_s,3.5354634550000004,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,mean,tier0_s,2.017511207818332,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,p95,refine_first_s,12.272171321157478,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run1,refine_first_s,12.2721660340424,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run2,refine_first_s,12.272171321157478,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run3,refine_first_s,12.272989408566174,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,mean,refine_first_s,4.411830190498171,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,p95,refine_full_s,22.422216755,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run1,refine_full_s,22.423159313,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run2,refine_full_s,22.421272965,p95 of one repeat run
+repeat,architectural-1e6,linux-x86_64,5mbit-200ms,run3,refine_full_s,22.422216755,p95 of one repeat run
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,mean,refine_full_s,9.300369180215,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6,linux-x86_64,5mbit-200ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6,linux-x86_64,all,mean,ranges_directory,3,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6,linux-x86_64,all,mean,bytes_directory,19952,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6,linux-x86_64,all,mean,ranges_tier0,2.835,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6,linux-x86_64,all,mean,bytes_tier0,739071.15,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6,linux-x86_64,all,mean,ranges_refine,3.875,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6,linux-x86_64,all,mean,bytes_refine,4537534.04,ranges and bytes per viewport; mean over the 200 recorded viewports
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,discard_share,0.08723659499995433,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,discard_share_max,0.44591541445112365,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,bytes_discarded_mean,155087.16,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,pan,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,discard_share,0.14897507331991647,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,discard_share_max,0.6755449255652725,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,bytes_discarded_mean,345495.84,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6,linux-x86_64,25mbit-60ms,zoom,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+stage,architectural-1e6+r1,linux-x86_64,local,p95,directory_s,0.000037899,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,local,run1,directory_s,0.000037899,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run2,directory_s,0.000037342,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run3,directory_s,0.000039615,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,local,mean,directory_s,0.00003086017666666666,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,local,p95,tier0_s,0.006822722000000001,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,local,run1,tier0_s,0.006851956,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run2,tier0_s,0.006822722000000001,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run3,tier0_s,0.006806382,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,local,mean,tier0_s,0.0030990572416666664,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,local,p95,refine_first_s,0.038996938488189276,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,local,run1,refine_first_s,0.03864791189000431,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run2,refine_first_s,0.03949977873506695,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run3,refine_first_s,0.038996938488189276,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,local,mean,refine_first_s,0.01162967685594487,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,local,p95,refine_full_s,0.074135528,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,local,run1,refine_full_s,0.074135528,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run2,refine_full_s,0.074405945,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,local,run3,refine_full_s,0.073916844,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,local,mean,refine_full_s,0.028944636971666663,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,local,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r1,linux-x86_64,local,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r1,linux-x86_64,local,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r1,linux-x86_64,local,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r1,linux-x86_64,local,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,p95,directory_s,0.186583819,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run1,directory_s,0.186583819,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run2,directory_s,0.186583262,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run3,directory_s,0.186585535,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,mean,directory_s,0.18657678017666665,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,p95,tier0_s,0.8052591480000001,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run1,tier0_s,0.805260053,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run2,tier0_s,0.8052162129999999,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run3,tier0_s,0.8052591480000001,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,mean,tier0_s,0.49882870524166645,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,p95,refine_first_s,2.575739020148961,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run1,refine_first_s,2.575636064123328,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run2,refine_first_s,2.575739020148961,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run3,refine_first_s,2.576054640481737,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,mean,refine_first_s,0.9820560877909449,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,p95,refine_full_s,4.6315893280000004,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run1,refine_full_s,4.6315893280000004,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run2,refine_full_s,4.631731972,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,25mbit-60ms,run3,refine_full_s,4.630942418,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,mean,refine_full_s,1.9736169807066666,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r1,linux-x86_64,25mbit-60ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,p95,directory_s,0.6327674990000001,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run1,directory_s,0.6327674990000001,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run2,directory_s,0.6327669420000002,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run3,directory_s,0.6327692150000002,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,mean,directory_s,0.6327604601766667,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,p95,tier0_s,3.5996194680000007,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run1,tier0_s,3.599620373,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run2,tier0_s,3.5995765330000005,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run3,tier0_s,3.5996194680000007,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,mean,tier0_s,2.0817472972416664,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,p95,refine_first_s,12.336515980148961,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run1,refine_first_s,12.33641302412333,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run2,refine_first_s,12.336515980148961,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run3,refine_first_s,12.336831600481739,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,mean,refine_first_s,4.476034519790946,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,p95,refine_full_s,22.486414288000002,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run1,refine_full_s,22.486414288000002,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run2,refine_full_s,22.486556932000003,p95 of one repeat run
+repeat,architectural-1e6+r1,linux-x86_64,5mbit-200ms,run3,refine_full_s,22.485767378000002,p95 of one repeat run
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,mean,refine_full_s,9.364579143906665,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r1,linux-x86_64,5mbit-200ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r1,linux-x86_64,all,mean,ranges_directory,3,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r1,linux-x86_64,all,mean,bytes_directory,20456,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r1,linux-x86_64,all,mean,ranges_tier0,3.835,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r1,linux-x86_64,all,mean,bytes_tier0,778699.15,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r1,linux-x86_64,all,mean,ranges_refine,3.875,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r1,linux-x86_64,all,mean,bytes_refine,4537534.04,ranges and bytes per viewport; mean over the 200 recorded viewports
+raster,architectural-1e6+r1,linux-x86_64,all,total,rasters,1,rasters in the file
+raster,architectural-1e6+r1,linux-x86_64,all,total,tile_entries,257,every tile of every level of every raster
+raster,architectural-1e6+r1,linux-x86_64,all,total,stored_tiles,257,tiles with bytes
+raster,architectural-1e6+r1,linux-x86_64,all,mean,index_bytes_per_tile,24.43579766536965,from the file: kind 9 block bytes less the inline tiles; over every tile entry
+raster,architectural-1e6+r1,linux-x86_64,all,total,inline_bytes,33348,the coarse levels kept in the index blocks
+raster,architectural-1e6+r1,linux-x86_64,all,fit,tier0_raster_bytes,39628,raster index bytes in the fit-to-view Tier 0 plan
+raster,architectural-1e6+r1,linux-x86_64,all,fit,tier0_raster_cap,262144,the cap in force
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,discard_share,0.08723659499995433,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,discard_share_max,0.44591541445112365,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,bytes_discarded_mean,155087.16,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,pan,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,discard_share,0.14897507331991647,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,discard_share_max,0.6755449255652725,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,bytes_discarded_mean,345495.84,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6+r1,linux-x86_64,25mbit-60ms,zoom,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+stage,architectural-1e6+r10,linux-x86_64,local,p95,directory_s,0.000044909,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,local,run1,directory_s,0.000046218,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run2,directory_s,0.000044909,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run3,directory_s,0.000042962,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,local,mean,directory_s,0.000034755918333333336,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,local,p95,tier0_s,0.006864255,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,local,run1,tier0_s,0.006864255,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run2,tier0_s,0.006896179,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run3,tier0_s,0.006804533,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,local,mean,tier0_s,0.0031536933516666667,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,local,p95,refine_first_s,0.03932141928649163,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,local,run1,refine_first_s,0.03902519659242902,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run2,refine_first_s,0.039373649650523784,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run3,refine_first_s,0.03932141928649163,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,local,mean,refine_first_s,0.011665109654741606,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,local,p95,refine_full_s,0.073599335,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,local,run1,refine_full_s,0.07393475,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run2,refine_full_s,0.073599335,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,local,run3,refine_full_s,0.07353583,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,local,mean,refine_full_s,0.02892631865833333,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,local,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r10,linux-x86_64,local,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r10,linux-x86_64,local,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r10,linux-x86_64,local,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r10,linux-x86_64,local,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,p95,directory_s,0.187834989,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run1,directory_s,0.18783629799999998,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run2,directory_s,0.187834989,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run3,directory_s,0.187833042,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,mean,directory_s,0.18782483591833332,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,p95,tier0_s,0.869918575,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run1,tier0_s,0.869918575,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run2,tier0_s,0.8701524439999999,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run3,tier0_s,0.86981458,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,mean,tier0_s,0.5635387013516665,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,p95,refine_first_s,2.6403734488427713,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run1,refine_first_s,2.6403734488427713,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run2,refine_first_s,2.6401205276505237,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run3,refine_first_s,2.640693536756509,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,mean,refine_first_s,1.0466961402214083,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,p95,refine_full_s,4.69565793,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run1,refine_full_s,4.69565793,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run2,refine_full_s,4.696596622,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,25mbit-60ms,run3,refine_full_s,4.695211249,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,mean,refine_full_s,2.0382032820250005,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r10,linux-x86_64,25mbit-60ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,p95,directory_s,0.638995309,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run1,directory_s,0.6389966180000001,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run2,directory_s,0.638995309,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run3,directory_s,0.638993362,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,mean,directory_s,0.6389851559183336,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,p95,tier0_s,3.9229003350000005,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run1,tier0_s,3.9229003350000005,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run2,tier0_s,3.9231342040000006,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run3,tier0_s,3.9227963400000005,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,mean,tier0_s,2.4050787333516666,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,p95,refine_first_s,12.659771848842771,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run1,refine_first_s,12.659771848842771,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run2,refine_first_s,12.659518927650526,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run3,refine_first_s,12.660091936756508,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,mean,refine_first_s,4.799296012221409,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,p95,refine_full_s,22.809104330000004,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run1,refine_full_s,22.809104330000004,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run2,refine_full_s,22.810043022000002,p95 of one repeat run
+repeat,architectural-1e6+r10,linux-x86_64,5mbit-200ms,run3,refine_full_s,22.808657649,p95 of one repeat run
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,mean,refine_full_s,9.687786885225002,network modelled; CPU measured; p95 over the 200 recorded viewports; median of the repeat runs
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,min,coverage,1,entities represented in viewport over entities intersecting it; worst viewport
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,mean,preview_fraction,0.007431820238710749,previews over represented entities
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,max,worst_preview_px,1.780222572437114,the preview error bound times the viewport scale; display fidelity; not geometric exactness
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,fit,worst_preview_px,0.05582485034047946,the whole-drawing viewport; the zoom the preview budget is set at
+stage,architectural-1e6+r10,linux-x86_64,5mbit-200ms,total,previews_without_identity,0,previews that replace no entity of the file; or one already replaced
+stage,architectural-1e6+r10,linux-x86_64,all,mean,ranges_directory,3,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r10,linux-x86_64,all,mean,bytes_directory,24344,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r10,linux-x86_64,all,mean,ranges_tier0,3.835,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r10,linux-x86_64,all,mean,bytes_tier0,976859.15,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r10,linux-x86_64,all,mean,ranges_refine,3.875,ranges and bytes per viewport; mean over the 200 recorded viewports
+stage,architectural-1e6+r10,linux-x86_64,all,mean,bytes_refine,4537534.04,ranges and bytes per viewport; mean over the 200 recorded viewports
+raster,architectural-1e6+r10,linux-x86_64,all,total,rasters,10,rasters in the file
+raster,architectural-1e6+r10,linux-x86_64,all,total,tile_entries,2570,every tile of every level of every raster
+raster,architectural-1e6+r10,linux-x86_64,all,total,stored_tiles,2570,tiles with bytes
+raster,architectural-1e6+r10,linux-x86_64,all,mean,index_bytes_per_tile,24.43579766536965,from the file: kind 9 block bytes less the inline tiles; over every tile entry
+raster,architectural-1e6+r10,linux-x86_64,all,total,inline_bytes,333480,the coarse levels kept in the index blocks
+raster,architectural-1e6+r10,linux-x86_64,all,fit,tier0_raster_bytes,237768,raster index bytes in the fit-to-view Tier 0 plan
+raster,architectural-1e6+r10,linux-x86_64,all,fit,tier0_raster_cap,262144,the cap in force
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,discard_share,0.08723659499995433,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,discard_share_max,0.44591541445112365,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,bytes_discarded_mean,155087.16,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,pan,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,discard_share,0.14897507331991647,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint; mean over 50 viewports
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,discard_share_max,0.6755449255652725,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,bytes_decoded_mean,1610002,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,bytes_discarded_mean,345495.84,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,bytes_cancelled_mean,1426121.66,exact requests not done when the view changed; never decoded; in-flight ones count as cancelled; so an upper bound of what was saved
+interaction,architectural-1e6+r10,linux-x86_64,25mbit-60ms,zoom,requests_cancelled_mean,2.92,view changes halfway through the refinement on the 25 Mbit/s arm; the job of the old generation stops at its next checkpoint
+raster_layout,a0-300dpi,linux-x86_64,hilbert,1080p,ranges_mean,2.307142857142857,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,1080p,ranges_p95,4,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,1080p,ranges_max,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,1080p,viewports,1680,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,1080p,ranges_mean,3,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,1080p,ranges_p95,3,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,1080p,ranges_max,3,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,1080p,viewports,1680,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,4k,ranges_mean,3.8169354838709677,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,4k,ranges_p95,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,4k,ranges_max,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,hilbert,4k,viewports,1240,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,4k,ranges_mean,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,4k,ranges_p95,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,4k,ranges_max,5,range requests per viewport at full resolution; viewports every 256 px over the sheet
+raster_layout,a0-300dpi,linux-x86_64,row-major,4k,viewports,1240,range requests per viewport at full resolution; viewports every 256 px over the sheet

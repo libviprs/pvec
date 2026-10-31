@@ -327,7 +327,9 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
         implemented: registry
             .entries()
             .iter()
-            .filter(|c| matches!(c.class, pvec_capabilities::Class::Component | pvec_capabilities::Class::Raster))
+            .filter(|c| {
+                matches!(c.class, pvec_capabilities::Class::Component | pvec_capabilities::Class::Raster)
+            })
             .map(|c| c.id)
             .collect(),
     };
@@ -342,7 +344,11 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
             if let pvec_components::RasterRead::Present(placements) = pvec_components::read_rasters(&opened) {
                 let again = pvec_components::encode_rasters(&placements)
                     .and_then(|bytes| pvec_components::decode_rasters(&bytes));
-                assert_eq!(again.as_ref(), Ok(&placements), "a decoded raster stream did not survive a round trip");
+                assert_eq!(
+                    again.as_ref(),
+                    Ok(&placements),
+                    "a decoded raster stream did not survive a round trip"
+                );
             }
             "ok".to_string()
         }
@@ -412,6 +418,8 @@ pub fn fuzz_raster_index(data: &[u8]) -> String {
         let _ = index.check_grid(w, h, edge);
     }
     "ok".to_string()
+}
+
 /// The bytes of a `fuzz_raster_plan` input: grid, tile lookup seed, request limits, placement and viewport.
 pub const RASTER_PLAN_FRAME: usize = 116;
 
