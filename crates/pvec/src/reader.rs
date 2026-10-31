@@ -154,6 +154,16 @@ impl PvecReader {
         Ok(PvecReader { inner, manifest })
     }
 
+    /// Opens a file of `len` bytes through a read callback (red stub, issue #205).
+    #[cfg(feature = "http")]
+    pub fn open_ranges(
+        len: u64,
+        read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static,
+    ) -> Result<PvecReader, PvecError> {
+        let _ = (len, read);
+        todo!("issue #205")
+    }
+
     /// What the file says about itself.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest

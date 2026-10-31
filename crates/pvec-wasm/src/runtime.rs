@@ -208,6 +208,30 @@ impl Runtime {
         Ok(self.insert(Item::File(Rc::new(File { entities, index }))))
     }
 
+    /// Starts opening a file of `len` bytes that the host serves by byte ranges (red stub, issue #205).
+    pub fn open_ranged(&mut self, len: u64) -> Result<u32, AbiError> {
+        let _ = len;
+        todo!("issue #205")
+    }
+
+    /// Hands the module the bytes at `offset` of a range-opened file (red stub, issue #205).
+    pub fn provide_range(&mut self, handle: u32, offset: u64, bytes: &[u8]) -> Result<(), AbiError> {
+        let _ = (handle, offset, bytes);
+        todo!("issue #205")
+    }
+
+    /// Tries to finish opening a range-opened file (red stub, issue #205).
+    pub fn open_poll(&mut self, handle: u32) -> Result<u32, AbiError> {
+        let _ = handle;
+        todo!("issue #205")
+    }
+
+    /// The ranges the last call that returned `NeedRange` asked for (red stub, issue #205).
+    pub fn needed(&self, handle: u32) -> Result<Vec<(u64, u32)>, AbiError> {
+        let _ = handle;
+        todo!("issue #205")
+    }
+
     /// The entities of `file` whose bounds meet `bounds`, at most `budget` of them in ascending id
     /// order, as a batch handle.
     pub fn query_viewport(&mut self, file: u32, bounds: Bounds2, budget: u32) -> Result<u32, AbiError> {

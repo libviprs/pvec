@@ -23,10 +23,13 @@ pub enum AbiError {
     WrongKind,
     /// The file has no spatial directory, which the call needs (version 2).
     NoIndex,
+    /// The call needs byte ranges of a range-opened file that the host has not provided yet. The ranges
+    /// are in [`crate::Runtime::needed`]; provide them and call again.
+    NeedRange,
 }
 
 impl AbiError {
-    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6.
+    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6 and issue #205 adds -7.
     pub fn code(self) -> i32 {
         match self {
             AbiError::Released => -1,
@@ -35,6 +38,7 @@ impl AbiError {
             AbiError::Read => -4,
             AbiError::WrongKind => -5,
             AbiError::NoIndex => -6,
+            AbiError::NeedRange => -7,
         }
     }
 }
