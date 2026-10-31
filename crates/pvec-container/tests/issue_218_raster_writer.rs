@@ -36,7 +36,12 @@ fn two_rasters_are_written_and_every_tile_reads_back_equal() {
             if t.bytes.is_empty() {
                 assert!(got.is_none());
             } else {
-                assert_eq!(got.expect("stored").as_slice(), &t.bytes[..], "raster {r} {:?}", (t.level, t.col, t.row));
+                assert_eq!(
+                    got.expect("stored").as_slice(),
+                    &t.bytes[..],
+                    "raster {r} {:?}",
+                    (t.level, t.col, t.row)
+                );
             }
         }
     }
@@ -85,7 +90,8 @@ fn a_different_arrival_order_of_tiles_and_of_rasters_gives_identical_bytes() {
 fn kinds_9_and_10_sort_after_every_geometry_block_and_the_kind_9_blocks_are_adjacent() {
     let art = Art::new(two_rasters_file());
     let kinds: Vec<u16> = art.entries.iter().map(|e| e.kind).collect();
-    let first_raster = kinds.iter().position(|k| *k == KIND_INDEX || *k == KIND_TILES).expect("raster blocks");
+    let first_raster =
+        kinds.iter().position(|k| *k == KIND_INDEX || *k == KIND_TILES).expect("raster blocks");
     assert!(kinds[..first_raster].iter().all(|k| BlockKind::from_id(*k).is_some()), "{kinds:?}");
     assert!(kinds[first_raster..].iter().all(|k| *k == KIND_INDEX || *k == KIND_TILES), "{kinds:?}");
     let nines: Vec<usize> = (0..kinds.len()).filter(|i| kinds[*i] == KIND_INDEX).collect();
@@ -111,7 +117,12 @@ fn layout_04_keys_are_unique_and_the_subtype_rule_ascends_by_level() {
     assert!(keys.windows(2).all(|w| w[0] < w[1]), "strictly ascending, so unique: {keys:?}");
     let level_of = |st: u16| u32::from(st) / 1024;
     for cell in 0..2 {
-        let st: Vec<u16> = art.entries.iter().filter(|e| e.kind == KIND_TILES && e.cell == cell).map(|e| e.subtype).collect();
+        let st: Vec<u16> = art
+            .entries
+            .iter()
+            .filter(|e| e.kind == KIND_TILES && e.cell == cell)
+            .map(|e| e.subtype)
+            .collect();
         assert!(st.windows(2).all(|w| level_of(w[0]) <= level_of(w[1])), "raster {cell}: {st:?}");
         assert!(st.iter().all(|s| *s == subtype(level_of(*s), u32::from(*s) % 1024).unwrap()));
     }
@@ -133,12 +144,8 @@ fn the_directory_entries_say_what_is_in_the_blocks() {
     for e in art.entries.iter().filter(|e| e.kind == KIND_TILES) {
         let index = reader.raster_index(e.cell).unwrap();
         let (level, chunk) = (u32::from(e.subtype) / 1024, u32::from(e.subtype) % 1024);
-        let in_chunk = index
-            .level_tiles(level)
-            .unwrap()
-            .iter()
-            .filter(|t| t.is_stored() && t.chunk == chunk)
-            .count();
+        let in_chunk =
+            index.level_tiles(level).unwrap().iter().filter(|t| t.is_stored() && t.chunk == chunk).count();
         assert_eq!(e.count as usize, in_chunk);
         let b = e.bounds.expect("the box of the chunk's tiles");
         assert!(b.min[0] < b.max[0] && b.min[1] < b.max[1]);
@@ -166,7 +173,11 @@ fn the_coarsest_levels_are_inline_up_to_the_cap_and_coarsest_first_across_raster
     assert_eq!(inline_levels(write(1400), 1), 1);
     // 1400 for the two coarsest levels, then raster 0's second level (4 tiles) does not fit in 1500
     assert_eq!(inline_levels(write(1500), 0), 1);
-    assert_eq!(inline_levels(write(1400 + 2800), 0), 2, "raster 0 level 1 and raster 1 level 1 (4 tiles) compete for 2800");
+    assert_eq!(
+        inline_levels(write(1400 + 2800), 0),
+        2,
+        "raster 0 level 1 and raster 1 level 1 (4 tiles) compete for 2800"
+    );
     // the default is 256 KiB and holds all of these
     let mut w = writer_with(&ps);
     w.push_raster_tiles(id(0), tiles(0, &ps[0], 700, |_, _, _| false)).unwrap();
@@ -185,7 +196,8 @@ fn a_level_over_the_chunk_limit_is_split_into_chunks_that_never_pass_it() {
     w.raster_chunk_bytes(2000);
     w.push_raster_tiles(id(0), tiles(0, &ps[0], 700, |_, _, _| false)).unwrap();
     let art = Art::new(w.finish().unwrap());
-    let level2: Vec<_> = art.entries.iter().filter(|e| e.kind == KIND_TILES && e.subtype / 1024 == 2).collect();
+    let level2: Vec<_> =
+        art.entries.iter().filter(|e| e.kind == KIND_TILES && e.subtype / 1024 == 2).collect();
     assert_eq!(level2.len(), 6, "12 tiles, two to a chunk of at most 2000 bytes");
     assert!(level2.iter().all(|e| e.stored_length <= 2000 && e.count == 2));
     let reader = open(art.bytes.clone());
@@ -269,7 +281,10 @@ fn limit_14_a_raster_of_131073_tiles_is_refused_under_the_browser_preset_and_rea
     .unwrap();
     let e = browser.raster_index(0).expect_err("over the browser ceiling");
     assert_eq!(e.rule(), "LIMIT-14");
-    assert!(matches!(&e, ReadError::Limit(l) if l.limit == LimitKind::RasterTiles && l.declared == total), "{e:?}");
+    assert!(
+        matches!(&e, ReadError::Limit(l) if l.limit == LimitKind::RasterTiles && l.declared == total),
+        "{e:?}"
+    );
     let default = open(bytes);
     assert_eq!(default.raster_index(0).unwrap().tiles().len() as u64, total);
 }
@@ -284,5 +299,12 @@ fn the_stream_is_the_placement_the_blocks_are_built_from() {
         index.check_grid(p.width, p.height, u32::from(p.tile_edge)).unwrap();
         assert_eq!(index.levels().len(), usize::from(p.levels));
     }
-    let _ = (RASTER_CAPABILITY, Stream { capability: RASTER_CAPABILITY, version: pvec_capabilities::Version::new(1, 0, 0), payload: encode_rasters(&[]).unwrap() });
+    let _ = (
+        RASTER_CAPABILITY,
+        Stream {
+            capability: RASTER_CAPABILITY,
+            version: pvec_capabilities::Version::new(1, 0, 0),
+            payload: encode_rasters(&[]).unwrap(),
+        },
+    );
 }

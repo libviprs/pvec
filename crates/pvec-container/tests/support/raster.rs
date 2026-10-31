@@ -5,9 +5,9 @@ use super::fixtures::{config, eid};
 use pvec_components::{
     Band, PixelFormat, Placement, RASTER_CAPABILITY, RasterId, Stream, TileCodec, encode_rasters,
 };
+use pvec_container::Bounds;
 use pvec_container::blocks::raster::{TileIn, grid_of};
 use pvec_container::writer::{ContainerWriter, EntityMeta};
-use pvec_container::Bounds;
 
 /// A placement of a `width` by `height` image in tiles of `edge`, upright in source space (`d < 0`) at one unit
 /// a pixel, with the fewest levels whose coarsest is one tile.
@@ -46,12 +46,7 @@ pub fn bytes_of(raster: u32, level: u32, col: u32, row: u32, len: usize) -> Vec<
 }
 
 /// Every tile of a placement's grid, `len` bytes each, except those `skip` names.
-pub fn tiles(
-    raster: u32,
-    p: &Placement,
-    len: usize,
-    skip: impl Fn(u32, u32, u32) -> bool,
-) -> Vec<TileIn> {
+pub fn tiles(raster: u32, p: &Placement, len: usize, skip: impl Fn(u32, u32, u32) -> bool) -> Vec<TileIn> {
     let mut out = Vec::new();
     for (l, (cols, rows)) in grid(p).into_iter().enumerate() {
         for row in 0..rows {
@@ -89,8 +84,11 @@ pub fn two_placements() -> Vec<Placement> {
 pub fn two_rasters_file() -> Vec<u8> {
     let ps = two_placements();
     let mut w = writer_with(&ps);
-    w.push_raster_tiles(RasterId::new(0).unwrap(), tiles(0, &ps[0], 700, |l, c, r| l == 2 && (c + r) % 2 == 1))
-        .unwrap();
+    w.push_raster_tiles(
+        RasterId::new(0).unwrap(),
+        tiles(0, &ps[0], 700, |l, c, r| l == 2 && (c + r) % 2 == 1),
+    )
+    .unwrap();
     w.push_raster_tiles(RasterId::new(1).unwrap(), tiles(1, &ps[1], 700, |_, _, _| false)).unwrap();
     w.finish().unwrap()
 }

@@ -17,10 +17,10 @@ use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_b
 use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
+pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
+pub use pvec_container::blocks::raster::TileIn;
 pub use pvec_container::limits::Limits;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
-pub use pvec_container::blocks::raster::TileIn;
-pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
 pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
@@ -281,11 +281,13 @@ impl PvecReader {
     /// The raster placements of the file, in `RasterId` order: empty when the file has none, and an error when
     /// the stream is damaged (the geometry does not depend on it).
     pub fn raster_placements(&self) -> Result<Vec<Placement>, PvecError> {
-        let Some(at) = self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
+        let Some(at) =
+            self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
         else {
             return Ok(Vec::new());
         };
-        let block = self.inner.read_block(BlockId(at as u32)).map_err(|e| PvecError::Read { rule: e.rule() })?;
+        let block =
+            self.inner.read_block(BlockId(at as u32)).map_err(|e| PvecError::Read { rule: e.rule() })?;
         let registry = Registry::v1();
         let reader = Reader {
             version: pvec_capabilities::FORMAT_VERSION,
@@ -302,7 +304,13 @@ impl PvecReader {
     /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum has been
     /// checked against them: `None` for a tile that is not stored, and an error for a raster the file does not
     /// have or one it refuses (the file and the other rasters are unaffected).
-    pub fn raster_tile(&self, raster: RasterId, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError> {
+    pub fn raster_tile(
+        &self,
+        raster: RasterId,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<Option<Vec<u8>>, PvecError> {
         self.inner
             .read_raster_tile(raster.index(), level, col, row)
             .map(|t| t.map(|b| b.as_slice().to_vec()))

@@ -24,8 +24,8 @@ use crate::directory::{
 };
 use crate::error::ContainerError;
 use crate::header::{ChecksumAlgorithm, Header};
-use crate::limits::Limits;
 use crate::integrity::{Integrity, artifact_digest, block_checksum};
+use crate::limits::Limits;
 use crate::manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata};
 use crate::spec::{cap, dir};
 use core::cmp::Ordering;
@@ -1226,11 +1226,11 @@ impl ContainerWriter {
         let placements = decode_rasters(&stream.payload).map_err(WriteError::Placement)?;
         let mut plans: Vec<(u32, &Placement, Vec<(u32, u32)>)> = Vec::with_capacity(rasters.len());
         for &id in rasters.keys() {
-            let p = placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;
+            let p =
+                placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;
             let n = u32::from(p.levels);
-            let grid = (0..n)
-                .map(|l| raster::grid_of(p.width, p.height, u32::from(p.tile_edge), n, l))
-                .collect();
+            let grid =
+                (0..n).map(|l| raster::grid_of(p.width, p.height, u32::from(p.tile_edge), n, l)).collect();
             plans.push((id, p, grid));
         }
         // LIMIT-14 over the artifact, at the default ceiling: the entries of every tile table
@@ -1266,8 +1266,9 @@ impl ContainerWriter {
         for (id, p, grid) in plans {
             let tiles = rasters.remove(&id).unwrap_or_default();
             let total: u64 = grid.iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
-            let built = raster::build(&grid, tiles, inline.get(&id).copied().unwrap_or(0), self.raster_chunk, left)
-                .map_err(WriteError::Raster)?;
+            let built =
+                raster::build(&grid, tiles, inline.get(&id).copied().unwrap_or(0), self.raster_chunk, left)
+                    .map_err(WriteError::Raster)?;
             left -= total;
             let footprint = pixel_box(p, p.visible_box.map(u64::from))?;
             let encoded = built.index.encode();

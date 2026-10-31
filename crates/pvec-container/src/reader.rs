@@ -486,14 +486,15 @@ impl Shared {
             .lock()
             .map(|m| m.values().map(|(i, _)| i.tiles().len() as u64).sum())
             .unwrap_or_default();
-        let index = RasterIndex::parse(block.as_bytes(), ceiling.saturating_sub(held)).map_err(|e| match e {
-            IndexError::TooManyTiles { declared, .. } => ReadError::Limit(LimitExceeded {
-                limit: crate::limits::LimitKind::RasterTiles,
-                declared: held + declared,
-                ceiling,
-            }),
-            other => ReadError::Raster(other),
-        })?;
+        let index =
+            RasterIndex::parse(block.as_bytes(), ceiling.saturating_sub(held)).map_err(|e| match e {
+                IndexError::TooManyTiles { declared, .. } => ReadError::Limit(LimitExceeded {
+                    limit: crate::limits::LimitKind::RasterTiles,
+                    declared: held + declared,
+                    ceiling,
+                }),
+                other => ReadError::Raster(other),
+            })?;
         self.core.check_raster_blocks(raster, &index).map_err(ReadError::Raster)?;
         let room = (core::mem::size_of_val(index.tiles()) + block.as_bytes().len()) as u64;
         let held = self.reserve(room)?;

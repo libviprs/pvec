@@ -103,7 +103,11 @@ fn a_tile_is_a_valid_png_whose_pixels_are_the_ones_it_was_cut_from() {
                     assert_eq!((line[1 + x as usize / 8] >> (7 - x % 8)) & 1, p[0], "({x}, {y})");
                 } else {
                     let at = 1 + x as usize * usize::from(channels);
-                    assert_eq!(&line[at..at + usize::from(channels)], &p[..usize::from(channels)], "({x}, {y})");
+                    assert_eq!(
+                        &line[at..at + usize::from(channels)],
+                        &p[..usize::from(channels)],
+                        "({x}, {y})"
+                    );
                 }
             }
         }
@@ -157,8 +161,12 @@ fn fixture() -> (Vec<u8>, Vec<TileIn>, Placement) {
         capabilities: Vec::new(),
     });
     let bounds = Bounds { min: [0.0, 0.0], max: [700.0, 500.0] };
-    w.push_line(EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds }, [0.0, 0.0], [700.0, 500.0])
-        .unwrap();
+    w.push_line(
+        EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds },
+        [0.0, 0.0],
+        [700.0, 500.0],
+    )
+    .unwrap();
     w.push_stream(Stream {
         capability: RASTER_CAPABILITY,
         version: Version::new(1, 1, 0),
@@ -208,11 +216,11 @@ fn the_fixture_has_a_digest_in_the_golden_file_and_an_evidence_class_that_says_w
     for corpus_class in ["KNOWN_TRUTH_EXACT", "DUAL_ORACLE_EQUIVALENT", "REAL_WORLD_DIFFERENTIAL"] {
         assert!(!committed.contains(corpus_class));
     }
-    let doc = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/RASTER.md")).unwrap();
+    let doc = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/RASTER.md"))
+        .unwrap();
     let flat = doc.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        flat.contains("container-claim-byte-preservation")
-            && flat.contains("not a KNOWN_TRUTH_EXACT truth"),
+        flat.contains("container-claim-byte-preservation") && flat.contains("not a KNOWN_TRUTH_EXACT truth"),
         "docs/RASTER.md does not say what the raster fixture proves"
     );
 }

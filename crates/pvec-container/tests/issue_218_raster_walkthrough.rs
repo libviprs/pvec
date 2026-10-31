@@ -11,7 +11,8 @@ const BEGIN: &str = "<!-- raster-example:begin -->";
 const END: &str = "<!-- raster-example:end -->";
 
 fn doc() -> String {
-    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/RASTER.md")).expect("RASTER.md")
+    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/RASTER.md"))
+        .expect("RASTER.md")
 }
 
 /// The example: a 300 by 300 image in tiles of 256 is two levels, 1 by 1 and 2 by 2. Level 0 is inline, level 1
@@ -30,7 +31,11 @@ fn dump(bytes: &[u8]) -> String {
         .chunks(16)
         .enumerate()
         .map(|(i, c)| {
-            format!("{:08x}  {}\n", i * 16, c.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" "))
+            format!(
+                "{:08x}  {}\n",
+                i * 16,
+                c.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(" ")
+            )
         })
         .collect()
 }
@@ -79,7 +84,8 @@ fn the_layout_decodes_the_dump_by_the_offsets_of_section_2_alone() {
     assert_eq!(&b[..4], b"PVX1");
     assert_eq!(u16_at(&b, 4), 1, "version");
     let levels = usize::from(u16_at(&b, 6));
-    let (total, stored, chunk_total, inline_len) = (u32_at(&b, 8), u32_at(&b, 12), u32_at(&b, 16), u32_at(&b, 20));
+    let (total, stored, chunk_total, inline_len) =
+        (u32_at(&b, 8), u32_at(&b, 12), u32_at(&b, 16), u32_at(&b, 20));
     assert!(b[24..32].iter().all(|x| *x == 0), "8 reserved bytes");
     assert_eq!((levels, total, stored, chunk_total, inline_len), (2, 5, 4, 1, 3));
     // level table, 16 bytes a level, straight after the header
@@ -93,12 +99,23 @@ fn the_layout_decodes_the_dump_by_the_offsets_of_section_2_alone() {
     let table = 32 + 16 * levels;
     let tile = |n: usize| {
         let at = table + 24 * n;
-        (u32_at(&b, at), u32_at(&b, at + 4), u32_at(&b, at + 8), u16_at(&b, at + 12), u16_at(&b, at + 14), u64_at(&b, at + 16))
+        (
+            u32_at(&b, at),
+            u32_at(&b, at + 4),
+            u32_at(&b, at + 8),
+            u16_at(&b, at + 12),
+            u16_at(&b, at + 14),
+            u64_at(&b, at + 16),
+        )
     };
     // chunk, offset, length, col, row, xxh3
     let inline_at = table + 24 * total as usize;
     let t0 = tile(0);
-    assert_eq!((t0.0, t0.1 as usize, t0.2, t0.3, t0.4), (INLINE, inline_at, 3, 0, 0), "inline: offset into the index block");
+    assert_eq!(
+        (t0.0, t0.1 as usize, t0.2, t0.3, t0.4),
+        (INLINE, inline_at, 3, 0, 0),
+        "inline: offset into the index block"
+    );
     assert_eq!(&b[inline_at..inline_at + 3], &[0xA0, 0xA1, 0xA2]);
     assert_eq!(t0.5, pvec_container::integrity::block_checksum(&[0xA0, 0xA1, 0xA2]));
     // level 1 in Hilbert order with the first step along x: (0,0) (1,0) (1,1) (0,1)
