@@ -176,8 +176,8 @@ fn the_directory_traversal_seeds_carry_kind_9_and_10_entries_with_capability_21_
 #[test]
 fn fuzz_component_streams_is_seeded_with_one_valid_raster_placement_and_decodes_it() {
     // issue 217: the target decodes the raster stream, so the corpus has a valid placement in a set
-    use pvec_components::{RASTER_CAPABILITY, decode_rasters};
     use pvec_capabilities::{Reader, Registry, Version};
+    use pvec_components::{RASTER_CAPABILITY, decode_rasters};
     let seeds = corpus();
     let inputs = for_target("fuzz_component_streams", &seeds);
     let registry = Registry::v1();

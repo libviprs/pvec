@@ -37,6 +37,18 @@ Not included, and why: the P8.1 benchmark corpus after minimisation (P8.1 is not
 
 The corpus persists between runs in the docker volume `pvec-fuzz-corpus` on the host (`tools/fuzz.sh --keep-corpus`), and `cp -n` adds the seeds without overwriting what a run grew.
 
+### Raster seeds (issues 216 and 217, ADR 0018)
+
+`fuzz_directory_traversal` gets, for each of the writer bases, three files that add a kind 9 and a kind 10 entry naming
+capability 21, naming none, and naming an unregistered capability (77), so the traversal meets the capability-owned
+kinds in every state the negotiation rules decide: handed over, skipped, and refused (`NEGOTIATE-06`). `fuzz_component_streams`
+now implements the raster class as well as the components, decodes the raster stream of every set it opens, asserts that
+what decodes writes back to something that decodes to the same placements, and is seeded with one stream set holding a
+valid placement (the test vector of `docs/RASTER.md`). A smoke run is 300 seconds on MARS (native x86_64) per target:
+`fuzz_directory_traversal` ran 6,849,016 executions at about 22,700 a second and found nothing (issue 216), and
+`fuzz_component_streams` ran 10,444,284 executions at about 34,700 a second and found nothing (issue 217). The long run of issue 190 has not run with these seeds; only the smoke
+runs have.
+
 ## The mutator and the checksum gate
 
 A byte flip in a sealed artifact is stopped by a block checksum or the artifact digest, which is a check the fuzzer then spends its executions on. Two things deal with that:
@@ -94,7 +106,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 
 ## Capability matrix
 
-`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (eleven, with the outcome written in the fixture), builds the three readers (`S_old`, `S_new`, this build), and checks that each declared pair keeps its outcome, that every one of the 3 x 13 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
+`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (twelve, with the outcome written in the fixture), builds the three readers (`S_old`, `S_new`, this build), and checks that each declared pair keeps its outcome, that every one of the 3 x 13 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
 
 ## Running it
 

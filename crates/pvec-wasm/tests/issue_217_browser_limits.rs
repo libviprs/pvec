@@ -113,9 +113,14 @@ fn issue_217_the_documents_state_the_change_with_the_before_and_after_values() {
     let abi = fs::read_to_string(root.join("WASM_ABI.md")).unwrap();
     let migration = fs::read_to_string(root.join("MIGRATION.md")).unwrap();
     for (name, text) in [("WASM_ABI.md", &abi), ("MIGRATION.md", &migration)] {
-        for needle in ["Limits::BROWSER", "Limits::DEFAULT", "max_expansion_ratio", "64", "32", "max_block_bytes"] {
+        for needle in
+            ["Limits::BROWSER", "Limits::DEFAULT", "max_expansion_ratio", "64", "32", "max_block_bytes"]
+        {
             assert!(text.contains(needle), "docs/{name} does not mention {needle}");
         }
     }
-    assert!(abi.contains("bytes with `Limits::BROWSER` wired in"), "the module size is recorded after the change");
+    assert!(
+        abi.contains("bytes with `Limits::BROWSER` wired in"),
+        "the module size is recorded after the change"
+    );
 }

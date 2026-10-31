@@ -61,6 +61,73 @@ fn is_sweep(name: &str) -> bool {
 
 /// Every seed, deterministic.
 pub fn corpus() -> Vec<Seed> {
+    /// The base with a kind 9 and a kind 10 entry added (ADR 0018), once naming capability 21, once none and once
+    /// an unregistered one, so the traversal meets the capability-owned kinds in every state the rules decide.
+    fn capability_owned(base: &bases::Base) -> Vec<Seed> {
+        use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
+        use pvec_container::integrity::Integrity;
+        use pvec_container::writer::{RawBlock, assemble};
+        let Some(layout) = Layout::of(&base.bytes) else { return Vec::new() };
+        let stored: Vec<RawBlock> = layout
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                Some(RawBlock {
+                    kind: e.kind,
+                    subtype: e.subtype,
+                    cell: e.cell,
+                    count: e.count,
+                    bounds: e.bounds,
+                    flags: e.flags,
+                    codec: e.codec,
+                    capability: e.capability,
+                    uncompressed_length: e.uncompressed_length,
+                    stored: layout.stored(&base.bytes, i)?.to_vec(),
+                })
+            })
+            .collect();
+        let mut out = Vec::new();
+        for (word, capability) in [("21", 21u16), ("0", 0), ("77", 77)] {
+            let mut manifest = layout.manifest.clone();
+            for id in [21u32, 77] {
+                if !manifest.capabilities.iter().any(|d| d.id.get() == id) {
+                    manifest.capabilities.push(Declared {
+                        id: CapabilityId::new(id),
+                        requirement: Requirement::Optional,
+                        version: Version::new(1, 0, 0),
+                    });
+                }
+            }
+            manifest.capabilities.sort_by_key(|d| d.id);
+            let mut blocks = stored.clone();
+            for kind in [9u16, 10] {
+                blocks.push(RawBlock {
+                    kind,
+                    subtype: 0,
+                    cell: 0,
+                    count: 1,
+                    bounds: None,
+                    flags: 0,
+                    codec: 0,
+                    capability,
+                    uncompressed_length: 32,
+                    stored: (0..32u8).map(|i| i.wrapping_mul(7).wrapping_add(kind as u8)).collect(),
+                });
+            }
+            if stored.len() == layout.entries.len() {
+                if let Ok(bytes) = assemble(manifest, &blocks, Integrity::Full) {
+                    out.push(Seed {
+                        name: format!("writer/{}/capability-owned-{word}", base.name),
+                        source: Source::Writer,
+                        bytes,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     let bundle = Bundle::vendored().expect("the vendored bundle opens");
     let mut out = Vec::new();
     // The known-truth seeds are written without compression, as the corpus always was: the mutator and the
@@ -115,99 +182,6 @@ pub fn corpus() -> Vec<Seed> {
         out.extend(capability_owned(b));
     }
     out
-}
-
-/// The base with a kind 9 and a kind 10 entry added (ADR 0018), once naming capability 21, once none and once
-/// an unregistered one, so the traversal meets the capability-owned kinds in every state the rules decide.
-fn capability_owned(base: &bases::Base) -> Vec<Seed> {
-    use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
-    use pvec_container::integrity::Integrity;
-    use pvec_container::writer::{RawBlock, assemble};
-    let Some(layout) = Layout::of(&base.bytes) else { return Vec::new() };
-    let stored: Vec<RawBlock> = layout
-        .entries
-        .iter()
-        .enumerate()
-        .filter_map(|(i, e)| {
-            Some(RawBlock {
-                kind: e.kind,
-                subtype: e.subtype,
-                cell: e.cell,
-                count: e.count,
-                bounds: e.bounds,
-                flags: e.flags,
-                codec: e.codec,
-                capability: e.capability,
-                uncompressed_length: e.uncompressed_length,
-                stored: layout.stored(&base.bytes, i)?.to_vec(),
-            })
-        })
-        .collect();
-    let mut out = Vec::new();
-    for (word, capability) in [("21", 21u16), ("0", 0), ("77", 77)] {
-        let mut manifest = layout.manifest.clone();
-        for id in [21u32, 77] {
-            if !manifest.capabilities.iter().any(|d| d.id.get() == id) {
-                manifest.capabilities.push(Declared {
-                    id: CapabilityId::new(id),
-                    requirement: Requirement::Optional,
-                    version: Version::new(1, 0, 0),
-                });
-            }
-        }
-        manifest.capabilities.sort_by_key(|d| d.id);
-        let mut blocks = stored.clone();
-        for kind in [9u16, 10] {
-            blocks.push(RawBlock {
-                kind,
-                subtype: 0,
-                cell: 0,
-                count: 1,
-                bounds: None,
-                flags: 0,
-                codec: 0,
-                capability,
-                uncompressed_length: 32,
-                stored: (0..32u8).map(|i| i.wrapping_mul(7).wrapping_add(kind as u8)).collect(),
-            });
-        }
-        if stored.len() == layout.entries.len() {
-            if let Ok(bytes) = assemble(manifest, &blocks, Integrity::Full) {
-                out.push(Seed {
-                    name: format!("writer/{}/capability-owned-{word}", base.name),
-                    source: Source::Writer,
-                    bytes,
-                });
-            }
-        }
-    }
-    out
-}
-
-/// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
-fn raster_seed() -> Option<Vec<u8>> {
-    use pvec_components::{
-        Band, PixelFormat, Placement, RASTER_CAPABILITY, Stream, TileCodec, encode_rasters, encode_streams,
-    };
-    let payload = encode_rasters(&[Placement {
-        pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
-        width: 1024,
-        height: 512,
-        visible_box: [0, 0, 1024, 512],
-        tile_edge: 512,
-        levels: 2,
-        tile_codec: TileCodec::Png,
-        pixel_format: PixelFormat::Rgba,
-        bit_depth: 8,
-        opacity: 255,
-        band: Band::Underlay,
-        layer_index: Some(0),
-        source_digest: Some([0x5A; 32]),
-        attribution: "survey".into(),
-    }])
-    .ok()?;
-    let version = pvec_capabilities::Registry::v1().get(RASTER_CAPABILITY)?.version;
-    encode_streams(&[Stream { capability: RASTER_CAPABILITY, version, payload }]).ok()
 }
 
 fn one_of<T>(items: Vec<T>, key: impl Fn(&T) -> &[u8]) -> Vec<T> {

@@ -500,12 +500,15 @@ fn limit_13_to_16_exist_with_their_default_and_browser_values_and_all_has_sixtee
     assert_eq!((d.max_tile_bytes, b.max_tile_bytes), (65_536, 65_536));
     assert_eq!((d.max_plan_decoded_bytes, b.max_plan_decoded_bytes), (256 << 20, 256 << 20));
     for k in LimitKind::ALL[12..].iter().copied() {
-        assert_eq!(d.get(k), match k {
-            LimitKind::Rasters => 4_096,
-            LimitKind::RasterTiles => 1_048_576,
-            LimitKind::TileBytes => 65_536,
-            _ => 256 << 20,
-        });
+        assert_eq!(
+            d.get(k),
+            match k {
+                LimitKind::Rasters => 4_096,
+                LimitKind::RasterTiles => 1_048_576,
+                LimitKind::TileBytes => 65_536,
+                _ => 256 << 20,
+            }
+        );
     }
     assert_eq!(d.validate(), Ok(()));
     assert_eq!(b.validate(), Ok(()));
@@ -524,6 +527,9 @@ fn limit_13_is_checked_against_the_ceiling_and_is_configuration() {
 fn every_raster_limit_has_a_row_in_the_table_and_a_marked_proposed_value() {
     for k in LimitKind::ALL[12..].iter().copied() {
         let row = pvec_container::limits::LIMIT_TABLE.iter().find(|r| r.kind == k).expect("a row");
-        assert!(row.rationale.to_lowercase().contains("proposed"), "{k:?} is proposed until #220 measures it");
+        assert!(
+            row.rationale.to_lowercase().contains("proposed"),
+            "{k:?} is proposed until #220 measures it"
+        );
     }
 }
