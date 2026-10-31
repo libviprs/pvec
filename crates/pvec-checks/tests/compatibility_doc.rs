@@ -85,6 +85,12 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
     for needle in ["Effect::Unrastered", "NEGOTIATE-06", "capability-owned", "`min_reader` at 1.0.0"] {
         assert!(d.contains(needle), "docs/COMPATIBILITY.md does not mention {needle}");
     }
+    let conformance = fs::read_to_string(repo_root().join("docs/CONFORMANCE.md")).unwrap();
+    assert!(
+        conformance.contains("tests/compat/raster-degraded.pvec") && conformance.contains("capability 21"),
+        "the forward-compatible gate names the raster fixture"
+    );
+    assert!(repo_root().join("tests/compat/raster-degraded.pvec").is_file(), "the fixture is checked in");
     let matrix = fs::read_to_string(repo_root().join("tests/compat/matrix.txt")).unwrap();
     assert!(
         matrix.contains("case old-reader-raster-file-open-degraded"),

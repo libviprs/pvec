@@ -96,7 +96,7 @@ pub enum Refusal {
         /// The major version the reader supports.
         supported_major: u16,
     },
-    /// A component declared required, which components never are.
+    /// A component or the raster capability declared required, which neither ever is.
     ComponentDeclaredRequired(CapabilityId),
     /// An optional extension declared required.
     ExtensionDeclaredRequired(CapabilityId),
@@ -144,11 +144,11 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
     ),
     (
         "NEGOTIATE-03",
-        "the file needs a newer reader than this one (its minimum reader, or a declared capability's)",
+        "the file needs a newer reader than this one (its minimum reader, or a required capability's)",
     ),
     (
         "NEGOTIATE-04",
-        "a component or an optional extension is declared required, which the registry does not allow",
+        "a component, the raster capability or an optional extension is declared required, which the registry does not allow",
     ),
     ("NEGOTIATE-05", "a block names a capability id the manifest does not declare"),
     (
@@ -191,7 +191,10 @@ impl fmt::Display for Refusal {
                 "{rule}: required capability id {id} is declared at version {file}, and this reader supports major version {supported_major}"
             ),
             Refusal::ComponentDeclaredRequired(id) => {
-                write!(f, "{rule}: capability id {id} is a component and cannot be declared required")
+                write!(
+                    f,
+                    "{rule}: capability id {id} is a component or the raster capability and cannot be declared required"
+                )
             }
             Refusal::ExtensionDeclaredRequired(id) => {
                 write!(
@@ -404,8 +407,7 @@ fn effect_of(id: CapabilityId) -> Effect {
                 Effect::Uncomponented
             }
         }
-        // the raster capability (ADR 0018); the registry class takes over from the id once it exists
-        _ if id == CapabilityId::new(21) => Effect::Unrastered,
+        Some(c) if c.class == Class::Raster => Effect::Unrastered,
         _ => Effect::Unknown,
     }
 }
@@ -426,13 +428,17 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
     for d in &manifest.capabilities {
         let known = reg.get(d.id);
         if let Some(c) = known {
-            if c.min_reader > reader.version {
+            // only a required capability can make the file need a newer reader: an optional one is skippable by
+            // definition, which is the same reason the writer's hoist leaves it out of `min_reader`
+            if c.min_reader > reader.version
+                && (d.requirement == Requirement::Required || c.requirement == Requirement::Required)
+            {
                 return Outcome::Refuse(Refusal::ReaderTooOld {
                     file_requires: c.min_reader,
                     reader: reader.version,
                 });
             }
-            if c.class == Class::Component && d.requirement == Requirement::Required {
+            if matches!(c.class, Class::Component | Class::Raster) && d.requirement == Requirement::Required {
                 return Outcome::Refuse(Refusal::ComponentDeclaredRequired(d.id));
             }
             if c.class == Class::Extension
@@ -638,7 +644,7 @@ satisfy is required, and an old reader refuses the file, which is the right outc
 1. It adds information about the drawing and never changes what a geometry block says. Style, text, hatch and \
 provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` \
 (ADR 0008) and is always required.\n\
-2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads "a kind the format defines".\n\
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads \"a kind the format defines\".\n\
 3. The manifest declares it with the optional requirement and the version it was written at.\n\
 4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.\n\
 5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of \

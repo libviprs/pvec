@@ -490,8 +490,8 @@ Refusals are `Refusal` values and carry a rule:
 |---|---|
 | NEGOTIATE-01 | a required capability is not supported by the reader, or not known to it at all; the refusal names its id and the version the file declares |
 | NEGOTIATE-02 | a required capability is declared at a major version the reader does not support (a newer minor of a supported major opens) |
-| NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a declared capability's) |
-| NEGOTIATE-04 | a component or an optional extension is declared required, which the registry does not allow |
+| NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a required capability's) |
+| NEGOTIATE-04 | a component, the raster capability or an optional extension is declared required, which the registry does not allow |
 | NEGOTIATE-05 | a block names a capability id the manifest does not declare |
 | NEGOTIATE-06 | a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none |
 

@@ -369,6 +369,14 @@ pub const MAPPING: &[MappingRow] = &[
     row!("source_provenance", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
     row!("dwg_semantics", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
     row!("semantic_class", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
+    row!(
+        "raster",
+        Component,
+        "none",
+        NATIVE,
+        Unsupported,
+        "a raster is pixels, not geometry; the GML export writes curve geometry only and records the raster as Unsupported (ADR 0018)"
+    ),
 ];
 
 /// The row for a geometry case, which is unique per `(capability, case)`.
