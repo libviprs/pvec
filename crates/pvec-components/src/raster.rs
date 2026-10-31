@@ -338,7 +338,11 @@ impl std::error::Error for RasterError {}
 /// The rows of the error table of `docs/RASTER.md`: rule, error and meaning. A test renders the table from this
 /// and fails if the document differs.
 pub const RASTER_ERRORS: &[(&str, &str, &str)] = &[
-    ("LIMIT-13", "TooMany", "more placements than the ceiling of 4,096, refused before the table is allocated"),
+    (
+        "LIMIT-13",
+        "TooMany",
+        "more placements than the ceiling of 4,096, refused before the table is allocated",
+    ),
     (
         "RASTER-01",
         "BadGrid",
