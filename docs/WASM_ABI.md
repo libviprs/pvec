@@ -199,10 +199,17 @@ it is a version 2 module that predates rasters, and every other call works. Ever
 
 `raster_stat(file, n)`: 0 rasters in the file, 1 rasters skipped, 2 whether the file has an image this reader cannot
 show (`Effect::Unrastered`, 0 or 1: some raster is skipped, or the raster stream is refused), 3 whether the file has a
-raster stream at all (0 or 1). `raster_skipped(file, i, n)` for the `i`th skipped raster (ascending raster id): `n` 0
-the `RasterId`, 1 the number of the `RASTER-NN` rule that skipped it (4 for `RASTER-04`, an unknown `tile_codec`,
-which is known from the placement; the rule of a raster a call found refused, such as a failed `RASTER-03` sniff, is
-added to the list by that call). On a range-opened file the first raster call may return -7 until the block that holds
+raster stream at all (0 or 1), 4 the number of the rule that refused the whole raster stream (0 when none did or the
+rule is not a `RASTER-NN` or `LIMIT-NN`), 5 the family of that rule (0 `RASTER`, 1 `LIMIT`). `raster_skipped(file, i, n)`
+for the `i`th skipped raster (ascending raster id): `n` 0 the `RasterId`, 1 the number of the rule that skipped it (4 for
+`RASTER-04`, an unknown `tile_codec`, which is known from the placement; the rule of a raster a call found refused, such
+as a failed `RASTER-03` sniff or a tile over `LIMIT-15`, is added to the list by that call), 2 the family of the rule (0
+`RASTER-NN`, 1 `LIMIT-NN`; a host that reads only `n` 1 sees 15 for `LIMIT-15`, so it must read 2 to tell it from
+`RASTER-15`). A tile over `LIMIT-15` is -10 from `raster_tile`, where it used to be -4, so -4 from a tile call is now a
+flipped byte or an unreadable file and nothing else. A raster stream the rules refuse as a whole (issue #232: JPEG under
+an RGBA placement is `RASTER-04`) holds no raster ids, since none of its placements can be read: `raster_stat` 2 is 1,
+`raster_stat` 4 and 5 name the rule, and `raster_placement` and the tile calls stay -4. Issue #232 is additive: `raster_stat`
+selectors 4 and 5 and `raster_skipped` selector 2 answered -3 before, and the version stays 2. On a range-opened file the first raster call may return -7 until the block that holds
 the placements is provided.
 
 `raster_placement(file, r)` returns a result handle for raster number `r` (the dense `RasterId`). Arrays are read with
@@ -252,7 +259,7 @@ There is no separate range-release export. The #220 measurement decides whether 
 `release_range` export is an addition of the same kind.
 
 Codes (negative, additions to the table below): -8 the file has no raster stream, -9 the tile is not stored (a sparse
-pyramid: it draws nothing), -10 the raster is skipped by a `RASTER-NN` rule (`raster_skipped` says which). -3 keeps
+pyramid: it draws nothing), -10 the raster is skipped by a `RASTER-NN` or `LIMIT-NN` rule (`raster_skipped` says which). -3 keeps
 meaning a bad id, level, column or row, and -4 a failed checksum (the index's or, for the index block, the block's).
 
 The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
@@ -323,7 +330,7 @@ holds a file the defaults admit and the browser preset refuses.
 | -7 | the call needs byte ranges of a range-opened file that were not provided yet: `needed_*` names them (issue #205) |
 | -8 | the file has no raster stream (issue #221, additive) |
 | -9 | the raster tile is not stored: the index says length 0, and it draws nothing (issue #221, additive) |
-| -10 | the raster is skipped by a `RASTER-NN` rule, `raster_skipped` names it (issue #221, additive) |
+| -10 | the raster is skipped by a `RASTER-NN` or `LIMIT-NN` rule, `raster_skipped` names it (issues #221 and #232, additive) |
 
 ## Size
 
@@ -345,6 +352,12 @@ all, and the module is still a range-opened reader with no image codec in it (`c
 release directory (`tools/wasm-release.sh`, after `wasm-bindgen`) holds a module of 707,544 bytes, sha256
 `336ae9a30668b003c7e2325b758a7fb05ee52cde5062a25a385a9030ea554ae1`, commit `149ed15`; `tools/wasm-release-selftest.sh DIR`
 probes its raster exports on `tests/compat/raster-probe.pvec` and passes, and a module built without them fails the probe.
+
+Measured again for issue 232 (rule names for `LIMIT-NN` and a refused stream, no new export): the staged module is
+716,752 bytes, sha256 `3e8c4b498fabe5d5d4f4b3050d2fa34584263f98c0985076d7c0af242dad43d0`, commit `d12242d`, built by
+`tools/wasm-release.sh` on MARS; the self-test passes, and its probe now also reads `raster_stat` 4 and 5 and
+`raster_skipped` selector 2. That is 9,208 more than the 707,544 above, which also covers the commits between `149ed15`
+and this one.
 
 ## The loadable module (issue 202)
 
