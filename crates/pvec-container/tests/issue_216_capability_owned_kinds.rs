@@ -215,3 +215,44 @@ fn dir_02_still_refuses_capability_21_on_a_kind_the_format_defines() {
     let e = open_with(bytes, with_21()).err().expect("refused");
     assert_eq!(e.rule(), "DIR-02", "{e}");
 }
+
+#[test]
+fn the_raster_capability_declared_required_is_refused_whatever_the_reader() {
+    // the Raster class is never required, by its own rule and not by inheriting the component one
+    let base = art::from_input_with(&fixtures()[2], SEALED);
+    let art = rebuild(&base, Integrity::Full, |m, _| {
+        m.capabilities.push(Declared {
+            id: cap(21),
+            requirement: Requirement::Required,
+            version: Version::new(1, 0, 0),
+        });
+        m.capabilities.sort_by_key(|d| d.id);
+    });
+    for caps in [without_21(), with_21()] {
+        let out = negotiate(&art.manifest, &art.entries, &caps);
+        assert_eq!(out, Outcome::Refuse(Refusal::ComponentDeclaredRequired(cap(21))));
+        assert_eq!(Refusal::ComponentDeclaredRequired(cap(21)).rule(), "NEGOTIATE-04");
+    }
+}
+
+fn fixture_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat/raster-degraded.pvec")
+}
+
+#[test]
+fn the_checked_in_degraded_file_is_the_one_the_builder_makes_and_opens_degraded_in_a_1_0_0_reader() {
+    let made = raster_file(&art::from_input_with(&fixtures()[2], SEALED));
+    if std::env::var_os("PVEC_BLESS_COMPAT").is_some() {
+        std::fs::write(fixture_path(), &made.bytes).unwrap();
+    }
+    let checked_in = std::fs::read(fixture_path()).expect("tests/compat/raster-degraded.pvec is checked in");
+    assert!(checked_in == made.bytes, "regenerate it with PVEC_BLESS_COMPAT=1 cargo test -p pvec-container");
+    // read as the 1.0.0 reader of the matrix: no component streams, no raster
+    let mut old = (14..=21).fold(ReaderCapabilities::v1(), |r, id| r.without(cap(id)));
+    old.version = Version::new(1, 0, 0);
+    assert_eq!(made.manifest.min_reader, Version::new(1, 0, 0), "the file does not ask for more than 1.0.0");
+    let reader = open_with(checked_in, old).expect("a 1.0.0 reader opens it");
+    let partial = reader.partial_open().expect("degraded");
+    assert!(partial.skipped_ids().contains(&21));
+    assert_eq!(partial.blocks.iter().filter(|b| b.capability == Some(cap(21))).count(), 2);
+}
