@@ -365,6 +365,47 @@ pub fn cases() -> Vec<PolicyCase> {
                     && rejects(p.validate_affine(bad), NumericError::SingularTransform)
             },
         },
+        // the cases below are the coefficient cases of a raster placement (issue 217, ADR 0018, RASTER-05): the
+        // placement map is held to NP-19 by name, with PVec's relative rule and not libviprs's 1e-12
+        PolicyCase {
+            id: "raster-affine-2e20-bound",
+            rule: "NP-19",
+            what: "a raster placement coefficient of 2^20 is legal and one past it is out of range",
+            run: |p| {
+                let at = MAX_AFFINE_ENTRY;
+                p.validate_affine([at, 0.0, 0.0, -1.0, 0.0, 0.0]).is_ok()
+                    && rejects(
+                        p.validate_affine([at * 2.0, 0.0, 0.0, -1.0, 0.0, 0.0]),
+                        NumericError::OutOfRange,
+                    )
+            },
+        },
+        PolicyCase {
+            id: "raster-affine-singular-under-pvec-rule",
+            rule: "NP-19",
+            what: "a determinant of 1e-11 is singular under REL * big^2 although it is above libviprs's 1e-12",
+            run: |p| {
+                let m = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
+                (m[0] * m[3] - m[1] * m[2]).abs() > 1e-12
+                    && rejects(p.validate_affine(m), NumericError::SingularTransform)
+            },
+        },
+        PolicyCase {
+            id: "raster-affine-negative-zero",
+            rule: "NP-03",
+            what: "a coefficient of -0.0 comes back as +0.0, so the bits compare equal after normalisation",
+            run: |_| check_value(-0.0).is_ok_and(|x| x.to_bits() == 0.0f64.to_bits()),
+        },
+        PolicyCase {
+            id: "raster-footprint-corner-outside-np-02",
+            rule: "NP-02",
+            what: "a footprint corner of 2^20 * 6e7 is out of range although the coefficients are legal",
+            run: |p| {
+                let corner = MAX_AFFINE_ENTRY * 60_000_000.0;
+                p.validate_affine([MAX_AFFINE_ENTRY, 0.0, 0.0, -1.0, 0.0, 0.0]).is_ok()
+                    && rejects(check_value(corner), NumericError::OutOfRange)
+            },
+        },
         PolicyCase {
             id: "closed-flag-gap",
             rule: "NP-20",

@@ -147,3 +147,23 @@ fn the_directory_traversal_seeds_carry_kind_9_and_10_entries_with_capability_21_
         }
     }
 }
+
+#[test]
+fn fuzz_component_streams_is_seeded_with_one_valid_raster_placement_and_decodes_it() {
+    // issue 217: the target decodes the raster stream, so the corpus has a valid placement in a set
+    use pvec_components::{RASTER_CAPABILITY, decode_rasters};
+    use pvec_capabilities::{Reader, Registry, Version};
+    let seeds = corpus();
+    let inputs = for_target("fuzz_component_streams", &seeds);
+    let registry = Registry::v1();
+    let reader = Reader { version: Version::new(1, 1, 0), implemented: vec![RASTER_CAPABILITY] };
+    let placements = inputs
+        .iter()
+        .filter_map(|set| pvec_components::read_streams(set, &registry, &reader).ok())
+        .flat_map(|opened| opened.streams)
+        .filter(|s| s.capability == RASTER_CAPABILITY)
+        .filter_map(|s| decode_rasters(&s.payload).ok())
+        .map(|p| p.len())
+        .sum::<usize>();
+    assert!(placements >= 1, "no seed carries a valid raster placement");
+}
