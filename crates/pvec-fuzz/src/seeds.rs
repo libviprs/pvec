@@ -212,6 +212,33 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
         return raster_index_inputs();
     }
+    /// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
+    fn raster_seed() -> Option<Vec<u8>> {
+        use pvec_components::{
+            Band, PixelFormat, Placement, RASTER_CAPABILITY, Stream, TileCodec, encode_rasters,
+            encode_streams,
+        };
+        let payload = encode_rasters(&[Placement {
+            pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
+            width: 1024,
+            height: 512,
+            visible_box: [0, 0, 1024, 512],
+            tile_edge: 512,
+            levels: 2,
+            tile_codec: TileCodec::Png,
+            pixel_format: PixelFormat::Rgba,
+            bit_depth: 8,
+            opacity: 255,
+            band: Band::Underlay,
+            layer_index: Some(0),
+            source_digest: Some([0x5A; 32]),
+            attribution: "survey".into(),
+        }])
+        .ok()?;
+        let version = pvec_capabilities::Registry::v1().get(RASTER_CAPABILITY)?.version;
+        encode_streams(&[Stream { capability: RASTER_CAPABILITY, version, payload }]).ok()
+    }
+
     let mut out: Vec<Vec<u8>> = Vec::new();
     if target == "fuzz_component_streams" {
         out.extend(raster_seed());

@@ -397,22 +397,22 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
     },
     LimitRow {
         kind: LimitKind::Rasters,
-        rationale: "Proposed (ADR 0018): 4,096 placements. Each raster has an index block of 64 bytes in the directory, so the ceiling is 256 KiB of directory, about 0.5% of a 50 MB file. The value stays proposed until the measurements of issue 220.",
+        rationale: "Proposed (ADR 0018): 4,096 placements. Each raster has an index block of 64 bytes in the directory, so the ceiling is 256 KiB of directory, about 0.5% of a 50 MB file. Issue 220 measured the directory cost at 432 bytes per raster (one index block and five chunk blocks at 72 bytes each, native x64), not 64, so 4,096 rasters would be about 1.8 MB of directory, 3.5% of a 50 MB file and past that 0.5% line. The ceiling stays proposed for that reason, with an owner to decide whether it or the line moves; a drawing has a handful of rasters, not thousands.",
         enforced: "the raster stream, when the placements are read, before the table is allocated; and when the stream is written",
     },
     LimitRow {
         kind: LimitKind::RasterTiles,
-        rationale: "Proposed (ADR 0018): 1,048,576 tiles per artifact and 131,072 in the browser. An index entry is about 24 bytes, so that is 24 MiB and 3 MiB of index at the ceilings, inside LIMIT-02; the numbers borrow LIMIT-06's. Proposed until issue 220 measures it.",
+        rationale: "Proposed (ADR 0018): 1,048,576 tiles per artifact and 131,072 in the browser. An index entry is about 24 bytes, so that is 24 MiB and 3 MiB of index at the ceilings, inside LIMIT-02; the numbers borrow LIMIT-06's. Measured by issue 220 (native x64, `docs/BENCHMARKS.md`): 24.44 bytes per tile, so 25.6 MB at the default ceiling and 3.2 MB in the browser. Kept.",
         enforced: "the raster index block (issue 218), from the counts in its header, before the tile table is allocated",
     },
     LimitRow {
         kind: LimitKind::TileBytes,
-        rationale: "Proposed (ADR 0018): one tile is stored as at most `2 * 4 * tile_edge^2` plus this field's allowance of 65,536 bytes (589,824 at an edge of 256, 2,162,688 at 512, 8,454,144 at 1024). An uncompressed RGBA PNG of the tile is `4 * edge^2` plus framing, so twice that admits every honest encoding and refuses a progressive JPEG whose only purpose is decode time. Proposed until issue 220 measures it.",
+        rationale: "Proposed (ADR 0018): one tile is stored as at most `2 * 4 * tile_edge^2` plus this field's allowance of 65,536 bytes (589,824 at an edge of 256, 2,162,688 at 512, 8,454,144 at 1024). An uncompressed RGBA PNG of the tile is `4 * edge^2` plus framing, so twice that admits every honest encoding and refuses a progressive JPEG whose only purpose is decode time. Proposed still: it needs the stored tile sizes of real scans and a browser decoder, which issue 220 does not have.",
         enforced: "the tile read (issue 219), from the length in the raster index, before the range is requested",
     },
     LimitRow {
         kind: LimitKind::PlanDecodedBytes,
-        rationale: "Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. Proposed until issue 220 measures it.",
+        rationale: "Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. The plan enforces it (issue 220, `plan_raster`, tested at 256 tiles of 512 px, and a coarser level is chosen until it fits); proposed still as a number, because what the decoder and the textures cost in a browser is libviprs/maplibre-pvec#102's measurement.",
         enforced: "the raster plan (issue 220), before the first range of the plan is requested",
     },
 ];
