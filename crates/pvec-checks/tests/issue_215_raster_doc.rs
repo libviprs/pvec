@@ -44,7 +44,10 @@ fn raster_md_carries_the_layouts_the_conversions_and_the_test_vector() {
 #[test]
 fn container_md_reserves_kinds_9_and_10_for_capability_21_and_hoists_over_required_only() {
     let d = flat(&read("docs/CONTAINER.md"));
-    assert!(d.contains("| 9 | raster_index |") && d.contains("| 10 | raster_tiles |"), "kinds 9 and 10 are not in the table");
+    assert!(
+        d.contains("| 9 | raster_index |") && d.contains("| 10 | raster_tiles |"),
+        "kinds 9 and 10 are not in the table"
+    );
     assert!(d.contains("capability-owned by 21"), "the kinds do not name capability 21");
     assert!(
         d.contains("the highest minimum reader of the required capabilities"),

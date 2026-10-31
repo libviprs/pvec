@@ -132,21 +132,21 @@ pub fn mutate_index(data: &mut [u8], seed: u64) {
         }
         return;
     }
-    let u32_at = |d: &[u8], at: usize| u32::from_le_bytes([d[at], d[at + 1], d[at + 2], d[at + 3]]) as usize;
-    let levels = u32_at(data, 0).min((data.len() - HEADER_LEN) / LEVEL_LEN);
+    let levels =
+        usize::from(u16::from_le_bytes([data[6], data[7]])).min((data.len() - HEADER_LEN) / LEVEL_LEN);
     let table = HEADER_LEN + LEVEL_LEN * levels;
     let tiles = (data.len().saturating_sub(table)) / TILE_LEN;
     for _ in 0..1 + rng.below(3) {
         match rng.below(6) {
-            // a field of the header
-            0 => put4(data, 4 * rng.below(4), &mut rng),
+            // a field of the header (the magic and the version included)
+            0 => put4(data, 4 * rng.below(8), &mut rng),
             // a field of a level
             1 if levels > 0 => {
                 put4(data, HEADER_LEN + LEVEL_LEN * rng.below(levels) + 4 * rng.below(4), &mut rng)
             }
             // a field of a tile entry (the checksum is two of them)
             2 | 3 if tiles > 0 => {
-                put4(data, table + TILE_LEN * rng.below(tiles) + 4 * rng.below(7), &mut rng)
+                put4(data, table + TILE_LEN * rng.below(tiles) + 4 * rng.below(6), &mut rng)
             }
             // two tile entries swap places
             4 if tiles > 1 => {

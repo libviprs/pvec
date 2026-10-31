@@ -14,20 +14,21 @@
 //!
 //! # Layout
 //!
-//! All integers are little endian. The block is, in order and with no padding:
+//! `docs/RASTER.md` section 2 is the specification; this is the code that writes and reads it. All integers are
+//! little endian. The block is, in order and with no padding:
 //!
 //! | part | bytes | content |
 //! |---|---|---|
-//! | header | 16 | `levels`, `tiles`, `stored`, `inline_len`, each a `u32` |
+//! | header | 32 | `PVX1`, `version u16` (1), `levels u16`, `tile_total u32`, `tile_stored u32`, `chunk_total u32`, `inline_len u32`, 8 reserved zero bytes |
 //! | level table | 16 per level | `cols`, `rows`, `chunks`, `first`, each a `u32`, level 0 (the coarsest) first |
-//! | tile table | 28 per tile | `xxh3 u64`, `col`, `row`, `offset`, `length`, `chunk`, each a `u32` |
+//! | tile table | 24 per tile | `chunk u32`, `offset u32`, `length u32`, `col u16`, `row u16`, `xxh3 u64` |
 //! | inline part | `inline_len` | the bytes of the tiles whose chunk is [`INLINE`], in table order |
 //!
-//! `tiles` is the number of entries of the tile table, which is `cols * rows` summed over the levels, and
-//! `stored` is how many of them have a non-zero length. The tile table holds the levels one after the other, and
-//! inside a level the tiles are in Hilbert order ([`hilbert_key`]), strictly ascending, so a viewport is a few runs
-//! of the table and the order is checked by a parser rather than trusted. `first` is the ordinal of the level's
-//! first entry.
+//! `tile_total` is the number of entries of the tile table, which is `cols * rows` summed over the levels, and
+//! `tile_stored` is how many of them have a non-zero length. The tile table holds the levels one after the other,
+//! and inside a level the tiles are in Hilbert order ([`hilbert_key`]), strictly ascending, so a viewport is a few
+//! runs of the table and the order is checked by a parser rather than trusted. `first` is the ordinal of the
+//! level's first entry.
 //!
 //! A tile with length 0 is not stored and draws nothing (a sparse pyramid); its other fields are 0. A stored tile
 //! is either inline (`chunk` is [`INLINE`], `offset` is a position in the index block itself) or in chunk `chunk`
@@ -49,14 +50,18 @@ pub const INLINE: u32 = u32::MAX;
 pub const CHUNKS_PER_LEVEL: u32 = 1024;
 /// Levels that fit the same `u16` subtype.
 pub const MAX_LEVELS: u32 = 64;
-/// Columns or rows of a level. The Hilbert key of a level is below the square of this.
-pub const MAX_SIDE: u32 = 1 << 20;
+/// Columns or rows of a level: a tile's place is two `u16`.
+pub const MAX_SIDE: u32 = 65_535;
+/// The first four bytes of an index block.
+pub const MAGIC: [u8; 4] = *b"PVX1";
+/// The version of the layout.
+pub const VERSION: u16 = 1;
 /// Bytes of the header.
-pub const HEADER_LEN: usize = 16;
+pub const HEADER_LEN: usize = 32;
 /// Bytes of one level of the level table.
 pub const LEVEL_LEN: usize = 16;
 /// Bytes of one entry of the tile table.
-pub const TILE_LEN: usize = 28;
+pub const TILE_LEN: usize = 24;
 
 /// The `subtype` of the directory entry of chunk `chunk` of level `level`: `level * 1024 + chunk`, which is
 /// unique and ascends by level under LAYOUT-04. `None` when either does not fit.
@@ -68,9 +73,12 @@ pub fn subtype(level: u32, chunk: u32) -> Option<u16> {
 }
 
 /// The position of tile `(col, row)` along the Hilbert curve over the square of side `side`, which is a power
-/// of two at least as large as both. Distinct tiles of one level have distinct keys.
+/// of two at least as large as both, with the first step along x: the key of `(1, 0)` is 1 on a square of 2.
+/// Distinct tiles of one level have distinct keys, and the order of a level is the order of its keys with the
+/// cells outside the grid left out.
 pub fn hilbert_key(side: u64, col: u32, row: u32) -> u64 {
-    let (mut x, mut y) = (u64::from(col), u64::from(row));
+    // the usual xy2d walks y first; swapping the axes makes the first step along x
+    let (mut x, mut y) = (u64::from(row), u64::from(col));
     let mut d = 0u64;
     let mut s = side / 2;
     while s > 0 {
@@ -106,6 +114,8 @@ pub enum IndexError {
         /// The bytes there are.
         found: u64,
     },
+    /// A header that is not this layout's: the wrong magic or version, or a reserved field that is not zero.
+    Header,
     /// No level, or more levels than the subtype can name.
     Levels {
         /// The count in the block.
@@ -119,13 +129,14 @@ pub enum IndexError {
         ceiling: u64,
     },
     /// A level of no columns or rows, or of more than [`MAX_SIDE`] of either, or one whose `first` is not the
-    /// number of entries before it, or with more chunks than a subtype can name.
+    /// number of entries before it, or with more chunks than a subtype can name, or whose chunks are not the
+    /// ones its tiles name.
     Level {
         /// The level.
         level: u32,
     },
-    /// The levels hold a number of tiles other than the header says, or `stored` is not the number of non-zero
-    /// lengths.
+    /// The levels hold a number of tiles or chunks other than the header says, or `tile_stored` is not the number
+    /// of non-zero lengths, or the inline part is not exactly the inline tiles.
     Count,
     /// A level whose size is not the one the placement fixes.
     Grid {
@@ -184,6 +195,7 @@ impl fmt::Display for IndexError {
             IndexError::Length { expected, found } => {
                 write!(f, "{rule}: the index block is {found} bytes, its header says {expected}")
             }
+            IndexError::Header => write!(f, "{rule}: the header is not a version 1 index header"),
             IndexError::Levels { found } => write!(f, "{rule}: {found} levels"),
             IndexError::TooManyTiles { declared, ceiling } => {
                 write!(f, "{rule}: {declared} tiles against a ceiling of {ceiling}")
@@ -285,8 +297,15 @@ impl RasterIndex {
         if bytes.len() < HEADER_LEN {
             return Err(IndexError::Length { expected: HEADER_LEN as u64, found: bytes.len() as u64 });
         }
-        let (levels, tiles, stored, inline_len) =
-            (u32_at(bytes, 0), u32_at(bytes, 4), u32_at(bytes, 8), u32_at(bytes, 12));
+        if bytes[..4] != MAGIC
+            || u16::from_le_bytes([bytes[4], bytes[5]]) != VERSION
+            || bytes[24..32].iter().any(|b| *b != 0)
+        {
+            return Err(IndexError::Header);
+        }
+        let levels = u32::from(u16::from_le_bytes([bytes[6], bytes[7]]));
+        let (tiles, stored, chunk_total, inline_len) =
+            (u32_at(bytes, 8), u32_at(bytes, 12), u32_at(bytes, 16), u32_at(bytes, 20));
         if levels == 0 || levels > MAX_LEVELS {
             return Err(IndexError::Levels { found: levels });
         }
@@ -302,7 +321,7 @@ impl RasterIndex {
         }
         // from here the declared counts are bounded by the length of the block itself
         let mut level_table = Vec::with_capacity(levels as usize);
-        let mut first = 0u64;
+        let (mut first, mut chunks_seen) = (0u64, 0u64);
         for l in 0..levels {
             let at = HEADER_LEN + LEVEL_LEN * l as usize;
             let level = Level {
@@ -316,9 +335,10 @@ impl RasterIndex {
                 return Err(IndexError::Level { level: l });
             }
             first += u64::from(level.cols) * u64::from(level.rows);
+            chunks_seen += u64::from(level.chunks);
             level_table.push(level);
         }
-        if first != u64::from(tiles) {
+        if first != u64::from(tiles) || chunks_seen != u64::from(chunk_total) {
             return Err(IndexError::Count);
         }
         let table_at = HEADER_LEN + LEVEL_LEN * levels as usize;
@@ -338,12 +358,12 @@ impl RasterIndex {
                 let ordinal = (u64::from(level.first) + k) as u32;
                 let at = table_at + TILE_LEN * ordinal as usize;
                 let t = Tile {
-                    xxh3: u64_at(bytes, at),
-                    col: u32_at(bytes, at + 8),
-                    row: u32_at(bytes, at + 12),
-                    offset: u32_at(bytes, at + 16),
-                    length: u32_at(bytes, at + 20),
-                    chunk: u32_at(bytes, at + 24),
+                    chunk: u32_at(bytes, at),
+                    offset: u32_at(bytes, at + 4),
+                    length: u32_at(bytes, at + 8),
+                    col: u32::from(u16::from_le_bytes([bytes[at + 12], bytes[at + 13]])),
+                    row: u32::from(u16::from_le_bytes([bytes[at + 14], bytes[at + 15]])),
+                    xxh3: u64_at(bytes, at + 16),
                 };
                 if t.col >= level.cols || t.row >= level.rows {
                     return Err(IndexError::Order { level: l, ordinal });
@@ -411,20 +431,27 @@ impl RasterIndex {
         let mut out = Vec::with_capacity(
             HEADER_LEN + LEVEL_LEN * self.levels.len() + TILE_LEN * self.tiles.len() + self.inline.len(),
         );
-        out.extend_from_slice(&(self.levels.len() as u32).to_le_bytes());
+        out.extend_from_slice(&MAGIC);
+        out.extend_from_slice(&VERSION.to_le_bytes());
+        out.extend_from_slice(&(self.levels.len() as u16).to_le_bytes());
         out.extend_from_slice(&(self.tiles.len() as u32).to_le_bytes());
         out.extend_from_slice(&self.stored.to_le_bytes());
+        out.extend_from_slice(&self.levels.iter().map(|l| l.chunks).sum::<u32>().to_le_bytes());
         out.extend_from_slice(&(self.inline.len() as u32).to_le_bytes());
+        out.extend_from_slice(&[0; 8]);
         for l in &self.levels {
             for v in [l.cols, l.rows, l.chunks, l.first] {
                 out.extend_from_slice(&v.to_le_bytes());
             }
         }
         for t in &self.tiles {
-            out.extend_from_slice(&t.xxh3.to_le_bytes());
-            for v in [t.col, t.row, t.offset, t.length, t.chunk] {
+            for v in [t.chunk, t.offset, t.length] {
                 out.extend_from_slice(&v.to_le_bytes());
             }
+            // a column and a row are at most MAX_SIDE, which the builder and the parser both hold
+            out.extend_from_slice(&(t.col as u16).to_le_bytes());
+            out.extend_from_slice(&(t.row as u16).to_le_bytes());
+            out.extend_from_slice(&t.xxh3.to_le_bytes());
         }
         out.extend_from_slice(&self.inline);
         out

@@ -38,15 +38,29 @@ fn put(b: &mut [u8], at: usize, v: u32) {
     b[at..at + 4].copy_from_slice(&v.to_le_bytes());
 }
 
+fn put16(b: &mut [u8], at: usize, v: u16) {
+    b[at..at + 2].copy_from_slice(&v.to_le_bytes());
+}
+
+/// The header as the layout has it: the magic, the version, `levels` and `tiles`, with the rest zero.
+fn header(levels: u16, tiles: u32) -> Vec<u8> {
+    let mut b = vec![0u8; HEADER_LEN];
+    b[..4].copy_from_slice(b"PVX1");
+    put16(&mut b, 4, 1);
+    put16(&mut b, 6, levels);
+    put(&mut b, 8, tiles);
+    b
+}
+
 fn refused(bytes: &[u8]) -> IndexError {
     RasterIndex::parse(bytes, MAX).expect_err("the block must be refused")
 }
 
 #[test]
 fn the_hilbert_curve_visits_a_square_by_neighbours() {
-    // the order of a 2 by 2: (0,0) (0,1) (1,1) (1,0)
+    // the order of a 2 by 2, the first step along x: (0,0) (1,0) (1,1) (0,1)
     let key = |c, r| hilbert_key(2, c, r);
-    assert_eq!([key(0, 0), key(0, 1), key(1, 1), key(1, 0)], [0, 1, 2, 3]);
+    assert_eq!([key(0, 0), key(1, 0), key(1, 1), key(0, 1)], [0, 1, 2, 3]);
     for side in [1u64, 2, 4, 8, 16] {
         let mut by_key = vec![(u32::MAX, u32::MAX); (side * side) as usize];
         for r in 0..side as u32 {
@@ -228,27 +242,48 @@ fn raster_02_a_length_that_is_not_what_the_header_adds_up_to_is_refused() {
     assert!(matches!(refused(&longer), IndexError::Length { .. }));
     assert!(matches!(refused(&good[..good.len() - 1]), IndexError::Length { .. }));
     let mut lies = good.clone();
-    put(&mut lies, 12, 41); // inline_len
+    put(&mut lies, 20, 41); // inline_len
     assert!(matches!(refused(&lies), IndexError::Length { .. }));
 }
 
 #[test]
 fn raster_02_a_count_in_the_header_is_checked_against_the_length_before_anything_is_sized_by_it() {
     // a 16 byte block that claims four billion tiles is refused without a table being allocated
-    let mut b = vec![0u8; HEADER_LEN];
-    put(&mut b, 0, 1);
-    put(&mut b, 4, u32::MAX);
+    let b = header(1, u32::MAX);
     let e = RasterIndex::parse(&b, u64::MAX).expect_err("refused");
     assert!(matches!(e, IndexError::Length { .. }), "{e:?}");
     assert_eq!(e.rule(), "RASTER-02");
 }
 
 #[test]
+fn raster_02_a_header_that_is_not_version_1_of_this_layout_is_refused() {
+    let good = small();
+    assert_eq!(&good[..4], b"PVX1");
+    for (name, at, value) in [
+        ("the magic", 0usize, b'Q'),
+        ("the version", 4, 2),
+        ("a reserved byte", 24, 1),
+        ("the last reserved byte", 31, 1),
+    ] {
+        let mut b = good.clone();
+        b[at] = value;
+        assert_eq!(refused(&b), IndexError::Header, "{name}");
+    }
+}
+
+#[test]
+fn raster_02_the_chunk_total_of_the_header_is_the_sum_over_the_levels() {
+    let mut b = small();
+    put(&mut b, 16, 99);
+    assert_eq!(refused(&b), IndexError::Count);
+}
+
+#[test]
 fn raster_02_no_level_or_too_many_levels_are_refused() {
-    for n in [0u32, 65, u32::MAX] {
+    for n in [0u16, 65, u16::MAX] {
         let mut b = small();
-        put(&mut b, 0, n);
-        assert!(matches!(refused(&b), IndexError::Levels { found } if found == n));
+        put16(&mut b, 6, n);
+        assert!(matches!(refused(&b), IndexError::Levels { found } if found == u32::from(n)));
     }
 }
 
@@ -258,7 +293,7 @@ fn raster_02_a_level_that_does_not_add_up_is_refused() {
     for (name, edit) in [
         ("zero columns", (at(1, 0), 0u32)),
         ("zero rows", (at(1, 1), 0)),
-        ("a million and one columns", (at(1, 0), (1 << 20) + 1)),
+        ("65,536 columns, which a u16 cannot name", (at(1, 0), 65_536)),
         ("more chunks than a subtype names", (at(1, 2), 1025)),
         ("a first ordinal that is not the number of entries before it", (at(1, 3), 2)),
     ] {
@@ -280,15 +315,15 @@ fn raster_02_tiles_out_of_the_grid_or_out_of_order_are_refused() {
     let entry = |ordinal: usize| table + TILE_LEN * ordinal;
     // swap the places of the first two tiles of level 1, leaving what they hold where it is
     let mut swapped = good.clone();
-    let (a, b) = (entry(1) + 8, entry(2) + 8);
-    for i in 0..8 {
+    let (a, b) = (entry(1) + 12, entry(2) + 12);
+    for i in 0..4 {
         swapped.swap(a + i, b + i);
     }
     let e = refused(&swapped);
     assert!(matches!(e, IndexError::Order { level: 1, .. }), "{e:?}");
     // a column outside the level
     let mut outside = good.clone();
-    put(&mut outside, entry(1) + 8, 2);
+    put(&mut outside, entry(1) + 12, 2);
     assert!(matches!(refused(&outside), IndexError::Order { level: 1, ordinal: 1 }));
     // the same tile twice
     let mut twice = good.clone();
@@ -308,7 +343,7 @@ fn raster_02_a_tile_that_breaks_the_packing_rules_is_refused() {
     // a chunked tile of level 2 that is the second of its chunk
     let second_in_chunk =
         (level2..level2 + 15).find(|&o| built.index.tiles()[o as usize].offset == 40).unwrap();
-    let (offset, length, chunk) = (16, 20, 24);
+    let (offset, length, chunk) = (4, 8, 0);
     for (name, field, value) in [
         ("an offset inside the previous tile", offset, 20u32),
         ("an offset with a gap before it", offset, 41),
@@ -327,7 +362,7 @@ fn raster_02_a_tile_that_breaks_the_packing_rules_is_refused() {
     assert!(matches!(refused(&longer), IndexError::Packing { .. }));
     // a tile with no length must carry nothing else
     let unset = level2 + (0..15).find(|&k| built.index.tiles()[(level2 + k) as usize].length == 0).unwrap();
-    for (name, field, value) in [("a checksum", 0usize, 1u32), ("an offset", 16, 1), ("a chunk", 24, 1)] {
+    for (name, field, value) in [("a checksum", 16usize, 1u32), ("an offset", 4, 1), ("a chunk", 0, 1)] {
         let mut b = good.clone();
         put(&mut b, entry(unset) + field, value);
         let e = refused(&b);
@@ -335,7 +370,7 @@ fn raster_02_a_tile_that_breaks_the_packing_rules_is_refused() {
     }
     // an inline tile in a level that names chunks
     let mut inline_in_chunked = good.clone();
-    put(&mut inline_in_chunked, entry(second_in_chunk) + 24, INLINE);
+    put(&mut inline_in_chunked, entry(second_in_chunk), INLINE);
     assert!(matches!(refused(&inline_in_chunked), IndexError::Packing { .. }));
 }
 
@@ -343,12 +378,12 @@ fn raster_02_a_tile_that_breaks_the_packing_rules_is_refused() {
 fn raster_02_the_stored_count_and_the_inline_part_must_be_what_the_tiles_say() {
     let good = small();
     let mut count = good.clone();
-    put(&mut count, 8, 19);
+    put(&mut count, 12, 19);
     assert_eq!(refused(&count), IndexError::Count);
     // inline bytes no entry points at
     let mut spare = good.clone();
     spare.extend_from_slice(&[7; 8]);
-    put(&mut spare, 12, 40 + 8);
+    put(&mut spare, 20, 40 + 8);
     assert_eq!(refused(&spare), IndexError::Count);
 }
 
@@ -390,8 +425,8 @@ fn raster_02_a_chunk_block_must_be_exactly_its_tiles() {
 
 #[test]
 fn limit_14_131073_tiles_are_refused_under_the_browser_ceiling_and_accepted_under_the_default() {
-    // one level of 131,073 by 1, nothing stored: the table is the size
-    let grid = [(131_073u32, 1u32)];
+    // two levels of 65,535 by 2 and 1 by 3, nothing stored: the table is the size
+    let grid = [(65_535u32, 2u32), (1, 3)];
     let browser = 1u64 << 17;
     let default = 1u64 << 20;
     let e = build(&grid, Vec::new(), 0, 1 << 20, browser).expect_err("refused");
@@ -399,7 +434,7 @@ fn limit_14_131073_tiles_are_refused_under_the_browser_ceiling_and_accepted_unde
     assert!(matches!(e, IndexError::TooManyTiles { declared: 131_073, ceiling } if ceiling == browser));
     let built = build(&grid, Vec::new(), 0, 1 << 20, default).unwrap();
     let bytes = built.index.encode();
-    assert_eq!(bytes.len(), HEADER_LEN + LEVEL_LEN + TILE_LEN * 131_073);
+    assert_eq!(bytes.len(), HEADER_LEN + 2 * LEVEL_LEN + TILE_LEN * 131_073);
     let e = RasterIndex::parse(&bytes, browser).expect_err("refused");
     assert_eq!(e.rule(), "LIMIT-14");
     assert_eq!(RasterIndex::parse(&bytes, default).unwrap().tiles().len(), 131_073);

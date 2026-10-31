@@ -18,7 +18,7 @@ The seven targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> Strin
 
 Each target asserts these, so a parser that accepts something it should have refused is a crash, as well as one that panics.
 
-`fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 100,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`.
+`fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 65,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`.
 
 ## Seed corpus
 

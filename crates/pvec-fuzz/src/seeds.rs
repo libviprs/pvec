@@ -297,7 +297,7 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
 }
 
 /// The inputs of `fuzz_raster_index`: the index blocks of the test-only tiler's pyramids (a single tile, a
-/// pyramid with inline levels, a sparse one, a split one, one with a tile table of a hundred thousand
+/// pyramid with inline levels, a sparse one, a split one, one with a tile table of 65,000
 /// entries), each with a handful of mutants from the structure-aware mutator, and the header-only blocks that
 /// claim more than the ceiling.
 fn raster_index_inputs() -> Vec<Vec<u8>> {
@@ -324,7 +324,7 @@ fn raster_index_inputs() -> Vec<Vec<u8>> {
         valid.push(built.index.encode());
     }
     // a wide level that is all entries and no bytes
-    let wide = build(&[(100_000, 1)], Vec::new(), 0, 1 << 20, 1 << 20).expect("a wide pyramid");
+    let wide = build(&[(65_000, 1)], Vec::new(), 0, 1 << 20, 1 << 20).expect("a wide pyramid");
     valid.push(wide.index.encode());
     for (k, v) in valid.iter().enumerate() {
         out.push(v.clone());
@@ -338,9 +338,11 @@ fn raster_index_inputs() -> Vec<Vec<u8>> {
     }
     // a header that claims more than any block holds, and more than the ceiling
     for tiles in [1u32, 4096, (1 << 20) + 1, u32::MAX] {
-        let mut h = vec![0u8; 16];
-        h[0] = 1;
-        h[4..8].copy_from_slice(&tiles.to_le_bytes());
+        let mut h = vec![0u8; 32];
+        h[..4].copy_from_slice(b"PVX1");
+        h[4] = 1;
+        h[6] = 1;
+        h[8..12].copy_from_slice(&tiles.to_le_bytes());
         out.push(h);
     }
     out.push(Vec::new());
