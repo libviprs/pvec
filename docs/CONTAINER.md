@@ -426,6 +426,8 @@ Each refusal is a typed `WriteError` with a rule identifier.
 | WRT-12 | the manifest refused (the error carries its container error) |
 | WRT-13 | the semantic model refused |
 | WRT-14 | a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell |
+| WRT-15 | raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule) |
+| WRT-16 | the raster placement stream is refused (the error carries its RASTER rule) |
 
 ### 4.6 Review checklist
 

@@ -16,6 +16,7 @@
 use crate::blocks::advanced::{AdvancedBuilder, SplineSpec};
 use crate::blocks::arena::{ArenaError, PayloadKind};
 use crate::blocks::hot::{HotBlockBuilder, HotError, HotKind};
+use crate::blocks::raster::{IndexError, TileIn};
 use crate::compress::CodecPolicy;
 use crate::compress::pack;
 use crate::directory::{
@@ -29,7 +30,7 @@ use crate::spec::{cap, dir};
 use core::cmp::Ordering;
 use core::fmt;
 use pvec_capabilities::{CapabilityId, Declared, Registry, Requirement, Version};
-use pvec_components::{Stream, StreamError, encode_streams};
+use pvec_components::{RasterError, RasterId, Stream, StreamError, encode_streams};
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
 use pvec_numeric::check_value;
@@ -276,6 +277,10 @@ pub enum WriteError {
         /// The cell.
         cell: u32,
     },
+    /// Raster tiles the container cannot store (the error carries its `RASTER-nn` or `LIMIT-14` rule).
+    Raster(IndexError),
+    /// The raster placement stream is refused (the error carries its rule).
+    Placement(RasterError),
 }
 
 impl WriteError {
@@ -296,6 +301,8 @@ impl WriteError {
             WriteError::Container(_) => "WRT-12",
             WriteError::Geometry(_) => "WRT-13",
             WriteError::Tier0Cell { .. } => "WRT-14",
+            WriteError::Raster(_) => "WRT-15",
+            WriteError::Placement(_) => "WRT-16",
         }
     }
 }
@@ -319,6 +326,11 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
         "WRT-14",
         "a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell",
     ),
+    (
+        "WRT-15",
+        "raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule)",
+    ),
+    ("WRT-16", "the raster placement stream is refused (the error carries its RASTER rule)"),
 ];
 
 impl fmt::Display for WriteError {
@@ -348,6 +360,8 @@ impl fmt::Display for WriteError {
             WriteError::Tier0Cell { cell } => {
                 write!(f, "{rule}: a Tier 0 block cannot be in cell {cell}, or twice")
             }
+            WriteError::Raster(e) => write!(f, "{rule}: {e}"),
+            WriteError::Placement(e) => write!(f, "{rule}: {e}"),
         }
     }
 }
@@ -942,6 +956,22 @@ impl ContainerWriter {
         u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
         let seq = self.next_seq();
         self.tier0.push(Tier0Item { seq, cell, count, bounds, bytes });
+        Ok(())
+    }
+
+    /// Sets the bytes a chunk of raster tiles may hold (a stub).
+    pub fn raster_chunk_bytes(&mut self, bytes: u32) {
+        let _ = bytes;
+    }
+
+    /// Sets the inline budget (a stub).
+    pub fn raster_inline_bytes(&mut self, bytes: u64) {
+        let _ = bytes;
+    }
+
+    /// Adds raster tiles (a stub).
+    pub fn push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError> {
+        let _ = (raster, tiles);
         Ok(())
     }
 
