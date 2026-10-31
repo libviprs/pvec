@@ -1,4 +1,4 @@
-//! Issue P7.8 and issue #218: the targets exist, are wired to libFuzzer, and survive their seeds.
+//! Issue P7.8, issue #218 and pvec#220: the targets exist, are wired to libFuzzer, and survive their seeds.
 #![allow(unsafe_code)]
 
 mod support;
@@ -10,7 +10,7 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 8] = [
+const NAMES: [&str; 9] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
@@ -19,6 +19,7 @@ const NAMES: [&str; 8] = [
     "fuzz_component_streams",
     "fuzz_raster_index",
     "fuzz_raster_headers",
+    "fuzz_raster_plan",
 ];
 
 #[test]

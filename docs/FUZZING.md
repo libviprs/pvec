@@ -4,7 +4,7 @@ This is the hardening report for issue P7.8 (pvec#59), and how to rerun it. The 
 
 ## What is fuzzed
 
-The eight targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
+The nine targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
 
 | target | input | what it holds the reader to |
 |---|---|---|
@@ -16,10 +16,11 @@ The eight targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> Strin
 | `fuzz_component_streams` | a component stream set | a frame is stepped over by its declared length; only registered streams are read |
 | `fuzz_raster_headers` | `[codec][edge][format][bytes]`: the codec id, the edge in units of 128, the format (channels less one, and a bit for one bit deep), then a tile | an accepted tile is what the contract says: a PNG with the signature, an `IHDR` of the placement's edge, bit depth and a colour type that is not palette, no interlace and `IEND` as its last chunk and its last byte; a JPEG with `SOI`, only under gray or RGB at 8 bits, ending in `EOI`; a WebP whose RIFF size is its length less 8; none longer than `LIMIT-15`; and no sniffer examines more than 64 KiB of any tile |
 | `fuzz_raster_index` | one raster index block (kind 9, `docs/RASTER.md`) | a block that parses encodes back to the same bytes; every level starts where the last ended and holds `cols * rows` tiles in the grid; every tile the lookup is asked for is found; an inline tile has its bytes (its checksum is the reader's to check when the tile is read, not the parser's); a tile in a chunk names a chunk the level has and every chunk has a tile; a tile that is not stored carries zeros; the chunk blocks the tiles describe are exactly as long as their tiles; a count in the header is checked against the block's length before anything is sized by it |
+| `fuzz_raster_plan` | a raster grid, a placement (six `f64`) and a viewport, framed in 116 bytes (pvec#220) | the plan never panics; every tile is inside its level, the decoded bytes are under the limit (`LIMIT-16`), a range starts at its first tile and ends at its last, no range is over the request ceiling unless it is one tile, and a not-stored tile is in no range |
 
 Each target asserts these, so a parser that accepts something it should have refused is a crash, as well as one that panics.
 
-`fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218), and `fuzz_raster_headers` the eighth (issue #219; seeds: one tile of each codec and variant libviprs writes at 256, 512 and 1024, the thirteen hostile tiles of `pvec_testkit::raster_hostile` and four header mutants of each). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 65,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`.
+`fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218), and `fuzz_raster_headers` the eighth (issue #219; seeds: one tile of each codec and variant libviprs writes at 256, 512 and 1024, the thirteen hostile tiles of `pvec_testkit::raster_hostile` and four header mutants of each). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 65,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`. `fuzz_raster_plan` is the ninth (issue #220): its seeds are not artifacts either but framed placements and viewports (an upright image, a rotated and sheared one, a tiny scale, overzoom, a viewport off the image, a huge viewport, a singular map), each under two request limits.
 
 ## Seed corpus
 
@@ -78,6 +79,7 @@ On `fuzz_directory_traversal`, arm64, the mutator alone reached 4,271 edges in 3
 | `fuzz_decompress_boundary` (flag) | jupiter | native arm64 | no | 121 s | 4,599,176 | 38,009 | 2,160 | 4,051 | 409 -> 794 | 442 MB |
 | `fuzz_component_streams` | mercury | native arm64 | yes | 301 s | 11,015,253 | 36,595 | 420 | 603 | 8 -> 74 | 413 MB |
 | `fuzz_component_streams` | mars | native x86_64 | yes | 121 s | 5,397,979 | 44,611 | 449 | 616 | 8 -> 58 | 417 MB |
+| `fuzz_raster_plan` | mars | native x86_64 | yes | 301 s | 12,390 | 41 | 379 | 1,291 | 16 -> 141 | 374 MB |
 
 Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 413 to 576 MB is the process, libFuzzer and the sanitizer included, and the limit libFuzzer was given was 2,560 MB (the 2,048 MB `max_alloc_bytes` of the P4.8 budget plus 512 MB for the runtime): an execution over it is an `oom` artifact and would be a finding. Every target went past a million executions in its smoke budget on both architectures, the least being 2.48 million for the decompress boundary on x86_64.
 
@@ -132,7 +134,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 ## Running it
 
 ```
-tools/fuzz.sh --host mercury --seconds 300                      # all eight targets, arm64, the smoke budget
+tools/fuzz.sh --host mercury --seconds 300                      # all nine targets, arm64, the smoke budget
 tools/fuzz.sh --host mars --seconds 300 fuzz_header             # one target, native x86_64
 tools/fuzz.sh --host jupiter --no-checksum-gate fuzz_directory_traversal
 tools/fuzz.sh --host mars --seconds 14400                       # the nightly: 4 hours per target, one after the other
@@ -144,6 +146,7 @@ Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is 
 ## What is not claimed
 
 * The nightly of the two raster targets ran 4.0 h each on MARS (see "The raster targets"); the other six targets were not rerun. It was one container each, one cpu, so the counts are one core's.
+* `fuzz_raster_plan` (pvec#220) has run 300 seconds on mars (native x86_64) and no other time: 12,390 executions with no crash, the row above. It has not run for the 4 hour budget of the others and has not run on arm64 at all. The throughput is 41 executions a second against thousands for the others, because one input can make the plan look at a window of a million cells at several levels, which is the bound that the plan keeps (`MAX_WINDOW_CELLS`) and not a stall; mars was also loaded by other jobs during the run (its load average was above 40).
 * Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.
 * The P8.1 benchmark corpus and the EPIC O gold fixtures are not in the seed corpus (see above), and the P2.8 and P4.8 conformance gates they would be judged by are not on main.

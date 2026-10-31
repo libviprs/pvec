@@ -10,6 +10,8 @@
 //! ```text
 //! progressive prepare ENTRY OUT                  write ENTRY.tier0.pvec (the corpus entry plus a Tier 0 block per leaf)
 //! progressive run ENTRY OUT PLATFORM [REPEATS]   every stage, arm and the interaction arm, as rows on stdout
+//! progressive raster-layout PLATFORM             Hilbert against row-major ranges per viewport on an A0 sheet (rows)
+//! progressive raster-report CSV                  the verdicts re-run with ten rasters over the drawing
 //! progressive header                             the CSV header
 //! progressive report CSV                         the verdict lines the document records
 //! ```
@@ -107,13 +109,28 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
     let (win, scale) = (aabb(window), scale_of(window));
     let t = Instant::now();
     let plan = ViewportQuery::new(win, scale)
-        .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0 })
+        .plan_tiered(
+            &dir,
+            &r,
+            &leaves,
+            &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() },
+        )
         .expect("plan");
     let mut t0_ids: Vec<BlockId> = Vec::new();
+    let mut raster_ids: Vec<BlockId> = Vec::new();
     let mut exact: Vec<Vec<BlockId>> = Vec::new();
     for q in plan.requests.iter().filter(|q| q.priority == pvec_stream::Priority::Visible) {
         match q.tier {
-            Tier::Tier0 => t0_ids.extend(&q.request.blocks),
+            // the raster index blocks of the Tier 0 share are read with the leaves but are not leaf plans
+            Tier::Tier0 => {
+                for b in &q.request.blocks {
+                    if r.entries()[b.0 as usize].kind == pvec_container::blocks::raster::KIND_INDEX {
+                        raster_ids.push(*b);
+                    } else {
+                        t0_ids.push(*b);
+                    }
+                }
+            }
             Tier::Exact => exact.push(q.request.blocks.clone()),
         }
     }
@@ -121,6 +138,7 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
     let mut have = vec![false; n];
     let mut seen_preview = vec![false; n];
     let (mut previews, mut anonymous) = (Vec::<(u32, f64)>::new(), 0u64);
+    drop(r.read_blocks(&raster_ids).expect("raster index blocks"));
     for block in r.read_blocks(&t0_ids).expect("tier 0 blocks") {
         let leaf = Tier0Plan::decode_leaf(block.as_bytes()).expect("a leaf plan");
         for id in leaf.exact_ids() {
@@ -256,20 +274,40 @@ impl Out<'_> {
     }
 }
 
+/// `architectural-1e6+r10` is the corpus entry `architectural-1e6` with ten scanned sheets over its drawing
+/// (pvec#220); a plain name has none.
+fn split(entry: &str) -> (&str, usize) {
+    match entry.split_once("+r") {
+        Some((base, n)) => (base, n.parse().expect("a raster count after +r")),
+        None => (entry, 0),
+    }
+}
+
 fn prepare(entry: &str, out: &Path) {
-    let spec = Spec::named(entry).unwrap_or_else(|| panic!("{entry}: not a generated corpus entry"));
+    let (base, rasters) = split(entry);
+    let spec = Spec::named(base).unwrap_or_else(|| panic!("{base}: not a generated corpus entry"));
     let shapes = spec.shapes();
     let (_, all) = pvec_bench::shape::summarise(&shapes);
     let max_error = PREVIEW_BUDGET_PX * (all[2] - all[0]).max(all[3] - all[1]) / SCREEN_PX;
     let producer = format!("{}/{}/{:#x}/tier0", pvec_bench::GENERATOR, spec.name, spec.seed);
-    let bytes =
-        pvec_bench::shape::artifact(&shapes, spec.unit(), &producer, Default::default(), Some(max_error))
-            .unwrap_or_else(|e| panic!("{e}"));
+    let tiles = pvec_bench::raster_bench::scan_tiles();
+    let sheets: Vec<_> = (0..rasters)
+        .map(|_| pvec_bench::raster_bench::scan([all[0], all[1], all[2], all[3]], &tiles))
+        .collect();
+    let bytes = pvec_bench::shape::artifact_with_rasters(
+        &shapes,
+        spec.unit(),
+        &producer,
+        Default::default(),
+        Some(max_error),
+        &sheets,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     fs::write(path(out, entry), bytes).expect("write");
 }
 
 fn truth_of(entry: &str) -> Truth {
-    let shapes = Spec::named(entry).expect("a generated entry").shapes();
+    let shapes = Spec::named(split(entry).0).expect("a generated entry").shapes();
     let (_, bounds) = pvec_bench::shape::summarise(&shapes);
     Truth { boxes: shapes.iter().map(|s| (s.bounds(), matches!(s, Shape::Spline(_)))).collect(), bounds }
 }
@@ -280,7 +318,8 @@ fn run(entry: &str, dir: &Path, platform: &str, repeats: usize) {
     let o = Out { entry, platform };
     let file = path(dir, entry);
     let truth = truth_of(entry);
-    let wins = viewports(entry, truth.bounds);
+    // the viewports of the entry without rasters, so the two are compared on the same windows
+    let wins = viewports(split(entry).0, truth.bounds);
     // per repeat, per arm, the four stage times of every viewport
     let mut times: Vec<Vec<[Vec<f64>; 4]>> = Vec::new();
     let mut last: Vec<Sample> = Vec::new();
@@ -368,7 +407,121 @@ fn run(entry: &str, dir: &Path, platform: &str, repeats: usize) {
     o.row("stage", "all", "mean", "bytes_tier0", mean(&|s| s.tier0.iter().sum::<u64>() as f64), cut);
     o.row("stage", "all", "mean", "ranges_refine", mean(&|s| s.exact.len() as f64), cut);
     o.row("stage", "all", "mean", "bytes_refine", mean(&|s| s.exact.iter().sum::<u64>() as f64), cut);
+    if split(entry).1 > 0 {
+        raster_rows(&o, &file, truth.bounds);
+    }
     interaction(&o, &file, &truth, &wins);
+}
+
+/// What the rasters of a file cost, from the file itself: the index bytes per tile against the ADR's estimate
+/// of 24, and what the Tier 0 plan of the whole drawing asks of the raster index blocks, against the cap.
+fn raster_rows(o: &Out, file: &Path, bounds: [f64; 4]) {
+    let r = open(file);
+    let (mut index_bytes, mut tile_entries, mut inline_bytes, mut stored_tiles) = (0u64, 0u64, 0u64, 0u64);
+    for id in r.rasters() {
+        let index = r.raster_index(id).expect("a raster index");
+        let block = r
+            .entries()
+            .iter()
+            .find(|e| e.kind == pvec_container::blocks::raster::KIND_INDEX && e.cell == id)
+            .expect("its index block");
+        let inline: u64 = index.tiles().iter().filter(|t| t.is_inline()).map(|t| u64::from(t.length)).sum();
+        index_bytes += u64::from(block.stored_length);
+        inline_bytes += inline;
+        tile_entries += index.tiles().len() as u64;
+        stored_tiles += u64::from(index.stored());
+    }
+    let n = r.rasters().len() as f64;
+    let note = "from the file: kind 9 block bytes less the inline tiles, over every tile entry";
+    o.row("raster", "all", "total", "rasters", n, "rasters in the file");
+    o.row(
+        "raster",
+        "all",
+        "total",
+        "tile_entries",
+        tile_entries as f64,
+        "every tile of every level of every raster",
+    );
+    o.row("raster", "all", "total", "stored_tiles", stored_tiles as f64, "tiles with bytes");
+    o.row(
+        "raster",
+        "all",
+        "mean",
+        "index_bytes_per_tile",
+        (index_bytes - inline_bytes) as f64 / tile_entries as f64,
+        note,
+    );
+    o.row(
+        "raster",
+        "all",
+        "total",
+        "inline_bytes",
+        inline_bytes as f64,
+        "the coarse levels kept in the index blocks",
+    );
+    // the plan on a reader that has read no index: a block it holds is not requested
+    let fresh = open(file);
+    let dir = SpatialDirectory::open(&fresh).expect("directory").expect("a directory");
+    let leaves = Tier0Leaves::new(fresh.entries(), &dir).expect("tier 0 leaves");
+    let q = ViewportQuery::new(aabb(bounds), scale_of(bounds));
+    let cfg = ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() };
+    let plan = q.plan_tiered(&dir, &fresh, &leaves, &cfg).expect("plan");
+    let planned: u64 = plan
+        .requests
+        .iter()
+        .flat_map(|q| q.request.blocks.iter())
+        .filter(|b| fresh.entries()[b.0 as usize].kind == pvec_container::blocks::raster::KIND_INDEX)
+        .map(|b| u64::from(fresh.entries()[b.0 as usize].stored_length))
+        .sum();
+    o.row(
+        "raster",
+        "all",
+        "fit",
+        "tier0_raster_bytes",
+        planned as f64,
+        "raster index bytes in the fit-to-view Tier 0 plan",
+    );
+    o.row(
+        "raster",
+        "all",
+        "fit",
+        "tier0_raster_cap",
+        pvec_stream::RASTER_TIER0_CAP as f64,
+        "the cap in force",
+    );
+}
+
+/// The Hilbert order against row-major for the ranges a viewport needs (open question 4 of ADR 0018), on an A0
+/// sheet at 300 dpi, at 1080p and 4K, from `plan_raster` over the sheet's own grid.
+fn raster_layout(platform: &str) {
+    let o = Out { entry: "a0-300dpi", platform };
+    let sheet = pvec_bench::raster_bench::A0;
+    for (screen_name, screen) in [("1080p", (1920u32, 1080u32)), ("4k", (3840, 2160))] {
+        for (arm, hilbert) in [("hilbert", true), ("row-major", false)] {
+            let v = pvec_bench::raster_bench::ranges_per_viewport(sheet, screen, hilbert);
+            let n = v.len() as f64;
+            let note =
+                "range requests per viewport at full resolution, viewports every 256 px over the sheet";
+            o.row(
+                "raster_layout",
+                arm,
+                screen_name,
+                "ranges_mean",
+                v.iter().map(|x| f64::from(*x)).sum::<f64>() / n,
+                note,
+            );
+            o.row(
+                "raster_layout",
+                arm,
+                screen_name,
+                "ranges_p95",
+                f64::from(v[(v.len() * 95 / 100).min(v.len() - 1)]),
+                note,
+            );
+            o.row("raster_layout", arm, screen_name, "ranges_max", f64::from(v[v.len() - 1]), note);
+            o.row("raster_layout", arm, screen_name, "viewports", n, note);
+        }
+    }
 }
 
 /// A pan and a zoom issued while the refinement of viewport A is still arriving (halfway between the
@@ -400,7 +553,12 @@ fn interaction(o: &Out, file: &Path, truth: &Truth, wins: &[[f64; 4]]) {
                 let dir = SpatialDirectory::open(&r).expect("directory").expect("a directory");
                 let leaves = Tier0Leaves::new(r.entries(), &dir).expect("leaves");
                 let plan = ViewportQuery::new(aabb(next), scale_of(next))
-                    .plan_tiered(&dir, &r, &leaves, &ViewportConfig { prefetch_margin_px: 0.0 })
+                    .plan_tiered(
+                        &dir,
+                        &r,
+                        &leaves,
+                        &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() },
+                    )
                     .expect("plan");
                 plan.block_ids().into_iter().collect()
             };
@@ -472,6 +630,14 @@ fn main() {
         Some("run") => {
             let repeats = a.get(4).map_or(3, |r| r.parse().expect("a repeat count"));
             run(&a[1], Path::new(&a[2]), &a[3], repeats);
+        }
+        Some("raster-layout") => raster_layout(&a[1]),
+        Some("raster-report") => {
+            let rows =
+                parse_rows(&fs::read_to_string(&a[1]).expect("the CSV")).unwrap_or_else(|e| panic!("{e}"));
+            for v in pvec_bench::raster_bench::raster_verdicts(&rows) {
+                println!("- {} on {}: {} ({})", v.id, v.platform, v.status.label(), v.detail);
+            }
         }
         Some("report") => {
             let rows =

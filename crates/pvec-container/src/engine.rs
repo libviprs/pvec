@@ -1070,7 +1070,10 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
     }
     s.push_str(
         "\nThe reference reader in `pvec-testkit` also has `LAYOUT-05`, a range that lies outside the file. This reader \
-never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).\n\n## Not here\n\n\
+never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).\n\n\
+## The extent of a drawing with rasters\n\n\
+The extent a reader reports for fit-to-view is the box of the entities grown by the footprint of each raster's `visible_box` in source space (`pvec_stream::reported_extent`, ADR 0018). The spatial directory's root box stays a union of entities: a raster is in no leaf, and its tiles are found through its own index block (`docs/STREAMING.md`, chapter 6), not through the directory.\n\n\
+## Not here\n\n\
 There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the \
 confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same \
 checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. \

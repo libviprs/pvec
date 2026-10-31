@@ -492,3 +492,37 @@ Native x64 on MARS, `rustc 1.99.1`, `rooms-1m` of chapter 1.5 (15,625 hot blocks
 | zoom into a region the outer view decoded | no request for a decoded block | 0 ranges, 0 bytes |
 
 The last waste row is the honest limit of the fixed threshold: 64 KiB is about 25 blocks here, so a handful of scattered Hilbert runs read a lot of padding. Retuning the gap against block size is P8.6's, and the number is there so that tuning has something to beat.
+
+## 6. Rasters (ADR 0018, issue pvec#220)
+
+A raster is not in the spatial directory (chapter 1): its tiles are found through the raster's own index block, and the plan below is what turns a viewport into byte ranges. `plan_raster` in `pvec-stream` is that plan for one raster. It reads no file: it takes the grid the placement fixes (`RasterGrid`: width, height, `tile_edge`, `levels`, channels), the six coefficients of `pixel_to_source`, the viewport (`ViewportQuery`, so source-space bounds and display pixels per source unit) and a lookup from `(level, col, row)` to what the index says about that tile (`TileSlot`). The caller fetches the index block first, lazily, like the reference arrays.
+
+### 6.1 The level
+
+The device size of one full-resolution pixel is the Jacobian `scale * [[a, b], [c, d]]` of the placement. Its larger singular value `sigma` is how many display pixels the image's sharper direction spends on one pixel, and it is one number under a rotation, a shear or a non-uniform scale. A level that halved `k` times has pixels `2^k` times as big, so the level is the finest one that is not under-sampled: `k = floor(-log2 sigma)`, clamped to `0 .. levels - 1`, and the level is `levels - 1 - k`. With `sigma >= 1` (zoomed in past one device pixel per image pixel) the level clamps at full resolution, which is overzoom. A pure rotation changes no singular value, so it does not change the level.
+
+### 6.2 The window
+
+The four corners of the viewport go through the inverse of `pixel_to_source`; the pixel-space box of the four results is divided by the level's shrink and by `tile_edge`, floored, computed in `f64` and saturated to the level's `cols x rows`, so a huge or off-image viewport can neither overflow nor allocate. Under rotation the box over-fetches; the test holds it to 1.8x the exact tile set at 30 degrees, and a renderer may cull against the viewport polygon. A window past 2^20 cells (the default `LIMIT-14`, the most tiles an index can hold) is never walked: the plan goes coarser instead.
+
+### 6.3 The budget
+
+The plan sums `tile_edge^2 * channels` (4 for a placed raster, see 6.5) over the tiles it would hand on (stored and inline, not the ones the index says are not stored). While that is over `max_plan_decoded_bytes` (`LIMIT-16`, 256 MiB at the default, so 256 tiles of 512 px) it drops one level coarser, and if even the coarsest level does not fit, the raster is refused with `RasterPlanError::OverBudget`. A placement with a tiny scale therefore never puts every full-resolution tile into one plan.
+
+### 6.4 The ranges
+
+The stored tiles that are not inline are sorted by file offset and merged: a gap of at most `ReaderConfig::gap_threshold` (64 KiB) is bridged while a range stays within `max_request_bytes`. Only tiles merge with tiles. Kinds 9 and 10 sort after every geometry block in the canonical order, and a range never starts before its first tile or ends after its last, so a gap is never bridged into a hot block. A tile the index says is not stored (length 0) gives no tile and no range. An inline tile (the coarse levels kept in the index block for Tier 0) is in the plan as `TileSlot::Inline`, already present, and is not requested.
+
+### 6.5 From a file
+
+`plan_placed(reader, raster, placement, index, query, config)` is `plan_raster` for an open file. The caller has the placement (the raster stream, `pvec-components`) and the parsed index block (`ContainerReader::raster_index`, which fetches it lazily; in the browser the `-7` protocol of `WASM_ABI.md` does). The function reads nothing: it asks the reader for its directory only, to turn the index's `(chunk, offset)` into a block and a file offset (`offset` of the chunk's block plus the tile's offset in it). `LIMIT-16`, the gap and the request ceiling come from the `ReaderConfig`. A raster with an unknown tile codec is `RasterPlanError::Skipped`, and a tile whose chunk the directory lacks or whose range is past the chunk is planned as not stored (the open-time check, `check_raster_blocks`, refuses such a file first). A decoded tile is counted at four bytes a pixel whatever the placement's pixel format says, because the host decodes every tile to RGBA.
+
+### 6.6 The Tier 0 share
+
+`plan_tiered` adds the raster share to Tier 0: the index blocks (kind 9) of the rasters whose footprint touches the viewport, in raster order, while their stored bytes stay within `ViewportConfig::raster_tier0_cap` (`RASTER_TIER0_CAP`, 256 KB over all rasters of the file, from the 290 KB of headroom of `tier0-4s-5mbit`). Their inline part is the coarse levels of each raster, so the index block is the first paint of a raster. They are `Tier::Tier0` requests with no entity gain, so they rank after the geometry's Tier 0 requests and before every exact one, and they count against `tier_budget` like those (a tight budget defers them after the first request). Index blocks coalesce with each other only: kind 9 sorts after every geometry block and before kind 10, so no gap bridges a raster and a hot block. A file with no raster plans exactly as `plan` does (a test compares them), and a raster that does not fit the cap is not planned at Tier 0 and is fetched by its own plan when the viewport needs it.
+
+**Which cap wins.** The cap is configured in one place for the plan, `ViewportConfig::raster_tier0_cap`, and the writer decides how much it puts inline (`inline_levels` of `blocks::raster::build`). The writer owns the amount, the plan can only lower what it fetches, so when the two differ the smaller wins in the plan (ADR 0018, Ratification).
+
+### 6.7 The extent
+
+`reported_extent(root, placements)` is the extent a reader reports for fit-to-view: the spatial directory's root box grown by the source-space footprint of every raster's `visible_box`. The directory's own root box is not changed (it is a union of entities, and a raster is in no leaf).

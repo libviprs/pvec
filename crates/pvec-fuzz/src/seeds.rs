@@ -251,6 +251,12 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         match target {
             "fuzz_header" => out.push(bytes[..bytes.len().min(4096)].to_vec()),
             "fuzz_directory_traversal" => out.push(bytes.clone()),
+            // not a container: the plan target is fed placements and viewports, framed (see `raster_plan_frames`)
+            "fuzz_raster_plan" => {
+                if out.is_empty() {
+                    out = raster_plan_frames();
+                }
+            }
             _ => {
                 let Some(layout) = Layout::of(bytes) else { continue };
                 match target {
@@ -432,4 +438,98 @@ fn raster_header_inputs() -> Vec<Vec<u8>> {
     out.push(Vec::new());
     out.push(vec![1, 2, 0]);
     one_of(out, |v| v.as_slice())
+}
+
+/// Placements and viewports for `fuzz_raster_plan`: an upright image, a rotated and sheared one, a tiny scale
+/// that LIMIT-16 has to coarsen, overzoom, a viewport off the image, a huge viewport and a singular map.
+fn raster_plan_frames() -> Vec<Vec<u8>> {
+    // (width, height, edge selector, levels, channels, slot seed, max decoded bytes, map, [min x, min y, max x, max y, scale])
+    type Case = (u32, u32, u8, u8, u8, u8, u64, [f64; 6], [f64; 5]);
+    let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
+    let cases: [Case; 8] = [
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            0,
+            256 << 20,
+            [1.0, 0.0, 0.0, -1.0, 0.0, 20_000.0],
+            [100.0, 100.0, 3_000.0, 2_000.0, 1.0],
+        ),
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            1,
+            256 << 20,
+            [c, -s, s, c, 2_000.0, 1_000.0],
+            [6_000.0, 4_000.0, 10_000.0, 8_000.0, 1.0],
+        ),
+        (
+            8_000,
+            6_000,
+            0,
+            6,
+            3,
+            2,
+            256 << 20,
+            [2.0, 2.0, 0.0, -1.0, 0.0, 0.0],
+            [0.0, -6_000.0, 16_000.0, 0.0, 0.0625],
+        ),
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            3,
+            256 << 20,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 20_000.0, 20_000.0, 1.0],
+        ),
+        (4_096, 4_096, 2, 3, 1, 4, 1 << 30, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], [10.0, 10.0, 20.0, 20.0, 400.0]),
+        (
+            4_096,
+            4_096,
+            0,
+            5,
+            4,
+            5,
+            256 << 20,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [-9_000.0, -9_000.0, -5_000.0, -5_000.0, 1.0],
+        ),
+        (
+            u32::MAX,
+            u32::MAX,
+            0,
+            32,
+            4,
+            6,
+            u64::MAX,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0, 1.0 / 1_000_000_000.0],
+        ),
+        (4_096, 4_096, 0, 5, 4, 7, 256 << 20, [1.0, 2.0, 2.0, 4.0, 0.0, 0.0], [0.0, 0.0, 100.0, 100.0, 1.0]),
+    ];
+    cases
+        .iter()
+        .flat_map(|&(w, h, edge, levels, channels, seed, max_decoded, map, view)| {
+            [(64u32 << 10, 16u32 << 20), (0, 1 << 17)].map(|(gap, max_request)| {
+                let mut f = Vec::with_capacity(crate::RASTER_PLAN_FRAME);
+                f.extend(w.to_le_bytes());
+                f.extend(h.to_le_bytes());
+                f.extend([edge, levels, channels, seed]);
+                f.extend(gap.to_le_bytes());
+                f.extend(max_request.to_le_bytes());
+                f.extend(max_decoded.to_le_bytes());
+                f.extend(map.iter().chain(view.iter()).flat_map(|v| v.to_le_bytes()));
+                f
+            })
+        })
+        .collect()
 }

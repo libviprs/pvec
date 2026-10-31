@@ -479,8 +479,16 @@ The gaps the epic listed are settled the same way:
 3. A polygon clip in the placement with a stencil pass, as a v1.x addition, if baking into alpha proves too costly.
 4. Is the Hilbert order inside a level worth the writer complexity on real scans? #220 measures requests per
    viewport against row-major. The PMTiles export of #222 does not depend on the answer.
+   Answered 2026-10-31 (#220, native x64 on MARS, `docs/BENCHMARKS.md`, "Rasters"): on an A0 sheet at 300 dpi the
+   Hilbert order gives 2.31 ranges per viewport at 1080p against 3.00 for row-major and 3.82 against 5.00 at 4K, with
+   the same p95 at 4K and a worse tail at 1080p (p95 4, max 5, against 3). It stays, as decided.
 5. The constants: the texture budget, the per-plan cap and the Tier 0 value. #220 measures them on the reference
    machine; the owner of the Tier 0 cap is settled in Ratification.
+   Answered 2026-10-31 (#220): the Tier 0 cap stays at 256 KB, because with ten scanned sheets over the million
+   entity drawing `tier0-4s-5mbit` passes at 3.9229 s against 4 s with that cap and six of the ten overviews inside
+   it. The per-plan cap (`max_plan_decoded_bytes`, 256 MiB) stays as proposed: the plan is held to it by test, and
+   the texture budget needs a browser decoder, which is libviprs/maplibre-pvec#102's measurement, so that constant is
+   still open.
 
 ## Reversal threshold
 

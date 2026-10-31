@@ -4,6 +4,7 @@
 # network arms plus the interaction arm and writes tidy rows to OUT/<platform>/progressive.rows.csv.
 #
 #   tools/progressive-bench.sh mars|mercury OUTDIR [ENTRY...]
+#   an ENTRY such as architectural-1e6+r10 is the entry with ten scanned sheets over it (pvec#220)
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tools/bench-host.sh" "${1:?mars|mercury}" "pvec64-$$"
@@ -24,5 +25,9 @@ for E in "${ENTRIES[@]}"; do
         P prepare $E \$O
         P run $E \$O $PLAT 3 >> \$O/progressive.rows.csv; rm -f \$O/$E.tier0.pvec; cat /proc/loadavg" 2>&1 | tail -2
 done
+# an entry named ENTRY+rN has N scanned sheets over it (pvec#220); the layout comparison runs once with them
+if printf '%s\n' "${ENTRIES[@]}" | grep -q '+r'; then
+  rust "cargo bench -q -p pvec-bench --bench progressive -- raster-layout $PLAT >> /work/out/progressive.rows.csv"
+fi
 fetch out/progressive.rows.csv > "$OUT/$PLAT/progressive.rows.csv"
 echo "rows: $(wc -l < "$OUT/$PLAT/progressive.rows.csv") in $OUT/$PLAT"

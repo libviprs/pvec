@@ -142,7 +142,7 @@ fn one_viewport(path: &Path, window: [f64; 4]) -> (f64, u64, usize) {
             let win = Aabb::new([window[0], window[1]], [window[2], window[3]]).expect("a window");
             let scale = 1000.0 / (window[2] - window[0]).max(0.000_001);
             let plan = ViewportQuery::new(win, scale)
-                .plan(dir, &r, &ViewportConfig { prefetch_margin_px: 0.0 })
+                .plan(dir, &r, &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() })
                 .expect("plan");
             let mut ids = plan.block_ids();
             if let Some(ix) = &long {

@@ -88,6 +88,7 @@ version = "0.0.0"
 dependencies = [
  "miniz_oxide",
  "pvec-capabilities",
+ "pvec-components",
  "pvec-container",
  "pvec-corpus",
  "pvec-entity",
@@ -187,6 +188,7 @@ dependencies = [
  "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-stream",
  "pvec-testkit",
 ]
 
@@ -258,11 +260,13 @@ dependencies = [
 name = "pvec-stream"
 version = "0.0.0"
 dependencies = [
+ "pvec-components",
  "pvec-container",
  "pvec-entity",
  "pvec-geometry",
  "pvec-hermetic",
  "pvec-numeric",
+ "pvec-testkit",
 ]
 
 [[package]]
