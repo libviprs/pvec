@@ -10,3 +10,4 @@ pub mod generate;
 pub mod hostile;
 pub mod records;
 pub mod reference;
+pub mod tiler;
