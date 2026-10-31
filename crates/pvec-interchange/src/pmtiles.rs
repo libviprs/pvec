@@ -3,8 +3,11 @@
 //! One archive per exported view: the tiles of [`crate::mvt`] laid out as a single file a client can
 //! stream with HTTP range requests. The archive stays what the tiles are, a derivative for drawing.
 //! It is display fidelity only, it is not an input to any conformance comparison, and it is not re-imported as
-//! geometry, which is why this module can write an archive and cannot read one.
+//! geometry, which is why the vector half of this module can write an archive and cannot read one.
 //! `docs/INTERCHANGE.md` chapter 6 has the rule and the layout.
+//!
+//! The raster half ([`write_raster_archive`], [`read_raster_archive`]) is the opposite: a raster pyramid is
+//! encoded tiles that PVec never decodes, so it goes out and comes back byte for byte, chapter 8.
 //!
 //! The layout is the one the specification asks for: a 127 byte header, then the root directory (so
 //! both fall inside the first [`FIRST_READ_BYTES`] a client fetches), then the JSON metadata, then
@@ -14,6 +17,12 @@
 //! Deterministic: tiles are sorted by tile id before anything is written, directories are built from
 //! that order alone, and the metadata keys are written sorted. The writer never reads a clock; the
 //! only date in an archive is the string the caller passes in [`Provenance::created`].
+
+mod bridge;
+mod json;
+mod raster;
+pub use bridge::*;
+pub use raster::*;
 
 use crate::fidelity::FidelityKind;
 use crate::mvt::{MvtTile, TileId};
@@ -25,6 +34,8 @@ use std::collections::BTreeMap;
 pub const FIRST_READ_BYTES: usize = 16_384;
 
 const HEADER_LEN: usize = 127;
+/// The deepest zoom PMTiles can address.
+const MAX_RASTER_ZOOM: u8 = 31;
 /// The smallest leaf directory the writer tries when the root does not fit.
 const FIRST_LEAF_SIZE: usize = 1024;
 
@@ -88,10 +99,15 @@ impl std::error::Error for PmtilesError {}
 /// The PMTiles tile id of an address: the position along a Hilbert curve within the zoom, after all
 /// the tiles of the smaller zooms.
 pub fn tile_id(tile: TileId) -> u64 {
-    let z = u32::from(tile.z());
+    zxy_id(tile.z(), tile.x(), tile.y())
+}
+
+/// [`tile_id`] for any address PMTiles can hold (zoom up to 31), which is wider than the vector export's.
+fn zxy_id(z: u8, x: u32, y: u32) -> u64 {
+    let z = u32::from(z);
     let before = ((1u64 << (2 * z)) - 1) / 3;
     let n = 1u64 << z;
-    let (mut x, mut y, mut d) = (u64::from(tile.x()), u64::from(tile.y()), 0u64);
+    let (mut x, mut y, mut d) = (u64::from(x), u64::from(y), 0u64);
     let mut s = n / 2;
     while s > 0 {
         let rx = u64::from(x & s > 0);
@@ -107,6 +123,36 @@ pub fn tile_id(tile: TileId) -> u64 {
         s /= 2;
     }
     before + d
+}
+
+/// The address of a tile id, the inverse of [`zxy_id`], or `None` past zoom 31.
+fn id_zxy(id: u64) -> Option<(u8, u32, u32)> {
+    let mut before = 0u64;
+    for z in 0..=MAX_RASTER_ZOOM {
+        let count = 1u64 << (2 * u32::from(z));
+        if id >= before && id - before < count {
+            let (mut t, n) = (id - before, 1u64 << z);
+            let (mut x, mut y, mut s) = (0u64, 0u64, 1u64);
+            while s < n {
+                let rx = 1 & (t / 2);
+                let ry = 1 & (t ^ rx);
+                if ry == 0 {
+                    if rx == 1 {
+                        x = s - 1 - x;
+                        y = s - 1 - y;
+                    }
+                    core::mem::swap(&mut x, &mut y);
+                }
+                x += s * rx;
+                y += s * ry;
+                t /= 4;
+                s *= 2;
+            }
+            return Some((z, u32::try_from(x).ok()?, u32::try_from(y).ok()?));
+        }
+        before += count;
+    }
+    None
 }
 
 // ---- reading the tiles' own layers -------------------------------------------------------------------
@@ -399,9 +445,39 @@ pub fn write_pmtiles(
         data.extend_from_slice(&t.bytes);
     }
 
+    let metadata = metadata_json(
+        options,
+        provenance,
+        digest,
+        tolerance,
+        zooms,
+        &layers,
+        ledger_total,
+        per_kind,
+        max_bound,
+    );
+
+    let (min_z, max_z) = match (sorted.first(), sorted.iter().map(|t| t.tile.z()).max()) {
+        (Some(_), Some(hi)) => (sorted.iter().map(|t| t.tile.z()).min().unwrap_or(0), hi),
+        _ => (0, 0),
+    };
+    Ok(assemble(&entries, &data, &metadata, 1, (min_z, max_z)))
+}
+
+/// The archive around already built entries and tile data: the directories (everything in the root if
+/// it fits the first read, else leaves of a growing size), the metadata and the 127 byte header, laid out
+/// as chapter 6 of `docs/INTERCHANGE.md` says. `tile_type` is the PMTiles tile type byte. Tiles and
+/// directories are stored uncompressed.
+fn assemble(
+    entries: &[Entry],
+    data: &[u8],
+    metadata: &str,
+    tile_type: u8,
+    (min_z, max_z): (u8, u8),
+) -> Vec<u8> {
     // directories: everything in the root if it fits, else leaves of a growing size
     let room = (FIRST_READ_BYTES - HEADER_LEN) as u64;
-    let whole = encode_directory(&entries);
+    let whole = encode_directory(entries);
     let (root, leaves) = if whole.len() as u64 <= room {
         (whole, Vec::new())
     } else {
@@ -427,22 +503,6 @@ pub fn write_pmtiles(
         }
     };
 
-    let metadata = metadata_json(
-        options,
-        provenance,
-        digest,
-        tolerance,
-        zooms,
-        &layers,
-        ledger_total,
-        per_kind,
-        max_bound,
-    );
-
-    let (min_z, max_z) = match (sorted.first(), sorted.iter().map(|t| t.tile.z()).max()) {
-        (Some(_), Some(hi)) => (sorted.iter().map(|t| t.tile.z()).min().unwrap_or(0), hi),
-        _ => (0, 0),
-    };
     let root_off = HEADER_LEN as u64;
     let meta_off = root_off + root.len() as u64;
     let leaf_off = meta_off + metadata.len() as u64;
@@ -466,7 +526,7 @@ pub fn write_pmtiles(
     ] {
         out.extend_from_slice(&v.to_le_bytes());
     }
-    out.extend_from_slice(&[1, 1, 1, 1]); // clustered, internal and tile compression none, tile type MVT
+    out.extend_from_slice(&[1, 1, 1, tile_type]); // clustered, internal and tile compression none
     out.push(min_z);
     out.push(max_z);
     // The drawing's map is a plain square, not a place on Earth; the archive says it covers the
@@ -481,8 +541,8 @@ pub fn write_pmtiles(
     out.extend_from_slice(&root);
     out.extend_from_slice(metadata.as_bytes());
     out.extend_from_slice(&leaves);
-    out.extend_from_slice(&data);
-    Ok(out)
+    out.extend_from_slice(data);
+    out
 }
 
 #[allow(clippy::too_many_arguments)]

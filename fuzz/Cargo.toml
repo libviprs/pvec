@@ -86,3 +86,10 @@ path = "fuzz_targets/fuzz_raster_plan.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_raster_archive"
+path = "fuzz_targets/fuzz_raster_archive.rs"
+test = false
+doc = false
+bench = false

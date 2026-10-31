@@ -53,7 +53,7 @@ pub struct EmptyText;
 
 /// Why a mapping is unsupported. Never blank.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Reason(String);
+pub struct Reason(pub(crate) String);
 
 impl Reason {
     /// A reason, which must contain something other than whitespace.

@@ -18,6 +18,7 @@
 //! * No tolerance is written here. The curve model decides what a valid curve is.
 
 use super::mapping::{Case, row_of};
+use crate::report::RasterRow;
 use crate::{
     Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation, TargetConstruct,
 };
@@ -109,6 +110,7 @@ pub struct StepOptions {
     file_name: String,
     timestamp: String,
     transform: Transform2,
+    rasters: Vec<u32>,
 }
 
 impl StepOptions {
@@ -126,7 +128,16 @@ impl StepOptions {
             file_name: file_name.to_string(),
             timestamp: timestamp.to_string(),
             transform: Transform2::IDENTITY,
+            rasters: Vec::new(),
         })
+    }
+
+    /// The ids of the rasters the artifact has. AP242 as this export writes it has no image construct, so
+    /// the file carries none of them: each gets an `Unsupported` row with a reason in
+    /// [`StepExport::rasters`], and the geometry is written exactly as without them.
+    pub fn with_rasters(mut self, rasters: Vec<u32>) -> StepOptions {
+        self.rasters = rasters;
+        self
     }
 
     /// Applies `transform` to every curve, exactly (`Curve2d::transform`), before it is written. The file
@@ -177,6 +188,8 @@ pub struct StepExport {
     pub part21: String,
     /// One record per entity: the value of the mapping that wrote it, or `Unsupported` with the reason.
     pub ledger: FidelityLedger,
+    /// One `Unsupported` row per raster the options named: the file holds no image, and the row says so.
+    pub rasters: Vec<RasterRow>,
 }
 
 /// Exports `entities`.
@@ -282,7 +295,8 @@ pub fn export(entities: &[StepEntity], options: &StepOptions) -> Result<StepExpo
         out.push('\n');
     }
     out.push_str("ENDSEC;\nEND-ISO-10303-21;\n");
-    Ok(StepExport { part21: out, ledger })
+    let rasters = options.rasters.iter().map(|r| RasterRow::left_out(*r, "STEP AP242")).collect();
+    Ok(StepExport { part21: out, ledger, rasters })
 }
 
 fn transform_text(t: &Transform2) -> String {
@@ -606,6 +620,7 @@ impl StepExport {
             source_digest,
             artifact_entities,
             self.ledger.records(),
-        )
+        )?
+        .with_rasters(self.rasters.iter().cloned())
     }
 }

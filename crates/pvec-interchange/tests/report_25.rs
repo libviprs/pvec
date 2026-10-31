@@ -14,7 +14,7 @@ use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Line, Placement2, Point2, Transform2, Vector2};
 use pvec_interchange::mvt::{self, MvtEntity, MvtOptions, MvtTile, Projection, TileId};
 use pvec_interchange::pmtiles::{self, Provenance};
-use pvec_interchange::report::{Report, ReportError, SCHEMA_VERSION};
+use pvec_interchange::report::{RasterOutcome, RasterRow, Report, ReportError, SCHEMA_VERSION};
 use pvec_interchange::step::{StepEntity, StepOptions};
 use pvec_interchange::{
     ErrorBound, Fidelity, FidelityKind, FidelityRecord, Reason, Representation, TargetConstruct, gpkg, step,
@@ -164,7 +164,13 @@ fn kitchen_sink() -> Report {
             Fidelity::Unsupported(Reason::new("a component stream is not geometry").unwrap()),
         ),
     ];
-    Report::new("kitchen sink", "1", digest(), 5, records.iter()).unwrap()
+    Report::new("kitchen sink", "1", digest(), 5, records.iter())
+        .unwrap()
+        .with_rasters([
+            RasterRow { raster: 1, outcome: RasterOutcome::Exported },
+            RasterRow::left_out(0, "kitchen sink"),
+        ])
+        .unwrap()
 }
 
 // ---- helpers over the document ----------------------------------------------------------------------------
@@ -548,4 +554,94 @@ fn issue_25_chapter_7_documents_the_schema() {
         let leaf = key.rsplit('.').next().unwrap().trim_end_matches("[]");
         assert!(ch.contains(&format!("`{leaf}`")), "chapter 7 does not document `{leaf}`");
     }
+}
+
+// ---- rasters (issue R2.3, pvec#222) -----------------------------------------------------------------------
+
+fn rasters_of(d: &J) -> &J {
+    d.get("rasters")
+}
+
+#[test]
+fn issue_222_every_export_reports_a_raster_count_even_when_there_is_none() {
+    for (name, r, _) in every_export() {
+        let d = doc(&r);
+        let x = rasters_of(&d);
+        assert_eq!(x.get("count").num(), 0.0, "{name}");
+        assert_eq!(x.get("exported").num(), 0.0, "{name}");
+        assert!(x.get("unsupported").arr().is_empty(), "{name}");
+        assert!(r.to_markdown().contains("## Rasters"), "{name}");
+    }
+}
+
+#[test]
+fn issue_222_the_raster_object_counts_carried_and_left_out_rasters_with_reasons() {
+    let d = doc(&kitchen_sink());
+    let x = rasters_of(&d);
+    assert_eq!(x.get("count").num(), 2.0);
+    assert_eq!(x.get("exported").num(), 1.0);
+    let left = x.get("unsupported").arr();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].get("raster").num(), 0.0);
+    assert_eq!(left[0].get("reason").str(), "the kitchen sink export carries no raster");
+    assert_eq!(
+        x.get("count").num(),
+        x.get("exported").num() + left.len() as f64,
+        "count = exported + unsupported"
+    );
+    let md = kitchen_sink().to_markdown();
+    assert!(md.contains("2 rasters, 1 exported"));
+    assert!(md.contains("| 0 | the kitchen sink export carries no raster |"));
+}
+
+#[test]
+fn issue_222_a_raster_named_twice_is_refused() {
+    let n = Representation::Native;
+    let r = Report::new("t", "1", digest(), 1, [&record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact)])
+        .unwrap();
+    let err = r.with_rasters([RasterRow::left_out(7, "t"), RasterRow::left_out(7, "t")]).unwrap_err();
+    assert_eq!(err, ReportError::DuplicateRaster(7));
+}
+
+#[test]
+fn issue_222_the_order_the_raster_rows_arrive_in_does_not_change_the_report() {
+    let n = Representation::Native;
+    let base = || {
+        Report::new("t", "1", digest(), 1, [&record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact)]).unwrap()
+    };
+    let a = base().with_rasters([RasterRow::left_out(2, "t"), RasterRow::left_out(1, "t")]).unwrap();
+    let b = base().with_rasters([RasterRow::left_out(1, "t"), RasterRow::left_out(2, "t")]).unwrap();
+    assert_eq!(a.to_json(), b.to_json());
+}
+
+#[test]
+fn issue_222_a_left_out_raster_changes_no_entity_row() {
+    for (name, r, _) in every_export() {
+        let plain = doc(&r);
+        let with = doc(&r.clone().with_rasters([RasterRow::left_out(0, name)]).unwrap());
+        assert_eq!(plain.get("entities"), with.get("entities"), "{name}");
+        assert_eq!(plain.get("unsupported"), with.get("unsupported"), "{name}");
+        assert_eq!(rasters_of(&with).get("count").num(), 1.0, "{name}");
+        assert_eq!(rasters_of(&with).get("exported").num(), 0.0, "{name}");
+    }
+}
+
+#[test]
+fn issue_222_the_current_schema_version_is_one_point_one_and_keeps_the_old_line() {
+    assert_eq!(SCHEMA_VERSION, "1.1");
+    let g = golden();
+    assert!(g.iter().any(|(v, _)| v == "1.0"), "the 1.0 line is never edited or removed");
+    let new = &g.iter().find(|(v, _)| v == "1.1").expect("a 1.1 line").1;
+    let old = &g.iter().find(|(v, _)| v == "1.0").unwrap().1;
+    let added: Vec<&String> = new.iter().filter(|k| !old.contains(k)).collect();
+    let expected = [
+        "rasters",
+        "rasters.count",
+        "rasters.exported",
+        "rasters.unsupported",
+        "rasters.unsupported[].raster",
+        "rasters.unsupported[].reason",
+    ];
+    assert_eq!(added.iter().map(|k| k.as_str()).collect::<Vec<_>>(), expected);
+    assert!(old.iter().all(|k| new.contains(k)), "1.1 only adds keys");
 }

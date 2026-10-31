@@ -28,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 9] = [
+pub const TARGETS: [(&str, Target); 10] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -38,6 +38,7 @@ pub const TARGETS: [(&str, Target); 9] = [
     ("fuzz_raster_index", fuzz_raster_index),
     ("fuzz_raster_headers", fuzz_raster_headers),
     ("fuzz_raster_plan", fuzz_raster_plan),
+    ("fuzz_raster_archive", fuzz_raster_archive),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -573,4 +574,59 @@ pub fn fuzz_raster_plan(data: &[u8]) -> String {
     }
     assert_eq!(covered, stored.len(), "a stored tile is in no range");
     if plan.tiles.is_empty() { "empty".to_string() } else { "ok".to_string() }
+}
+
+/// A PMTiles archive handed to the raster import (pvec#222): the archive reader, the `vnd.pvec` placement text and
+/// the import checks, over bytes an archive from anywhere can carry. The limits are small, so an input cannot make
+/// the target allocate what it claims. An archive that reads has to be one the writer would write back to the same
+/// tiles, its tiles have to sit at distinct addresses of their zoom, and an import that succeeds has to give a
+/// placement the stream encoder accepts and tiles inside its pyramid; anything else is a crash.
+pub fn fuzz_raster_archive(data: &[u8]) -> String {
+    use pvec_interchange::pmtiles::{
+        RasterReadLimits, import_raster, placement_from_json, read_raster_archive, write_raster_archive,
+    };
+    let limits = RasterReadLimits {
+        max_tiles: 4096,
+        max_tile_bytes: 1 << 20,
+        max_total_bytes: 8 << 20,
+        max_metadata_bytes: 64 << 10,
+    };
+    let archive = match read_raster_archive(data, &limits) {
+        Ok(a) => a,
+        Err(e) => return format!("{e:?}").split([' ', '(', '{']).next().unwrap_or("archive").to_string(),
+    };
+    let mut tiles: Vec<_> = archive.tiles.iter().filter(|t| !t.bytes.is_empty()).cloned().collect();
+    tiles.sort_by_key(|t| (t.z, t.y, t.x));
+    assert!(
+        tiles.windows(2).all(|w| (w[0].z, w[0].y, w[0].x) != (w[1].z, w[1].y, w[1].x)),
+        "one address twice"
+    );
+    assert!(tiles.iter().all(|t| t.z <= 31 && u64::from(t.x) < 1 << t.z && u64::from(t.y) < 1 << t.z));
+    let written = write_raster_archive(&archive).expect("an archive that read can be written");
+    let back = read_raster_archive(&written, &limits).expect("what the writer wrote reads");
+    let mut again = back.tiles.clone();
+    again.sort_by_key(|t| (t.z, t.y, t.x));
+    assert_eq!((back.tile_type, again), (archive.tile_type, tiles), "the round trip changed a tile");
+    if let Some(text) = &archive.pvec {
+        let _ = placement_from_json(text);
+    }
+    if let Ok(got) = import_raster(data, None, &limits) {
+        let p = &got.placement;
+        assert!(
+            pvec_components::encode_rasters(std::slice::from_ref(p)).is_ok(),
+            "an invalid placement was imported"
+        );
+        for t in &got.tiles {
+            assert!(t.level < u32::from(p.levels), "a tile below the pyramid");
+            let (cols, rows) = pvec_container::blocks::raster::grid_of(
+                p.width,
+                p.height,
+                u32::from(p.tile_edge),
+                u32::from(p.levels),
+                t.level,
+            );
+            assert!(t.col < cols && t.row < rows, "a tile outside its level");
+        }
+    }
+    "ok".to_string()
 }

@@ -912,3 +912,37 @@ fn issue_133_chapter_5_rules_out_anisotropic_maps_with_the_reason() {
     assert!(s.contains("scalar"), "the tolerance is one scalar per zoom");
     assert!(s.contains("no source"), "say that no real source needs it today");
 }
+
+// ---- a raster is left out, and the report says so (issue R2.3, pvec#222) --------------------------------------
+
+#[test]
+fn issue_222_a_raster_in_the_artifact_leaves_the_tiles_alone_and_is_counted_as_left_out() {
+    use pvec_interchange::report::RasterRow;
+    let ents = fixture();
+    let pr = fixture_projection();
+    let tiles: Vec<MvtTile> = (0..=2u8)
+        .flat_map(|z| (0..1u32 << z).flat_map(move |x| (0..1u32 << z).map(move |y| (z, x, y))))
+        .map(|(z, x, y)| {
+            export_tile(&ents, &pr, TileId::new(z, x, y).unwrap(), &MvtOptions::default()).unwrap()
+        })
+        .collect();
+    let digest = [7u8; 32];
+    let plain = report(&tiles, digest, ents.len() as u32).unwrap();
+    let with = report(&tiles, digest, ents.len() as u32)
+        .unwrap()
+        .with_rasters([
+            RasterRow::left_out(0, "Mapbox Vector Tile"),
+            RasterRow::left_out(1, "Mapbox Vector Tile"),
+        ])
+        .unwrap();
+    let j = with.to_json();
+    assert!(j.contains("\"rasters\": {\"count\": 2, \"exported\": 0"), "{j}");
+    assert!(j.contains("the Mapbox Vector Tile export carries no raster"));
+    assert!(plain.to_json().contains("\"rasters\": {\"count\": 0, \"exported\": 0"));
+    // the entity part of the two documents is the same text
+    let head = |t: &str| t[..t.find("\"rasters\"").unwrap()].to_string();
+    assert_eq!(
+        head(&j).replace("\"unsupported\": [", ""),
+        head(&plain.to_json()).replace("\"unsupported\": [", "")
+    );
+}
