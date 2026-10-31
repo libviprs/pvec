@@ -259,11 +259,13 @@ dependencies = [
 name = "pvec-stream"
 version = "0.0.0"
 dependencies = [
+ "pvec-components",
  "pvec-container",
  "pvec-entity",
  "pvec-geometry",
  "pvec-hermetic",
  "pvec-numeric",
+ "pvec-testkit",
 ]
 
 [[package]]

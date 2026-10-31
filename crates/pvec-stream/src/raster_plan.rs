@@ -1,7 +1,10 @@
 //! The viewport plan for one raster (issue pvec#220, `docs/STREAMING.md` chapter 9).
 
-use crate::viewport::ViewportQuery;
-use pvec_container::BlockId;
+use crate::viewport::{PlanSource, ViewportQuery};
+use pvec_components::{PixelFormat, Placement};
+use pvec_container::blocks::raster::{KIND_TILES, RasterIndex, subtype};
+use pvec_container::{BlockId, ReaderConfig};
+use std::collections::HashMap;
 
 /// The pixel grid a placement fixes: these four numbers vary together per raster (RASTER-01).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +71,8 @@ pub enum RasterPlanError {
     BadMap,
     /// Not even one tile of the coarsest level fits `max_plan_decoded_bytes` (LIMIT-16).
     OverBudget,
+    /// The raster is kept in the stream and not drawn (an unknown tile codec).
+    Skipped,
 }
 
 /// The most cells of one level window the plan will look at. It is `LIMIT-14`'s default tile count: an
@@ -220,4 +225,70 @@ fn merge_ranges(tiles: &[PlannedTile], gap: u32, max: u32) -> Vec<(u64, u32)> {
         }
     }
     out.into_iter().map(|(s, e)| (s, u32::try_from(e - s).unwrap_or(u32::MAX))).collect()
+}
+
+/// Plans one raster of an open file from its placement and its parsed index block (`docs/STREAMING.md` 6.5).
+///
+/// The caller has fetched and parsed the index (`ContainerReader::raster_index`, or the `-7` protocol in the
+/// browser), so this reads nothing. `reader` is only asked for its directory, to turn the index's
+/// `(chunk, offset)` into a block and a file offset. A tile the index does not hold, or one whose chunk is not in
+/// the directory or is shorter than the index says, is planned as not stored and draws nothing; `check_raster_blocks`
+/// refuses such a file when it is opened. `LIMIT-16`, the gap and the request ceiling are the reader's own.
+pub fn plan_placed<R: PlanSource>(
+    reader: &R,
+    raster: u32,
+    placement: &Placement,
+    index: &RasterIndex,
+    query: &ViewportQuery,
+    config: &ReaderConfig,
+) -> Result<RasterPlan, RasterPlanError> {
+    if placement.skip().is_some() {
+        return Err(RasterPlanError::Skipped);
+    }
+    let chunks: HashMap<u16, (BlockId, u64, u32)> = reader
+        .entries()
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.kind == KIND_TILES && e.cell == raster)
+        .map(|(i, e)| (e.subtype, (BlockId(i as u32), e.offset, e.stored_length)))
+        .collect();
+    let grid = RasterGrid {
+        width: placement.width,
+        height: placement.height,
+        tile_edge: u32::from(placement.tile_edge),
+        levels: u32::from(placement.levels),
+        channels: match placement.pixel_format {
+            PixelFormat::Gray => 1,
+            PixelFormat::GrayAlpha => 2,
+            PixelFormat::Rgb => 3,
+            // Rgba, and any format a later minor adds: the most a decoded pixel can take
+            _ => 4,
+        },
+    };
+    let slot = |level: u32, col: u32, row: u32| {
+        let Some(tile) = index.tile(level, col, row).filter(|t| t.is_stored()) else {
+            return TileSlot::NotStored;
+        };
+        if tile.is_inline() {
+            return TileSlot::Inline;
+        }
+        let found = subtype(level, tile.chunk).and_then(|st| chunks.get(&st));
+        match found {
+            Some(&(block, offset, stored))
+                if u64::from(tile.offset) + u64::from(tile.length) <= u64::from(stored) =>
+            {
+                TileSlot::Stored { block, offset: offset + u64::from(tile.offset), len: tile.length }
+            }
+            _ => TileSlot::NotStored,
+        }
+    };
+    plan_raster(
+        &grid,
+        &placement.pixel_to_source,
+        query,
+        config.limits.max_plan_decoded_bytes,
+        config.gap_threshold,
+        config.max_request_bytes,
+        slot,
+    )
 }

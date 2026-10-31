@@ -165,6 +165,17 @@ name = "pvec-numeric"
 version = "0.0.0"
 
 [[package]]
+name = "pvec-stream"
+version = "0.0.0"
+dependencies = [
+ "pvec-components",
+ "pvec-container",
+ "pvec-entity",
+ "pvec-geometry",
+ "pvec-numeric",
+]
+
+[[package]]
 name = "pvec-testkit"
 version = "0.0.0"
 dependencies = [
