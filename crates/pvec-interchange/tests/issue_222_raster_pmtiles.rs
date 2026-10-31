@@ -131,7 +131,8 @@ fn issue_222_the_same_tiles_in_any_order_give_the_same_archive() {
 #[test]
 fn issue_222_the_placement_key_and_the_attribution_are_in_the_metadata_and_round_trip() {
     let mut ar = archive(sparse_three_levels());
-    ar.pvec = Some(r#"{"raster":{"width":3000,"pixel_to_source":["3ff0000000000000","0000000000000000"]}}"#.into());
+    ar.pvec =
+        Some(r#"{"raster":{"width":3000,"pixel_to_source":["3ff0000000000000","0000000000000000"]}}"#.into());
     ar.attribution = Some("Survey 2026 <b>plain</b> text".into());
     let a = write_raster_archive(&ar).unwrap();
     let m = meta(&a);
@@ -154,9 +155,15 @@ fn issue_222_no_metadata_member_is_written_for_what_the_caller_did_not_give() {
 fn issue_222_a_tile_given_twice_an_address_outside_its_zoom_and_a_bad_key_are_refused() {
     let mut t = sparse_three_levels();
     t.push(tile(2, 0, 0));
-    assert_eq!(write_raster_archive(&archive(t)).unwrap_err(), RasterArchiveError::DuplicateTile { z: 2, x: 0, y: 0 });
+    assert_eq!(
+        write_raster_archive(&archive(t)).unwrap_err(),
+        RasterArchiveError::DuplicateTile { z: 2, x: 0, y: 0 }
+    );
     let t = vec![tile(1, 2, 0)];
-    assert_eq!(write_raster_archive(&archive(t)).unwrap_err(), RasterArchiveError::TileOutsideZoom { z: 1, x: 2, y: 0 });
+    assert_eq!(
+        write_raster_archive(&archive(t)).unwrap_err(),
+        RasterArchiveError::TileOutsideZoom { z: 1, x: 2, y: 0 }
+    );
     let t = vec![tile(32, 0, 0)];
     assert_eq!(write_raster_archive(&archive(t)).unwrap_err(), RasterArchiveError::ZoomTooDeep(32));
     for bad in ["[1]", "not json", "{\"a\":1,\"a\":2}", "{\"a\":"] {
@@ -281,8 +288,17 @@ fn build(p: &Parts) -> Vec<u8> {
     let mut out = b"PMTiles".to_vec();
     out.push(3);
     for v in [
-        root_off, p.root.len() as u64, meta_off, p.meta.len() as u64, leaf_off, p.leaves.len() as u64,
-        data_off, p.data.len() as u64, 1, 1, 1,
+        root_off,
+        p.root.len() as u64,
+        meta_off,
+        p.meta.len() as u64,
+        leaf_off,
+        p.leaves.len() as u64,
+        data_off,
+        p.data.len() as u64,
+        1,
+        1,
+        1,
     ] {
         out.extend_from_slice(&v.to_le_bytes());
     }
@@ -385,12 +401,20 @@ fn issue_222_a_compressed_tile_or_an_unknown_directory_compression_is_refused() 
     for tc in [0u8, 2, 3, 4, 9] {
         let mut s = simple_parts();
         s.tile_comp = tc;
-        assert_eq!(read(&build(&s)).unwrap_err(), RasterArchiveError::TileCompression(tc), "tile compression {tc}");
+        assert_eq!(
+            read(&build(&s)).unwrap_err(),
+            RasterArchiveError::TileCompression(tc),
+            "tile compression {tc}"
+        );
     }
     for ic in [0u8, 3, 4, 9] {
         let mut s = simple_parts();
         s.internal = ic;
-        assert_eq!(read(&build(&s)).unwrap_err(), RasterArchiveError::InternalCompression(ic), "internal {ic}");
+        assert_eq!(
+            read(&build(&s)).unwrap_err(),
+            RasterArchiveError::InternalCompression(ic),
+            "internal {ic}"
+        );
     }
 }
 
@@ -512,10 +536,16 @@ fn issue_222_the_metadata_is_bounded_and_must_be_an_object_with_an_object_key() 
         read_raster_archive(&build(&simple_parts()), &lim),
         Err(RasterArchiveError::BadMetadata(_))
     ));
-    for bad in [&b"[]"[..], b"{\"vnd.pvec\":1}", b"{\"attribution\":3}", b"{\"a\":1,\"a\":2}", b"{", b"\xff\xfe"] {
+    for bad in
+        [&b"[]"[..], b"{\"vnd.pvec\":1}", b"{\"attribution\":3}", b"{\"a\":1,\"a\":2}", b"{", b"\xff\xfe"]
+    {
         let mut s = simple_parts();
         s.meta = bad.to_vec();
-        assert!(matches!(read(&build(&s)), Err(RasterArchiveError::BadMetadata(_))), "{:?}", String::from_utf8_lossy(bad));
+        assert!(
+            matches!(read(&build(&s)), Err(RasterArchiveError::BadMetadata(_))),
+            "{:?}",
+            String::from_utf8_lossy(bad)
+        );
     }
     let deep = format!("{}{}", "[".repeat(5000), "]".repeat(5000));
     let mut s = simple_parts();

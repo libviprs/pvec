@@ -457,7 +457,6 @@ fn the_fixture_export_has_the_pinned_digest_on_every_architecture() {
     assert_eq!(hex_digest(x.part21.as_bytes()), FIXTURE_DIGEST, "arch {}", std::env::consts::ARCH);
 }
 
-
 // ---- a raster gets an Unsupported row and the geometry does not move (issue R2.3, pvec#222) ---------------
 
 #[test]

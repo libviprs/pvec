@@ -152,4 +152,3 @@ pub fn ref_tile_id(z: u32, x: u64, y: u64) -> u64 {
     }
     acc + d
 }
-

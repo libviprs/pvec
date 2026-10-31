@@ -18,11 +18,10 @@
 //! * No tolerance is written here. The curve model decides what a valid curve is.
 
 use super::mapping::{Case, row_of};
-use crate::{
-    Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation,
-    TargetConstruct,
-};
 use crate::report::RasterRow;
+use crate::{
+    Fidelity, FidelityKind, FidelityLedger, FidelityRecord, Reason, Representation, TargetConstruct,
+};
 use core::fmt::Write as _;
 use pvec_capabilities::{CapabilityId, Registry};
 use pvec_entity::{EntityId, EntityTable, Representation as EntityRepresentation};

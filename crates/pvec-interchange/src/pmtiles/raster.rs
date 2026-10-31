@@ -282,12 +282,18 @@ fn gunzip(b: &[u8], limit: usize) -> Result<Vec<u8>, &'static str> {
     let flags = b[3];
     let mut i = 10usize;
     if flags & 4 != 0 {
-        let n = usize::from(*b.get(i).ok_or("short gzip header")?) | usize::from(*b.get(i + 1).ok_or("short gzip header")?) << 8;
+        let n = usize::from(*b.get(i).ok_or("short gzip header")?)
+            | usize::from(*b.get(i + 1).ok_or("short gzip header")?) << 8;
         i = i.checked_add(2 + n).ok_or("short gzip header")?;
     }
     for bit in [8u8, 16] {
         if flags & bit != 0 {
-            let z = b.get(i..).ok_or("short gzip header")?.iter().position(|c| *c == 0).ok_or("short gzip header")?;
+            let z = b
+                .get(i..)
+                .ok_or("short gzip header")?
+                .iter()
+                .position(|c| *c == 0)
+                .ok_or("short gzip header")?;
             i += z + 1;
         }
     }
@@ -298,7 +304,8 @@ fn gunzip(b: &[u8], limit: usize) -> Result<Vec<u8>, &'static str> {
         return Err("short gzip member");
     }
     let (body, trailer) = b[i..].split_at(b.len() - i - 8);
-    let out = miniz_oxide::inflate::decompress_to_vec_with_limit(body, limit).map_err(|_| "bad or oversized deflate stream")?;
+    let out = miniz_oxide::inflate::decompress_to_vec_with_limit(body, limit)
+        .map_err(|_| "bad or oversized deflate stream")?;
     let crc = u32::from_le_bytes([trailer[0], trailer[1], trailer[2], trailer[3]]);
     let size = u32::from_le_bytes([trailer[4], trailer[5], trailer[6], trailer[7]]);
     if crc != crc32(&out) || size != out.len() as u32 {
@@ -396,7 +403,10 @@ fn parse_directory(dir: &[u8]) -> Result<Vec<Listed>, RasterArchiveError> {
 /// that is not PNG, JPEG or WebP, a tile compression other than none and an internal compression other
 /// than none or gzip are refused by name. The reader does not look inside a tile: the header checks of
 /// `RASTER-03` belong to the caller that knows the tile edge.
-pub fn read_raster_archive(file: &[u8], limits: &RasterReadLimits) -> Result<RasterArchive, RasterArchiveError> {
+pub fn read_raster_archive(
+    file: &[u8],
+    limits: &RasterReadLimits,
+) -> Result<RasterArchive, RasterArchiveError> {
     use RasterArchiveError as E;
     if file.len() < 127 || &file[0..7] != b"PMTiles" || file[7] != 3 {
         return Err(E::NotAnArchive);
@@ -442,7 +452,10 @@ pub fn read_raster_archive(file: &[u8], limits: &RasterReadLimits) -> Result<Ras
                     return Err(E::BadDirectory("leaf outside its region"));
                 }
                 let raw = &leaf_raw[e.offset as usize..end as usize];
-                stack.push((parse_directory(&inflate(raw, gzip, MAX_DIRECTORY_BYTES).map_err(bad_dir)?)?, depth + 1));
+                stack.push((
+                    parse_directory(&inflate(raw, gzip, MAX_DIRECTORY_BYTES).map_err(bad_dir)?)?,
+                    depth + 1,
+                ));
             } else {
                 if tiles.len() as u64 >= limits.max_tiles {
                     return Err(E::TooManyTiles { limit: limits.max_tiles });
@@ -460,7 +473,10 @@ pub fn read_raster_archive(file: &[u8], limits: &RasterReadLimits) -> Result<Ras
         if tiles.get(k + 1).is_some_and(|n| n.id <= last) {
             return Err(E::BadDirectory("runs overlap"));
         }
-        count = count.checked_add(e.run).filter(|c| *c <= limits.max_tiles).ok_or(E::TooManyTiles { limit: limits.max_tiles })?;
+        count = count
+            .checked_add(e.run)
+            .filter(|c| *c <= limits.max_tiles)
+            .ok_or(E::TooManyTiles { limit: limits.max_tiles })?;
         if e.length == 0 {
             continue;
         }
@@ -492,7 +508,11 @@ pub fn read_raster_archive(file: &[u8], limits: &RasterReadLimits) -> Result<Ras
     Ok(RasterArchive { tile_type, tiles: out, pvec, attribution })
 }
 
-fn read_metadata(raw: &[u8], gzip: bool, limit: u64) -> Result<(Option<String>, Option<String>), RasterArchiveError> {
+fn read_metadata(
+    raw: &[u8],
+    gzip: bool,
+    limit: u64,
+) -> Result<(Option<String>, Option<String>), RasterArchiveError> {
     use RasterArchiveError::BadMetadata as bad;
     if raw.is_empty() {
         return Ok((None, None));

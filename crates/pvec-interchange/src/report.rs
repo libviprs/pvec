@@ -180,7 +180,10 @@ impl Report {
     /// Adds what the export did with the artifact's rasters, one row per raster in any order. The report
     /// then says how many rasters the artifact has, how many were carried and why each other one was not.
     /// A raster named twice is refused, since the counts would not reconcile.
-    pub fn with_rasters(mut self, rasters: impl IntoIterator<Item = RasterRow>) -> Result<Report, ReportError> {
+    pub fn with_rasters(
+        mut self,
+        rasters: impl IntoIterator<Item = RasterRow>,
+    ) -> Result<Report, ReportError> {
         let mut rows: Vec<RasterRow> = rasters.into_iter().collect();
         rows.sort_by_key(|r| r.raster);
         if let Some(w) = rows.windows(2).find(|w| w[0].raster == w[1].raster) {

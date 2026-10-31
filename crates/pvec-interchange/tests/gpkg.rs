@@ -1000,7 +1000,6 @@ fn chapter_four_of_the_interchange_document_has_the_decision_table() {
     }
 }
 
-
 // ---- a raster is left out, and the report says so (issue R2.3, pvec#222) --------------------------------------
 
 #[test]

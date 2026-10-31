@@ -913,7 +913,6 @@ fn issue_133_chapter_5_rules_out_anisotropic_maps_with_the_reason() {
     assert!(s.contains("no source"), "say that no real source needs it today");
 }
 
-
 // ---- a raster is left out, and the report says so (issue R2.3, pvec#222) --------------------------------------
 
 #[test]
@@ -931,7 +930,10 @@ fn issue_222_a_raster_in_the_artifact_leaves_the_tiles_alone_and_is_counted_as_l
     let plain = report(&tiles, digest, ents.len() as u32).unwrap();
     let with = report(&tiles, digest, ents.len() as u32)
         .unwrap()
-        .with_rasters([RasterRow::left_out(0, "Mapbox Vector Tile"), RasterRow::left_out(1, "Mapbox Vector Tile")])
+        .with_rasters([
+            RasterRow::left_out(0, "Mapbox Vector Tile"),
+            RasterRow::left_out(1, "Mapbox Vector Tile"),
+        ])
         .unwrap();
     let j = with.to_json();
     assert!(j.contains("\"rasters\": {\"count\": 2, \"exported\": 0"), "{j}");
@@ -939,5 +941,8 @@ fn issue_222_a_raster_in_the_artifact_leaves_the_tiles_alone_and_is_counted_as_l
     assert!(plain.to_json().contains("\"rasters\": {\"count\": 0, \"exported\": 0"));
     // the entity part of the two documents is the same text
     let head = |t: &str| t[..t.find("\"rasters\"").unwrap()].to_string();
-    assert_eq!(head(&j).replace("\"unsupported\": [", ""), head(&plain.to_json()).replace("\"unsupported\": [", ""));
+    assert_eq!(
+        head(&j).replace("\"unsupported\": [", ""),
+        head(&plain.to_json()).replace("\"unsupported\": [", "")
+    );
 }

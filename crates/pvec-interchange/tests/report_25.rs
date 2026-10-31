@@ -599,9 +599,7 @@ fn issue_222_a_raster_named_twice_is_refused() {
     let n = Representation::Native;
     let r = Report::new("t", "1", digest(), 1, [&record(0, ids::LINE.get(), n, "LINE", Fidelity::Exact)])
         .unwrap();
-    let err = r
-        .with_rasters([RasterRow::left_out(7, "t"), RasterRow::left_out(7, "t")])
-        .unwrap_err();
+    let err = r.with_rasters([RasterRow::left_out(7, "t"), RasterRow::left_out(7, "t")]).unwrap_err();
     assert_eq!(err, ReportError::DuplicateRaster(7));
 }
 
