@@ -327,7 +327,8 @@ fn a_tile_costs_a_constant_number_of_bytes_looked_at_whatever_its_length() {
     // a PNG framed in as many chunks as the walk allows is examined in 8 bytes a chunk
     let many = tilegen::png_with(256, 256, 8, 0, 0, &vec![7u8; MAX_PNG_CHUNKS - 4], MAX_PNG_CHUNKS - 4);
     let n = sniff_codec(PNG, 256, 1, 8, ALLOWANCE, &many).unwrap();
-    assert!(n <= 33 + 8 * MAX_PNG_CHUNKS && n <= MAX_EXAMINED, "{n}");
+    assert!(n <= 33 + 8 * MAX_PNG_CHUNKS, "{n}");
+    const { assert!(33 + 8 * MAX_PNG_CHUNKS <= MAX_EXAMINED, "the PNG walk fits the bound") };
     // and one framed in more is refused instead of walked
     let too_many =
         tilegen::png_with(256, 256, 8, 0, 0, &vec![7u8; MAX_PNG_CHUNKS + 100], MAX_PNG_CHUNKS + 100);

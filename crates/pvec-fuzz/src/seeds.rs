@@ -234,6 +234,9 @@ fn decoded(layout: &Layout, bytes: &[u8], i: usize) -> Option<Vec<u8>> {
 /// The inputs for one target, taken from the seeds: the whole artifact, its header, one hot block, the framed
 /// advanced blocks, a framed compressed block or the component stream set.
 pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
+    if target == "fuzz_raster_headers" {
+        return raster_header_inputs();
+    }
     if target == "fuzz_raster_index" {
         // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
         return raster_index_inputs();
@@ -375,5 +378,57 @@ fn raster_index_inputs() -> Vec<Vec<u8>> {
         out.push(h);
     }
     out.push(Vec::new());
+    one_of(out, |v| v.as_slice())
+}
+
+/// The inputs of `fuzz_raster_headers`: one tile of each codec and variant libviprs writes, at each edge, framed
+/// with the placement it is under, and the thirteen hostile tiles, each with a few mutants of its header.
+fn raster_header_inputs() -> Vec<Vec<u8>> {
+    use pvec_container::blocks::sniff::{JPEG, PNG, WEBP};
+    use pvec_testkit::raster_hostile::{Tile, accepted, hostile};
+    use pvec_testkit::tilegen;
+    let frame = |codec: u8, edge: u16, channels: u8, depth: u8, bytes: &[u8]| {
+        let mut v = vec![codec, (edge / 128) as u8, (channels - 1) | (u8::from(depth == 1) << 2)];
+        v.extend_from_slice(bytes);
+        v
+    };
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    for edge in [256u16, 512, 1024] {
+        let e = u32::from(edge);
+        let d = tilegen::payload(300, 11);
+        for (codec, channels, depth, bytes) in [
+            (PNG, 1, 1, tilegen::png(e, 1, 1, &d)),
+            (PNG, 1, 8, tilegen::png(e, 1, 8, &d)),
+            (PNG, 2, 8, tilegen::png(e, 2, 8, &d)),
+            (PNG, 3, 8, tilegen::png(e, 3, 8, &d)),
+            (PNG, 4, 8, tilegen::png(e, 4, 8, &d)),
+            (JPEG, 1, 8, tilegen::jpeg(e, 1, false, &d)),
+            (JPEG, 1, 8, tilegen::jpeg(e, 1, true, &d)),
+            (JPEG, 3, 8, tilegen::jpeg(e, 3, false, &d)),
+            (JPEG, 3, 8, tilegen::jpeg(e, 3, true, &d)),
+            (WEBP, 3, 8, tilegen::webp_vp8(edge, edge, &d)),
+            (WEBP, 4, 8, tilegen::webp_vp8l(e, e, &d)),
+            (WEBP, 4, 8, tilegen::webp_vp8x(e, e, false, true, &d)),
+        ] {
+            out.push(frame(codec, edge, channels, depth, &bytes));
+        }
+    }
+    for t in accepted().iter().chain(hostile().iter()) {
+        let Tile { codec, edge, channels, depth, bytes, .. } = t;
+        out.push(frame(*codec, *edge, *channels, *depth, bytes));
+        // a few mutants of the first bytes, where the headers are
+        if bytes.len() <= 4096 {
+            for m in 0..4u64 {
+                let mut mutant = out.last().cloned().unwrap_or_default();
+                let at = 3 + (m as usize * 7) % bytes.len().min(48).max(1);
+                if let Some(b) = mutant.get_mut(at) {
+                    *b ^= 1 << (m % 8);
+                }
+                out.push(mutant);
+            }
+        }
+    }
+    out.push(Vec::new());
+    out.push(vec![1, 2, 0]);
     one_of(out, |v| v.as_slice())
 }

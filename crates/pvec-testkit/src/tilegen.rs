@@ -88,14 +88,14 @@ pub fn jpeg_with(
     // a comment segment is at most 65,533 bytes, so a longer pad is several
     let mut left = pad;
     while left > 0 {
-        let n = left.min(60_000).max(4);
+        let n = left.clamp(4, 60_000);
         out.extend_from_slice(&[0xFF, 0xFE]);
         out.extend_from_slice(&((n) as u16).to_be_bytes());
         out.extend(std::iter::repeat_n(b'.', n - 2));
         left = left.saturating_sub(n + 2);
     }
     out.extend_from_slice(&[0xFF, if progressive { 0xC2 } else { 0xC0 }]);
-    out.extend_from_slice(&((8 + 3 * u16::from(nf)) as u16).to_be_bytes());
+    out.extend_from_slice(&(8 + 3 * u16::from(nf)).to_be_bytes());
     out.push(8);
     out.extend_from_slice(&(height as u16).to_be_bytes());
     out.extend_from_slice(&(width as u16).to_be_bytes());
