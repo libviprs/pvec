@@ -336,7 +336,7 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
     let mut human =
         format!("{path}: valid, {} blocks, {} entities, {} skipped\n", v.blocks, v.entities, v.skipped.len());
     for (id, e) in rasters.iter().filter_map(|(id, e)| e.as_ref().map(|e| (id, e))) {
-        human.push_str(&format!("raster {id} skipped: {e}\n"));
+        human.push_str(&format!("raster {id} skipped ({}): {e}\n", e.rule()));
     }
     if skipped_rasters > 0 {
         human.push_str(&format!(

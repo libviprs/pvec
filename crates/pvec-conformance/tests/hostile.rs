@@ -109,7 +109,7 @@ fn the_thirteen_hostile_tiles_are_skipped_by_validate_with_their_rule_and_the_fi
         let out = pvec_conformance::commands::validate(&file(&t), "-");
         assert_eq!((out.exit, out.error_code.as_deref()), (0, None), "{}: {}", t.name, out.human);
         assert!(
-            out.human.contains(&format!("raster 0 skipped: {}", t.rule.unwrap())),
+            out.human.contains(&format!("raster 0 skipped ({})", t.rule.unwrap())),
             "{}: {}",
             t.name,
             out.human
