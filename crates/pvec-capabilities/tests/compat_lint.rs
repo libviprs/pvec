@@ -35,14 +35,16 @@ fn active(format: &str) -> Snapshot {
 #[test]
 fn the_committed_policy_numbers_are_the_ones_the_document_states() {
     assert_eq!((DEPRECATED_MIN_MINORS, WRITE_DISABLED_MIN_MINORS), (2, 2));
-    assert_eq!(FORMAT_VERSION, Version::new(1, 0, 0));
+    assert_eq!(FORMAT_VERSION, Version::new(1, 1, 0));
 }
 
 #[test]
 fn the_v1_registry_round_trips_through_its_snapshot_text() {
     let s = Snapshot::from_registry(&Registry::v1());
-    assert_eq!(s.entries.len(), 20);
-    assert!(s.entries.iter().all(|e| e.status == Status::Active && e.status_since == Version::new(1, 0, 0)));
+    assert_eq!(s.entries.len(), 21);
+    assert!(s.entries.iter().all(|e| e.status == Status::Active));
+    // an entry carries the format version it entered at: 21 is the first 1.1.0 addition
+    assert!(s.entries.iter().all(|e| e.status_since == if e.id == 21 { Version::new(1, 1, 0) } else { Version::new(1, 0, 0) }));
     let text = s.render();
     assert!(text.ends_with('\n') && !text.ends_with("\n\n"));
     assert_eq!(Snapshot::parse(&text).unwrap(), s);
@@ -172,4 +174,19 @@ fn a_version_may_not_go_down_and_a_retired_id_may_not_come_back() {
     assert!(lint_transition(&active("1.1.0"), &active("1.0.0")).contains(
         &LintFinding::FormatVersionWentDown { old: Version::new(1, 1, 0), new: Version::new(1, 0, 0) }
     ));
+}
+
+#[test]
+fn the_step_from_1_0_0_to_1_1_0_that_adds_the_raster_entry_is_a_legal_non_breaking_one() {
+    let old = Snapshot::parse(
+        &Snapshot::from_registry(&Registry::v1())
+            .render()
+            .replace("format_version = \"1.1.0\"", "format_version = \"1.0.0\""),
+    )
+    .unwrap();
+    let mut old = old;
+    old.entries.retain(|e| e.id != 21);
+    let new = Snapshot::from_registry(&Registry::v1());
+    assert_eq!(new.format_version, Version::new(1, 1, 0));
+    assert_eq!(lint_transition(&old, &new), vec![]);
 }
