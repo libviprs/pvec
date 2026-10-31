@@ -11,14 +11,14 @@
 //! segment, and a tile set repeats an entity per tile). The report counts each entity once, in the
 //! weakest class any of its records has, with the largest error any of them measured.
 
-use crate::{Fidelity, FidelityKind, FidelityRecord, Representation};
+use crate::{Fidelity, FidelityKind, FidelityRecord, Reason, Representation};
 use pvec_capabilities::{CapabilityId, Registry};
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
 /// The version of the report schema. Any change to the keys of the JSON document bumps it, and
 /// `tests/report_schema_25.txt` records the keys of every version.
-pub const SCHEMA_VERSION: &str = "1.0";
+pub const SCHEMA_VERSION: &str = "1.1";
 
 const SCHEMA_NAME: &str = "pvec-fidelity-report";
 
@@ -35,6 +35,8 @@ pub enum ReportError {
     },
     /// The target name or version is blank.
     BlankTarget,
+    /// Two raster rows name the same raster, so the counts could not reconcile.
+    DuplicateRaster(u32),
 }
 
 impl core::fmt::Display for ReportError {
@@ -44,11 +46,39 @@ impl core::fmt::Display for ReportError {
                 write!(f, "the artifact has {expected} entities but the records cover {found}")
             }
             ReportError::BlankTarget => write!(f, "the target name and version must not be blank"),
+            ReportError::DuplicateRaster(id) => write!(f, "raster {id} appears twice in the raster rows"),
         }
     }
 }
 
 impl std::error::Error for ReportError {}
+
+/// What an export did with one raster of the artifact (`docs/INTERCHANGE.md` chapter 8).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RasterOutcome {
+    /// The export carried the raster, tile bytes and placement unchanged.
+    Exported,
+    /// The export did not carry it; the reason says why and is never blank.
+    Unsupported(Reason),
+}
+
+/// One raster of the artifact and what the export did with it. A raster is not an entity, so it has no
+/// ledger record; this is its row in the report.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RasterRow {
+    /// The raster's id in the artifact (`RasterId`).
+    pub raster: u32,
+    /// What happened to it.
+    pub outcome: RasterOutcome,
+}
+
+impl RasterRow {
+    /// The row of a raster that `target` does not carry, with the reason a reader of the report sees.
+    pub fn left_out(raster: u32, target: &str) -> RasterRow {
+        let text = format!("the {target} export carries no raster");
+        RasterRow { raster, outcome: RasterOutcome::Unsupported(Reason(text)) }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct Row {
@@ -70,6 +100,7 @@ pub struct Report {
     digest: [u8; 32],
     representation: &'static str,
     rows: Vec<Row>,
+    rasters: Vec<RasterRow>,
 }
 
 impl Report {
@@ -142,7 +173,25 @@ impl Report {
             digest: source_digest,
             representation,
             rows: rows.into_values().collect(),
+            rasters: Vec::new(),
         })
+    }
+
+    /// Adds what the export did with the artifact's rasters, one row per raster in any order. The report
+    /// then says how many rasters the artifact has, how many were carried and why each other one was not.
+    /// A raster named twice is refused, since the counts would not reconcile.
+    pub fn with_rasters(mut self, rasters: impl IntoIterator<Item = RasterRow>) -> Result<Report, ReportError> {
+        let mut rows: Vec<RasterRow> = rasters.into_iter().collect();
+        rows.sort_by_key(|r| r.raster);
+        if let Some(w) = rows.windows(2).find(|w| w[0].raster == w[1].raster) {
+            return Err(ReportError::DuplicateRaster(w[0].raster));
+        }
+        self.rasters = rows;
+        Ok(self)
+    }
+
+    fn rasters_exported(&self) -> usize {
+        self.rasters.iter().filter(|r| r.outcome == RasterOutcome::Exported).count()
     }
 
     fn count(&self, kind: FidelityKind) -> usize {
@@ -256,7 +305,28 @@ impl Report {
                 quote(r.reason.as_deref().unwrap_or(""))
             );
         }
-        o.push_str(if unsupported.is_empty() { "]\n}\n" } else { "\n  ]\n}\n" });
+        o.push_str(if unsupported.is_empty() { "],\n" } else { "\n  ],\n" });
+        let _ = writeln!(
+            o,
+            "  \"rasters\": {{\"count\": {}, \"exported\": {}, \"unsupported\": [",
+            self.rasters.len(),
+            self.rasters_exported()
+        );
+        let left: Vec<String> = self
+            .rasters
+            .iter()
+            .filter_map(|r| match &r.outcome {
+                RasterOutcome::Unsupported(reason) => {
+                    Some(format!("    {{\"raster\": {}, \"reason\": {}}}", r.raster, quote(reason.as_str())))
+                }
+                RasterOutcome::Exported => None,
+            })
+            .collect();
+        if !left.is_empty() {
+            o.push_str(&left.join(",\n"));
+            o.push('\n');
+        }
+        o.push_str("  ]}\n}\n");
         o
     }
 
@@ -314,6 +384,22 @@ impl Report {
                     r.capability_name.unwrap_or("-"),
                     cell(r.reason.as_deref().unwrap_or(""))
                 );
+            }
+        }
+        let _ = writeln!(
+            o,
+            "\n## Rasters\n\n{} rasters, {} exported.\n",
+            self.rasters.len(),
+            self.rasters_exported()
+        );
+        let left: Vec<&RasterRow> =
+            self.rasters.iter().filter(|r| r.outcome != RasterOutcome::Exported).collect();
+        if !left.is_empty() {
+            o.push_str("| raster | reason |\n|---|---|\n");
+            for r in left {
+                if let RasterOutcome::Unsupported(reason) = &r.outcome {
+                    let _ = writeln!(o, "| {} | {} |", r.raster, cell(reason.as_str()));
+                }
             }
         }
         o

@@ -169,3 +169,17 @@ ledger-end 1
 `error_bound` is in drawing units, the same units as the source coordinates, so a consumer compares
 it against its own display budget in those units. It says nothing about the structural or geometric
 classes, which a `BoundedApproximation` does not claim.
+
+## Raster tiles
+
+A raster in a `.pvec` is not an entity, so it has no record in a ledger and none of the five values above is
+written for it per entity. Its row is in the report's `rasters` object (`docs/INTERCHANGE.md` chapter 8).
+
+* The PMTiles raster passthrough is `Exact` for **bytes**: every stored tile leaves and returns with the same
+  bytes (compared by digest) and the six placement coefficients with the same bit patterns. That is the whole
+  claim. It says nothing about where the image is on Earth, and nothing about how a decoder renders it.
+* No `BoundedApproximation` exists for pixels. That value carries a finite, positive bound in drawing units, and a
+  pixel stream has no such bound: a re-encode or a resample changes values, not loci. So no export offers one. A
+  lossy tile codec is the producer's choice and PVec claims only that it kept the bytes it was given.
+* An export that cannot carry a raster (STEP, GML, the GeoPackage feature tables, MVT and the vector PMTiles) says
+  so as `unsupported` with a reason in the report. It never writes a degraded copy.

@@ -7,8 +7,8 @@ crate.
 Chapter 1 is the STEP AP242 export (P6.2, pvec#19). Chapter 2 belongs to the round-trip validation (P6.3)
 and is added by that issue. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
 GeoPackage export (P6.5, pvec#22), chapter 5 the vector tile export (P6.6, pvec#23)
-chapter 6 the PMTiles packaging (P6.7, pvec#24) and chapter 7 the fidelity reports every export emits
-(P6.8, pvec#25).
+chapter 6 the PMTiles packaging (P6.7, pvec#24), chapter 7 the fidelity reports every export emits
+(P6.8, pvec#25) and chapter 8 what every export does with a raster (R2.3, pvec#222).
 
 ## 1. STEP AP242 export
 
@@ -148,7 +148,8 @@ The container tests need a docker daemon, so they are `#[ignore]` and run in the
 ### 1.8 Not covered
 
 Reading STEP into PVec, AP242 features outside the 2D profile (product structure, PMI, presentation, the
-component streams), `CARTESIAN_TRANSFORMATION_OPERATOR_2D` and the GIS formats. The comparison against a CAD kernel is chapter 2.
+component streams), `CARTESIAN_TRANSFORMATION_OPERATOR_2D` and the GIS formats. A raster is not carried: the
+writer reports an `Unsupported` row for each one and the geometry is untouched (chapter 8). The comparison against a CAD kernel is chapter 2.
 
 ## 2. Independent STEP round-trip validation
 
@@ -549,8 +550,9 @@ Two kinds of evidence, and neither is the writer's own opinion of itself:
 
 ### Not done
 
-Reading GeoPackage, raster and tile tables in the same file, styling, reprojection, and the
-display-only tiled paths (chapter 5) are out of scope. `CURVEPOLYGON`, `MULTICURVE` and the surface
+Reading GeoPackage, GeoPackage tile tables, styling, reprojection, and the
+display-only tiled paths (chapter 5) are out of scope. The feature tables carry no raster; a raster in the
+source artifact is counted as left out in the report (chapter 8). `CURVEPOLYGON`, `MULTICURVE` and the surface
 types wait for an entity that needs them. Per-layer feature tables are not written: every entity is
 in `pvec_features`, and the layer or component grouping would be one more attribute column when an
 export wants it.
@@ -666,8 +668,9 @@ real source turns up with one, that is a new issue with that source attached.
 
 ### Out of scope here
 
-PMTiles packaging (chapter 6), MapLibre styling, raster tiles, polygon and fill output, and any use of an
-MVT as a source for comparison.
+PMTiles packaging (chapter 6), MapLibre styling, polygon and fill output, and any use of an
+MVT as a source for comparison. A raster in the source artifact is not drawn into a tile: the report counts it
+as left out, and the tiles are byte-identical to the ones of the same drawing without it (chapter 8).
 
 ## 6. PMTiles packaging
 
@@ -741,8 +744,9 @@ which is copied in as given. The writer never reads a clock.
 
 ### Not done
 
-Serving, CDN and cache headers, MapLibre style authoring, mobile offline packaging and raster
-pyramids. Identical tile contents are not deduplicated, so the archive has no run lengths above one.
+Serving, CDN and cache headers, MapLibre style authoring and mobile offline packaging. A raster
+pyramid is not part of the vector packaging above; it has its own passthrough in both directions, chapter 8.
+Identical tile contents are not deduplicated, so the archive has no run lengths above one.
 
 ## 7. Fidelity reports
 
@@ -804,6 +808,9 @@ version `1.0`.
 | `unsupported` | one entry per `Unsupported` entity |
 | `capability` | the registry name of the capability, or `null` if it is not registered |
 | `reason` | why the entity was not translated; never blank |
+| `rasters` | what the export did with the artifact's rasters (schema 1.1, chapter 8) |
+| `count`, `exported` | rasters in the artifact, and rasters the export carried |
+| `unsupported` (inside `rasters`) | one entry per raster left out: `raster` (its id) and `reason`, never blank |
 
 ### What a report may claim
 
@@ -829,9 +836,110 @@ capability (and its registry name), so a conversion's losses can be enumerated a
 `SCHEMA_VERSION` is the schema version. `crates/pvec-interchange/tests/report_schema_25.txt` records the key
 paths of every version, one line each, and a test compares the keys of a report that exercises every class
 with the line for the current version. Adding, removing or renaming a key without bumping the version fails
-that test. A new version appends a line and never edits an old one.
+that test. A new version appends a line and never edits an old one. Version `1.1` adds the `rasters` object
+(chapter 8) and nothing else.
 
 ### Not done
 
 The CLI that prints these reports (P7.7), report hosting and dashboards, the fixture evidence classes, and
 benchmark numbers.
+
+## 8. Rasters
+
+A `.pvec` can carry a raster next to its vectors (ADR 0018, `docs/RASTER.md`): a placement in the `raster`
+stream (capability 21) and the encoded tiles, untouched, in kind 9 and kind 10 blocks. PVec never decodes or
+encodes a pixel, so what an export can do with a raster is limited to moving the bytes it was given or not
+moving them. This chapter says which, for every export, so a raster never disappears without a line in the
+report. The vocabulary is `docs/FIDELITY_TAXONOMY.md`.
+
+### What each export does with a raster
+
+| Export | A raster in the artifact | Report |
+|---|---|---|
+| PMTiles raster passthrough (this chapter, `pvec_interchange::pmtiles::export_raster`) | **carries** it: one archive per raster, every stored tile byte for byte | `exported`; `Exact` for bytes, see below |
+| PMTiles raster import (`pmtiles::import_raster`) | **carries** it in: an archive and a placement become kind 9 and 10 blocks and a stream entry, bytes unchanged | a refusal names its reason |
+| STEP AP242 Part 21 (chapter 1) | **drops** it, with an `Unsupported` row per raster naming the reason (the AP242 profile has no image construct); the geometry output is byte-identical to the file of the same drawing without the raster | `unsupported` with the reason |
+| GML (chapter 3) | **drops** it, reported | `unsupported` with the reason |
+| GeoPackage feature tables (chapter 4) | **drops** it, reported; GeoPackage tile tables are not written and not read | `unsupported` with the reason |
+| MVT tiles (chapter 5) | **drops** it, reported; the tiles are byte-identical to the ones of the same drawing without the raster | `unsupported` with the reason |
+| PMTiles vector packaging (chapter 6) | **drops** it, reported; same bytes as the drawing without the raster | `unsupported` with the reason |
+| A raster whose `tile_codec` the export does not know, or whose tiles fail the header checks of `docs/RASTER.md` (`RASTER-03`) | **refuses** it, never writes a partial archive | the reason is the `RASTER-NN` rule |
+
+"Drops" always comes with a report line: the count of rasters in the artifact, how many the export carried, and one
+`unsupported` entry per raster left out with its reason. An export of a drawing with no raster reports a count of
+zero. Dropping a raster changes no geometry and no tile of a vector export; a test per export compares the bytes
+with the raster-free drawing.
+
+### PMTiles passthrough, out
+
+`export_raster` writes one PMTiles v3 archive for one raster, with the layout of chapter 6 (127 byte header, root
+directory in the first 16 KiB, metadata, leaf directories if the root does not fit, tile data in tile id order)
+and these rules:
+
+* **Tile bytes.** Every stored tile is copied unchanged. Compression is none for the tiles (PNG, JPEG and WebP are
+  compressed already) and none for the directories, as in chapter 6. No pixel is read, resampled or re-encoded, and
+  no re-encode is offered.
+* **Tile type.** From the placement's `tile_codec`: 1 PNG is PMTiles tile type 2, 2 JPEG is 3, 3 WebP is 4. There is
+  no `Raw` tile type; a `Raw` archive is refused on import.
+* **Address.** The pyramid has `levels = z_max + 1` and level `l` is `z = l`, where
+  `z_max = ceil(log2(max(width, height) / tile_edge))` (zero when the image fits one tile). `x` is the tile column
+  and `y` the tile row, rows counted down from the top as the Xyz numbering does, and the tile id is the one of
+  chapter 6. A worked case: a 3000 by 1900 image at edge 1024 has `z_max = 2`, three levels, 3 by 2 tiles at
+  `z = 2`, 2 by 1 at `z = 1` and 1 by 1 at `z = 0`. `min_zoom` is the coarsest level that stores a tile, `max_zoom`
+  the finest. `z` is at most 31 in PMTiles; with a legal edge of 256 or more and a `u32` image size it never
+  exceeds 24.
+* **Sparse stays sparse.** A tile that the index stores with length zero has no entry in the directory, and the
+  archive's addressed-tile count is the number of stored tiles. A client asking for it gets "no such tile", which
+  draws the same as nothing.
+* **Bounds.** The header bounds are the whole web mercator world square and the centre its middle, exactly as
+  chapter 6 decides for the vector export. The archive is **not** georeferenced: the caller sets bounds if it knows
+  a place, the way a libviprs archive does today. PVec stores no CRS (ADR 0018, "Georeference").
+* **Metadata.** The placement goes under the `vnd.pvec` key, beside the `vnd.libviprs` key libviprs writes and
+  designed next to the vector tiler's `viprs_cad` key: `{"raster": {...}}` with one member per field of the
+  placement table in `docs/RASTER.md`, named as that table names them. The six `pixel_to_source` coefficients are
+  written as 16 lowercase hex digits of the `f64` bits, so a JSON number never rounds them, and `-0.0` is already
+  `+0.0` (NP-03). `attribution` is also written as the TileJSON `attribution` string at the top level, plain text,
+  never HTML. `source_digest` is the optional hex SHA-256 of the placement. Keys are written sorted and the
+  archive is deterministic: the same raster gives the same archive, with no clock.
+
+### PMTiles passthrough, in
+
+`import_raster` takes an archive and, optionally, a placement, and returns the placement, the tiles and the
+stream entry the writer needs, with every tile's bytes as they are in the archive.
+
+* **Placement.** When the archive carries `vnd.pvec`, that is the placement, validated like any stream row (NP-19,
+  `RASTER-01`, `RASTER-05`, `RASTER-07`). A placement the caller passes is checked against it and a disagreement is a
+  refusal; with neither, the import is refused, since pixels without a map to source space cannot be placed. Composing
+  a placement from a georeference is the producer's job (`libviprs/libviprs#1328`), not this import's.
+* **Tile type.** A `Raw` or unknown tile type is refused. MVT is not a raster and is refused with its own reason.
+* **Edge.** The tile edge is sniffed from the first tile and must be a legal edge (256, 512 or 1024); every other tile
+  must say the same.
+* **Every tile is sniffed.** Each tile passes the codec sniffer of `RASTER-03` (header dimensions equal the edge, no
+  trailing payload) before anything is returned. One tile that fails refuses the raster, with a report line naming
+  `RASTER-03`, the tile address and the reason; the file is never partly imported.
+* **Gaps.** An address the archive does not have is a tile that is not stored, so a sparse archive imports as a
+  sparse pyramid. Entries with a run length above one expand to one tile per address, each with the same bytes.
+* **Limits.** Counts and sizes are checked before the allocation they protect, against `LIMIT-14` and `LIMIT-15`.
+  Internal compression of the directories (gzip) is not supported by this reader and is refused by name.
+
+### Fidelity
+
+The tile bytes and the placement bits are `Exact` in the sense of `docs/FIDELITY_TAXONOMY.md`: the same bytes, compared
+by digest, and the same six coefficient bit patterns. There is no `BoundedApproximation` for pixels and none is
+offered, since that value carries a bound in drawing units and a pixel has no such bound. A lossy tile codec is the
+producer's choice; PVec claims only that it keeps the bytes. An archive built this way makes no claim about where on
+Earth it is. It is an interop product, not a conformance input: no comparison accepts one, as for chapter 6.
+
+Interop is checked with libviprs: an archive exported here and extracted by `viprs pmtiles extract` gives the same
+tile bytes (recorded in the pull request; the automated version lives in `libviprs-tests`' `pmtiles_interop.rs`).
+
+### Reports
+
+Every report (chapter 7) carries a `rasters` object: `count` (rasters in the artifact), `exported` (rasters the
+export carried) and `unsupported` (one entry per raster left out, with its `raster` id and a non-blank `reason`).
+`count` equals `exported` plus the length of `unsupported`, and a report that does not reconcile is refused.
+
+### Not done
+
+Georeferencing an archive, re-encoding, GeoPackage tile tables, composing a placement from a `GeoTransform`
+(`libviprs/libviprs#1328`), and the MLT and AVIF tile types.

@@ -17,7 +17,7 @@ fn flat(text: &str) -> String {
 fn chapter<'a>(doc: &'a str, heading: &str) -> &'a str {
     let at = doc.find(heading).unwrap_or_else(|| panic!("no chapter {heading}"));
     let rest = &doc[at + heading.len()..];
-    let end = rest.find("\n## ").map_or(rest.len(), |e| e);
+    let end = rest.find("\n## ").unwrap_or(rest.len());
     &rest[..end]
 }
 
@@ -104,5 +104,5 @@ fn chapter_7_documents_the_raster_report_object() {
     for key in ["rasters", "count", "exported", "unsupported", "raster", "reason"] {
         assert!(ch.contains(&format!("`{key}`")), "chapter 7 does not document `{key}`");
     }
-    assert!(ch.contains("Version 1.1 adds the `rasters` object"));
+    assert!(ch.contains("Version `1.1` adds the `rasters` object"));
 }
