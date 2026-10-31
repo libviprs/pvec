@@ -428,6 +428,7 @@ Each refusal is a typed `WriteError` with a rule identifier.
 | WRT-14 | a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell |
 | WRT-15 | raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule) |
 | WRT-16 | the raster placement stream is refused (the error carries its RASTER rule) |
+| WRT-17 | a raster tile the reader would refuse: its header is not the placement's edge, bit depth and channels, it is not one image and nothing after it, or it is over the ceiling of a tile (the error carries its RASTER-03, RASTER-04 or LIMIT-15 rule) |
 
 ### 4.6 Review checklist
 

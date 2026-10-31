@@ -39,4 +39,5 @@ fn the_readme_names_the_directory_of_every_target_including_the_raster_index() {
         assert!(text.contains(name), "tests/regressions/README.md does not name {name}");
     }
     assert!(TARGETS.iter().any(|(n, _)| *n == "fuzz_raster_index"));
+    assert!(TARGETS.iter().any(|(n, _)| *n == "fuzz_raster_headers"));
 }

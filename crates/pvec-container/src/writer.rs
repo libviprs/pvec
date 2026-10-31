@@ -17,6 +17,7 @@ use crate::blocks::advanced::{AdvancedBuilder, SplineSpec};
 use crate::blocks::arena::{ArenaError, PayloadKind};
 use crate::blocks::hot::{HotBlockBuilder, HotError, HotKind};
 use crate::blocks::raster::{self, IndexError, TileIn};
+use crate::blocks::sniff::{TileRefusal, sniff_tile};
 use crate::compress::CodecPolicy;
 use crate::compress::pack;
 use crate::directory::{
@@ -284,6 +285,19 @@ pub enum WriteError {
     Raster(IndexError),
     /// The raster placement stream is refused (the error carries its rule).
     Placement(RasterError),
+    /// A raster tile the sniffer refuses (`RASTER-03`, `RASTER-04`, `LIMIT-15`).
+    Tile {
+        /// The raster.
+        raster: u32,
+        /// The level.
+        level: u32,
+        /// The column.
+        col: u32,
+        /// The row.
+        row: u32,
+        /// Why.
+        refusal: TileRefusal,
+    },
 }
 
 impl WriteError {
@@ -306,6 +320,7 @@ impl WriteError {
             WriteError::Tier0Cell { .. } => "WRT-14",
             WriteError::Raster(_) => "WRT-15",
             WriteError::Placement(_) => "WRT-16",
+            WriteError::Tile { .. } => "WRT-17",
         }
     }
 }
@@ -334,6 +349,10 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
         "raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule)",
     ),
     ("WRT-16", "the raster placement stream is refused (the error carries its RASTER rule)"),
+    (
+        "WRT-17",
+        "a raster tile the reader would refuse: its header is not the placement's edge, bit depth and channels, it is not one image and nothing after it, or it is over the ceiling of a tile (the error carries its RASTER-03, RASTER-04 or LIMIT-15 rule)",
+    ),
 ];
 
 impl fmt::Display for WriteError {
@@ -365,6 +384,9 @@ impl fmt::Display for WriteError {
             }
             WriteError::Raster(e) => write!(f, "{rule}: {e}"),
             WriteError::Placement(e) => write!(f, "{rule}: {e}"),
+            WriteError::Tile { raster, level, col, row, refusal } => {
+                write!(f, "{rule}: tile ({col}, {row}) of level {level} of raster {raster}: {refusal}")
+            }
         }
     }
 }
@@ -499,6 +521,7 @@ pub struct ContainerWriter {
     rasters: BTreeMap<u32, Vec<TileIn>>,
     raster_chunk: u32,
     raster_inline: u64,
+    sniff_tiles: bool,
 }
 
 /// A stored number the caller did not hand over: the writer derived it, within `bound` of the exact
@@ -615,6 +638,7 @@ impl ContainerWriter {
             rasters: BTreeMap::new(),
             raster_chunk: RASTER_CHUNK_BYTES,
             raster_inline: RASTER_INLINE_BYTES,
+            sniff_tiles: true,
         }
     }
 
@@ -990,6 +1014,15 @@ impl ContainerWriter {
         self.raster_inline = bytes;
     }
 
+    /// Switches the check of tile headers off, so that a test can write the hostile tile a reader must refuse.
+    ///
+    /// The writer refuses what the reader would, which is why a corpus of hostile tiles cannot be written
+    /// without this. Nothing but the hostile corpus calls it.
+    #[doc(hidden)]
+    pub fn skip_tile_checks(&mut self) {
+        self.sniff_tiles = false;
+    }
+
     /// Adds encoded tiles of raster `raster`, whose placement is in the raster stream pushed with
     /// [`ContainerWriter::push_stream`] (capability 21). Each tile carries its level, column and row and the
     /// bytes of its PNG, JPEG or WebP, which are stored as they are; a tile with no bytes is a tile that is not
@@ -1267,6 +1300,13 @@ impl ContainerWriter {
         let mut rasters = rasters;
         for (id, p, grid) in plans {
             let tiles = rasters.remove(&id).unwrap_or_default();
+            if self.sniff_tiles {
+                for t in tiles.iter().filter(|t| !t.bytes.is_empty()) {
+                    sniff_tile(p, Limits::DEFAULT.max_tile_bytes, &t.bytes).map_err(|refusal| {
+                        WriteError::Tile { raster: id, level: t.level, col: t.col, row: t.row, refusal }
+                    })?;
+                }
+            }
             let total: u64 = grid.iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
             let built =
                 raster::build(&grid, tiles, inline.get(&id).copied().unwrap_or(0), self.raster_chunk, left)

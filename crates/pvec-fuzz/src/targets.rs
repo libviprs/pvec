@@ -11,6 +11,7 @@ use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use pvec_container::blocks::hot::HotBlockView;
 use pvec_container::blocks::raster::RasterIndex;
+use pvec_container::blocks::sniff::{JPEG, MAX_EXAMINED, PNG, WEBP, max_tile_bytes, sniff_codec};
 use pvec_container::compress::Codec;
 use pvec_container::directory::BlockKind;
 use pvec_container::integrity::{Integrity, artifact_digest, block_checksum};
@@ -27,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 8] = [
+pub const TARGETS: [(&str, Target); 9] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -35,6 +36,7 @@ pub const TARGETS: [(&str, Target); 8] = [
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
     ("fuzz_raster_index", fuzz_raster_index),
+    ("fuzz_raster_headers", fuzz_raster_headers),
     ("fuzz_raster_plan", fuzz_raster_plan),
 ];
 
@@ -416,6 +418,59 @@ pub fn fuzz_raster_index(data: &[u8]) -> String {
         (1, 1, 0),
     ] {
         let _ = index.check_grid(w, h, edge);
+    }
+    "ok".to_string()
+}
+
+/// A tile and the placement it is under, framed as `[codec][edge][format][bytes]`: the codec id (1 PNG, 2 JPEG,
+/// 3 WebP, anything else an unknown codec), the edge in units of 128 (2 is 256, 4 is 512, 8 is 1024, and every other
+/// value is an edge the tile will not match), the format (the low two bits are the channels less one, bit 2 says
+/// one bit deep and not eight), then the bytes of the tile. This is the sniffers' target: the first image-header
+/// parsers in the workspace, which read a constant number of bytes of whatever they are given. A tile that passes
+/// has to be what the contract says it is, so a sniffer that accepts something it should not is a crash.
+pub fn fuzz_raster_headers(data: &[u8]) -> String {
+    let Some((head, bytes)) = data.split_at_checked(3) else { return "short".to_string() };
+    let (codec, edge) = (head[0], u32::from(head[1]) * 128);
+    let channels = 1 + (head[2] & 3);
+    let depth = if head[2] & 4 != 0 { 1 } else { 8 };
+    let allowance = Limits::DEFAULT.max_tile_bytes;
+    let examined = match sniff_codec(codec, edge, channels, depth, allowance, bytes) {
+        Ok(n) => n,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert!(examined <= MAX_EXAMINED, "{examined} bytes examined");
+    assert!(bytes.len() as u64 <= max_tile_bytes(edge, allowance), "a tile over the ceiling was accepted");
+    match codec {
+        PNG => {
+            assert_eq!(&bytes[..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+            // IEND is the last chunk and the last byte (its CRC is the decoder's, not the sniffer's)
+            assert_eq!(&bytes[bytes.len() - 12..bytes.len() - 4], &[0, 0, 0, 0, b'I', b'E', b'N', b'D'][..]);
+            assert_eq!(u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]), edge);
+            assert_eq!(u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]), edge);
+            assert_eq!(bytes[24], depth, "a bit depth the placement does not have");
+            assert_eq!(bytes[28], 0, "an interlaced PNG was accepted");
+            assert!(matches!(bytes[25], 0 | 2 | 4 | 6), "a palette PNG was accepted");
+        }
+        JPEG => {
+            assert!(matches!(channels, 1 | 3) && depth == 8, "a JPEG was accepted under alpha or one bit");
+            assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+            assert_eq!(
+                &bytes[bytes.len() - 2..],
+                &[0xFF, 0xD9],
+                "a JPEG that does not end in EOI was accepted"
+            );
+        }
+        WEBP => {
+            assert_eq!(&bytes[..4], b"RIFF");
+            let size = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+            assert_eq!(
+                u64::from(size) + 8,
+                bytes.len() as u64,
+                "a RIFF size that is not the length was accepted"
+            );
+            assert_eq!(&bytes[8..12], b"WEBP");
+        }
+        other => panic!("a tile of codec {other} was accepted"),
     }
     "ok".to_string()
 }

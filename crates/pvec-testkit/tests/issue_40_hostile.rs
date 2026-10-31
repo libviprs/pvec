@@ -895,3 +895,22 @@ fn the_allocation_floor_is_calibrated_to_the_reference_and_catches_a_small_waste
     assert_eq!(report.failures.len(), 1, "{}", report.summary());
     assert!(matches!(report.failures[0].1, Failure::Allocated { .. }));
 }
+
+// ---- the hostile tiles of issue #219: corpus entries, each with the rule that must refuse it ----
+
+#[test]
+fn the_thirteen_hostile_tiles_are_corpus_entries_each_refused_by_its_expected_rule() {
+    use pvec_container::blocks::sniff::sniff_codec;
+    use pvec_testkit::raster_hostile::{ALLOWANCE, accepted, hostile};
+    let tiles = hostile();
+    assert_eq!(tiles.len(), 13);
+    for t in &tiles {
+        let e = sniff_codec(t.codec, u32::from(t.edge), t.channels, t.depth, ALLOWANCE, &t.bytes)
+            .expect_err(t.name);
+        assert_eq!(Some(e.rule()), t.rule, "{}: {e}", t.name);
+    }
+    for t in accepted() {
+        sniff_codec(t.codec, u32::from(t.edge), t.channels, t.depth, ALLOWANCE, &t.bytes)
+            .unwrap_or_else(|e| panic!("{}: {e}", t.name));
+    }
+}
