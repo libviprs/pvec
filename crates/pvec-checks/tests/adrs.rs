@@ -132,14 +132,8 @@ fn adr_0017_and_0018_are_accepted_with_a_date_and_0018_records_the_four_decision
         assert!(status.starts_with("Status: Accepted, 2026-"), "{name}: status is `{status}`");
     }
     let t = adr("0017-instance-and-transform-storage");
-    assert!(
-        t.contains("\n## Amendment 2026-") && t.contains("ADR 0018"),
-        "0017 has no dated amendment naming 0018"
-    );
-    assert!(
-        t.contains("exact") && t.contains("resampling"),
-        "0017's amendment does not give the exactness argument"
-    );
+    assert!(t.contains("\n## Amendment 2026-") && t.contains("ADR 0018"), "0017 has no dated amendment naming 0018");
+    assert!(t.contains("exact") && t.contains("resampling"), "0017's amendment does not give the exactness argument");
     let t = adr("0018-raster-in-pvec");
     assert!(t.contains("\n## Ratification"), "0018 has no Ratification section");
     let r = section(&t, "Ratification");
@@ -157,10 +151,7 @@ fn adr_0017_and_0018_are_accepted_with_a_date_and_0018_records_the_four_decision
         assert!(r.contains(needle), "0018 Ratification does not record {needle:?}");
     }
     let o = section(&t, "Open questions");
-    assert!(
-        o.contains("#220") && o.contains("#222"),
-        "the open questions do not point at the tasks that decide them"
-    );
+    assert!(o.contains("#220") && o.contains("#222"), "the open questions do not point at the tasks that decide them");
 }
 
 #[test]

@@ -179,9 +179,7 @@ fn a_version_may_not_go_down_and_a_retired_id_may_not_come_back() {
 #[test]
 fn the_step_from_1_0_0_to_1_1_0_that_adds_the_raster_entry_is_a_legal_non_breaking_one() {
     let old = Snapshot::parse(
-        &Snapshot::from_registry(&Registry::v1())
-            .render()
-            .replace("format_version = \"1.1.0\"", "format_version = \"1.0.0\""),
+        &Snapshot::from_registry(&Registry::v1()).render().replace("format_version = \"1.1.0\"", "format_version = \"1.0.0\""),
     )
     .unwrap();
     let mut old = old;
