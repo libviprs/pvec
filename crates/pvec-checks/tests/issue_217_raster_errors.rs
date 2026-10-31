@@ -53,6 +53,6 @@ fn pvec_components_depends_on_no_image_and_no_geometry_crate() {
         assert!(["pvec-capabilities", "pvec-entity", "pvec-numeric"].contains(n), "{n} is not allowed");
     }
     assert!(names.contains(&"pvec-numeric"), "NP-19 comes from pvec-numeric");
-    let allowed = pvec_checks::api::API_CRATES.iter().find(|(n, _)| *n == "pvec-components").unwrap().1;
+    let allowed = pvec_checks::API_CRATES.iter().find(|(n, _)| *n == "pvec-components").unwrap().1;
     assert!(allowed.contains(&"pvec-numeric"));
 }
