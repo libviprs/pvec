@@ -45,7 +45,7 @@ fn reader_named(name: &str) -> ReaderCapabilities {
     let mut r = ReaderCapabilities::v1();
     match name {
         "s_old" => {
-            r = (14..=20).fold(r, |r, id| r.without(CapabilityId::new(id)));
+            r = (14..=21).fold(r, |r, id| r.without(CapabilityId::new(id)));
             r.version = Version::new(1, 0, 0);
         }
         "s_new" => {

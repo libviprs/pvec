@@ -490,9 +490,10 @@ Refusals are `Refusal` values and carry a rule:
 |---|---|
 | NEGOTIATE-01 | a required capability is not supported by the reader, or not known to it at all; the refusal names its id and the version the file declares |
 | NEGOTIATE-02 | a required capability is declared at a major version the reader does not support (a newer minor of a supported major opens) |
-| NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a declared capability's) |
-| NEGOTIATE-04 | a component or an optional extension is declared required, which the registry does not allow |
+| NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a required capability's) |
+| NEGOTIATE-04 | a component, the raster capability or an optional extension is declared required, which the registry does not allow |
 | NEGOTIATE-05 | a block names a capability id the manifest does not declare |
+| NEGOTIATE-06 | a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none |
 
 ### 5.3 The skip contract
 
@@ -500,7 +501,8 @@ A block carries everything needed to skip it in its directory entry: its kind id
 
 * a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file when it is set (`DIR-04`);
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);
-* a block whose capability the reader skipped is skipped with it.
+* a block whose capability the reader skipped is skipped with it;
+* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21 and are not in the kind table of chapter 4) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not know, naming the capability from its entry, when it does not. It must name its owner and no other capability (`NEGOTIATE-06`).
 
 A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which reads every byte by definition. The reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the format defines names none (`DIR-02`), because its kind fixes it.
 
