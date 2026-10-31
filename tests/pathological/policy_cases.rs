@@ -385,7 +385,7 @@ pub fn cases() -> Vec<PolicyCase> {
             rule: "NP-19",
             what: "a determinant of 1e-11 is singular under REL * big^2 although it is above libviprs's 1e-12",
             run: |p| {
-                let m = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
+                let m: [f64; 6] = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
                 (m[0] * m[3] - m[1] * m[2]).abs() > 1e-12
                     && rejects(p.validate_affine(m), NumericError::SingularTransform)
             },
