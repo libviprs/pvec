@@ -906,16 +906,19 @@ and these rules:
 
 ### PMTiles passthrough, in
 
-`import_raster` takes an archive and, optionally, a placement, and returns the placement, the tiles and the
-stream entry the writer needs, with every tile's bytes as they are in the archive.
+`import_raster` takes an archive and, optionally, a placement, and returns the placement (for the raster stream) and the
+tiles (for `ContainerWriter::push_raster_tiles`), with every tile's bytes as they are in the archive. `placement_json`
+and `placement_from_json` convert a placement to and from the `vnd.pvec` text, and `RasterRow::refused` makes the
+report line of a refusal, whose text starts with the rule.
 
 * **Placement.** When the archive carries `vnd.pvec`, that is the placement, validated like any stream row (NP-19,
   `RASTER-01`, `RASTER-05`, `RASTER-07`). A placement the caller passes is checked against it and a disagreement is a
   refusal; with neither, the import is refused, since pixels without a map to source space cannot be placed. Composing
   a placement from a georeference is the producer's job (`libviprs/libviprs#1328`), not this import's.
 * **Tile type.** A `Raw` or unknown tile type is refused. MVT is not a raster and is refused with its own reason.
-* **Edge.** The tile edge is sniffed from the first tile and must be a legal edge (256, 512 or 1024); every other tile
-  must say the same.
+* **Edge.** The placement's edge is one of 256, 512 and 1024 like any stream row, and every tile's header must say
+  it: a tile that says another edge, legal or not, is refused (`RASTER-03`). That is how the edge is sniffed from the
+  tiles without a second parser.
 * **Every tile is sniffed.** Each tile passes the codec sniffer of `RASTER-03` (header dimensions equal the edge, no
   trailing payload) before anything is returned. One tile that fails refuses the raster, with a report line naming
   `RASTER-03`, the tile address and the reason; the file is never partly imported.
