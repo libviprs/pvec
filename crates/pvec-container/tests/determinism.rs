@@ -147,6 +147,7 @@ fn child_prints_digests() {
     for fx in fixtures() {
         println!("DIGEST {} {}", fx.name, sha256_hex(&write(&fx)));
     }
+    println!("DIGEST raster-two {}", sha256_hex(&raster::two_rasters_file()));
 }
 
 fn digests_from_child(dir: Option<&std::path::Path>, env: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -172,13 +173,17 @@ fn digests_from_child(dir: Option<&std::path::Path>, env: &[(&str, &str)]) -> BT
 }
 
 fn digests_here() -> BTreeMap<String, String> {
-    fixtures().iter().map(|f| (f.name.to_string(), sha256_hex(&write(f)))).collect()
+    let mut digests: BTreeMap<String, String> =
+        fixtures().iter().map(|f| (f.name.to_string(), sha256_hex(&write(f)))).collect();
+    // the two rasters of issue #218: a file with the feature, beside the fixtures that do not use it
+    digests.insert("raster-two".to_string(), sha256_hex(&raster::two_rasters_file()));
+    digests
 }
 
 #[test]
 fn separate_processes_write_the_same_digests() {
     let here = digests_here();
-    assert_eq!(here.len(), fixtures().len());
+    assert_eq!(here.len(), fixtures().len() + 1);
     for run in 0..2 {
         let child = digests_from_child(None, &[]);
         assert_eq!(child, here, "child process {run} wrote different bytes");
@@ -434,5 +439,35 @@ fn the_writer_path_never_calls_a_transcendental_or_the_models_bounds() {
         ] {
             assert!(!code.contains(banned), "{file} uses {banned}, which can reach libm");
         }
+    }
+}
+
+#[test]
+fn the_same_tiles_written_twice_and_in_another_order_give_identical_bytes() {
+    // issue #218: the writer owns the Hilbert order, the chunking and the inline levels, so the order tiles
+    // arrive in is never seen
+    let first = raster::two_rasters_file();
+    assert_eq!(first, raster::two_rasters_file());
+    let ps = raster::two_placements();
+    let mut w = raster::writer_with(&ps);
+    let mut a = raster::tiles(0, &ps[0], 700, |l, c, r| l == 2 && (c + r) % 2 == 1);
+    a.reverse();
+    let mut b = raster::tiles(1, &ps[1], 700, |_, _, _| false);
+    b.reverse();
+    w.push_raster_tiles(pvec_components::RasterId::new(1).unwrap(), b).unwrap();
+    w.push_raster_tiles(pvec_components::RasterId::new(0).unwrap(), a).unwrap();
+    assert_eq!(w.finish().unwrap(), first);
+}
+
+#[test]
+fn a_file_with_no_raster_is_the_file_it_was_before_the_feature() {
+    // a canonical form must not move for files that do not use it: the fixtures' digests are in the golden
+    // file from before issue #218 and `the_digests_match_the_committed_golden_file` holds them; and none of
+    // them carries a raster block, a raster capability or a second reader requirement
+    for fx in fixtures() {
+        let art = support::art::Art::new(write(&fx));
+        assert!(art.entries.iter().all(|e| e.kind < 9), "{}: a raster block", fx.name);
+        assert!(art.manifest.capabilities.iter().all(|c| c.id.get() != 21), "{}: capability 21", fx.name);
+        assert_eq!(art.manifest.min_reader, pvec_capabilities::Version::new(1, 0, 0), "{}", fx.name);
     }
 }

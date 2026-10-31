@@ -24,7 +24,7 @@ fn placement() -> Placement {
         height: 500,
         visible_box: [10, 20, 690, 480],
         tile_edge: 256,
-        levels: 2,
+        levels: 3,
         tile_codec: TileCodec::Png,
         pixel_format: PixelFormat::Gray,
         bit_depth: 8,
@@ -36,13 +36,13 @@ fn placement() -> Placement {
     }
 }
 
-/// Every tile of the 2 level pyramid (1 by 1, then 3 by 2), the sparse one left out.
+/// Every tile of the 3 level pyramid (1 by 1, 2 by 1, then 3 by 2), the sparse one left out.
 fn tiles() -> Vec<TileIn> {
     let mut out = Vec::new();
-    for (l, (cols, rows)) in [(1u32, 1u32), (3, 2)].into_iter().enumerate() {
+    for (l, (cols, rows)) in [(1u32, 1u32), (2, 1), (3, 2)].into_iter().enumerate() {
         for row in 0..rows {
             for col in 0..cols {
-                let bytes = if (l, col, row) == (1, 2, 1) {
+                let bytes = if (l, col, row) == (2, 2, 1) {
                     Vec::new()
                 } else {
                     (0..900u32).map(|i| (i + 13 * col + 29 * row + 71 * l as u32) as u8).collect()
@@ -113,7 +113,7 @@ fn an_indexed_writer_lays_the_same_raster_out_and_the_geometry_still_reads() {
     w.raster_tiles(RasterId::new(0).unwrap(), tiles()).unwrap();
     let r = PvecReader::open(w.finish().unwrap()).unwrap();
     assert_eq!(r.raster_placements().unwrap(), vec![placement()]);
-    assert!(r.raster_tile(RasterId::new(0).unwrap(), 1, 0, 0).unwrap().is_some());
+    assert!(r.raster_tile(RasterId::new(0).unwrap(), 2, 0, 0).unwrap().is_some());
 }
 
 #[test]

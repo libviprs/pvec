@@ -6,7 +6,11 @@
 
 use crate::writer::refused;
 use crate::{Bounds2, CapabilityId, Curve, EntityId, PvecError, PvecReader, PvecWriter};
+use pvec_capabilities::{Reader, Registry, Version};
+use pvec_components::{RASTER_CAPABILITY, RasterRead, encode_rasters, read_rasters, read_streams};
 use pvec_container::Bounds;
+use pvec_container::directory::BlockKind;
+use pvec_container::reader::BlockId;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
@@ -253,28 +257,55 @@ impl PvecReader {
 
 impl PvecWriter {
     /// Attaches the raster stream (capability 21): the placements, in `RasterId` order, that the tiles of
-    /// [`PvecWriter::raster_tiles`] are placed by. A placement the rules refuse is an error here, not at `finish`.
+    /// [`PvecWriter::raster_tiles`] are placed by. A placement the rules refuse (`RASTER-01`, `04`, `05`, `07`,
+    /// `LIMIT-13`) is an error here and not at `finish`.
     pub fn rasters(&mut self, placements: &[Placement]) -> Result<(), PvecError> {
-        let _ = placements;
-        Ok(())
+        let payload = encode_rasters(placements).map_err(|e| write_error(e.rule()))?;
+        let version = Registry::v1().get(RASTER_CAPABILITY).map_or(Version::new(1, 0, 0), |c| c.version);
+        self.components(crate::components::Stream { capability: RASTER_CAPABILITY, version, payload })
     }
 
-    /// Adds the encoded tiles of raster `raster` (a stub).
+    /// Adds the encoded tiles of raster `raster` (PNG, JPEG or WebP, stored as they are), each with its level,
+    /// column and row. A tile with no bytes is a tile that is not stored. The tiles of one raster can come in
+    /// any number of calls and any order, and the file does not depend on either. What the container cannot
+    /// store is refused by `finish`, with the rule of the refusal.
     pub fn raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
-        let _ = (raster, tiles);
-        Ok(())
+        if let Some(index) = &mut self.index {
+            index.log.push(Op::Raster(raster, tiles.clone()));
+        }
+        self.inner.push_raster_tiles(raster, tiles).map_err(refused)
     }
 }
 
 impl PvecReader {
-    /// The raster placements of the file, in `RasterId` order (a stub).
+    /// The raster placements of the file, in `RasterId` order: empty when the file has none, and an error when
+    /// the stream is damaged (the geometry does not depend on it).
     pub fn raster_placements(&self) -> Result<Vec<Placement>, PvecError> {
-        Ok(Vec::new())
+        let Some(at) = self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
+        else {
+            return Ok(Vec::new());
+        };
+        let block = self.inner.read_block(BlockId(at as u32)).map_err(|e| PvecError::Read { rule: e.rule() })?;
+        let registry = Registry::v1();
+        let reader = Reader {
+            version: pvec_capabilities::FORMAT_VERSION,
+            implemented: registry.entries().iter().map(|c| c.id).collect(),
+        };
+        let opened = read_streams(block.as_bytes(), &registry, &reader).map_err(|e| read_error(e.rule()))?;
+        match read_rasters(&opened) {
+            RasterRead::Absent => Ok(Vec::new()),
+            RasterRead::Present(placements) => Ok(placements),
+            RasterRead::Damaged(e) => Err(read_error(e.rule())),
+        }
     }
 
-    /// One tile of a raster (a stub).
+    /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum has been
+    /// checked against them: `None` for a tile that is not stored, and an error for a raster the file does not
+    /// have or one it refuses (the file and the other rasters are unaffected).
     pub fn raster_tile(&self, raster: RasterId, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError> {
-        let _ = (raster, level, col, row);
-        Ok(None)
+        self.inner
+            .read_raster_tile(raster.index(), level, col, row)
+            .map(|t| t.map(|b| b.as_slice().to_vec()))
+            .map_err(|e| PvecError::Read { rule: e.rule() })
     }
 }
