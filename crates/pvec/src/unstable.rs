@@ -16,8 +16,10 @@ pub use crate::reader::LoadedEntity;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
 pub use pvec_container::limits::Limits;
 pub use pvec_container::reader::ReaderConfig;
+pub use pvec_components::{PixelFormat, Placement, TileCodec};
+pub use pvec_container::blocks::raster::RasterIndex;
 pub use pvec_stream::{
-    Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
+    Aabb, BlockRange, PlannedTile, RasterPlan, RasterPlanError, TileSlot, footprint, plan_placed, reported_extent, tile_slots, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
     InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry,
     Tier0Leaves, Tier0Plan, ViewportQuery,
 };
@@ -244,5 +246,78 @@ impl PvecReader {
             .partial_open()
             .map(|p| p.capabilities.iter().map(|c| (c.id, c.effect)).collect())
             .unwrap_or_default()
+    }
+}
+
+impl PvecReader {
+    /// The raster placements of the file, in `RasterId` order, or `None` when the file has no raster stream
+    /// this reader opened (absent, or skipped as an unknown version). A stream whose payload is refused is an
+    /// error for the raster stream only; the geometry reads as before.
+    pub fn raster_placements(&self) -> Result<Option<Vec<Placement>>, PvecError> {
+        use pvec_capabilities::{Class, Reader, Registry, Version};
+        use pvec_components::{RasterRead, read_rasters, read_streams};
+        use pvec_container::directory::BlockKind;
+        let Some(at) = self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
+        else {
+            return Ok(None);
+        };
+        let block = self.inner.read_block(pvec_container::reader::BlockId(at as u32)).map_err(crate::reader::container)?;
+        let registry = Registry::v1();
+        let reader = Reader {
+            version: Version::new(1, 1, 0),
+            implemented: registry
+                .entries()
+                .iter()
+                .filter(|c| matches!(c.class, Class::Component | Class::Raster))
+                .map(|c| c.id)
+                .collect(),
+        };
+        let opened = read_streams(block.as_bytes(), &registry, &reader).map_err(|e| read_error(e.rule()))?;
+        match read_rasters(&opened) {
+            RasterRead::Absent => Ok(None),
+            RasterRead::Present(p) => Ok(Some(p)),
+            RasterRead::Damaged(e) => Err(read_error(e.rule())),
+        }
+    }
+
+    /// The rasters the directory names, ascending.
+    pub fn rasters(&self) -> Vec<u32> {
+        self.inner.rasters()
+    }
+
+    /// The index of `raster`, read when first asked for and kept.
+    pub fn raster_index(&self, raster: u32) -> Result<std::sync::Arc<RasterIndex>, PvecError> {
+        self.inner.raster_index(raster).map_err(crate::reader::container)
+    }
+
+    /// The tiles of `raster` that `query` needs: `pvec_stream::plan_placed` over this reader's directory and
+    /// limits, with `LIMIT-16` replaced by `max_decoded` when given. It reads nothing; `index` is
+    /// [`PvecReader::raster_index`].
+    pub fn raster_plan(
+        &self,
+        raster: u32,
+        placement: &Placement,
+        index: &RasterIndex,
+        query: &ViewportQuery,
+        max_decoded: Option<u64>,
+    ) -> Result<RasterPlan, RasterPlanError> {
+        let mut config = self.inner.config().clone();
+        if let Some(max) = max_decoded {
+            config.limits.max_plan_decoded_bytes = max;
+        }
+        plan_placed(&self.inner, raster, placement, index, query, &config)
+    }
+
+    /// Where tile `(level, col, row)` of `raster` is, from its parsed `index`: the range of its chunk a host would
+    /// fetch, inline in the index block, or not stored.
+    pub fn raster_tile_slot(&self, raster: u32, index: &RasterIndex, level: u32, col: u32, row: u32) -> TileSlot {
+        tile_slots(&self.inner, raster, index)(level, col, row)
+    }
+
+    /// The encoded bytes of one tile after the index's XXH3-64 check, or `None` for a tile that is not stored.
+    /// It reads the tile's own range and not the chunk around it.
+    pub fn raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError> {
+        let bytes = self.inner.read_raster_tile(raster, level, col, row).map_err(crate::reader::container)?;
+        Ok(bytes.map(|b| b.as_slice().to_vec()))
     }
 }

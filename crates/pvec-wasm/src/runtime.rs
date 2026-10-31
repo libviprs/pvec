@@ -4,7 +4,8 @@ use crate::abi::{
 };
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
-    Aabb, InfeasibleReason, Limits, PreviewForm, ReaderConfig, SpatialDirectory, Tier0Leaves,
+    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, ReaderConfig, SpatialDirectory, Tier0Leaves,
+    TileSlot, ViewportQuery, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::RefCell;
@@ -103,6 +104,28 @@ impl Ranges {
         Err("range not provided".to_string())
     }
 
+    /// Drops the bytes of `offset..offset + len` from what was provided, keeping the rest of any range that held
+    /// them. A tile's range goes when its handle is released (docs/WASM_ABI.md, the cache policy).
+    fn forget(&self, offset: u64, len: u32) {
+        let end = offset + u64::from(len);
+        let mut st = self.lock();
+        let mut kept: Vec<(u64, Vec<u8>)> = Vec::new();
+        for (o, b) in st.have.drain(..) {
+            let e = o + b.len() as u64;
+            if e <= offset || o >= end {
+                kept.push((o, b));
+                continue;
+            }
+            if o < offset {
+                kept.push((o, b[..(offset - o) as usize].to_vec()));
+            }
+            if e > end {
+                kept.push((end, b[(end - o) as usize..].to_vec()));
+            }
+        }
+        st.have = kept;
+    }
+
     fn clear_needed(&self) {
         self.lock().needed.clear();
     }
@@ -146,6 +169,10 @@ struct File {
     entities: RefCell<BTreeMap<u32, Rc<Entity>>>,
     index: Result<Option<Index>, AbiError>,
     ranged: Option<Ranged>,
+    /// The raster placements once read (`None` until then): the error of a damaged stream, no stream, or the placements.
+    rasters: RefCell<Option<Result<Option<Rc<Vec<Placement>>>, AbiError>>>,
+    /// The rasters a call found it cannot draw, by raster id, with the number of the `RASTER-NN` rule.
+    skipped: RefCell<BTreeMap<u32, u32>>,
 }
 
 /// What the spatial directory of a file says about itself.
@@ -253,6 +280,13 @@ struct Packed {
     failed: u32,
 }
 
+/// An array of a raster result, by element type.
+enum RasterArray<'a> {
+    U8(&'a [u8]),
+    U32(&'a [u32]),
+    F64(&'a [f64]),
+}
+
 enum Item {
     File(Rc<File>),
     Batch {
@@ -264,6 +298,15 @@ enum Item {
     Tessellation(Packed),
     Cells(CellList),
     Tier0(Tier0Stream),
+    /// A raster placement (`raster_placement`): the six coefficients, the numeric fields, the attribution and the digest.
+    Placement { map: Vec<f64>, fields: Vec<u32>, attribution: Vec<u8>, digest: Vec<u8> },
+    /// The tiles of a viewport (`raster_plan`) as parallel arrays, numbered as in `docs/WASM_ABI.md`: `u32s` are
+    /// arrays 0 (raster ids), 1 (levels), 2 (tile table), 3 (col, row), 4 (block ids), 6 (lengths), 7 (inline
+    /// flags) and 9 (range table); `f64s` are arrays 5 (file offsets) and 8 (merged ranges).
+    RasterPlan { u32s: [Vec<u32>; 8], f64s: [Vec<f64>; 2] },
+    /// The encoded bytes of one tile and, on a range-opened file, the range to drop from the provided ones when it
+    /// is released.
+    Tile { bytes: Vec<u8>, forget: Option<(Arc<Ranges>, u64, u32)> },
 }
 
 struct Slot {
@@ -333,12 +376,16 @@ impl Runtime {
         let entities =
             loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
         let index = index_of(&reader);
-        let reader = if matches!(index, Ok(None)) { None } else { Some(reader) };
+        // a reader is kept when a call can still read through it: an index, or rasters
+        let rasters = reader.raster_placements();
+        let reader = if matches!(index, Ok(None)) && matches!(rasters, Ok(None)) { None } else { Some(reader) };
         Ok(self.insert(Item::File(Rc::new(File {
             reader,
             entities: RefCell::new(entities),
             index,
             ranged: None,
+            rasters: RefCell::new(Some(rasters.map(|p| p.map(Rc::new)).map_err(|_| AbiError::Read))),
+            skipped: RefCell::default(),
         }))))
     }
 
@@ -406,6 +453,8 @@ impl Runtime {
             entities: RefCell::new(BTreeMap::new()),
             index,
             ranged: Some(Ranged { ranges, loaded: RefCell::new(Loaded::default()) }),
+            rasters: RefCell::default(),
+            skipped: RefCell::default(),
         };
         let at = (handle & ((1 << INDEX_BITS) - 1)) as usize;
         self.slots[at].item = Some(Item::File(Rc::new(file)));
@@ -729,6 +778,292 @@ impl Runtime {
         }
     }
 
+    /// The placements of a file, read once: `NoRaster` when it has no raster stream, `NeedRange` while a
+    /// range-opened file lacks the block that holds it.
+    fn placements(&self, file: &File) -> Result<Rc<Vec<Placement>>, AbiError> {
+        if file.rasters.borrow().is_none() {
+            let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+            if let Some(ranged) = &file.ranged {
+                ranged.ranges.clear_needed();
+            }
+            let read = match reader.raster_placements() {
+                Ok(p) => Ok(p.map(Rc::new)),
+                Err(_) if file.ranged.as_ref().is_some_and(|r| !r.ranges.needed().is_empty()) => {
+                    return Err(AbiError::NeedRange);
+                }
+                Err(_) => Err(AbiError::Read),
+            };
+            *file.rasters.borrow_mut() = Some(read);
+        }
+        match file.rasters.borrow().as_ref() {
+            Some(Ok(Some(p))) => Ok(Rc::clone(p)),
+            Some(Ok(None)) => Err(AbiError::NoRaster),
+            _ => Err(AbiError::Read),
+        }
+    }
+
+    /// The rasters that are not drawn, by raster id, with the number of the rule: a tile codec this build does not
+    /// know (`RASTER-04`), and the rasters a call found refused.
+    fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, u32>, AbiError> {
+        let mut out = file.skipped.borrow().clone();
+        match self.placements(file) {
+            Ok(p) => out.extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, 4))),
+            Err(AbiError::NoRaster) => {}
+            Err(e) => return Err(e),
+        }
+        Ok(out)
+    }
+
+    /// One number about the rasters of a file: 0 rasters, 1 skipped, 2 whether the file has an image this reader
+    /// cannot show (`Effect::Unrastered`), 3 whether it has a raster stream.
+    pub fn raster_stat(&mut self, file: u32, which: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let placed = self.placements(&file);
+        if placed == Err(AbiError::NeedRange) {
+            return Err(AbiError::NeedRange);
+        }
+        let count = placed.as_ref().map_or(0, |p| p.len() as u32);
+        let skipped = self.skip_list(&file).map_or(0, |s| s.len() as u32);
+        match which {
+            0 => Ok(count),
+            1 => Ok(skipped),
+            2 => Ok(u32::from(skipped > 0 || placed == Err(AbiError::Read))),
+            3 => Ok(u32::from(count > 0)),
+            _ => Err(AbiError::BadArgument),
+        }
+    }
+
+    /// For the `i`th skipped raster: 0 its id, 1 the number of the rule.
+    pub fn raster_skipped(&mut self, file: u32, i: u32, which: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let list = self.skip_list(&file)?;
+        let (id, rule) = list.iter().nth(i as usize).ok_or(AbiError::BadArgument)?;
+        match which {
+            0 => Ok(*id),
+            1 => Ok(*rule),
+            _ => Err(AbiError::BadArgument),
+        }
+    }
+
+    /// The placement of raster `raster`: a result of four arrays.
+    pub fn raster_placement(&mut self, file: u32, raster: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let all = self.placements(&file)?;
+        let p = all.get(raster as usize).ok_or(AbiError::BadArgument)?;
+        let channels = match p.pixel_format {
+            PixelFormat::Gray => 1,
+            PixelFormat::GrayAlpha => 2,
+            PixelFormat::Rgb => 3,
+            _ => 4,
+        };
+        let fields = vec![
+            p.width,
+            p.height,
+            p.visible_box[0],
+            p.visible_box[1],
+            p.visible_box[2],
+            p.visible_box[3],
+            u32::from(p.tile_edge),
+            u32::from(p.levels),
+            u32::from(p.tile_codec.word()),
+            channels,
+            u32::from(p.bit_depth),
+            u32::from(p.opacity),
+            u32::from(p.band.word()),
+            p.layer_index.unwrap_or(u32::MAX),
+        ];
+        Ok(self.insert(Item::Placement {
+            map: p.pixel_to_source.to_vec(),
+            fields,
+            attribution: p.attribution.clone().into_bytes(),
+            digest: p.source_digest.map(|d| d.to_vec()).unwrap_or_default(),
+        }))
+    }
+
+    /// Notes that `raster` is refused by the rule a reader error names (`RASTER-NN`), and returns the error the call
+    /// gives for it: skipped when the rule is one, a failed read otherwise.
+    fn refused(file: &File, raster: u32, error: &PvecError) -> AbiError {
+        let PvecError::Read { rule } = error else { return AbiError::Read };
+        match rule.strip_prefix("RASTER-").and_then(|n| n.get(..2)).and_then(|n| n.parse::<u32>().ok()) {
+            Some(n) => {
+                file.skipped.borrow_mut().insert(raster, n);
+                AbiError::RasterSkipped
+            }
+            None => AbiError::Read,
+        }
+    }
+
+    /// Whether the last call on a range-opened file left ranges it still needs.
+    fn waiting(file: &File) -> bool {
+        file.ranged.as_ref().is_some_and(|r| !r.ranges.needed().is_empty())
+    }
+
+    /// The tiles each raster needs for `bounds` at `scale` display pixels per source unit (`pvec-stream`'s plan and
+    /// nothing else). On a range-opened file the index blocks of every raster the window touches are named at once
+    /// (-7); the tiles themselves are not read. A raster the limit cannot fit even at its coarsest level is left out.
+    pub fn raster_plan(&mut self, file: u32, bounds: Bounds2, scale: f64, max_decoded: f64) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let all = self.placements(&file)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+        let max = match max_decoded {
+            m if m == 0.0 => None,
+            m if m.is_finite() && m > 0.0 && m <= 9_007_199_254_740_992.0 => Some(m as u64),
+            _ => return Err(AbiError::BadArgument),
+        };
+        let q = Aabb::new(bounds.min, bounds.max).map_err(|_| AbiError::BadArgument)?;
+        if !(scale.is_finite() && scale > 0.0) {
+            return Err(AbiError::BadArgument);
+        }
+        let query = ViewportQuery::new(q, scale);
+        if let Some(ranged) = &file.ranged {
+            ranged.ranges.clear_needed();
+        }
+        let skipped = self.skip_list(&file)?;
+        let mut indexes = Vec::new();
+        for (id, p) in all.iter().enumerate() {
+            let id = id as u32;
+            if skipped.contains_key(&id) || !footprint(p).is_some_and(|f| f.intersects(&q)) {
+                continue;
+            }
+            match reader.raster_index(id) {
+                Ok(index) => indexes.push((id, p, index)),
+                Err(e) if !Self::waiting(&file) => {
+                    Self::refused(&file, id, &e);
+                }
+                Err(_) => {}
+            }
+        }
+        if Self::waiting(&file) {
+            return Err(AbiError::NeedRange);
+        }
+        let (mut u32s, mut f64s): ([Vec<u32>; 8], [Vec<f64>; 2]) = Default::default();
+        u32s[2].push(0);
+        u32s[7].push(0);
+        for (id, p, index) in indexes {
+            let Ok(plan) = reader.raster_plan(id, p, &index, &query, max) else { continue };
+            u32s[0].push(id);
+            u32s[1].push(plan.level);
+            for t in &plan.tiles {
+                u32s[3].extend([t.col, t.row]);
+                let (block, offset, len, inline) = match t.slot {
+                    TileSlot::Stored { block, offset, len } => (block.0, offset as f64, len, 0),
+                    _ => (u32::MAX, 0.0, 0, 1),
+                };
+                u32s[4].push(block);
+                f64s[0].push(offset);
+                u32s[5].push(len);
+                u32s[6].push(inline);
+            }
+            f64s[1].extend(plan.ranges.iter().flat_map(|(o, l)| [*o as f64, f64::from(*l)]));
+            u32s[2].push(u32s[4].len() as u32);
+            u32s[7].push((f64s[1].len() / 2) as u32);
+        }
+        Ok(self.insert(Item::RasterPlan { u32s, f64s }))
+    }
+
+    /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum. On a
+    /// range-opened file the module names the ranges in turn: the raster's index block, then the tile's own range
+    /// and never the chunk around it (-7 each time).
+    pub fn raster_tile(&mut self, file: u32, raster: u32, level: u32, col: u32, row: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let all = self.placements(&file)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+        if raster as usize >= all.len() {
+            return Err(AbiError::BadArgument);
+        }
+        if self.skip_list(&file)?.contains_key(&raster) {
+            return Err(AbiError::RasterSkipped);
+        }
+        if let Some(ranged) = &file.ranged {
+            ranged.ranges.clear_needed();
+        }
+        let index = match reader.raster_index(raster) {
+            Ok(i) => i,
+            Err(_) if Self::waiting(&file) => return Err(AbiError::NeedRange),
+            Err(e) => return Err(Self::refused(&file, raster, &e)),
+        };
+        if index.tile(level, col, row).is_none() {
+            return Err(AbiError::BadArgument);
+        }
+        let slot = reader.raster_tile_slot(raster, &index, level, col, row);
+        if slot == TileSlot::NotStored {
+            return Err(AbiError::TileNotStored);
+        }
+        let bytes = match reader.raster_tile(raster, level, col, row) {
+            Ok(Some(b)) => b,
+            Ok(None) => return Err(AbiError::TileNotStored),
+            Err(_) if Self::waiting(&file) => return Err(AbiError::NeedRange),
+            Err(e) => {
+                let refused = Self::refused(&file, raster, &e);
+                return Err(refused);
+            }
+        };
+        let forget = match (&file.ranged, slot) {
+            (Some(r), TileSlot::Stored { offset, len, .. }) => Some((Arc::clone(&r.ranges), offset, len)),
+            _ => None,
+        };
+        Ok(self.insert(Item::Tile { bytes, forget }))
+    }
+
+    /// Array `which` of a raster result: a placement has 0 the six coefficients (`Float64Array`), 1 the fields, 2 the
+    /// attribution and 3 the digest; a plan has the ten arrays of `docs/WASM_ABI.md`; a tile has array 0, the bytes.
+    fn raster_array(&self, result: u32, which: u32) -> Result<RasterArray<'_>, AbiError> {
+        use RasterArray::{F64, U32, U8};
+        match self.get(result)? {
+            Item::Placement { map, fields, attribution, digest } => match which {
+                0 => Ok(F64(map)),
+                1 => Ok(U32(fields)),
+                2 => Ok(U8(attribution)),
+                3 => Ok(U8(digest)),
+                _ => Err(AbiError::BadArgument),
+            },
+            Item::RasterPlan { u32s, f64s } => match which {
+                0..=4 => Ok(U32(&u32s[which as usize])),
+                5 => Ok(F64(&f64s[0])),
+                6 | 7 => Ok(U32(&u32s[which as usize - 1])),
+                8 => Ok(F64(&f64s[1])),
+                9 => Ok(U32(&u32s[7])),
+                _ => Err(AbiError::BadArgument),
+            },
+            Item::Tile { bytes, .. } if which == 0 => Ok(U8(bytes)),
+            Item::Tile { .. } => Err(AbiError::BadArgument),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Where array `which` of a raster result is in linear memory, and what it holds.
+    pub fn raster_view(&self, result: u32, which: u32) -> Result<View, AbiError> {
+        Ok(match self.raster_array(result, which)? {
+            RasterArray::U8(v) => view_u8(v),
+            RasterArray::U32(v) => view_u32(v),
+            RasterArray::F64(v) => view_f64(v),
+        })
+    }
+
+    /// Array `which` of a raster result as `u32`s, for a native caller; `WrongKind` for another element type.
+    pub fn raster_u32(&self, result: u32, which: u32) -> Result<&[u32], AbiError> {
+        match self.raster_array(result, which)? {
+            RasterArray::U32(v) => Ok(v),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Array `which` of a raster result as `f64`s, for a native caller.
+    pub fn raster_f64(&self, result: u32, which: u32) -> Result<&[f64], AbiError> {
+        match self.raster_array(result, which)? {
+            RasterArray::F64(v) => Ok(v),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Array `which` of a raster result as bytes, for a native caller.
+    pub fn raster_u8(&self, result: u32, which: u32) -> Result<&[u8], AbiError> {
+        match self.raster_array(result, which)? {
+            RasterArray::U8(v) => Ok(v),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
     /// How many entities the batch holds.
     pub fn batch_len(&self, batch: u32) -> Result<u32, AbiError> {
         match self.get(batch)? {
@@ -911,11 +1246,18 @@ impl Runtime {
     pub fn release(&mut self, handle: u32) -> Result<(), AbiError> {
         self.get(handle)?;
         let slot = &mut self.slots[(handle & ((1 << INDEX_BITS) - 1)) as usize];
+        if let Some(Item::Tile { forget: Some((ranges, offset, len)), .. }) = &slot.item {
+            ranges.forget(*offset, *len);
+        }
         slot.item = None;
         // 15 bits, so a handle always fits the non-negative `i32` the exports return (#203).
         slot.generation = (slot.generation + 1) & 0x7fff;
         Ok(())
     }
+}
+
+fn view_u8(v: &[u8]) -> View {
+    View { ptr: v.as_ptr() as usize as u32, len: v.len() as u32, elem: ElemType::U8 }
 }
 
 fn view_u32(v: &[u32]) -> View {

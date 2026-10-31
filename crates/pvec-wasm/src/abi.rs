@@ -26,10 +26,16 @@ pub enum AbiError {
     /// The call needs byte ranges of a range-opened file that the host has not provided yet. The ranges
     /// are in [`crate::Runtime::needed`]; provide them and call again.
     NeedRange,
+    /// The file has no raster stream (issue #221, additive).
+    NoRaster,
+    /// The tile is not stored: the index says length 0, and it draws nothing (issue #221, additive).
+    TileNotStored,
+    /// The raster is skipped by a `RASTER-NN` rule, which `raster_skipped` names (issue #221, additive).
+    RasterSkipped,
 }
 
 impl AbiError {
-    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6 and issue #205 adds -7.
+    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6, issue #205 adds -7 and issue #221 adds -8 to -10.
     pub fn code(self) -> i32 {
         match self {
             AbiError::Released => -1,
@@ -39,6 +45,9 @@ impl AbiError {
             AbiError::WrongKind => -5,
             AbiError::NoIndex => -6,
             AbiError::NeedRange => -7,
+            AbiError::NoRaster => -8,
+            AbiError::TileNotStored => -9,
+            AbiError::RasterSkipped => -10,
         }
     }
 }
@@ -52,6 +61,8 @@ pub enum ElemType {
     F32,
     /// `Uint32Array`.
     U32,
+    /// `Uint8Array` (issue #221: the encoded bytes of a raster tile and the text of a placement).
+    U8,
 }
 
 /// The precision of the vertex array.

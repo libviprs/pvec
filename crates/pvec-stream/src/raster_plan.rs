@@ -246,13 +246,6 @@ pub fn plan_placed<R: PlanSource>(
     if placement.skip().is_some() {
         return Err(RasterPlanError::Skipped);
     }
-    let chunks: HashMap<u16, (BlockId, u64, u32)> = reader
-        .entries()
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| e.kind == KIND_TILES && e.cell == raster)
-        .map(|(i, e)| (e.subtype, (BlockId(i as u32), e.offset, e.stored_length)))
-        .collect();
     let grid = RasterGrid {
         width: placement.width,
         height: placement.height,
@@ -266,23 +259,7 @@ pub fn plan_placed<R: PlanSource>(
             _ => 4,
         },
     };
-    let slot = |level: u32, col: u32, row: u32| {
-        let Some(tile) = index.tile(level, col, row).filter(|t| t.is_stored()) else {
-            return TileSlot::NotStored;
-        };
-        if tile.is_inline() {
-            return TileSlot::Inline;
-        }
-        let found = subtype(level, tile.chunk).and_then(|st| chunks.get(&st));
-        match found {
-            Some(&(block, offset, stored))
-                if u64::from(tile.offset) + u64::from(tile.length) <= u64::from(stored) =>
-            {
-                TileSlot::Stored { block, offset: offset + u64::from(tile.offset), len: tile.length }
-            }
-            _ => TileSlot::NotStored,
-        }
-    };
+    let slot = tile_slots(reader, raster, index);
     plan_raster(
         &grid,
         &placement.pixel_to_source,
@@ -294,17 +271,19 @@ pub fn plan_placed<R: PlanSource>(
     )
 }
 
+/// The box of a raster's `visible_box` in source space, or `None` when its corners are not finite.
+pub fn footprint(p: &Placement) -> Option<Aabb> {
+    let [x0, y0, x1, y1] = p.visible_box.map(f64::from);
+    let [a, b, c, d, tx, ty] = p.pixel_to_source;
+    let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(u, v)| [a * u + b * v + tx, c * u + d * v + ty]);
+    let low = corners.iter().fold([f64::INFINITY; 2], |m, q| [m[0].min(q[0]), m[1].min(q[1])]);
+    let high = corners.iter().fold([f64::NEG_INFINITY; 2], |m, q| [m[0].max(q[0]), m[1].max(q[1])]);
+    Aabb::new(low, high).ok()
+}
+
 /// The extent a reader reports for fit-to-view: the box of `root` (the spatial directory's root box, a union
 /// of entities, which stays as it is) grown by the footprint of every raster's `visible_box` in source space
 /// (ADR 0018, "Spatial index and range fetch"). A raster whose corners are not finite adds nothing.
 pub fn reported_extent(root: Aabb, placements: &[Placement]) -> Aabb {
-    placements.iter().fold(root, |extent, p| {
-        let [x0, y0, x1, y1] = p.visible_box.map(f64::from);
-        let [a, b, c, d, tx, ty] = p.pixel_to_source;
-        let corners =
-            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(u, v)| [a * u + b * v + tx, c * u + d * v + ty]);
-        let low = corners.iter().fold([f64::INFINITY; 2], |m, q| [m[0].min(q[0]), m[1].min(q[1])]);
-        let high = corners.iter().fold([f64::NEG_INFINITY; 2], |m, q| [m[0].max(q[0]), m[1].max(q[1])]);
-        Aabb::new(low, high).map_or(extent, |footprint| extent.union(&footprint))
-    })
+    placements.iter().filter_map(footprint).fold(root, |extent, f| extent.union(&f))
 }

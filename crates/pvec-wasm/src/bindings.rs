@@ -128,6 +128,7 @@ pub fn buffer_elem(result: u32, which: u32) -> i32 {
         ElemType::F64 => 0,
         ElemType::F32 => 1,
         ElemType::U32 => 2,
+        ElemType::U8 => 3,
     };
     RUNTIME.with(|r| code(kind(which).and_then(|k| r.borrow().view(result, k)).map(elem)))
 }
@@ -187,6 +188,7 @@ fn elem(v: View) -> u32 {
         ElemType::F64 => 0,
         ElemType::F32 => 1,
         ElemType::U32 => 2,
+        ElemType::U8 => 3,
     }
 }
 
@@ -284,6 +286,63 @@ pub fn tier0_buffer_ptr(result: u32, which: u32) -> u32 {
 #[wasm_bindgen]
 pub fn tier0_buffer_elem(result: u32, which: u32) -> i32 {
     RUNTIME.with(|r| code(r.borrow().tier0_view(result, which).map(elem)))
+}
+
+/// One number about the rasters of `file`, or a negative code: 0 rasters, 1 rasters skipped, 2 whether the
+/// file has an image this reader cannot show (`Effect::Unrastered`), 3 whether it has a raster stream. A
+/// module that exports this one has the raster calls; the ABI version is still 2.
+#[wasm_bindgen]
+pub fn raster_stat(file: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().raster_stat(file, which)))
+}
+
+/// For the `i`th skipped raster (ascending raster id): `which` 0 its `RasterId`, 1 the number of the `RASTER-NN`
+/// rule that skipped it. A negative code for a number that is not one.
+#[wasm_bindgen]
+pub fn raster_skipped(file: u32, i: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().raster_skipped(file, i, which)))
+}
+
+/// The placement of raster `raster` as a result handle of four arrays (`raster_buffer_*`), or a negative code.
+#[wasm_bindgen]
+pub fn raster_placement(file: u32, raster: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().raster_placement(file, raster)))
+}
+
+/// The tiles every raster needs for the box at `scale` display pixels per source unit: a result handle of nine
+/// arrays (`raster_buffer_*`), or a negative code (-7 until the index blocks it needs are provided).
+/// `max_decoded` is `LIMIT-16` in bytes, 0 for the module's.
+#[wasm_bindgen]
+pub fn raster_plan(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64, scale: f64, max_decoded: f64) -> i32 {
+    RUNTIME.with(|r| {
+        code(r.borrow_mut().raster_plan(file, window(min_x, min_y, max_x, max_y), scale, max_decoded))
+    })
+}
+
+/// The encoded bytes of one tile as a result handle whose array 0 is a `Uint8Array`, or a negative code: -7
+/// until the tile's range is provided, -8 no raster stream, -9 not stored, -10 raster skipped, -3 a bad
+/// raster, level, column or row, -4 a failed checksum.
+#[wasm_bindgen]
+pub fn raster_tile(file: u32, raster: u32, level: u32, col: u32, row: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().raster_tile(file, raster, level, col, row)))
+}
+
+/// The number of elements of array `which` of a raster result, or a negative code.
+#[wasm_bindgen]
+pub fn raster_buffer_len(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().raster_view(result, which).map(|v| v.len)))
+}
+
+/// The byte offset in linear memory of that array, or 0 for a handle or number that is not one.
+#[wasm_bindgen]
+pub fn raster_buffer_ptr(result: u32, which: u32) -> u32 {
+    RUNTIME.with(|r| r.borrow().raster_view(result, which).map_or(0, |v| v.ptr))
+}
+
+/// The element type of that array: 0 `Float64Array`, 2 `Uint32Array`, 3 `Uint8Array`, or a negative code.
+#[wasm_bindgen]
+pub fn raster_buffer_elem(result: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().raster_view(result, which).map(elem)))
 }
 
 /// Starts opening a file of `len` bytes that the host serves by byte ranges, and returns a handle, or a
