@@ -117,10 +117,20 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
         )
         .expect("plan");
     let mut t0_ids: Vec<BlockId> = Vec::new();
+    let mut raster_ids: Vec<BlockId> = Vec::new();
     let mut exact: Vec<Vec<BlockId>> = Vec::new();
     for q in plan.requests.iter().filter(|q| q.priority == pvec_stream::Priority::Visible) {
         match q.tier {
-            Tier::Tier0 => t0_ids.extend(&q.request.blocks),
+            // the raster index blocks of the Tier 0 share are read with the leaves but are not leaf plans
+            Tier::Tier0 => {
+                for b in &q.request.blocks {
+                    if r.entries()[b.0 as usize].kind == pvec_container::blocks::raster::KIND_INDEX {
+                        raster_ids.push(*b);
+                    } else {
+                        t0_ids.push(*b);
+                    }
+                }
+            }
             Tier::Exact => exact.push(q.request.blocks.clone()),
         }
     }
@@ -128,6 +138,7 @@ fn measure(file: &Path, truth: &Truth, window: [f64; 4]) -> Sample {
     let mut have = vec![false; n];
     let mut seen_preview = vec![false; n];
     let (mut previews, mut anonymous) = (Vec::<(u32, f64)>::new(), 0u64);
+    drop(r.read_blocks(&raster_ids).expect("raster index blocks"));
     for block in r.read_blocks(&t0_ids).expect("tier 0 blocks") {
         let leaf = Tier0Plan::decode_leaf(block.as_bytes()).expect("a leaf plan");
         for id in leaf.exact_ids() {
@@ -448,17 +459,19 @@ fn raster_rows(o: &Out, file: &Path, bounds: [f64; 4]) {
         inline_bytes as f64,
         "the coarse levels kept in the index blocks",
     );
-    let dir = SpatialDirectory::open(&r).expect("directory").expect("a directory");
-    let leaves = Tier0Leaves::new(r.entries(), &dir).expect("tier 0 leaves");
+    // the plan on a reader that has read no index: a block it holds is not requested
+    let fresh = open(file);
+    let dir = SpatialDirectory::open(&fresh).expect("directory").expect("a directory");
+    let leaves = Tier0Leaves::new(fresh.entries(), &dir).expect("tier 0 leaves");
     let q = ViewportQuery::new(aabb(bounds), scale_of(bounds));
     let cfg = ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() };
-    let plan = q.plan_tiered(&dir, &r, &leaves, &cfg).expect("plan");
+    let plan = q.plan_tiered(&dir, &fresh, &leaves, &cfg).expect("plan");
     let planned: u64 = plan
         .requests
         .iter()
         .flat_map(|q| q.request.blocks.iter())
-        .filter(|b| r.entries()[b.0 as usize].kind == pvec_container::blocks::raster::KIND_INDEX)
-        .map(|b| u64::from(r.entries()[b.0 as usize].stored_length))
+        .filter(|b| fresh.entries()[b.0 as usize].kind == pvec_container::blocks::raster::KIND_INDEX)
+        .map(|b| u64::from(fresh.entries()[b.0 as usize].stored_length))
         .sum();
     o.row(
         "raster",
