@@ -456,3 +456,37 @@ fn the_fixture_export_has_the_pinned_digest_on_every_architecture() {
     let x = run();
     assert_eq!(hex_digest(x.part21.as_bytes()), FIXTURE_DIGEST, "arch {}", std::env::consts::ARCH);
 }
+
+
+// ---- a raster gets an Unsupported row and the geometry does not move (issue R2.3, pvec#222) ---------------
+
+#[test]
+fn issue_222_a_raster_is_an_unsupported_record_and_the_geometry_is_byte_identical() {
+    let plain = run();
+    let with = export(&entities(), &opts().with_rasters(vec![3, 0])).unwrap();
+    assert_eq!(with.part21, plain.part21, "no byte of the file depends on a raster");
+    assert_eq!(with.ledger, plain.ledger, "no entity record moves");
+    assert!(plain.rasters.is_empty());
+    assert_eq!(with.rasters.len(), 2);
+    for row in &with.rasters {
+        match &row.outcome {
+            pvec_interchange::report::RasterOutcome::Unsupported(reason) => {
+                assert!(!reason.as_str().trim().is_empty());
+                assert!(reason.as_str().contains("STEP"), "{}", reason.as_str());
+            }
+            other => panic!("a STEP file carries no raster, got {other:?}"),
+        }
+    }
+    let n = entities().len() as u32;
+    let json = with.report([9u8; 32], n).unwrap().to_json();
+    assert!(json.contains("\"rasters\": {\"count\": 2, \"exported\": 0"), "{json}");
+}
+
+#[test]
+fn issue_222_the_file_text_never_mentions_a_raster() {
+    let with = export(&entities(), &opts().with_rasters(vec![1])).unwrap();
+    let lower = with.part21.to_lowercase();
+    for word in ["raster", "image", "bitmap", "png", "jpeg"] {
+        assert!(!lower.contains(word), "the Part 21 file mentions {word}");
+    }
+}

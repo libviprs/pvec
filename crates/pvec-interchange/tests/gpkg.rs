@@ -999,3 +999,25 @@ fn chapter_four_of_the_interchange_document_has_the_decision_table() {
         assert!(chapter.to_lowercase().contains(kind), "the decision table has no row for {kind}");
     }
 }
+
+
+// ---- a raster is left out, and the report says so (issue R2.3, pvec#222) --------------------------------------
+
+#[test]
+fn issue_222_the_feature_tables_carry_no_raster_and_the_report_counts_it_as_left_out() {
+    use pvec_interchange::report::RasterRow;
+    let ents = sample();
+    let a = export(&ents, &opts(0.05)).unwrap();
+    let b = export(&ents, &opts(0.05)).unwrap();
+    assert_eq!(a.bytes, b.bytes, "the file does not depend on the artifact's rasters");
+    let r = a
+        .report([1u8; 32], ents.len() as u32)
+        .unwrap()
+        .with_rasters([RasterRow::left_out(4, "GeoPackage")])
+        .unwrap();
+    let j = r.to_json();
+    assert!(j.contains("\"rasters\": {\"count\": 1, \"exported\": 0"), "{j}");
+    assert!(j.contains("{\"raster\": 4, \"reason\": \"the GeoPackage export carries no raster\"}"));
+    let text = String::from_utf8_lossy(&a.bytes);
+    assert!(!text.contains("gpkg_tile_matrix"), "GeoPackage tile tables stay out of scope");
+}
