@@ -50,7 +50,7 @@ Result fields: `header` (container version, header length, checksum algorithms, 
 
 `pvec validate <file.pvec>`. Opens the file under the default security limits, validates every block, verifies the block checksums and the artifact digest. Exit 0 when it is valid, 2 when it is not, 3 when it requires a capability this build lacks.
 
-Result fields: `format_valid`, `blocks`, `entities`, `skipped_blocks` (blocks of an optional capability this build skipped without reading), `checks` (`structure`, `limits`, `block_checksums`, `artifact_digest`; the last two are `verified` or `not_written`) and `limits` (the ceilings the file was held to).
+Result fields: `format_valid`, `blocks`, `entities`, `skipped_blocks` (blocks of an optional capability this build skipped without reading), `rasters` (one entry for each raster the file names: `raster`, `status` `ok` or `skipped`, and for a skipped one the `rule` that refused it, `RASTER-nn`, `LIMIT-nn` or `INTEGRITY-05`, and a `message`; a raster is refused on its own, so a file whose only fault is a bad tile still exits 0 with status `ok` and the geometry gates passed), `checks` (`structure`, `limits`, `block_checksums`, `artifact_digest`; the last two are `verified` or `not_written`) and `limits` (the ceilings the file was held to).
 
 ### `dump-manifest`
 
