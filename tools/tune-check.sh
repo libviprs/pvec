@@ -37,7 +37,7 @@ P() { cargo bench -q -p pvec-bench --bench progressive -- "$@" 2>/dev/null; }
 L() { cargo bench -q -p pvec-bench --bench layout -- "$@" 2>/dev/null; }
 V() { cargo bench -q -p pvec-bench --bench vs_step -- "$@" 2>/dev/null; }
 G() { cargo bench -q -p pvec-bench --bench geometry -- "$@" 2>/dev/null; }
-for E in architectural-1e6 huge-coordinate-1e5; do
+for E in architectural-1e6 architectural-1e6+r10 huge-coordinate-1e5; do
   P header > $S/p.csv; P prepare $E $S; P run $E $S $PLAT 3 >> $S/p.csv; rm -f $S/$E.tier0.pvec
   for arm in 25mbit-60ms 5mbit-200ms; do
     for m in directory_s tier0_s refine_full_s; do echo "p85.$E.$arm.$m=$(grep "^stage,$E,$PLAT,$arm,p95,$m," $S/p.csv | cut -d, -f7)"; done
@@ -47,6 +47,12 @@ for E in architectural-1e6 huge-coordinate-1e5; do
   echo "p85.$E.pan_discard=$(grep "^interaction,$E,$PLAT,25mbit-60ms,pan,discard_share," $S/p.csv | cut -d, -f7)"
   echo "p85.$E.zoom_discard=$(grep "^interaction,$E,$PLAT,25mbit-60ms,zoom,discard_share," $S/p.csv | cut -d, -f7)"
   cp $S/p.csv $S/progressive.$E.csv
+  case $E in *+r*)
+    # the rasters of pvec#220: the cost of the index, and the P8.5 thresholds (0.3 s, 4 s) re-run with ten sheets over the drawing
+    echo "p85.$E.index_bytes_per_tile=$(grep "^raster,$E,$PLAT,all,mean,index_bytes_per_tile," $S/p.csv | cut -d, -f7)"
+    echo "p85.$E.tier0_raster_bytes=$(grep "^raster,$E,$PLAT,all,fit,tier0_raster_bytes," $S/p.csv | cut -d, -f7)"
+    P raster-report $S/p.csv | sed "s/^- /p85.$E.verdict./; s/ on .*: / = /" ;;
+  esac
 done
 for E in architectural-1e6 spline-heavy-1e5; do
   V prepare $E $S >/dev/null; V pvec $E $S >/dev/null

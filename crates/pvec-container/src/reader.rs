@@ -24,6 +24,8 @@ use crate::blocks::AlignedBytes;
 use crate::blocks::advanced::{AdvancedCurveRecord, AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
 use crate::blocks::hot::{HotBlockView, HotError};
+use crate::blocks::raster::{IndexError, RasterIndex, Tile};
+use crate::blocks::sniff::{TileRefusal, max_tile_bytes, sniff_tile};
 use crate::compress::CodecError;
 use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
@@ -33,7 +35,10 @@ use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation}
 use crate::negotiate::{PartialOpen, ReaderCapabilities, Refusal};
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
-use pvec_components::StreamError;
+use pvec_capabilities::{Reader, Registry};
+use pvec_components::{
+    Placement, RasterError, RasterRead, RasterSkip, StreamError, read_rasters, read_streams,
+};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -118,6 +123,14 @@ pub enum ReadError {
     Integrity(IntegrityError),
     /// A required capability is not supported.
     Negotiation(Refusal),
+    /// A raster was refused (`RASTER-nn`, or `LIMIT-14`). The raster is, and the file is not: the geometry and
+    /// every other raster still read.
+    Raster(IndexError),
+    /// A tile the sniffer refuses (`RASTER-03`, `RASTER-04`): the raster's other tiles and the file read.
+    Tile(TileRefusal),
+    /// The raster placement stream is damaged or refused (`RASTER-nn`, `COMP-nn`). The rasters are, the geometry
+    /// and the other streams are not.
+    Placement(RasterError),
     /// The block was skipped when the file was opened, so its payload is not read.
     Skipped {
         /// The block.
@@ -150,6 +163,9 @@ impl ReadError {
             ReadError::Codec(e) => e.rule().to_string(),
             ReadError::Integrity(e) => e.rule().to_string(),
             ReadError::Negotiation(r) => r.rule().to_string(),
+            ReadError::Raster(e) => e.rule().to_string(),
+            ReadError::Tile(e) => e.rule().to_string(),
+            ReadError::Placement(e) => e.rule().to_string(),
             ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
@@ -179,6 +195,9 @@ impl fmt::Display for ReadError {
             ReadError::Codec(e) => write!(f, "{e}"),
             ReadError::Integrity(e) => write!(f, "{e}"),
             ReadError::Negotiation(e) => write!(f, "{e}"),
+            ReadError::Raster(e) => write!(f, "{e}"),
+            ReadError::Tile(e) => write!(f, "{e}"),
+            ReadError::Placement(e) => write!(f, "{e}"),
             ReadError::Skipped { id } => write!(f, "block {id} was skipped when the file was opened"),
         }
     }
@@ -431,11 +450,220 @@ struct Shared {
     acct: Accountant,
     cache: Mutex<Cache>,
     counters: Counters,
+    /// The raster indexes read so far, parsed and checked, each with the room it holds in the budget.
+    rasters: Mutex<HashMap<u32, (Arc<RasterIndex>, Reservation)>>,
+    /// The raster placements, read from the component set the first time a raster is asked for.
+    placements: Mutex<Option<Result<Arc<Vec<Placement>>, ReadError>>>,
+}
+
+/// Where the bytes of a tile are, once its index entry is known.
+enum TilePlan {
+    /// The tile is not stored: no bytes and no error.
+    NotStored,
+    /// The tile is in the index block, already in hand.
+    Inline(Tile, Bytes),
+    /// The tile is a range of a tile block: the offset in the file and the length.
+    Range { tile: Tile, offset: u64, len: u32 },
 }
 
 impl Shared {
     fn new(core: Core, config: ReaderConfig, counters: Counters, acct: Accountant) -> Shared {
-        Shared { cache: Mutex::new(Cache::new(config.cache_bytes)), core, config, counters, acct }
+        Shared {
+            cache: Mutex::new(Cache::new(config.cache_bytes)),
+            core,
+            config,
+            counters,
+            acct,
+            rasters: Mutex::new(HashMap::new()),
+            placements: Mutex::new(None),
+        }
+    }
+
+    /// The placements when they were read before (a damaged stream is remembered as damaged).
+    fn placements_cached(&self) -> Option<Result<Arc<Vec<Placement>>, ReadError>> {
+        self.placements.lock().ok()?.clone()
+    }
+
+    /// The block that holds the component streams, when the file has one.
+    fn components_block(&self) -> Option<BlockId> {
+        self.core
+            .entries
+            .iter()
+            .position(|e| e.block_kind() == Some(crate::directory::BlockKind::Components))
+            .map(|i| BlockId(i as u32))
+    }
+
+    /// Reads the raster stream out of the component set `block` and keeps what it found. A file with no component
+    /// set, or none with a raster stream, places no raster; a damaged stream is an error for the rasters and for
+    /// nothing else, and is not read again.
+    fn placements_parsed(&self, block: Option<&DecodedBlock>) -> Result<Arc<Vec<Placement>>, ReadError> {
+        let parsed = match block {
+            None => Ok(Vec::new()),
+            Some(b) => {
+                let registry = Registry::v1();
+                let reader = Reader {
+                    version: pvec_capabilities::FORMAT_VERSION,
+                    implemented: registry.entries().iter().map(|c| c.id).collect(),
+                };
+                read_streams(b.as_bytes(), &registry, &reader).map_err(ReadError::Stream).and_then(|opened| {
+                    match read_rasters(&opened) {
+                        RasterRead::Absent => Ok(Vec::new()),
+                        RasterRead::Present(p) => Ok(p),
+                        RasterRead::Damaged(e) => Err(ReadError::Placement(e)),
+                    }
+                })
+            }
+        }
+        .map(Arc::new);
+        if let Ok(mut slot) = self.placements.lock() {
+            *slot = Some(parsed.clone());
+        }
+        parsed
+    }
+
+    /// The parsed index of `raster` when it was read before.
+    fn raster_cached(&self, raster: u32) -> Option<Arc<RasterIndex>> {
+        self.rasters.lock().ok()?.get(&raster).map(|(i, _)| Arc::clone(i))
+    }
+
+    /// The block to read for the index of `raster`: an error that refuses the raster when there is none.
+    fn raster_index_id(&self, raster: u32) -> Result<BlockId, ReadError> {
+        let id =
+            self.core.raster_index_block(raster).ok_or(ReadError::Raster(IndexError::NoIndex { raster }))?;
+        let entry = self.core.check_readable(id)?;
+        // stored as it is (RASTER-06): refused before a compressed block is decoded for nothing
+        if entry.codec != crate::directory::CODEC_NONE {
+            return Err(ReadError::Raster(IndexError::Block { raster, subtype: 0 }));
+        }
+        Ok(id)
+    }
+
+    /// Parses the index block of `raster`, checks it against the directory, and keeps it. The tile table is
+    /// held for as long as the reader holds the index, and that room is taken from the budget.
+    fn raster_parsed(
+        &self,
+        raster: u32,
+        block: &DecodedBlock,
+        placement: &Placement,
+    ) -> Result<Arc<RasterIndex>, ReadError> {
+        // another thread may have been first
+        if let Some(index) = self.raster_cached(raster) {
+            return Ok(index);
+        }
+        // LIMIT-14: the entries of the tile tables over the whole artifact, so what is held already counts. This
+        // reads the total for an early refusal; the insert below checks it again under the lock.
+        let ceiling = u64::from(self.config.limits.max_raster_tiles);
+        let limit =
+            |declared| LimitExceeded { limit: crate::limits::LimitKind::RasterTiles, declared, ceiling };
+        let held = |m: &HashMap<u32, (Arc<RasterIndex>, Reservation)>| -> u64 {
+            m.values().map(|(i, _)| i.tiles().len() as u64).sum()
+        };
+        let before = self.rasters.lock().map(|m| held(&m)).unwrap_or_default();
+        let index =
+            RasterIndex::parse(block.as_bytes(), ceiling.saturating_sub(before)).map_err(|e| match e {
+                IndexError::TooManyTiles { declared, .. } => ReadError::Limit(limit(before + declared)),
+                other => ReadError::Raster(other),
+            })?;
+        // the grid of the index is the grid of the placement, not one the file chose (RASTER-02)
+        if index.levels().len() != usize::from(placement.levels) {
+            return Err(ReadError::Raster(IndexError::Grid { level: index.levels().len() as u32 }));
+        }
+        index
+            .check_grid(placement.width, placement.height, u32::from(placement.tile_edge))
+            .map_err(ReadError::Raster)?;
+        self.core.check_raster_blocks(raster, &index).map_err(ReadError::Raster)?;
+        // the tile table is held for as long as the reader holds the index, and that room is taken from the budget
+        let room = (core::mem::size_of_val(index.tiles()) + block.as_bytes().len()) as u64;
+        let reservation = self.reserve(room)?;
+        let index = Arc::new(index);
+        let Ok(mut map) = self.rasters.lock() else { return Ok(index) };
+        if let Some((existing, _)) = map.get(&raster) {
+            return Ok(Arc::clone(existing));
+        }
+        let total = held(&map) + index.tiles().len() as u64;
+        if total > ceiling {
+            return Err(ReadError::Limit(limit(total)));
+        }
+        map.insert(raster, (Arc::clone(&index), reservation));
+        Ok(index)
+    }
+
+    /// What is decided about a stored tile before a byte of it is asked for: a raster whose codec this build does
+    /// not know is skipped and reported (`RASTER-04`), and the length in the index is held to `LIMIT-15`.
+    fn tile_admitted(&self, placement: &Placement, tile: &Tile) -> Result<(), ReadError> {
+        if let Some(RasterSkip::UnknownCodec(id)) = placement.skip() {
+            return Err(ReadError::Tile(TileRefusal::UnknownCodec { id }));
+        }
+        let ceiling = max_tile_bytes(u32::from(placement.tile_edge), self.config.limits.max_tile_bytes);
+        if u64::from(tile.length) > ceiling {
+            return Err(ReadError::Limit(LimitExceeded {
+                limit: crate::limits::LimitKind::TileBytes,
+                declared: u64::from(tile.length),
+                ceiling,
+            }));
+        }
+        Ok(())
+    }
+
+    /// What it takes to read tile `(col, row)` of `level`: nothing for a tile that is not stored, the bytes for
+    /// an inline tile (checked against the index entry), or the range of the chunk to fetch, checked to lie
+    /// inside the chunk block and charged to the budget before it is requested.
+    fn tile_plan(
+        &self,
+        raster: u32,
+        index: &RasterIndex,
+        placement: &Placement,
+        (level, col, row): (u32, u32, u32),
+    ) -> Result<TilePlan, ReadError> {
+        let Some(tile) = index.tile(level, col, row).copied() else {
+            return Err(ReadError::Raster(IndexError::Tile { level, col, row }));
+        };
+        if !tile.is_stored() {
+            return Ok(TilePlan::NotStored);
+        }
+        self.tile_admitted(placement, &tile)?;
+        if tile.is_inline() {
+            let bytes =
+                index.inline_bytes(&tile).ok_or(ReadError::Raster(IndexError::Tile { level, col, row }))?;
+            let _room = self.admit_gap(tile.length)?;
+            return Ok(TilePlan::Inline(tile, Bytes::new(bytes.to_vec())));
+        }
+        let chunk = self
+            .core
+            .raster_chunk_block(raster, level, tile.chunk)
+            .ok_or(ReadError::Raster(IndexError::Chunk { level, chunk: tile.chunk }))?;
+        let entry = self.core.check_readable(chunk)?;
+        let end = u64::from(tile.offset) + u64::from(tile.length);
+        if end > u64::from(entry.stored_length) {
+            return Err(ReadError::Raster(IndexError::Chunk { level, chunk: tile.chunk }));
+        }
+        Ok(TilePlan::Range { tile, offset: entry.offset + u64::from(tile.offset), len: tile.length })
+    }
+
+    /// Holds the bytes of a tile to the checksum of its index entry, before they leave the reader.
+    fn tile_verified(
+        &self,
+        raster: u32,
+        placement: &Placement,
+        (level, col, row): (u32, u32, u32),
+        tile: &Tile,
+        bytes: Bytes,
+    ) -> Result<Bytes, ReadError> {
+        let found = crate::integrity::block_checksum(&bytes);
+        if found != tile.xxh3 {
+            return Err(ReadError::Integrity(IntegrityError::TileChecksum {
+                raster,
+                level,
+                col,
+                row,
+                expected: tile.xxh3,
+                found,
+            }));
+        }
+        // RASTER-03 and RASTER-04: the header says what the placement says, and the tile is one image and nothing
+        // after it, before the bytes leave the reader
+        sniff_tile(placement, self.config.limits.max_tile_bytes, &bytes).map_err(ReadError::Tile)?;
+        Ok(bytes)
     }
 
     fn note_request(&self, len: u32) {
@@ -738,6 +966,105 @@ impl<S: BlockSource> ContainerReader<S> {
         self.fetch(offset, len)
     }
 
+    /// The rasters the directory names, by any kind 9 or kind 10 block, ascending.
+    pub fn rasters(&self) -> Vec<u32> {
+        self.shared.core.raster_ids()
+    }
+
+    /// The index of `raster`, read when it is first asked for and kept: the kind 9 block through
+    /// [`ContainerReader::read_block`] (its accounting, its checksum), parsed and checked against the directory.
+    /// A raster that is refused is an error for that raster; the file stays open and the others read.
+    pub fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError> {
+        if let Some(index) = self.shared.raster_cached(raster) {
+            return Ok(index);
+        }
+        let placement = self.raster_placement(raster)?;
+        let block = self.read_block(self.shared.raster_index_id(raster)?)?;
+        self.shared.raster_parsed(raster, &block, &placement)
+    }
+
+    /// The placements of the raster stream of the component set, in `RasterId` order, read when first asked for.
+    /// A file with no raster stream places none, and a damaged stream is an error for the rasters only.
+    pub fn raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError> {
+        if let Some(p) = self.shared.placements_cached() {
+            return p;
+        }
+        let block = match self.shared.components_block() {
+            Some(id) => Some(self.read_block(id)?),
+            None => None,
+        };
+        self.shared.placements_parsed(block.as_deref())
+    }
+
+    /// The placement of `raster`; a raster the stream does not place is `RASTER-06`.
+    pub fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError> {
+        let all = self.raster_placements()?;
+        all.get(raster as usize).cloned().ok_or(ReadError::Raster(IndexError::NoPlacement { raster }))
+    }
+
+    /// The encoded bytes of tile `(col, row)` of `level` of `raster`, after the index's XXH3-64 has been checked
+    /// against them, whether or not the file carries a checksum table. A tile that is not stored is `None`.
+    ///
+    /// A tile in a chunk is a range of the chunk at the index's offset: the whole chunk is not read and
+    /// [`ContainerReader::read_stored`] is not involved, so the range is held to the budget (`LIMIT-03`,
+    /// `LIMIT-04`) like any block. The chunk's own checksum is full validation's to check.
+    pub fn read_raster_tile(
+        &self,
+        raster: u32,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<Option<Bytes>, ReadError> {
+        let placement = self.raster_placement(raster)?;
+        let index = self.raster_index(raster)?;
+        let at = (level, col, row);
+        match self.shared.tile_plan(raster, &index, &placement, at)? {
+            TilePlan::NotStored => Ok(None),
+            TilePlan::Inline(t, bytes) => {
+                self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some)
+            }
+            TilePlan::Range { tile, offset, len } => {
+                let _room = self.shared.admit_gap(len)?;
+                let bytes = self.fetch(offset, len)?;
+                self.shared.tile_verified(raster, &placement, at, &tile, bytes).map(Some)
+            }
+        }
+    }
+
+    /// Everything about one raster that full validation can say: its index, the chunk blocks against it, and
+    /// every stored tile against its checksum, each chunk read whole once. The first fault is the error.
+    pub fn validate_raster(&self, raster: u32) -> Result<(), ReadError> {
+        let placement = self.raster_placement(raster)?;
+        let index = self.raster_index(raster)?;
+        for l in 0..index.levels().len() as u32 {
+            // the chunk numbers rise along the table, so each chunk block is read once, when its first tile comes
+            let mut current: Option<(u32, Arc<DecodedBlock>)> = None;
+            for t in index.level_tiles(l).into_iter().flatten().filter(|t| t.is_stored()) {
+                let bytes = if t.is_inline() {
+                    let tile = IndexError::Tile { level: l, col: t.col, row: t.row };
+                    index.inline_bytes(t).ok_or(ReadError::Raster(tile))?.to_vec()
+                } else {
+                    if current.as_ref().is_none_or(|(c, _)| *c != t.chunk) {
+                        let missing = IndexError::Chunk { level: l, chunk: t.chunk };
+                        let id = self
+                            .shared
+                            .core
+                            .raster_chunk_block(raster, l, t.chunk)
+                            .ok_or(ReadError::Raster(missing))?;
+                        current = Some((t.chunk, self.read_block(id)?));
+                    }
+                    let chunk = IndexError::Chunk { level: l, chunk: t.chunk };
+                    let block = current.as_ref().map(|(_, b)| b).ok_or(ReadError::Raster(chunk.clone()))?;
+                    let range = t.offset as usize..t.offset as usize + t.length as usize;
+                    block.as_bytes().get(range).ok_or(ReadError::Raster(chunk))?.to_vec()
+                };
+                self.shared.tile_admitted(&placement, t)?;
+                self.shared.tile_verified(raster, &placement, (l, t.col, t.row), t, Bytes::new(bytes))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Reads and checks the whole file: everything `open` checks, the bytes between blocks, and every
     /// block against the parsers, the directory and each other. A file that passes is a canonical
     /// artifact.
@@ -862,6 +1189,104 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         let (offset, len) = self.shared.core.range_of(id)?;
         let _room = self.shared.admit_gap(len)?;
         self.fetch(offset, len).await
+    }
+
+    /// The rasters the directory names, by any kind 9 or kind 10 block, ascending.
+    pub fn rasters(&self) -> Vec<u32> {
+        self.shared.core.raster_ids()
+    }
+
+    /// The index of `raster`, read when it is first asked for and kept: the kind 9 block through
+    /// [`AsyncContainerReader::read_block`] (its accounting, its checksum), parsed and checked against the directory.
+    /// A raster that is refused is an error for that raster; the file stays open and the others read.
+    pub async fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError> {
+        if let Some(index) = self.shared.raster_cached(raster) {
+            return Ok(index);
+        }
+        let placement = self.raster_placement(raster).await?;
+        let block = self.read_block(self.shared.raster_index_id(raster)?).await?;
+        self.shared.raster_parsed(raster, &block, &placement)
+    }
+
+    /// As [`ContainerReader::raster_placements`].
+    pub async fn raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError> {
+        if let Some(p) = self.shared.placements_cached() {
+            return p;
+        }
+        let block = match self.shared.components_block() {
+            Some(id) => Some(self.read_block(id).await?),
+            None => None,
+        };
+        self.shared.placements_parsed(block.as_deref())
+    }
+
+    /// As [`ContainerReader::raster_placement`].
+    pub async fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError> {
+        let all = self.raster_placements().await?;
+        all.get(raster as usize).cloned().ok_or(ReadError::Raster(IndexError::NoPlacement { raster }))
+    }
+
+    /// The encoded bytes of tile `(col, row)` of `level` of `raster`, after the index's XXH3-64 has been checked
+    /// against them, whether or not the file carries a checksum table. A tile that is not stored is `None`.
+    ///
+    /// A tile in a chunk is a range of the chunk at the index's offset: the whole chunk is not read and
+    /// [`AsyncContainerReader::read_stored`] is not involved, so the range is held to the budget (`LIMIT-03`,
+    /// `LIMIT-04`) like any block. The chunk's own checksum is full validation's to check.
+    pub async fn read_raster_tile(
+        &self,
+        raster: u32,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<Option<Bytes>, ReadError> {
+        let placement = self.raster_placement(raster).await?;
+        let index = self.raster_index(raster).await?;
+        let at = (level, col, row);
+        match self.shared.tile_plan(raster, &index, &placement, at)? {
+            TilePlan::NotStored => Ok(None),
+            TilePlan::Inline(t, bytes) => {
+                self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some)
+            }
+            TilePlan::Range { tile, offset, len } => {
+                let _room = self.shared.admit_gap(len)?;
+                let bytes = self.fetch(offset, len).await?;
+                self.shared.tile_verified(raster, &placement, at, &tile, bytes).map(Some)
+            }
+        }
+    }
+
+    /// Everything about one raster that full validation can say: its index, the chunk blocks against it, and
+    /// every stored tile against its checksum, each chunk read whole once. The first fault is the error.
+    pub async fn validate_raster(&self, raster: u32) -> Result<(), ReadError> {
+        let placement = self.raster_placement(raster).await?;
+        let index = self.raster_index(raster).await?;
+        for l in 0..index.levels().len() as u32 {
+            // the chunk numbers rise along the table, so each chunk block is read once, when its first tile comes
+            let mut current: Option<(u32, Arc<DecodedBlock>)> = None;
+            for t in index.level_tiles(l).into_iter().flatten().filter(|t| t.is_stored()) {
+                let bytes = if t.is_inline() {
+                    let tile = IndexError::Tile { level: l, col: t.col, row: t.row };
+                    index.inline_bytes(t).ok_or(ReadError::Raster(tile))?.to_vec()
+                } else {
+                    if current.as_ref().is_none_or(|(c, _)| *c != t.chunk) {
+                        let missing = IndexError::Chunk { level: l, chunk: t.chunk };
+                        let id = self
+                            .shared
+                            .core
+                            .raster_chunk_block(raster, l, t.chunk)
+                            .ok_or(ReadError::Raster(missing))?;
+                        current = Some((t.chunk, self.read_block(id).await?));
+                    }
+                    let chunk = IndexError::Chunk { level: l, chunk: t.chunk };
+                    let block = current.as_ref().map(|(_, b)| b).ok_or(ReadError::Raster(chunk.clone()))?;
+                    let range = t.offset as usize..t.offset as usize + t.length as usize;
+                    block.as_bytes().get(range).ok_or(ReadError::Raster(chunk))?.to_vec()
+                };
+                self.shared.tile_admitted(&placement, t)?;
+                self.shared.tile_verified(raster, &placement, (l, t.col, t.row), t, Bytes::new(bytes))?;
+            }
+        }
+        Ok(())
     }
 
     /// As [`ContainerReader::validate`].

@@ -10,6 +10,7 @@
 mod directory;
 mod generation;
 mod ownership;
+mod raster_plan;
 mod scheduler;
 mod straddler;
 mod tier0_leaf;
@@ -19,6 +20,7 @@ mod viewport;
 pub use directory::*;
 pub use generation::*;
 pub use ownership::*;
+pub use raster_plan::*;
 pub use scheduler::*;
 pub use straddler::*;
 pub use tier0_leaf::*;

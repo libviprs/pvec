@@ -88,6 +88,7 @@ version = "0.0.0"
 dependencies = [
  "miniz_oxide",
  "pvec-capabilities",
+ "pvec-components",
  "pvec-container",
  "pvec-corpus",
  "pvec-entity",
@@ -107,6 +108,7 @@ name = "pvec-checks"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-components",
  "pvec-corpus",
 ]
 
@@ -128,6 +130,7 @@ dependencies = [
  "pvec-codec",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-numeric",
 ]
 
 [[package]]
@@ -185,6 +188,7 @@ dependencies = [
  "pvec-corpus",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-stream",
  "pvec-testkit",
 ]
 
@@ -257,11 +261,13 @@ dependencies = [
 name = "pvec-stream"
 version = "0.0.0"
 dependencies = [
+ "pvec-components",
  "pvec-container",
  "pvec-entity",
  "pvec-geometry",
  "pvec-hermetic",
  "pvec-numeric",
+ "pvec-testkit",
 ]
 
 [[package]]
@@ -283,9 +289,12 @@ version = "0.0.0"
 dependencies = [
  "pvec",
  "pvec-checks",
+ "pvec-components",
  "pvec-container",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-stream",
+ "pvec-testkit",
  "wasm-bindgen",
 ]
 

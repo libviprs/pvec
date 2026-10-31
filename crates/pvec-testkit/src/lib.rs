@@ -8,5 +8,9 @@
 pub use pvec_numeric::detmath;
 pub mod generate;
 pub mod hostile;
+pub mod raster_hostile;
+pub mod raster_file;
 pub mod records;
 pub mod reference;
+pub mod tilegen;
+pub mod tiler;

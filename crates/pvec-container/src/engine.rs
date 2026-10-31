@@ -17,6 +17,7 @@
 use crate::blocks::AlignedBytes;
 use crate::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
+use crate::blocks::raster;
 use crate::compress::{Codec, decompress};
 use crate::directory::{BLOCK_ENTRY_FIELDS, BlockEntry, BlockKind, ENTRY_LEN, parse_directory_checked};
 use crate::header::Header;
@@ -561,6 +562,80 @@ impl Core {
         Ok(DecodedBlock::new(id, entry, bytes, reservation))
     }
 
+    /// The block of kind `kind` in cell `cell` with subtype `subtype`, by the canonical order of the directory
+    /// (LAYOUT-04 makes the key unique, so a search finds the one or none).
+    fn find_block(&self, kind: u16, cell: u32, subtype: u16) -> Option<BlockId> {
+        let key = (BlockKind::group(kind), cell, kind, subtype);
+        let at =
+            self.entries.partition_point(|e| (BlockKind::group(e.kind), e.cell, e.kind, e.subtype) < key);
+        let hit =
+            self.entries.get(at).filter(|e| (BlockKind::group(e.kind), e.cell, e.kind, e.subtype) == key);
+        hit.map(|_| BlockId(at as u32))
+    }
+
+    /// The raster index block (kind 9) of `raster`, when the directory has one.
+    pub fn raster_index_block(&self, raster: u32) -> Option<BlockId> {
+        self.find_block(raster::KIND_INDEX, raster, 0)
+    }
+
+    /// The tile block (kind 10) of chunk `chunk` of level `level` of `raster`, when the directory has one.
+    pub fn raster_chunk_block(&self, raster: u32, level: u32, chunk: u32) -> Option<BlockId> {
+        self.find_block(raster::KIND_TILES, raster, raster::subtype(level, chunk)?)
+    }
+
+    /// The rasters the directory names, by any kind 9 or kind 10 block, ascending.
+    pub fn raster_ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self
+            .entries
+            .iter()
+            .filter(|e| e.kind == raster::KIND_INDEX || e.kind == raster::KIND_TILES)
+            .map(|e| e.cell)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    /// `RASTER-06` and the lengths of `RASTER-02` for one raster, from the directory and its parsed index: the
+    /// index block's count is the tiles stored, every kind 10 block of the raster is a chunk of a level the
+    /// index has, stored as it is and holding the tiles the index says, and every chunk the index names has
+    /// its block with exactly the bytes of its tiles. A raster that fails is refused and the file is not.
+    pub fn check_raster_blocks(
+        &self,
+        raster: u32,
+        index: &raster::RasterIndex,
+    ) -> Result<(), raster::IndexError> {
+        use raster::IndexError;
+        let bad = |subtype| IndexError::Block { raster, subtype };
+        // the index block: its count is the tiles stored, and it is stored as it is
+        let index_entry = self.raster_index_block(raster).and_then(|id| self.entries.get(id.0 as usize));
+        if index_entry.is_none_or(|e| e.count != index.stored() || e.codec != crate::directory::CODEC_NONE) {
+            return Err(bad(0));
+        }
+        // what each chunk of each level holds, in one pass over the tile table
+        let stats: Vec<Vec<(u32, u64)>> =
+            (0..index.levels().len() as u32).map(|l| index.chunk_stats(l)).collect();
+        let key = (BlockKind::group(raster::KIND_TILES), raster);
+        let from = self.entries.partition_point(|e| (BlockKind::group(e.kind), e.cell) < key);
+        for e in self.entries[from..].iter().take_while(|e| (BlockKind::group(e.kind), e.cell) == key) {
+            let (level, chunk) = (
+                usize::from(e.subtype) / raster::CHUNKS_PER_LEVEL as usize,
+                usize::from(e.subtype) % raster::CHUNKS_PER_LEVEL as usize,
+            );
+            let Some(&(count, _)) = stats.get(level).and_then(|s| s.get(chunk)) else {
+                return Err(bad(e.subtype));
+            };
+            if e.codec != crate::directory::CODEC_NONE || e.count != count {
+                return Err(bad(e.subtype));
+            }
+        }
+        index.check_chunks(|level, chunk| {
+            self.raster_chunk_block(raster, level, chunk)
+                .and_then(|id| self.entries.get(id.0 as usize))
+                .map(|e| e.stored_length)
+        })
+    }
+
     /// The chunks of the advanced curves, in ascending cell order: each is the record block and the five
     /// arenas that share its cell, in subtype order. Empty when the file has none. A chunk with a block
     /// missing, two record blocks in one cell, or an arena in a cell with no record block is refused.
@@ -778,7 +853,10 @@ impl<'a> Validation<'a> {
             Some(BlockKind::SpatialDirectory | BlockKind::CellRefs | BlockKind::Tier0) => {}
             // likewise the straddler lists: `pvec-stream` checks them against this directory when they are opened
             Some(BlockKind::Straddlers) => {}
-            // a block of a kind nobody knows is skipped when the file is opened and never fed here
+            // a block of a kind nobody knows is skipped when the file is opened and never fed here; one of a
+            // kind a capability owns that this reader implements was handed over, and its payload is the
+            // capability's to parse
+            None if crate::negotiate::CAPABILITY_OWNED_KINDS.iter().any(|(k, _, _)| *k == entry.kind) => {}
             None => return Err(internal()),
         }
         Ok(())
@@ -992,7 +1070,10 @@ A refusal carries the rule of the parser that made it (`DIR-nn`, `HOT-nn`, `ARN-
     }
     s.push_str(
         "\nThe reference reader in `pvec-testkit` also has `LAYOUT-05`, a range that lies outside the file. This reader \
-never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).\n\n## Not here\n\n\
+never reaches it, because every extent is held to the artifact length first (`LIMIT-12`).\n\n\
+## The extent of a drawing with rasters\n\n\
+The extent a reader reports for fit-to-view is the box of the entities grown by the footprint of each raster's `visible_box` in source space (`pvec_stream::reported_extent`, ADR 0018). The spatial directory's root box stays a union of entities: a raster is in no leaf, and its tiles are found through its own index block (`docs/STREAMING.md`, chapter 6), not through the directory.\n\n\
+## Not here\n\n\
 There is no memory-mapped source: a file cannot be mapped from safe Rust, and the only exception the workspace allows is the \
 confined casts in `blocks/aligned.rs`. A caller that maps a file passes the slice to `MemorySource` and gets the same \
 checks. The file sources are in the `pvec-sources` crate, because `pvec-container` is an API crate and opens no file. \

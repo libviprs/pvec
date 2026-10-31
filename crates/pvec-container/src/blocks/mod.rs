@@ -5,5 +5,7 @@ pub mod advanced;
 pub mod aligned;
 pub mod arena;
 pub mod hot;
+pub mod raster;
+pub mod sniff;
 
 pub use aligned::AlignedBytes;

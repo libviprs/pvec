@@ -298,3 +298,49 @@ fn the_cli_document_names_every_subcommand_exit_code_and_result_field() {
         }
     }
 }
+
+// ---- rasters (issue #219): a raster that is refused is reported with its rule, and the file still conforms ----
+
+#[test]
+fn validate_reports_a_raster_skipped_with_its_rule_and_a_file_whose_only_fault_is_a_bad_tile_still_passes() {
+    use pvec_testkit::raster_hostile::{accepted, file as raster_file, hostile};
+    let bad = hostile().into_iter().find(|t| t.name == "polyglot-png-and-zip").unwrap();
+    let path = file("polyglot.pvec", &raster_file(&bad));
+    let run = pvec(&["validate", "--format", "json", &path]);
+    assert_eq!((run.code, run.stderr.as_str()), (0, ""), "geometry gates pass: {}", run.stdout);
+    let doc = check_schema(&run);
+    assert_eq!(doc.get("status").str(), "ok");
+    assert_eq!(doc.at("result.format_valid"), &V::Bool(true));
+    let rasters = doc.at("result.rasters").arr();
+    assert_eq!(rasters.len(), 1);
+    assert_eq!(rasters[0].get("raster").num(), 0.0);
+    assert_eq!(rasters[0].get("status").str(), "skipped");
+    assert_eq!(rasters[0].get("rule").str(), "RASTER-03");
+    assert!(rasters[0].get("message").str().contains("RASTER-03"));
+    // the same tool says so in words
+    let human = pvec(&["validate", &path]);
+    assert_eq!(human.code, 0);
+    assert!(human.stdout.contains("1 raster skipped"), "{}", human.stdout);
+
+    let good = accepted().into_iter().find(|t| t.name == "png-gray-8-bit").unwrap();
+    let path = file("raster-ok.pvec", &raster_file(&good));
+    let doc = check_schema(&pvec(&["validate", "--format", "json", &path]));
+    let rasters = doc.at("result.rasters").arr();
+    assert_eq!(rasters[0].get("status").str(), "ok");
+    assert_eq!(rasters[0].get("rule"), &V::Null);
+}
+
+#[test]
+fn a_file_with_no_raster_reports_none_and_every_hostile_tile_is_reported_by_its_own_rule() {
+    use pvec_testkit::raster_hostile::{file as raster_file, hostile};
+    let doc = check_schema(&pvec(&["validate", "--format", "json", &fixture()]));
+    assert!(doc.at("result.rasters").arr().is_empty());
+    for t in hostile() {
+        let path = file(&format!("hostile-{}.pvec", t.name), &raster_file(&t));
+        let run = pvec(&["validate", "--format", "json", &path]);
+        assert_eq!(run.code, 0, "{}: {}", t.name, run.stdout);
+        let doc = check_schema(&run);
+        let r = &doc.at("result.rasters").arr()[0];
+        assert_eq!((r.get("status").str(), r.get("rule").str()), ("skipped", t.rule.unwrap()), "{}", t.name);
+    }
+}

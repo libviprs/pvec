@@ -525,3 +525,20 @@ fn wrapped_errors_display_through_their_own_display_not_debug() {
         format!("WRT-11: {}", StreamError::TooLarge)
     );
 }
+
+#[test]
+fn an_optional_raster_capability_leaves_min_reader_at_1_0_0_and_a_file_without_one_never_rises() {
+    // issue 216: the hoist runs over required capabilities only, so declaring the optional 21 does not make a
+    // 1.0.0 reader refuse the file at NEGOTIATE-03
+    let mut fx = minimal();
+    fx.config.capabilities.push(CapabilityId::new(21));
+    let (_, manifest, _) = open(&fx.write().unwrap());
+    let d = manifest.capabilities.iter().find(|d| d.id.get() == 21).expect("21 is declared");
+    assert_eq!(d.requirement, Requirement::Optional);
+    assert_eq!(manifest.min_reader, Version::new(1, 0, 0));
+    // and no fixture that declares no optional capability is raised above 1.0.0
+    for input in fixtures() {
+        let (_, m, _) = open(&input.write().unwrap());
+        assert_eq!(m.min_reader, Version::new(1, 0, 0), "{}", input.name);
+    }
+}

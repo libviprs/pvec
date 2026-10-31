@@ -186,6 +186,78 @@ Windows must be finite and ordered (`min <= max`), or the call returns -3. These
 memory rules below, unchanged: `release` frees them, a view is current while `memory_epoch()` is, and both
 result kinds keep what they need after the file is released. A file opened by ranges answers these calls too (above).
 
+## Rasters (version 2, additive; issue #221, ADR 0018)
+
+A file may carry raster placements (capability 21) and their tiles (`docs/RASTER.md`). The module stores and returns
+the **encoded** tile bytes untouched and decodes nothing: it has no image codec in it, and
+`crates/pvec-checks/tests/crate_boundaries.rs` fails if a dependency of `pvec-wasm` is an image crate. The host
+decodes with `createImageBitmap`, orientation "none" and colour-space conversion "none". These exports are
+**additions to version 2**: `wasm_abi_version` still returns 2, and a consumer finds them by testing that the module
+exports `raster_stat`, once at start, next to the version check (the way `open_ranged` is found). A module without
+it is a version 2 module that predates rasters, and every other call works. Every test below is in
+`crates/pvec-wasm/tests/issue_221_raster_exports.rs` (`issue_221_raster_exports`), named for what it holds.
+
+`raster_stat(file, n)`: 0 rasters in the file, 1 rasters skipped, 2 whether the file has an image this reader cannot
+show (`Effect::Unrastered`, 0 or 1: some raster is skipped, or the raster stream is refused), 3 whether the file has a
+raster stream at all (0 or 1). `raster_skipped(file, i, n)` for the `i`th skipped raster (ascending raster id): `n` 0
+the `RasterId`, 1 the number of the `RASTER-NN` rule that skipped it (4 for `RASTER-04`, an unknown `tile_codec`,
+which is known from the placement; the rule of a raster a call found refused, such as a failed `RASTER-03` sniff, is
+added to the list by that call). On a range-opened file the first raster call may return -7 until the block that holds
+the placements is provided.
+
+`raster_placement(file, r)` returns a result handle for raster number `r` (the dense `RasterId`). Arrays are read with
+`raster_buffer_len`, `raster_buffer_ptr` and `raster_buffer_elem` (result, array number):
+
+| # | array | element | stride |
+|---|---|---|---|
+| 0 | `pixel_to_source`, PVec `Transform2` order `[a b c d tx ty]`, the authored bits | `Float64Array` | 6 |
+| 1 | `width, height, visible_box (x0, y0, x1, y1), tile_edge, levels, tile_codec, channels, bit_depth, opacity, band, layer_index` (`layer_index` is 4294967295 when the raster has no layer) | `Uint32Array` | 14 |
+| 2 | `attribution`, plain UTF-8 text, the host escapes it | `Uint8Array` | 1 |
+| 3 | `source_digest`, 32 bytes, or empty | `Uint8Array` | 1 |
+
+`raster_plan(file, min_x, min_y, max_x, max_y, scale, max_decoded)` returns a result handle: for every raster that is
+not skipped and whose footprint meets the window, the level and the tiles the viewport needs, which is
+`pvec-stream`'s `plan_placed` (STREAMING.md section 6) and nothing else. `scale` is display pixels per source unit;
+`max_decoded` is `LIMIT-16` in bytes, and 0 means the module's (the browser preset). The result is a prefetch hint for
+the host's range cache: the tiles are not read. A raster that `LIMIT-16` cannot fit even at its coarsest level is left
+out. On a range-opened file the module names the index blocks of every raster the window touches in one round (-7).
+Arrays (`raster_buffer_*`; `n` rasters in the result):
+
+| # | array | element | stride |
+|---|---|---|---|
+| 0 | raster ids, ascending | `Uint32Array` | 1 |
+| 1 | level chosen, after `LIMIT-16` | `Uint32Array` | 1 |
+| 2 | tile table: `n + 1` offsets into arrays 3 to 7, in tiles | `Uint32Array` | 1 |
+| 3 | `col, row` of each tile | `Uint32Array` | 2 |
+| 4 | block id of the chunk, or 4294967295 for an inline tile | `Uint32Array` | 1 |
+| 5 | file offset of the tile's first byte (an integer below 2^53) | `Float64Array` | 1 |
+| 6 | stored length | `Uint32Array` | 1 |
+| 7 | 1 for an inline tile (already in the module, not requested), else 0 | `Uint32Array` | 1 |
+| 8 | the merged byte ranges `offset, length` of the stored tiles (`ReaderConfig::gap_threshold`, tile with tile only) | `Float64Array` | 2 |
+| 9 | range table: `n + 1` offsets into array 8, in ranges | `Uint32Array` | 1 |
+
+`raster_tile(file, r, level, col, row)` returns a result handle whose array 0 is the encoded bytes of that tile
+(`Uint8Array`, element type 3), after the index's XXH3-64 check and before anything else. It follows the -7 protocol
+of issue #205 on a range-opened file: the module names the ranges it needs in turn, the raster's index block first and
+then **the tile's own range**, never the chunk around it (`needed_*`), and there is no second mechanism. The module
+reads the tile by range (`ContainerReader::read_raster_tile`) and never through the whole-block `read_stored`, so the
+chunk's block checksum is not what vouches for the tile; the index checksum is.
+
+**Cache policy (the alternative to a range-release export).** The bytes of a tile live in three places: the range the
+host provided, the module's decoded cache (none for a tile: the index is cached, the tile is not) and the result
+handle. `release(handle)` frees the handle **and drops the tile's range from the ranges the host provided**, keeping the
+rest of any larger range that held it, so a host that releases a tile handle after `createImageBitmap` has copied the
+bytes holds no tile in the module, and asks again (the host's own cache can answer) if it wants the tile once more.
+There is no separate range-release export. The #220 measurement decides whether that is enough; if it is not, a
+`release_range` export is an addition of the same kind.
+
+Codes (negative, additions to the table below): -8 the file has no raster stream, -9 the tile is not stored (a sparse
+pyramid: it draws nothing), -10 the raster is skipped by a `RASTER-NN` rule (`raster_skipped` says which). -3 keeps
+meaning a bad id, level, column or row, and -4 a failed checksum (the index's or, for the index block, the block's).
+
+The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
+(`raster_buffer_elem` and the other `*_elem` calls return it).
+
 ## Conformance
 
 Every result carries the tag `DisplayFidelity` (`tessellation_conformance` returns 1, and no result
@@ -209,6 +281,35 @@ exact geometry in a packed buffer.
   page so a consumer can test its handling.
 * Read `buffer_len` before `buffer_ptr`: the length returns the error code, the pointer returns 0.
 
+## Limits (issue 217)
+
+Every open path of the module, `open` and `open_poll` alike, holds the file to `Limits::BROWSER`. Until issue 217 the
+module opened with `Limits::DEFAULT`, which is the native preset, so the browser values of `docs/SECURITY_LIMITS.md`
+meant nothing in the tab they were written for. This changes the geometry limits the module enforces too, not only
+the raster ones: a file that `Limits::DEFAULT` admitted and `Limits::BROWSER` refuses (a block over 64 MiB, an
+expansion ratio over 32, a curve of more than 16,384 control points) is now refused with error code -4. The values
+that differ, before and after:
+
+| limit | field | `Limits::DEFAULT` (before) | `Limits::BROWSER` (now) |
+|---|---|---|---|
+| LIMIT-05 | `max_artifact_bytes` | 68,719,476,736 (64 GiB) | 4,294,967,296 (4 GiB) |
+| LIMIT-02 | `max_block_bytes` | 268,435,456 (256 MiB) | 67,108,864 (64 MiB) |
+| LIMIT-06 | `max_blocks` | 1,048,576 | 131,072 |
+| LIMIT-01 | `max_expansion_ratio` | 64 | 32 |
+| LIMIT-07 | `max_entities_per_artifact` | 268,435,456 | 16,777,216 |
+| LIMIT-08 | `max_entities_per_block` | 268,435,456 | 1,048,576 |
+| LIMIT-09 | `max_control_points` | 65,536 | 16,384 |
+| LIMIT-10 | `max_knots` | 65,553 | 16,401 |
+| LIMIT-11 | `max_nesting_depth` | 4 | 3 |
+| LIMIT-03 | `max_alloc_bytes` | 2,147,483,648 (2 GiB) | 268,435,456 (256 MiB) |
+| LIMIT-04 | `max_decode_work` | 1,099,511,627,776 | 17,179,869,184 |
+| LIMIT-14 | `max_raster_tiles` | 1,048,576 | 131,072 |
+
+The other limits are the same in both presets (LIMIT-12 is the artifact's own length, LIMIT-13 is 4,096 rasters and
+LIMIT-15 is a header allowance of 65,536 bytes). The ABI version stays 2: no export or layout changed, and a host
+that opens only files inside the browser values sees no difference. `crates/pvec-wasm/tests/issue_217_browser_limits.rs`
+holds a file the defaults admit and the browser preset refuses.
+
 ## Error codes
 
 | code | meaning |
@@ -220,6 +321,9 @@ exact geometry in a packed buffer.
 | -5 | the handle is live but is not the kind this call takes |
 | -6 | the file has no spatial directory, which the call needs (version 2) |
 | -7 | the call needs byte ranges of a range-opened file that were not provided yet: `needed_*` names them (issue #205) |
+| -8 | the file has no raster stream (issue #221, additive) |
+| -9 | the raster tile is not stored: the index says length 0, and it draws nothing (issue #221, additive) |
+| -10 | the raster is skipped by a `RASTER-NN` rule, `raster_skipped` names it (issue #221, additive) |
 
 ## Size
 
@@ -227,6 +331,20 @@ exact geometry in a packed buffer.
 `wasm-bindgen` post-processing, rustc 1.99.0 in a `rust:1.99.0-bookworm` container: 466,775 bytes built on
 native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
 ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.
+
+Measured again for issue 217, at version 2: `cargo build --release --target wasm32-unknown-unknown -p pvec-wasm`, rustc
+1.99.1 in the `pvec-rust` image on native x86_64 (MARS), the same flags and no post-processing. The module is 658,184
+bytes with `Limits::BROWSER` wired in, and the commit before it built to 658,353 bytes under the same toolchain, so
+wiring the preset and the raster ceilings cost nothing measurable. The 466,775 bytes above are the version 1 module
+and are not comparable with these.
+
+Measured again for issue 221, the raster exports, same command, toolchain and host: 668,425 bytes at the commit before
+them (the plan of issue 220, on the raster blocks of issue 218) and 744,291 bytes with the eight `raster_*` exports,
+so the group costs 75,866 bytes (+11.3%). Against the 658,184 bytes of the issue 217 measurement that is 86,107 more in
+all, and the module is still a range-opened reader with no image codec in it (`crate_boundaries`). The staged
+release directory (`tools/wasm-release.sh`, after `wasm-bindgen`) holds a module of 707,544 bytes, sha256
+`336ae9a30668b003c7e2325b758a7fb05ee52cde5062a25a385a9030ea554ae1`, commit `149ed15`; `tools/wasm-release-selftest.sh DIR`
+probes its raster exports on `tests/compat/raster-probe.pvec` and passes, and a module built without them fails the probe.
 
 ## The loadable module (issue 202)
 

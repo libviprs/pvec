@@ -311,6 +311,7 @@
         "blocks",
         "entities",
         "skipped_blocks",
+        "rasters",
         "checks",
         "limits"
       ],
@@ -331,6 +332,42 @@
           "items": {
             "type": "integer",
             "minimum": 0
+          }
+        },
+        "rasters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "raster",
+              "status",
+              "rule",
+              "message"
+            ],
+            "properties": {
+              "raster": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "enum": [
+                  "ok",
+                  "skipped"
+                ]
+              },
+              "rule": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
           }
         },
         "checks": {

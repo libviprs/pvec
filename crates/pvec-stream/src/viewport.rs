@@ -2,6 +2,7 @@
 
 use crate::directory::{Aabb, DirectoryError, SpatialDirectory};
 use crate::tier0_leaf::Tier0Leaves;
+use pvec_container::blocks::raster;
 use pvec_container::directory::{BlockEntry, BlockKind};
 use pvec_container::reader::RangeRequest;
 use pvec_container::source::{AsyncBlockSource, BlockSource};
@@ -10,6 +11,12 @@ use std::collections::BTreeMap;
 
 /// The default margin around the viewport that is prefetched, in display pixels.
 pub const DEFAULT_PREFETCH_MARGIN_PX: f64 = 128.0;
+
+/// The most bytes of raster index blocks (their inline parts, the coarse levels of each raster) one Tier 0 plan
+/// asks for, over all rasters of the file: 256 KB, from the 290 KB of headroom `tier0-4s-5mbit` has (ADR 0018,
+/// `docs/STREAMING.md` 6.6). The writer decides how much it puts inline and the plan can only lower what is
+/// fetched, so when the two differ the smaller wins.
+pub const RASTER_TIER0_CAP: u64 = 256 << 10;
 
 /// What a reader must answer for a plan to be built against it.
 pub trait PlanSource {
@@ -61,11 +68,13 @@ pub struct ViewportQuery {
 pub struct ViewportConfig {
     /// The prefetch margin around the viewport, in display pixels. Zero turns prefetch off.
     pub prefetch_margin_px: f64,
+    /// The most bytes of raster index blocks a tiered plan asks for at Tier 0, over all rasters.
+    pub raster_tier0_cap: u64,
 }
 
 impl Default for ViewportConfig {
     fn default() -> ViewportConfig {
-        ViewportConfig { prefetch_margin_px: DEFAULT_PREFETCH_MARGIN_PX }
+        ViewportConfig { prefetch_margin_px: DEFAULT_PREFETCH_MARGIN_PX, raster_tier0_cap: RASTER_TIER0_CAP }
     }
 }
 
@@ -361,6 +370,44 @@ impl ViewportQuery {
             Ok((first, second))
         };
         let (mut first, mut second) = classify(Tier::Tier0, &t0_visible, &t0_near)?;
+        if tier0.is_some() {
+            // The raster share of Tier 0: the index blocks (kind 9) of the rasters the viewport touches, in
+            // raster order, while they fit the cap. Their inline part is the coarse levels, so they are the first
+            // paint of a raster. They carry no entity gain, so they rank after the geometry's Tier 0 requests and
+            // before every exact one, and they count against the budget like those.
+            let mut spent = 0u64;
+            let mut wanted: Vec<(u32, BlockId)> = Vec::new();
+            for (i, e) in entries.iter().enumerate().filter(|(_, e)| e.kind == raster::KIND_INDEX) {
+                let seen = e
+                    .bounds
+                    .and_then(|b| Aabb::new(b.min, b.max).ok())
+                    .is_none_or(|b| b.intersects(&self.bounds));
+                if seen {
+                    wanted.push((e.cell, BlockId(i as u32)));
+                }
+            }
+            wanted.sort_unstable();
+            let mut ids = Vec::new();
+            for (_, id) in wanted {
+                spent += stored(entries, id);
+                if spent > config.raster_tier0_cap {
+                    break;
+                }
+                if reader.is_cached(id) {
+                    tier0_cached += 1;
+                } else {
+                    ids.push(id);
+                }
+            }
+            for request in reader.plan(&ids)? {
+                first.push(PlannedRequest {
+                    tier: Tier::Tier0,
+                    request,
+                    priority: Priority::Visible,
+                    gain: 0.0,
+                });
+            }
+        }
         let (exact_first, exact_second) = classify(Tier::Exact, &visible, &near)?;
         first.extend(exact_first);
         second.extend(exact_second);

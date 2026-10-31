@@ -48,12 +48,12 @@ fn unknown_block(kind: u16, capability: u16) -> RawBlock {
     }
 }
 
-/// `art` plus an optional block of kind 9 that belongs to capability 99, which the manifest declares
+/// `art` plus an optional block of kind 99 (no capability owns it: 9 and 10 are the raster's) that belongs to capability 99, which the manifest declares
 /// optional. Where the block goes in the order of the directory is the assembler's canonical order.
 fn with_unknown_optional_block(art: &Art, integrity: Integrity) -> Art {
     rebuild(art, integrity, |m, blocks| {
         m.capabilities.push(declared(99, Requirement::Optional, 3, 1));
-        blocks.push(unknown_block(9, 99));
+        blocks.push(unknown_block(99, 99));
     })
 }
 
@@ -252,7 +252,7 @@ fn an_unknown_optional_block_is_skipped_its_capability_is_reported_and_the_geome
     let b = partial.blocks[0];
     assert_eq!(
         (b.kind, b.capability, b.reason, b.stored_length),
-        (9, Some(cap(99)), SkipReason::UnknownBlockKind, 64)
+        (99, Some(cap(99)), SkipReason::UnknownBlockKind, 64)
     );
     r.validate().expect("the file validates around the block");
     let alone = open_with(without.bytes.clone(), ReaderCapabilities::v1()).unwrap();
@@ -263,7 +263,7 @@ fn an_unknown_optional_block_is_skipped_its_capability_is_reported_and_the_geome
 fn skipping_a_block_reads_zero_bytes_of_its_payload() {
     let base = art::from_input_with(&fixtures()[2], SEALED);
     let art = with_unknown_optional_block(&base, Integrity::Full);
-    let i = art.entries.iter().position(|e| e.kind == 9).expect("the block");
+    let i = art.entries.iter().position(|e| e.kind == 99).expect("the block");
     let (offset, len) = (art.entries[i].offset, u64::from(art.entries[i].stored_length));
     let r = open_with(art.bytes.clone(), ReaderCapabilities::v1()).unwrap();
     r.validate().unwrap();
@@ -307,7 +307,7 @@ impl BlockSource for Poisoned {
 fn a_block_is_skipped_from_its_descriptor_alone_so_a_source_that_cannot_serve_it_changes_nothing() {
     let base = art::from_input_with(&fixtures()[2], UNSEALED);
     let art = with_unknown_optional_block(&base, Integrity::None);
-    let i = art.entries.iter().position(|e| e.kind == 9).unwrap();
+    let i = art.entries.iter().position(|e| e.kind == 99).unwrap();
     let (lo, hi) = (art.entries[i].offset, art.entries[i].offset + u64::from(art.entries[i].stored_length));
     let source = Poisoned { inner: MemorySource::new(art.bytes.clone()), lo, hi };
     let reader = ContainerReader::open(source, ReaderConfig::default()).expect("opens without touching it");
@@ -335,13 +335,13 @@ fn an_unknown_block_that_must_be_understood_and_one_that_names_a_capability_nobo
     let base = art::from_input_with(&fixtures()[0], SEALED);
     let required = rebuild_raw(&base, Integrity::Full, |m, blocks| {
         m.capabilities.push(declared(99, Requirement::Optional, 1, 0));
-        let mut b = unknown_block(9, 99);
+        let mut b = unknown_block(99, 99);
         b.flags = 1;
         blocks.push(b);
     });
     // the directory parser refuses it before negotiation is asked
     assert!(open_with(required, ReaderCapabilities::v1()).err().expect("refused").rule() == "DIR-04");
-    let undeclared = rebuild(&base, Integrity::Full, |_, blocks| blocks.push(unknown_block(9, 77)));
+    let undeclared = rebuild(&base, Integrity::Full, |_, blocks| blocks.push(unknown_block(99, 77)));
     let e = open_with(undeclared.bytes.clone(), ReaderCapabilities::v1()).err().expect("refused");
     assert_eq!(e.rule(), "NEGOTIATE-05", "{e}");
 }

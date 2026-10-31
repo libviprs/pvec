@@ -1,4 +1,4 @@
-//! The six fuzz targets.
+//! The fuzz targets.
 //!
 //! Every target does three things with its input: it never panics, it never allocates in proportion to what
 //! the input claims (the reader accounts for that, and the smoke driver and libFuzzer's RSS limit hold it to
@@ -10,6 +10,8 @@ use pvec_capabilities::{Reader, Registry, Version};
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use pvec_container::blocks::hot::HotBlockView;
+use pvec_container::blocks::raster::RasterIndex;
+use pvec_container::blocks::sniff::{JPEG, MAX_EXAMINED, PNG, WEBP, max_tile_bytes, sniff_codec};
 use pvec_container::compress::Codec;
 use pvec_container::directory::BlockKind;
 use pvec_container::integrity::{Integrity, artifact_digest, block_checksum};
@@ -26,13 +28,16 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 6] = [
+pub const TARGETS: [(&str, Target); 9] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
     ("fuzz_advanced_blocks", fuzz_advanced_blocks),
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
+    ("fuzz_raster_index", fuzz_raster_index),
+    ("fuzz_raster_headers", fuzz_raster_headers),
+    ("fuzz_raster_plan", fuzz_raster_plan),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -320,11 +325,13 @@ pub fn fuzz_decompress_boundary(data: &[u8]) -> String {
 pub fn fuzz_component_streams(data: &[u8]) -> String {
     let registry = Registry::v1();
     let reader = Reader {
-        version: Version::new(1, 0, 0),
+        version: Version::new(1, 1, 0),
         implemented: registry
             .entries()
             .iter()
-            .filter(|c| c.class == pvec_capabilities::Class::Component)
+            .filter(|c| {
+                matches!(c.class, pvec_capabilities::Class::Component | pvec_capabilities::Class::Raster)
+            })
             .map(|c| c.id)
             .collect(),
     };
@@ -334,8 +341,236 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
                 opened.streams.iter().all(|s| registry.get(s.capability).is_some()),
                 "a stream of an unknown capability was read"
             );
+            // the raster placements (issue 217): what decodes is valid, and writes back to something that decodes
+            // to the same placements
+            if let pvec_components::RasterRead::Present(placements) = pvec_components::read_rasters(&opened) {
+                let again = pvec_components::encode_rasters(&placements)
+                    .and_then(|bytes| pvec_components::decode_rasters(&bytes));
+                assert_eq!(
+                    again.as_ref(),
+                    Ok(&placements),
+                    "a decoded raster stream did not survive a round trip"
+                );
+            }
             "ok".to_string()
         }
         Err(e) => e.rule().to_string(),
     }
+}
+
+/// A raster index block (kind 9, `docs/RASTER.md`): the second parser over hostile bytes that ADR 0018 adds.
+/// A block that parses is checked against everything the layout promises, and must encode to the bytes it came
+/// from, so a parser that accepts a block the writer would not write is a crash.
+pub fn fuzz_raster_index(data: &[u8]) -> String {
+    // LIMIT-14, the default ceiling on the entries of the tile tables of an artifact
+    let index = match RasterIndex::parse(data, u64::from(Limits::DEFAULT.max_raster_tiles)) {
+        Ok(i) => i,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert_eq!(index.encode(), data, "a block that parses is not the block that encodes");
+    let (mut ordinal, mut stored) = (0u64, 0u32);
+    for (l, level) in index.levels().iter().enumerate() {
+        assert_eq!(u64::from(level.first), ordinal, "a level that does not start where the last ended");
+        let tiles = index.level_tiles(l as u32).expect("the tiles of a level of the table");
+        assert_eq!(tiles.len() as u64, u64::from(level.cols) * u64::from(level.rows));
+        let mut chunks = std::collections::BTreeSet::new();
+        for t in tiles {
+            assert!(t.col < level.cols && t.row < level.rows, "a tile outside its level");
+            assert_eq!(index.tile(l as u32, t.col, t.row), Some(t), "a tile the lookup does not find");
+            if t.is_stored() {
+                stored += 1;
+                if t.is_inline() {
+                    let bytes = index.inline_bytes(t).expect("an inline tile has bytes");
+                    assert_eq!(bytes.len(), t.length as usize);
+                } else {
+                    assert!(t.chunk < level.chunks, "a tile in a chunk the level does not have");
+                    chunks.insert(t.chunk);
+                }
+            } else {
+                assert_eq!((t.xxh3, t.offset, t.chunk), (0, 0, 0), "an unstored tile that carries something");
+            }
+        }
+        assert_eq!(chunks.len() as u32, level.chunks, "a chunk with no tile");
+        assert!(
+            index.tile(l as u32, level.cols, 0).is_none() && index.tile(l as u32, 0, level.rows).is_none()
+        );
+        ordinal += u64::from(level.cols) * u64::from(level.rows);
+    }
+    assert_eq!(ordinal, index.tiles().len() as u64);
+    assert_eq!(stored, index.stored());
+    // the chunk blocks the tiles describe are exactly as long as their tiles
+    let chunk_end = |l: u32, c: u32| {
+        index
+            .level_tiles(l)?
+            .iter()
+            .filter(|t| t.is_stored() && !t.is_inline() && t.chunk == c)
+            .map(|t| t.offset + t.length)
+            .max()
+    };
+    index.check_chunks(chunk_end).expect("the chunks the tiles describe");
+    // the size a placement would have to give the last level for this index to be its pyramid, and some that it
+    // would not: a check against a placement is an answer and never a crash
+    let last = index.levels().last().expect("a level");
+    for (w, h, edge) in [
+        (last.cols.saturating_mul(256), last.rows.saturating_mul(256), 256),
+        (last.cols.saturating_mul(512), last.rows.saturating_mul(512), 512),
+        (u32::MAX, u32::MAX, 256),
+        (1, 1, 0),
+    ] {
+        let _ = index.check_grid(w, h, edge);
+    }
+    "ok".to_string()
+}
+
+/// A tile and the placement it is under, framed as `[codec][edge][format][bytes]`: the codec id (1 PNG, 2 JPEG,
+/// 3 WebP, anything else an unknown codec), the edge in units of 128 (2 is 256, 4 is 512, 8 is 1024, and every other
+/// value is an edge the tile will not match), the format (the low two bits are the channels less one, bit 2 says
+/// one bit deep and not eight), then the bytes of the tile. This is the sniffers' target: the first image-header
+/// parsers in the workspace, which read a constant number of bytes of whatever they are given. A tile that passes
+/// has to be what the contract says it is, so a sniffer that accepts something it should not is a crash.
+pub fn fuzz_raster_headers(data: &[u8]) -> String {
+    let Some((head, bytes)) = data.split_at_checked(3) else { return "short".to_string() };
+    let (codec, edge) = (head[0], u32::from(head[1]) * 128);
+    let channels = 1 + (head[2] & 3);
+    let depth = if head[2] & 4 != 0 { 1 } else { 8 };
+    let allowance = Limits::DEFAULT.max_tile_bytes;
+    let examined = match sniff_codec(codec, edge, channels, depth, allowance, bytes) {
+        Ok(n) => n,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert!(examined <= MAX_EXAMINED, "{examined} bytes examined");
+    assert!(bytes.len() as u64 <= max_tile_bytes(edge, allowance), "a tile over the ceiling was accepted");
+    match codec {
+        PNG => {
+            assert_eq!(&bytes[..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+            // IEND is the last chunk and the last byte (its CRC is the decoder's, not the sniffer's)
+            assert_eq!(&bytes[bytes.len() - 12..bytes.len() - 4], &[0, 0, 0, 0, b'I', b'E', b'N', b'D'][..]);
+            assert_eq!(u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]), edge);
+            assert_eq!(u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]), edge);
+            assert_eq!(bytes[24], depth, "a bit depth the placement does not have");
+            assert_eq!(bytes[28], 0, "an interlaced PNG was accepted");
+            assert!(matches!(bytes[25], 0 | 2 | 4 | 6), "a palette PNG was accepted");
+        }
+        JPEG => {
+            assert!(matches!(channels, 1 | 3) && depth == 8, "a JPEG was accepted under alpha or one bit");
+            assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+            assert_eq!(
+                &bytes[bytes.len() - 2..],
+                &[0xFF, 0xD9],
+                "a JPEG that does not end in EOI was accepted"
+            );
+        }
+        WEBP => {
+            assert_eq!(&bytes[..4], b"RIFF");
+            let size = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+            assert_eq!(
+                u64::from(size) + 8,
+                bytes.len() as u64,
+                "a RIFF size that is not the length was accepted"
+            );
+            assert_eq!(&bytes[8..12], b"WEBP");
+        }
+        other => panic!("a tile of codec {other} was accepted"),
+    }
+    "ok".to_string()
+}
+
+/// The bytes of a `fuzz_raster_plan` input: grid, tile lookup seed, request limits, placement and viewport.
+pub const RASTER_PLAN_FRAME: usize = 116;
+
+/// A raster placement and a viewport (pvec#220), framed as little endian
+/// `[width u32][height u32][edge selector u8][levels u8][channels u8][slot seed u8][gap u32][max request u32]`
+/// `[max plan decoded bytes u64][pixel_to_source 6 x f64][min x, min y, max x, max y, scale 5 x f64]`.
+///
+/// The plan must never panic or allocate in proportion to what the numbers claim, and when it plans it must
+/// keep what it promised: every tile inside its level, decoded bytes under the limit, every range inside the
+/// bytes of the tiles it fetches (a gap is only ever bridged between two tiles), no range over the request
+/// ceiling unless it is one tile, and no inline or not-stored tile in a range.
+pub fn fuzz_raster_plan(data: &[u8]) -> String {
+    use pvec_container::BlockId;
+    use pvec_stream::{Aabb, RasterGrid, RasterPlanError, TileSlot, ViewportQuery, plan_raster};
+    let Some(f) = data.get(..RASTER_PLAN_FRAME) else { return "short".to_string() };
+    let u32_at = |i: usize| u32::from_le_bytes(f[i..i + 4].try_into().expect("4 bytes"));
+    let f64_at = |i: usize| f64::from_le_bytes(f[i..i + 8].try_into().expect("8 bytes"));
+    let grid = RasterGrid {
+        width: u32_at(0),
+        height: u32_at(4),
+        tile_edge: 256 << (f[8] % 3),
+        levels: u32::from(f[9]) % 33,
+        channels: u32::from(f[10]) % 5,
+    };
+    let seed = f[11];
+    let (gap, max_request) = (u32_at(12), u32_at(16));
+    let max_decoded = u64::from_le_bytes(f[20..28].try_into().expect("8 bytes"));
+    let map: [f64; 6] = std::array::from_fn(|i| f64_at(28 + 8 * i));
+    let v: [f64; 5] = std::array::from_fn(|i| f64_at(76 + 8 * i));
+    let Ok(bounds) = Aabb::new([v[0], v[1]], [v[2], v[3]]) else { return "bad_box".to_string() };
+    let query = ViewportQuery::new(bounds, v[4]);
+    // a tile's slot is a pure function of where it is, so the same lookup answers every call
+    let slot = |level: u32, col: u32, row: u32| {
+        let h = (u64::from(level) << 40 ^ u64::from(col) << 20 ^ u64::from(row))
+            .wrapping_add(u64::from(seed))
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        match h >> 61 {
+            0 => TileSlot::NotStored,
+            1 => TileSlot::Inline,
+            _ => {
+                // RASTER-02 keeps tiles of one chunk apart, so a tile owns the 256 KiB slot its index names
+                let index = (h >> 20) & 0xF_FFFF;
+                TileSlot::Stored {
+                    block: BlockId((h >> 40) as u32 & 0xFF),
+                    offset: 1_000_000 + index * 0x4_0000,
+                    len: 1 + (index.wrapping_mul(2_654_435_761) & 0x3_FFFF) as u32,
+                }
+            }
+        }
+    };
+    let plan = match plan_raster(&grid, &map, &query, max_decoded, gap, max_request, slot) {
+        Ok(p) => p,
+        Err(RasterPlanError::BadMap) => return "bad_map".to_string(),
+        Err(RasterPlanError::OverBudget) => return "over_budget".to_string(),
+        Err(_) => return "refused".to_string(),
+    };
+    assert!(plan.level < grid.levels, "a level outside the pyramid");
+    let shrink = 1u64 << (grid.levels - 1 - plan.level);
+    let edge = u64::from(grid.tile_edge);
+    let (cols, rows) = (
+        u64::from(grid.width).div_ceil(shrink).div_ceil(edge),
+        u64::from(grid.height).div_ceil(shrink).div_ceil(edge),
+    );
+    assert!(
+        plan.tiles.iter().all(|t| u64::from(t.col) < cols && u64::from(t.row) < rows),
+        "a tile outside its level"
+    );
+    assert!(plan.decoded_bytes <= max_decoded, "the plan is over the decoded byte limit");
+    assert_eq!(plan.decoded_bytes, plan.tiles.len() as u64 * edge * edge * u64::from(grid.channels));
+    let mut stored: Vec<(u64, u64)> = plan
+        .tiles
+        .iter()
+        .filter_map(|t| match t.slot {
+            TileSlot::Stored { offset, len, .. } => Some((offset, offset + u64::from(len))),
+            _ => None,
+        })
+        .collect();
+    stored.sort_unstable();
+    stored.dedup();
+    assert!(
+        plan.tiles.iter().all(|t| t.slot != TileSlot::NotStored),
+        "a tile that is not stored was planned"
+    );
+    // the tiles are disjoint and sorted, so both ends ascend and a binary search finds the tiles of a range
+    let (mut last_end, mut covered) = (0u64, 0usize);
+    for &(offset, len) in &plan.ranges {
+        let end = offset + u64::from(len);
+        assert!(offset >= last_end, "ranges overlap or are out of order");
+        last_end = end;
+        let (lo, hi) = (stored.partition_point(|s| s.0 < offset), stored.partition_point(|s| s.1 <= end));
+        assert!(lo < hi, "a range with no tile in it");
+        assert_eq!(stored[lo].0, offset, "a range starts before its first tile");
+        assert_eq!(stored[hi - 1].1, end, "a range ends after its last tile");
+        assert!(len <= max_request || hi - lo == 1, "a merged range over the request ceiling");
+        covered += hi - lo;
+    }
+    assert_eq!(covered, stored.len(), "a stored tile is in no range");
+    if plan.tiles.is_empty() { "empty".to_string() } else { "ok".to_string() }
 }

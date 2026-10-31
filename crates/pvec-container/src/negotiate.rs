@@ -96,7 +96,7 @@ pub enum Refusal {
         /// The major version the reader supports.
         supported_major: u16,
     },
-    /// A component declared required, which components never are.
+    /// A component or the raster capability declared required, which neither ever is.
     ComponentDeclaredRequired(CapabilityId),
     /// An optional extension declared required.
     ExtensionDeclaredRequired(CapabilityId),
@@ -105,6 +105,15 @@ pub enum Refusal {
         /// The block.
         block: BlockId,
         /// The capability it names.
+        capability: u16,
+    },
+    /// A block of a kind a capability owns names another capability, or none.
+    OwnedKindMismatch {
+        /// The block.
+        block: BlockId,
+        /// Its kind id.
+        kind: u16,
+        /// The capability it names (0 for none).
         capability: u16,
     },
 }
@@ -118,6 +127,7 @@ impl Refusal {
             Refusal::ReaderTooOld { .. } => "NEGOTIATE-03",
             Refusal::ComponentDeclaredRequired(_) | Refusal::ExtensionDeclaredRequired(_) => "NEGOTIATE-04",
             Refusal::UndeclaredBlockCapability { .. } => "NEGOTIATE-05",
+            Refusal::OwnedKindMismatch { .. } => "NEGOTIATE-06",
         }
     }
 }
@@ -134,14 +144,25 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
     ),
     (
         "NEGOTIATE-03",
-        "the file needs a newer reader than this one (its minimum reader, or a declared capability's)",
+        "the file needs a newer reader than this one (its minimum reader, or a required capability's)",
     ),
     (
         "NEGOTIATE-04",
-        "a component or an optional extension is declared required, which the registry does not allow",
+        "a component, the raster capability or an optional extension is declared required, which the registry does not allow",
     ),
     ("NEGOTIATE-05", "a block names a capability id the manifest does not declare"),
+    (
+        "NEGOTIATE-06",
+        "a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none",
+    ),
 ];
+
+/// The block kinds a capability owns, outside `BlockKind::ALL`: the kind id, its name and the owner
+/// (ADR 0018). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
+/// a reader that implements the owner is handed the block, and one that does not skips it as a kind it does
+/// not know. `DIR-02` is untouched: a kind the format defines still names no capability.
+pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] =
+    [(9, "raster_index", CapabilityId::new(21)), (10, "raster_tiles", CapabilityId::new(21))];
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -170,7 +191,10 @@ impl fmt::Display for Refusal {
                 "{rule}: required capability id {id} is declared at version {file}, and this reader supports major version {supported_major}"
             ),
             Refusal::ComponentDeclaredRequired(id) => {
-                write!(f, "{rule}: capability id {id} is a component and cannot be declared required")
+                write!(
+                    f,
+                    "{rule}: capability id {id} is a component or the raster capability and cannot be declared required"
+                )
             }
             Refusal::ExtensionDeclaredRequired(id) => {
                 write!(
@@ -182,6 +206,13 @@ impl fmt::Display for Refusal {
                 write!(
                     f,
                     "{rule}: block {} names capability {capability}, which the manifest does not declare",
+                    block.0
+                )
+            }
+            Refusal::OwnedKindMismatch { block, kind, capability } => {
+                write!(
+                    f,
+                    "{rule}: block {} is of kind {kind}, which belongs to another capability than the {capability} it names",
                     block.0
                 )
             }
@@ -211,6 +242,8 @@ pub enum Effect {
     Unstyled,
     /// Entities lack a component: text, hatch, provenance, semantics.
     Uncomponented,
+    /// The drawing has raster images this reader cannot show.
+    Unrastered,
     /// The reader cannot say.
     Unknown,
 }
@@ -314,8 +347,12 @@ impl PartialOpen {
             self.capabilities.iter().filter(|c| c.effect == effect).map(name).collect::<Vec<_>>().join(", ")
         };
         let mut parts = Vec::new();
-        let (styles, components, unknown) =
-            (list(Effect::Unstyled), list(Effect::Uncomponented), list(Effect::Unknown));
+        let (styles, components, rasters, unknown) = (
+            list(Effect::Unstyled),
+            list(Effect::Uncomponented),
+            list(Effect::Unrastered),
+            list(Effect::Unknown),
+        );
         if !styles.is_empty() {
             parts.push(format!(
                 "the {} entities may be unstyled, because capability {styles} was not read",
@@ -326,6 +363,11 @@ impl PartialOpen {
             parts.push(format!(
                 "the {} entities may lack components, because capability {components} was not read",
                 self.entities
+            ));
+        }
+        if !rasters.is_empty() {
+            parts.push(format!(
+                "this file has an image this reader cannot show, because capability {rasters} was not read"
             ));
         }
         if !unknown.is_empty() {
@@ -365,6 +407,7 @@ fn effect_of(id: CapabilityId) -> Effect {
                 Effect::Uncomponented
             }
         }
+        Some(c) if c.class == Class::Raster => Effect::Unrastered,
         _ => Effect::Unknown,
     }
 }
@@ -385,13 +428,17 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
     for d in &manifest.capabilities {
         let known = reg.get(d.id);
         if let Some(c) = known {
-            if c.min_reader > reader.version {
+            // only a required capability can make the file need a newer reader: an optional one is skippable by
+            // definition, which is the same reason the writer's hoist leaves it out of `min_reader`
+            if c.min_reader > reader.version
+                && (d.requirement == Requirement::Required || c.requirement == Requirement::Required)
+            {
                 return Outcome::Refuse(Refusal::ReaderTooOld {
                     file_requires: c.min_reader,
                     reader: reader.version,
                 });
             }
-            if c.class == Class::Component && d.requirement == Requirement::Required {
+            if matches!(c.class, Class::Component | Class::Raster) && d.requirement == Requirement::Required {
                 return Outcome::Refuse(Refusal::ComponentDeclaredRequired(d.id));
             }
             if c.class == Class::Extension
@@ -457,7 +504,19 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
             }
         }
         let by_capability = capability.and_then(|c| skipped_reason.get(&c.get()).copied());
-        let reason = if e.block_kind().is_none() {
+        // a kind a capability owns (CONTAINER.md 5.4 item 2): handed to the owner when this reader implements
+        // it, skipped as a kind it does not know otherwise
+        let owner = CAPABILITY_OWNED_KINDS.iter().find(|(k, _, _)| *k == e.kind).map(|(_, _, o)| *o);
+        if let Some(owner) = owner {
+            if capability != Some(owner) {
+                return Outcome::Refuse(Refusal::OwnedKindMismatch {
+                    block,
+                    kind: e.kind,
+                    capability: e.capability,
+                });
+            }
+        }
+        let reason = if e.block_kind().is_none() && !owner.is_some_and(|o| reader.supports(o).is_some()) {
             Some(SkipReason::UnknownBlockKind)
         } else if crate::compress::Codec::from_id(e.codec).is_none() {
             Some(SkipReason::UnknownCodec)
@@ -568,7 +627,11 @@ skips a block from a descriptor alone, and never requests a byte of its payload:
 * a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file \
 when it is set (`DIR-04`);\n\
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);\n\
-* a block whose capability the reader skipped is skipped with it.\n\n\
+* a block whose capability the reader skipped is skipped with it;\n\
+* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21 and are not in the kind table of \
+chapter 4) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not \
+know, naming the capability from its entry, when it does not. It must name its owner and no other capability \
+(`NEGOTIATE-06`).\n\n\
 A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and \
 a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which \
 reads every byte by definition. The \
@@ -578,10 +641,10 @@ format defines names none (`DIR-02`), because its kind fixes it.\n\n\
 ### 5.4 What a new capability must satisfy to be optional\n\n\
 A capability is optional, and so skippable by an old reader, only if it satisfies every one of these. One it cannot \
 satisfy is required, and an old reader refuses the file, which is the right outcome.\n\n\
-1. It adds information about the entities and never changes what a geometry block says. Style, text, hatch and \
+1. It adds information about the drawing and never changes what a geometry block says. Style, text, hatch and \
 provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` \
 (ADR 0008) and is always required.\n\
-2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id.\n\
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads \"a kind the format defines\".\n\
 3. The manifest declares it with the optional requirement and the version it was written at.\n\
 4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.\n\
 5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of \

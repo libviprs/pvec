@@ -185,7 +185,7 @@ fn view(x: f64, y: f64, w: f64, h: f64) -> ViewportQuery {
 }
 
 fn no_margin() -> ViewportConfig {
-    ViewportConfig { prefetch_margin_px: 0.0 }
+    ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() }
 }
 
 fn kind_of(r: &ContainerReader<Mem>, id: BlockId) -> Option<BlockKind> {
@@ -296,7 +296,7 @@ fn once_tier_0_is_cached_the_plan_asks_only_for_the_refinement() {
 fn a_margin_leaf_prefetches_its_tier_0_block_and_not_its_exact_blocks() {
     let (r, dir, leaves) = open(&small(true));
     let q = view(2000.0, 2000.0, 2000.0, 2000.0);
-    let cfg = ViewportConfig { prefetch_margin_px: 1000.0 };
+    let cfg = ViewportConfig { prefetch_margin_px: 1000.0, ..ViewportConfig::default() };
     let plan = q.plan_tiered(&dir, &r, &leaves, &cfg).unwrap();
     // Tier 0 blocks of leaves outside the view may ride in a visible request, so look at every request
     let outside = |b: &BlockId| {

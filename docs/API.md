@@ -56,6 +56,20 @@ The deviation of a segment is found at seven interior points and the claimed bou
 in `pvec::unstable`. They can change in a minor version. Their snapshot is `public-api-unstable.txt`,
 so churn there never touches the core snapshot.
 
+Since the raster work (ADR 0018, issue 216) the same module holds `Effect`, `ReaderCapabilities` and `ReaderConfig`, the
+container types a degraded open and a limited open need, and two `PvecReader` calls: `PvecReader::open_with_config(bytes,
+config)`, which opens with the capabilities and limits the config names, and `PvecReader::skipped_effects()`, which lists each skipped capability with what it leaves
+undone (`Unstyled`, `Uncomponented`, `Unrastered` or `Unknown`). `Unrastered` is the "this file has an image
+your reader cannot show" promise, and the list is empty for a file that was read whole.
+
+Since issue 218 it also holds the raster calls. `PvecWriter::rasters(placements)` attaches the raster stream (capability 21) and
+`PvecWriter::raster_tiles(raster, tiles)` hands over the encoded tiles of one raster, each a `TileIn` (level, column, row and the
+PNG, JPEG or WebP bytes, stored as they are; no bytes means a tile that is not stored). `PvecReader::raster_placements()` gives
+the placements back, with the six coefficients as the same bits, and `PvecReader::raster_tile(raster, level, col, row)` gives one
+tile's bytes after the index's XXH3-64 has been checked against them, `None` for a tile that is not stored. `Placement`,
+`RasterId`, `TileCodec`, `PixelFormat`, `Band` and `TileIn` come with them. A raster the file refuses is an error for that
+raster; the geometry and the other rasters read.
+
 ## Never exported
 
 Anything from `pvec-container` (`BlockKind`, `DirectoryEntry`, `Header`, `ContainerWriter`,

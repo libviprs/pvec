@@ -114,3 +114,71 @@ pub fn mutate_manifest(data: &mut Vec<u8>, seed: u64) {
         }
     }
 }
+
+/// Mutates a raster index block (`fuzz_raster_index`) in place, from `seed`, without changing its length, so
+/// the counts in its header keep adding up and the mutant gets past the length check to the parts behind it: a
+/// field of the header, of a level or of a tile entry is set to an edge value or nudged, or two tile entries
+/// swap places. The result differs from the input.
+pub fn mutate_index(data: &mut [u8], seed: u64) {
+    use pvec_container::blocks::raster::{HEADER_LEN, LEVEL_LEN, TILE_LEN};
+    let mut rng = Rng(seed.wrapping_mul(0xA24B_AED4_963E_E407) | 1);
+    for _ in 0..4 {
+        rng.next();
+    }
+    let before = data.to_vec();
+    if data.len() < HEADER_LEN {
+        if let Some(b) = data.first_mut() {
+            *b ^= 1;
+        }
+        return;
+    }
+    let levels =
+        usize::from(u16::from_le_bytes([data[6], data[7]])).min((data.len() - HEADER_LEN) / LEVEL_LEN);
+    let table = HEADER_LEN + LEVEL_LEN * levels;
+    let tiles = (data.len().saturating_sub(table)) / TILE_LEN;
+    for _ in 0..1 + rng.below(3) {
+        match rng.below(6) {
+            // a field of the header (the magic and the version included)
+            0 => put4(data, 4 * rng.below(8), &mut rng),
+            // a field of a level
+            1 if levels > 0 => {
+                put4(data, HEADER_LEN + LEVEL_LEN * rng.below(levels) + 4 * rng.below(4), &mut rng)
+            }
+            // a field of a tile entry (the checksum is two of them)
+            2 | 3 if tiles > 0 => {
+                put4(data, table + TILE_LEN * rng.below(tiles) + 4 * rng.below(6), &mut rng)
+            }
+            // two tile entries swap places
+            4 if tiles > 1 => {
+                let (a, b) = (rng.below(tiles), rng.below(tiles));
+                for i in 0..TILE_LEN {
+                    data.swap(table + TILE_LEN * a + i, table + TILE_LEN * b + i);
+                }
+            }
+            // any byte
+            _ => {
+                let at = rng.below(data.len());
+                data[at] ^= 1 << rng.below(8);
+            }
+        }
+    }
+    if data == before.as_slice() {
+        let at = rng.below(data.len());
+        data[at] ^= 0x01;
+    }
+}
+
+/// Sets the little-endian `u32` at `at` (or what is left of the slice) to an edge value or nudges it.
+fn put4(data: &mut [u8], at: usize, rng: &mut Rng) {
+    if at + 4 > data.len() {
+        return;
+    }
+    let v = u32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]);
+    let new = match rng.below(4) {
+        0 => EDGES[rng.below(EDGES.len())] as u32,
+        1 => v.wrapping_add(1),
+        2 => v.wrapping_sub(1),
+        _ => v ^ (1 << rng.below(32)),
+    };
+    data[at..at + 4].copy_from_slice(&new.to_le_bytes());
+}

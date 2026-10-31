@@ -10,6 +10,7 @@ publish.workspace = true
 # uses (for the compressed sizes), and nothing in the corpus half starts a process or opens a socket.
 [dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-components = { path = "../pvec-components" }
 pvec-container = { path = "../pvec-container" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-entity = { path = "../pvec-entity" }

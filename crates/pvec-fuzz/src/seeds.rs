@@ -61,6 +61,73 @@ fn is_sweep(name: &str) -> bool {
 
 /// Every seed, deterministic.
 pub fn corpus() -> Vec<Seed> {
+    /// The base with a kind 9 and a kind 10 entry added (ADR 0018), once naming capability 21, once none and once
+    /// an unregistered one, so the traversal meets the capability-owned kinds in every state the rules decide.
+    fn capability_owned(base: &bases::Base) -> Vec<Seed> {
+        use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
+        use pvec_container::integrity::Integrity;
+        use pvec_container::writer::{RawBlock, assemble};
+        let Some(layout) = Layout::of(&base.bytes) else { return Vec::new() };
+        let stored: Vec<RawBlock> = layout
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                Some(RawBlock {
+                    kind: e.kind,
+                    subtype: e.subtype,
+                    cell: e.cell,
+                    count: e.count,
+                    bounds: e.bounds,
+                    flags: e.flags,
+                    codec: e.codec,
+                    capability: e.capability,
+                    uncompressed_length: e.uncompressed_length,
+                    stored: layout.stored(&base.bytes, i)?.to_vec(),
+                })
+            })
+            .collect();
+        let mut out = Vec::new();
+        for (word, capability) in [("21", 21u16), ("0", 0), ("77", 77)] {
+            let mut manifest = layout.manifest.clone();
+            for id in [21u32, 77] {
+                if !manifest.capabilities.iter().any(|d| d.id.get() == id) {
+                    manifest.capabilities.push(Declared {
+                        id: CapabilityId::new(id),
+                        requirement: Requirement::Optional,
+                        version: Version::new(1, 0, 0),
+                    });
+                }
+            }
+            manifest.capabilities.sort_by_key(|d| d.id);
+            let mut blocks = stored.clone();
+            for kind in [9u16, 10] {
+                blocks.push(RawBlock {
+                    kind,
+                    subtype: 0,
+                    cell: 0,
+                    count: 1,
+                    bounds: None,
+                    flags: 0,
+                    codec: 0,
+                    capability,
+                    uncompressed_length: 32,
+                    stored: (0..32u8).map(|i| i.wrapping_mul(7).wrapping_add(kind as u8)).collect(),
+                });
+            }
+            if stored.len() == layout.entries.len() {
+                if let Ok(bytes) = assemble(manifest, &blocks, Integrity::Full) {
+                    out.push(Seed {
+                        name: format!("writer/{}/capability-owned-{word}", base.name),
+                        source: Source::Writer,
+                        bytes,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     let bundle = Bundle::vendored().expect("the vendored bundle opens");
     let mut out = Vec::new();
     // The known-truth seeds are written without compression, as the corpus always was: the mutator and the
@@ -112,6 +179,7 @@ pub fn corpus() -> Vec<Seed> {
                 bytes: m,
             });
         }
+        out.extend(capability_owned(b));
     }
     out
 }
@@ -140,12 +208,55 @@ fn decoded(layout: &Layout, bytes: &[u8], i: usize) -> Option<Vec<u8>> {
 /// The inputs for one target, taken from the seeds: the whole artifact, its header, one hot block, the framed
 /// advanced blocks, a framed compressed block or the component stream set.
 pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
+    if target == "fuzz_raster_headers" {
+        return raster_header_inputs();
+    }
+    if target == "fuzz_raster_index" {
+        // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
+        return raster_index_inputs();
+    }
+    /// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
+    fn raster_seed() -> Option<Vec<u8>> {
+        use pvec_components::{
+            Band, PixelFormat, Placement, RASTER_CAPABILITY, Stream, TileCodec, encode_rasters,
+            encode_streams,
+        };
+        let payload = encode_rasters(&[Placement {
+            pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
+            width: 1024,
+            height: 512,
+            visible_box: [0, 0, 1024, 512],
+            tile_edge: 512,
+            levels: 2,
+            tile_codec: TileCodec::Png,
+            pixel_format: PixelFormat::Rgba,
+            bit_depth: 8,
+            opacity: 255,
+            band: Band::Underlay,
+            layer_index: Some(0),
+            source_digest: Some([0x5A; 32]),
+            attribution: "survey".into(),
+        }])
+        .ok()?;
+        let version = pvec_capabilities::Registry::v1().get(RASTER_CAPABILITY)?.version;
+        encode_streams(&[Stream { capability: RASTER_CAPABILITY, version, payload }]).ok()
+    }
+
     let mut out: Vec<Vec<u8>> = Vec::new();
+    if target == "fuzz_component_streams" {
+        out.extend(raster_seed());
+    }
     for s in seeds {
         let bytes = &s.bytes;
         match target {
             "fuzz_header" => out.push(bytes[..bytes.len().min(4096)].to_vec()),
             "fuzz_directory_traversal" => out.push(bytes.clone()),
+            // not a container: the plan target is fed placements and viewports, framed (see `raster_plan_frames`)
+            "fuzz_raster_plan" => {
+                if out.is_empty() {
+                    out = raster_plan_frames();
+                }
+            }
             _ => {
                 let Some(layout) = Layout::of(bytes) else { continue };
                 match target {
@@ -222,4 +333,203 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         }
     }
     one_of(out, |v| v.as_slice())
+}
+
+/// The inputs of `fuzz_raster_index`: the index blocks of the test-only tiler's pyramids (a single tile, a
+/// pyramid with inline levels, a sparse one, a split one, one with a tile table of 65,000
+/// entries), each with a handful of mutants from the structure-aware mutator, and the header-only blocks that
+/// claim more than the ceiling.
+fn raster_index_inputs() -> Vec<Vec<u8>> {
+    use pvec_container::blocks::raster::build;
+    use pvec_testkit::tiler::{Shape, tiles};
+    let shape = |width, height| Shape { width, height, tile_edge: 256, channels: 1, bit_depth: 1 };
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    let mut valid: Vec<Vec<u8>> = Vec::new();
+    // (shape, tiles kept, inline levels, bytes a chunk)
+    type Keep = fn(u32, u32, u32) -> bool;
+    let all: Keep = |_, _, _| true;
+    let sparse: Keep = |l, c, r| (l + c + r) % 3 != 0;
+    for (s, keep, inline, chunk) in [
+        (shape(200, 200), all, 0, 1 << 20),
+        (shape(700, 500), all, 0, 1 << 20),
+        (shape(700, 500), all, 2, 1 << 20),
+        (shape(700, 500), sparse, 1, 1 << 20),
+        (shape(1500, 900), all, 0, 20_000),
+        (shape(1500, 900), sparse, 3, 20_000),
+        (shape(256, 4096), all, 0, 1 << 20),
+    ] {
+        let grid = s.grid();
+        let built = build(&grid, tiles(s, keep), inline, chunk, 1 << 20).expect("the tiler's pyramid builds");
+        valid.push(built.index.encode());
+    }
+    // a wide level that is all entries and no bytes
+    let wide = build(&[(65_000, 1)], Vec::new(), 0, 1 << 20, 1 << 20).expect("a wide pyramid");
+    valid.push(wide.index.encode());
+    for (k, v) in valid.iter().enumerate() {
+        out.push(v.clone());
+        if v.len() <= 1 << 20 {
+            for m in 0..8u64 {
+                let mut mutant = v.clone();
+                crate::mutate::mutate_index(&mut mutant, 1 + m + 16 * k as u64);
+                out.push(mutant);
+            }
+        }
+    }
+    // a header that claims more than any block holds, and more than the ceiling
+    for tiles in [1u32, 4096, (1 << 20) + 1, u32::MAX] {
+        let mut h = vec![0u8; 32];
+        h[..4].copy_from_slice(b"PVX1");
+        h[4] = 1;
+        h[6] = 1;
+        h[8..12].copy_from_slice(&tiles.to_le_bytes());
+        out.push(h);
+    }
+    out.push(Vec::new());
+    one_of(out, |v| v.as_slice())
+}
+
+/// The inputs of `fuzz_raster_headers`: one tile of each codec and variant libviprs writes, at each edge, framed
+/// with the placement it is under, and the thirteen hostile tiles, each with a few mutants of its header.
+fn raster_header_inputs() -> Vec<Vec<u8>> {
+    use pvec_container::blocks::sniff::{JPEG, PNG, WEBP};
+    use pvec_testkit::raster_hostile::{Tile, accepted, hostile};
+    use pvec_testkit::tilegen;
+    let frame = |codec: u8, edge: u16, channels: u8, depth: u8, bytes: &[u8]| {
+        let mut v = vec![codec, (edge / 128) as u8, (channels - 1) | (u8::from(depth == 1) << 2)];
+        v.extend_from_slice(bytes);
+        v
+    };
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    for edge in [256u16, 512, 1024] {
+        let e = u32::from(edge);
+        let d = tilegen::payload(300, 11);
+        for (codec, channels, depth, bytes) in [
+            (PNG, 1, 1, tilegen::png(e, 1, 1, &d)),
+            (PNG, 1, 8, tilegen::png(e, 1, 8, &d)),
+            (PNG, 2, 8, tilegen::png(e, 2, 8, &d)),
+            (PNG, 3, 8, tilegen::png(e, 3, 8, &d)),
+            (PNG, 4, 8, tilegen::png(e, 4, 8, &d)),
+            (JPEG, 1, 8, tilegen::jpeg(e, 1, false, &d)),
+            (JPEG, 1, 8, tilegen::jpeg(e, 1, true, &d)),
+            (JPEG, 3, 8, tilegen::jpeg(e, 3, false, &d)),
+            (JPEG, 3, 8, tilegen::jpeg(e, 3, true, &d)),
+            (WEBP, 3, 8, tilegen::webp_vp8(edge, edge, &d)),
+            (WEBP, 4, 8, tilegen::webp_vp8l(e, e, &d)),
+            (WEBP, 4, 8, tilegen::webp_vp8x(e, e, false, true, &d)),
+        ] {
+            out.push(frame(codec, edge, channels, depth, &bytes));
+        }
+    }
+    for t in accepted().iter().chain(hostile().iter()) {
+        let Tile { codec, edge, channels, depth, bytes, .. } = t;
+        out.push(frame(*codec, *edge, *channels, *depth, bytes));
+        // a few mutants of the first bytes, where the headers are
+        if bytes.len() <= 4096 {
+            for m in 0..4u64 {
+                let mut mutant = out.last().cloned().unwrap_or_default();
+                let at = 3 + (m as usize * 7) % bytes.len().clamp(1, 48);
+                if let Some(b) = mutant.get_mut(at) {
+                    *b ^= 1 << (m % 8);
+                }
+                out.push(mutant);
+            }
+        }
+    }
+    out.push(Vec::new());
+    out.push(vec![1, 2, 0]);
+    one_of(out, |v| v.as_slice())
+}
+
+/// Placements and viewports for `fuzz_raster_plan`: an upright image, a rotated and sheared one, a tiny scale
+/// that LIMIT-16 has to coarsen, overzoom, a viewport off the image, a huge viewport and a singular map.
+fn raster_plan_frames() -> Vec<Vec<u8>> {
+    // (width, height, edge selector, levels, channels, slot seed, max decoded bytes, map, [min x, min y, max x, max y, scale])
+    type Case = (u32, u32, u8, u8, u8, u8, u64, [f64; 6], [f64; 5]);
+    let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
+    let cases: [Case; 8] = [
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            0,
+            256 << 20,
+            [1.0, 0.0, 0.0, -1.0, 0.0, 20_000.0],
+            [100.0, 100.0, 3_000.0, 2_000.0, 1.0],
+        ),
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            1,
+            256 << 20,
+            [c, -s, s, c, 2_000.0, 1_000.0],
+            [6_000.0, 4_000.0, 10_000.0, 8_000.0, 1.0],
+        ),
+        (
+            8_000,
+            6_000,
+            0,
+            6,
+            3,
+            2,
+            256 << 20,
+            [2.0, 2.0, 0.0, -1.0, 0.0, 0.0],
+            [0.0, -6_000.0, 16_000.0, 0.0, 0.0625],
+        ),
+        (
+            20_000,
+            20_000,
+            1,
+            7,
+            4,
+            3,
+            256 << 20,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 20_000.0, 20_000.0, 1.0],
+        ),
+        (4_096, 4_096, 2, 3, 1, 4, 1 << 30, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], [10.0, 10.0, 20.0, 20.0, 400.0]),
+        (
+            4_096,
+            4_096,
+            0,
+            5,
+            4,
+            5,
+            256 << 20,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [-9_000.0, -9_000.0, -5_000.0, -5_000.0, 1.0],
+        ),
+        (
+            u32::MAX,
+            u32::MAX,
+            0,
+            32,
+            4,
+            6,
+            u64::MAX,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0, 1.0 / 1_000_000_000.0],
+        ),
+        (4_096, 4_096, 0, 5, 4, 7, 256 << 20, [1.0, 2.0, 2.0, 4.0, 0.0, 0.0], [0.0, 0.0, 100.0, 100.0, 1.0]),
+    ];
+    cases
+        .iter()
+        .flat_map(|&(w, h, edge, levels, channels, seed, max_decoded, map, view)| {
+            [(64u32 << 10, 16u32 << 20), (0, 1 << 17)].map(|(gap, max_request)| {
+                let mut f = Vec::with_capacity(crate::RASTER_PLAN_FRAME);
+                f.extend(w.to_le_bytes());
+                f.extend(h.to_le_bytes());
+                f.extend([edge, levels, channels, seed]);
+                f.extend(gap.to_le_bytes());
+                f.extend(max_request.to_le_bytes());
+                f.extend(max_decoded.to_le_bytes());
+                f.extend(map.iter().chain(view.iter()).flat_map(|v| v.to_le_bytes()));
+                f
+            })
+        })
+        .collect()
 }

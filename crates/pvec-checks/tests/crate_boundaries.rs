@@ -292,3 +292,115 @@ fn the_arena_modules_add_no_unsafe_and_no_second_aligned_cast() {
         assert!(!code.contains("align_to"), "{f} reinterprets bytes itself; use aligned::f64s / u32s");
     }
 }
+
+/// Image crates by name. PVec stores the encoded bytes of a tile and never decodes one (ADR 0018): the host
+/// decodes, and the WASM module has no codec in it.
+const IMAGE_CRATES: &[&str] = &[
+    "image",
+    "png",
+    "jpeg-decoder",
+    "jpeg-encoder",
+    "zune-jpeg",
+    "zune-png",
+    "zune-core",
+    "mozjpeg",
+    "turbojpeg",
+    "libwebp",
+    "libwebp-sys",
+    "webp",
+    "image-webp",
+    "tiff",
+    "gif",
+    "lodepng",
+    "minipng",
+    "fdeflate",
+    "resvg",
+];
+
+/// The crates `root` pulls in, transitively, from the committed `Cargo.lock`.
+fn lock_closure(root: &str) -> Vec<String> {
+    let lock = fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.lock"))
+        .unwrap();
+    let mut deps: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    for package in lock.split("[[package]]").skip(1) {
+        let name = package
+            .lines()
+            .find_map(|l| l.strip_prefix("name = \""))
+            .and_then(|l| l.strip_suffix('"'))
+            .unwrap();
+        let listed = package
+            .split("dependencies = [")
+            .nth(1)
+            .and_then(|d| d.split(']').next())
+            .map(|d| {
+                d.lines()
+                    .filter_map(|l| {
+                        l.trim().trim_end_matches(',').strip_prefix('"').and_then(|l| l.strip_suffix('"'))
+                    })
+                    .map(|l| l.split(' ').next().unwrap().to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        deps.insert(name.to_string(), listed);
+    }
+    let (mut seen, mut todo) = (Vec::new(), vec![root.to_string()]);
+    while let Some(n) = todo.pop() {
+        if seen.contains(&n) {
+            continue;
+        }
+        todo.extend(deps.get(&n).cloned().unwrap_or_default());
+        seen.push(n);
+    }
+    seen
+}
+
+#[test]
+fn pvec_wasm_depends_on_no_image_crate_and_the_check_sees_one_when_it_is_there() {
+    let closure = lock_closure("pvec-wasm");
+    assert!(closure.iter().any(|c| c == "pvec-container"), "the closure is read: {closure:?}");
+    let found: Vec<&String> = closure.iter().filter(|c| IMAGE_CRATES.contains(&c.as_str())).collect();
+    assert!(found.is_empty(), "pvec-wasm pulls in an image crate: {found:?}");
+    // its manifest lists none directly either, in any section
+    let manifest =
+        fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../pvec-wasm/Cargo.toml"))
+            .unwrap();
+    for name in IMAGE_CRATES {
+        assert!(
+            !manifest.lines().any(|l| l.trim_start().starts_with(&format!("{name} ="))
+                || l.trim_start().starts_with(&format!("{name}="))),
+            "pvec-wasm/Cargo.toml names {name}"
+        );
+    }
+}
+
+#[test]
+fn wasm_abi_md_lists_every_raster_export_and_code_and_migration_md_matches() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bindings = fs::read_to_string(root.join("crates/pvec-wasm/src/bindings.rs")).unwrap();
+    let abi = fs::read_to_string(root.join("docs/WASM_ABI.md")).unwrap();
+    let migration = fs::read_to_string(root.join("docs/MIGRATION.md")).unwrap();
+    let exports: Vec<&str> = bindings
+        .lines()
+        .filter_map(|l| l.strip_prefix("pub fn raster_"))
+        .filter_map(|l| l.split('(').next())
+        .collect();
+    assert_eq!(exports.len(), 8, "the raster group: {exports:?}");
+    for e in &exports {
+        let name = format!("raster_{e}");
+        assert!(abi.contains(&format!("`{name}")), "WASM_ABI.md does not list {name}");
+        assert!(migration.contains(&format!("`{name}`")), "MIGRATION.md does not list {name}");
+    }
+    // and MIGRATION.md lists no raster_ name that is not an export
+    for word in
+        migration.split(|c: char| !(c.is_alphanumeric() || c == '_')).filter(|w| w.starts_with("raster_"))
+    {
+        assert!(
+            exports.contains(&&word["raster_".len()..]),
+            "MIGRATION.md lists {word}, which is not an export"
+        );
+    }
+    for code in ["| -8 |", "| -9 |", "| -10 |"] {
+        assert!(abi.contains(code), "the error table of WASM_ABI.md lacks {code}");
+    }
+    assert!(abi.contains("`wasm_abi_version` still returns 2"));
+}

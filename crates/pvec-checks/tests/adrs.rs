@@ -123,3 +123,53 @@ fn no_adr_makes_an_iso_claim_beyond_the_approved_sentence() {
         assert!(forbidden_claims(&adr(name)).is_empty(), "{name} claims ISO conformance");
     }
 }
+
+#[test]
+fn adr_0017_and_0018_are_accepted_with_a_date_and_0018_records_the_four_decisions() {
+    for name in ["0017-instance-and-transform-storage", "0018-raster-in-pvec"] {
+        let t = adr(name);
+        let status = t.lines().find(|l| l.starts_with("Status: ")).expect("a status line");
+        assert!(status.starts_with("Status: Accepted, 2026-"), "{name}: status is `{status}`");
+    }
+    let t = adr("0017-instance-and-transform-storage");
+    assert!(
+        t.contains("\n## Amendment 2026-") && t.contains("ADR 0018"),
+        "0017 has no dated amendment naming 0018"
+    );
+    assert!(
+        t.contains("exact") && t.contains("resampling"),
+        "0017's amendment does not give the exactness argument"
+    );
+    let t = adr("0018-raster-in-pvec");
+    assert!(t.contains("\n## Ratification"), "0018 has no Ratification section");
+    let r = section(&t, "Ratification");
+    for needle in [
+        "ADR 0017",
+        "Scan-only sheets stay out of v1",
+        "Capability-owned block kinds",
+        "`Raster` class",
+        "256 to 1024",
+        "nine",
+        "pvec-testkit",
+        "PMTiles",
+        "Tier 0",
+    ] {
+        assert!(r.contains(needle), "0018 Ratification does not record {needle:?}");
+    }
+    let o = section(&t, "Open questions");
+    assert!(
+        o.contains("#220") && o.contains("#222"),
+        "the open questions do not point at the tasks that decide them"
+    );
+}
+
+#[test]
+fn adr_0010_has_a_dated_amendment_adding_the_raster_class() {
+    let t = adr("0010-capability-registry");
+    assert!(t.contains("\n## Amendment 2026-"), "ADR 0010 has no dated amendment");
+    let from = t.find("\n## Amendment 2026-").unwrap();
+    let a = t[from + 1..].split("\n## ").next().unwrap();
+    for needle in ["`Raster`", "optional", "no entity", "block kinds", "ADR 0018"] {
+        assert!(a.contains(needle), "ADR 0010's amendment does not say {needle:?}");
+    }
+}

@@ -14,6 +14,9 @@
 # toolchain) and SHA256SUMS. The default is dist/wasm-release/<commit>, which is git-ignored.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# the exports of the raster group (issue 221, docs/WASM_ABI.md): a staged module has all of them or is refused
+RASTER_EXPORTS="raster_stat raster_skipped raster_placement raster_plan raster_tile raster_buffer_len raster_buffer_ptr raster_buffer_elem"
+RASTER_EXPORTS_JSON=$(printf '%s\n' $RASTER_EXPORTS | jq -R . | jq -sc .)
 
 if [ "${1:-}" = "--verify" ]; then
   d=${2:?usage: wasm-release.sh --verify DIR}
@@ -24,6 +27,11 @@ if [ "${1:-}" = "--verify" ]; then
   [ "$want" = "$have" ] || { echo "the manifest says $want, the module is $have" >&2; exit 1; }
   [ "$bytes" = "$(wc -c < "$d/$file" | tr -d ' ')" ] || { echo "the manifest byte count is wrong" >&2; exit 1; }
   jq -e '.abiVersion | type == "number"' "$m" >/dev/null || { echo "the manifest has no abiVersion" >&2; exit 1; }
+  # the raster group of issue 221 is part of the module: named in the manifest, present as export names in the binary
+  [ "$(jq -c .rasterExports "$m")" = "$RASTER_EXPORTS_JSON" ] || { echo "the manifest does not list the raster exports" >&2; exit 1; }
+  for e in $RASTER_EXPORTS; do
+    grep -aq "$e" "$d/$file" || { echo "the module does not export $e (a module built without the raster group)" >&2; exit 1; }
+  done
   grep -q "pvec-wasm-manifest.json" "$d/SHA256SUMS" || { echo "SHA256SUMS does not cover the manifest" >&2; exit 1; }
   echo "ok $file $have abi $(jq -r .abiVersion "$m") commit $(jq -r .commit "$m")"
   exit 0
@@ -63,6 +71,7 @@ cargo install wasm-bindgen-cli --version \"\$wb\" --locked >/dev/null 2>&1
 /tmp/cargo/bin/wasm-bindgen --target web --no-typescript --out-dir /tmp/bg /tmp/target/wasm32-unknown-unknown/release/pvec_wasm.wasm
 w=/tmp/bg/pvec_wasm_bg.wasm
 grep -q wasm_abi_version \$w || { echo 'the processed module does not export wasm_abi_version' >&2; exit 1; }
+for e in $RASTER_EXPORTS; do grep -aq \$e \$w || { echo \"the processed module does not export \$e\" >&2; exit 1; }; done
 mkdir -p /work/out && cp \$w /work/out/pvec_wasm_bg.wasm
 sha=\$(sha256sum \$w | cut -d' ' -f1); bytes=\$(wc -c < \$w | tr -d ' ')
 cat > /work/out/pvec-wasm-manifest.json <<JSON
@@ -72,6 +81,7 @@ cat > /work/out/pvec-wasm-manifest.json <<JSON
   \"commit\": \"$COMMIT\",
   \"dirty\": $IS_DIRTY,
   \"abiVersion\": \$abi,
+  \"rasterExports\": $RASTER_EXPORTS_JSON,
   \"wasmBindgen\": \"\$wb\",
   \"rustc\": \"\$(rustc --version)\",
   \"image\": \"$IMAGE\",

@@ -194,7 +194,7 @@ fn the_plan_names_the_chunks_whose_bounds_touch_the_viewport_and_no_others() {
     let r = open(bytes);
     let dir = SpatialDirectory::open(&r).unwrap().unwrap();
     let plan = |w: Aabb| {
-        ViewportQuery::new(w, 1.0).plan(&dir, &r, &ViewportConfig { prefetch_margin_px: 0.0 }).unwrap()
+        ViewportQuery::new(w, 1.0).plan(&dir, &r, &ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() }).unwrap()
     };
     let left = bx(0.0, 0.0, 700.0, 600.0);
     let p = plan(left);

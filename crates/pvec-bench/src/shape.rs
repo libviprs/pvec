@@ -11,6 +11,7 @@ use pvec_stream::{
     Aabb, CELL_CAPACITY, EntityBox, LongEntity, PayloadRef, STRADDLER_FACTOR, Tier0Builder, Tier0Params,
     build_directory, build_straddlers, classify, payload_cells, scan_payloads, tier0_blocks,
 };
+use pvec_testkit::raster_file::{RasterIn, raster_file};
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::TAU;
 
@@ -157,10 +158,24 @@ pub fn artifact(
     options: WriterOptions,
     tier0_max_error: Option<f64>,
 ) -> Result<Vec<u8>, String> {
+    artifact_with_rasters(shapes, unit, producer, options, tier0_max_error, &[])
+}
+
+/// [`artifact`] with `rasters` written after the geometry (pvec#220, the measurement of the raster plan): the
+/// placement stream and the raster blocks of `pvec_testkit::raster_file`, so the file is the one the
+/// reader would get from a producer. Without rasters the bytes are `artifact`'s.
+pub fn artifact_with_rasters(
+    shapes: &[Shape],
+    unit: LengthUnit,
+    producer: &str,
+    options: WriterOptions,
+    tier0_max_error: Option<f64>,
+    rasters: &[RasterIn],
+) -> Result<Vec<u8>, String> {
     const CEILING: u32 = 16 << 20;
     let mut capacity = CELL_CAPACITY;
     loop {
-        let bytes = artifact_at(shapes, unit, producer, options, tier0_max_error, capacity)?;
+        let bytes = artifact_at(shapes, unit, producer, options, tier0_max_error, capacity, rasters)?;
         // opened with the block ceiling off, so that a file whose blocks are far over it is measured, not refused
         let config = ReaderConfig {
             limits: Limits { max_block_bytes: u32::MAX, ..Limits::DEFAULT },
@@ -182,6 +197,7 @@ fn artifact_at(
     options: WriterOptions,
     tier0_max_error: Option<f64>,
     cell_capacity: u32,
+    rasters: &[RasterIn],
 ) -> Result<Vec<u8>, String> {
     let (_, all) = summarise(shapes);
     let config = WriterConfig {
@@ -261,7 +277,11 @@ fn artifact_at(
             w.set_straddler_lists(entries, Bounds { min: world.min(), max: world.max() }, bytes)
                 .expect("lists");
         }
-        w.finish().map_err(|e| e.to_string())
+        if rasters.is_empty() {
+            w.finish().map_err(|e| e.to_string())
+        } else {
+            Ok(raster_file(w, rasters, 1 << 20))
+        }
     };
     let Some(c) = classified.as_ref().filter(|c| !c.long.is_empty()) else {
         return lay_out(None);

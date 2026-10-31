@@ -139,7 +139,7 @@ fn view(x: f64, y: f64, w: f64, h: f64) -> ViewportQuery {
 }
 
 fn no_margin() -> ViewportConfig {
-    ViewportConfig { prefetch_margin_px: 0.0 }
+    ViewportConfig { prefetch_margin_px: 0.0, ..ViewportConfig::default() }
 }
 
 fn bounds_of(r: &ContainerReader<Mem>, id: BlockId) -> Aabb {
@@ -197,7 +197,7 @@ fn a_pan_reuses_cached_blocks_and_requests_only_the_delta() {
 #[test]
 fn a_one_screen_pan_after_prefetch_is_below_a_stated_fraction_of_the_initial_view() {
     let (r, dir) = open(million());
-    let cfg = ViewportConfig { prefetch_margin_px: 1000.0 }; // one screen
+    let cfg = ViewportConfig { prefetch_margin_px: 1000.0, ..ViewportConfig::default() }; // one screen
     let first = view(30_000.0, 30_000.0, 25_000.0, 25_000.0).plan(&dir, &r, &cfg).unwrap();
     assert!(first.metrics.prefetch.bytes_requested > 0, "the margin costs something, and it is counted");
     execute(&r, &first);
@@ -273,7 +273,7 @@ fn the_plan_never_contains_a_block_outside_the_viewport_plus_the_margin() {
         (40_000.0, 40_000.0, 100.0, 0.0),
     ] {
         let q = view(x, y, w, w);
-        let plan = q.plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin_px }).unwrap();
+        let plan = q.plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin_px, ..ViewportConfig::default() }).unwrap();
         let margin = margin_px / q.scale;
         let outer = grow(q.bounds, margin);
         let planned: BTreeSet<BlockId> = plan.block_ids().into_iter().collect();
@@ -319,7 +319,7 @@ fn zooming_into_a_dense_region_does_not_re_request_blocks_decoded_for_the_outer_
 fn visible_requests_come_first_and_the_best_gain_per_byte_comes_first_among_them() {
     let (r, dir) = open(million());
     let plan = view(30_000.0, 30_000.0, 8_000.0, 8_000.0)
-        .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: 300.0 })
+        .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: 300.0, ..ViewportConfig::default() })
         .unwrap();
     // prefetch-only requests, if there are any, come after every visible one
     let first_prefetch =
@@ -417,7 +417,7 @@ fn a_viewport_off_the_drawing_plans_nothing_and_a_bad_query_is_refused_by_rule()
     }
     for margin in [-1.0, f64::NAN, f64::INFINITY, f64::MAX] {
         let e = ViewportQuery::new(on, 1.0)
-            .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin })
+            .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin, ..ViewportConfig::default() })
             .unwrap_err();
         assert!(matches!(e, ViewportError::BadMargin), "{margin}");
         assert_eq!(e.rule(), "VP-02");
