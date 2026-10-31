@@ -954,7 +954,12 @@ fn the_crate_has_no_sqlite_library_no_native_source_and_no_build_machine_discove
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();
     for d in &deps {
-        assert!(d.starts_with("pvec-"), "{d}: the only dependencies are the workspace's own crates");
+        // miniz_oxide is pure Rust (no native source, no build script): the PMTiles raster reader inflates the gzip
+        // directories libviprs writes (chapter 8), and writing a decompressor here would be the worse trade
+        assert!(
+            d.starts_with("pvec-") || *d == "miniz_oxide",
+            "{d}: the only dependencies are the workspace's own crates and the pure Rust inflate"
+        );
     }
     assert!(!manifest.contains("build ="), "no build script");
     assert!(!std::path::Path::new(&format!("{root}/crates/pvec-interchange/build.rs")).exists());
