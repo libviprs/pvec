@@ -409,3 +409,31 @@ fn issue_221_no_raster_path_of_the_module_reads_a_whole_block() {
     let facade = src("../pvec/src/unstable.rs");
     assert!(!facade[facade.find("raster_placements").unwrap()..].contains("read_stored"));
 }
+
+/// The file `tools/wasm-raster-probe.mjs` probes a staged module with: two rasters of the RASTER.md vector at
+/// 512 by 256, the second with a tile codec this build does not know, so it is skipped.
+fn probe_file() -> Vec<u8> {
+    let shape = Shape { width: 512, height: 256, tile_edge: 256, channels: 1, bit_depth: 1 };
+    let mut p = placement(TileCodec::Png, None);
+    (p.width, p.height, p.visible_box, p.levels, p.bit_depth) = (512, 256, [0, 0, 512, 256], 2, 1);
+    let mut skipped = p.clone();
+    skipped.tile_codec = TileCodec::Unknown(9);
+    let all = tiles(shape, |_, _, _| true);
+    let mk = |placement, inline_levels| RasterIn { placement, tiles: all.clone(), inline_levels, chunk_bytes: 1 << 20 };
+    raster_file(line_writer(), &[mk(p, 1), mk(skipped, 0)], 1 << 20)
+}
+
+#[test]
+fn issue_221_the_probe_fixture_of_the_release_self_test_is_what_the_testkit_writes() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat/raster-probe.pvec");
+    let want = probe_file();
+    if std::env::var_os("PVEC_BLESS_FIXTURE").is_some() {
+        fs::write(&path, &want).unwrap();
+    }
+    let have = fs::read(&path).expect("tests/compat/raster-probe.pvec: write it with PVEC_BLESS_FIXTURE=1");
+    assert!(have == want, "tests/compat/raster-probe.pvec is not what the testkit writes: bless it again");
+    // and the module answers what the probe expects of it
+    let (mut rt, f) = open_whole(have);
+    assert_eq!((rt.raster_stat(f, 0), rt.raster_stat(f, 1), rt.raster_stat(f, 2)), (Ok(2), Ok(1), Ok(1)));
+    assert_eq!((rt.raster_skipped(f, 0, 0), rt.raster_skipped(f, 0, 1)), (Ok(1), Ok(4)));
+}
