@@ -110,12 +110,14 @@ fn issue_52_the_unstable_snapshot_names_the_stream_types() {
 }
 
 /// What the unstable module may re-export from the container, on purpose (issue 216, ADR 0018): the effect of a
-/// skipped capability, and the reader configuration that says which capabilities and limits an open uses. They
-/// carry no encoding detail. The stable snapshot may re-export none of it.
-const UNSTABLE_CONTAINER_REEXPORTS: [&str; 3] = [
+/// skipped capability, and the reader configuration that says which capabilities and limits an open uses, and
+/// (issue 218) the tile a producer hands over, which is a level, a column, a row and the encoded bytes. They carry
+/// no encoding detail. The stable snapshot may re-export none of it.
+const UNSTABLE_CONTAINER_REEXPORTS: [&str; 4] = [
     "pvec_container::negotiate::{Effect, ReaderCapabilities}",
     "pvec_container::limits::Limits",
     "pvec_container::reader::ReaderConfig",
+    "pvec_container::blocks::raster::TileIn",
 ];
 
 #[test]

@@ -3,6 +3,7 @@
 
 pub mod art;
 pub mod fixtures;
+pub mod raster;
 pub mod sha256;
 pub mod verify;
 

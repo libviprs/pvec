@@ -9,7 +9,7 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError};
 /// writer's business.
 #[derive(Debug)]
 pub struct PvecWriter {
-    inner: ContainerWriter,
+    pub(crate) inner: ContainerWriter,
     /// Set by `PvecWriter::new_indexed`: what `finish` needs to lay the file out again with a spatial directory.
     #[cfg(feature = "unstable-stream")]
     pub(crate) index: Option<crate::unstable::Indexing>,

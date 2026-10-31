@@ -273,6 +273,7 @@ blocks/raster.rs: IndexError::Packing { ordinal: u32 }
 blocks/raster.rs: IndexError::Chunk { level: u32, chunk: u32 }
 blocks/raster.rs: IndexError::Tile { level: u32, col: u32, row: u32 }
 blocks/raster.rs: IndexError::TooLarge { level: u32 }
+blocks/raster.rs: IndexError::NoPlacement { raster: u32 }
 blocks/raster.rs: IndexError::NoIndex { raster: u32 }
 blocks/raster.rs: IndexError::Block { raster: u32, subtype: u16 }
 blocks/raster.rs: IndexError::rule(&self) -> &'static str
@@ -730,6 +731,7 @@ reader.rs: ReadError::Codec(CodecError)
 reader.rs: ReadError::Integrity(IntegrityError)
 reader.rs: ReadError::Negotiation(Refusal)
 reader.rs: ReadError::Raster(IndexError)
+reader.rs: ReadError::Placement(RasterError)
 reader.rs: ReadError::Skipped { id: u32 }
 reader.rs: ReadError::NoSuchBlock { id: u32, blocks: usize }
 reader.rs: ReadError::rule(&self) -> String
@@ -774,6 +776,7 @@ reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestSta
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: ContainerReader<S>::rasters(&self) -> Vec<u32>
 reader.rs: ContainerReader<S>::raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: ContainerReader<S>::raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
 reader.rs: ContainerReader<S>::read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
 reader.rs: ContainerReader<S>::validate_raster(&self, raster: u32) -> Result<(), ReadError>
 reader.rs: ContainerReader<S>::validate(&self) -> Result<Validated, ReadError>
@@ -787,6 +790,7 @@ reader.rs: AsyncContainerReader<S>::async fn verify_artifact_digest(&self) -> Re
 reader.rs: AsyncContainerReader<S>::async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: AsyncContainerReader<S>::rasters(&self) -> Vec<u32>
 reader.rs: AsyncContainerReader<S>::async fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate_raster(&self, raster: u32) -> Result<(), ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate(&self) -> Result<Validated, ReadError>
@@ -964,6 +968,8 @@ writer.rs: WriteError::Stream(StreamError)
 writer.rs: WriteError::Container(ContainerError)
 writer.rs: WriteError::Geometry(GeometryError)
 writer.rs: WriteError::Tier0Cell { cell: u32 }
+writer.rs: WriteError::Raster(IndexError)
+writer.rs: WriteError::Placement(RasterError)
 writer.rs: WriteError::rule(&self) -> &'static str
 writer.rs: pub const WRITE_RULES: &[(&str, &str)]
 writer.rs: impl fmt::Display for WriteError
@@ -974,6 +980,8 @@ writer.rs: impl From<StreamError> for WriteError
 writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
 writer.rs: pub const ADVANCED_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_INLINE_BYTES: u64
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct Derived
 writer.rs: Derived.entity: EntityId
@@ -997,4 +1005,7 @@ writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds:
 writer.rs: ContainerWriter::set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_straddler_lists(&mut self, entries: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_tier0_leaf(&mut self, cell: u32, count: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
-writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>
+writer.rs: ContainerWriter::raster_chunk_bytes(&mut self, bytes: u32)
+writer.rs: ContainerWriter::raster_inline_bytes(&mut self, bytes: u64)
+writer.rs: ContainerWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>
