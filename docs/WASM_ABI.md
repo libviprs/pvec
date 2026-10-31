@@ -271,6 +271,35 @@ exact geometry in a packed buffer.
   page so a consumer can test its handling.
 * Read `buffer_len` before `buffer_ptr`: the length returns the error code, the pointer returns 0.
 
+## Limits (issue 217)
+
+Every open path of the module, `open` and `open_poll` alike, holds the file to `Limits::BROWSER`. Until issue 217 the
+module opened with `Limits::DEFAULT`, which is the native preset, so the browser values of `docs/SECURITY_LIMITS.md`
+meant nothing in the tab they were written for. This changes the geometry limits the module enforces too, not only
+the raster ones: a file that `Limits::DEFAULT` admitted and `Limits::BROWSER` refuses (a block over 64 MiB, an
+expansion ratio over 32, a curve of more than 16,384 control points) is now refused with error code -4. The values
+that differ, before and after:
+
+| limit | field | `Limits::DEFAULT` (before) | `Limits::BROWSER` (now) |
+|---|---|---|---|
+| LIMIT-05 | `max_artifact_bytes` | 68,719,476,736 (64 GiB) | 4,294,967,296 (4 GiB) |
+| LIMIT-02 | `max_block_bytes` | 268,435,456 (256 MiB) | 67,108,864 (64 MiB) |
+| LIMIT-06 | `max_blocks` | 1,048,576 | 131,072 |
+| LIMIT-01 | `max_expansion_ratio` | 64 | 32 |
+| LIMIT-07 | `max_entities_per_artifact` | 268,435,456 | 16,777,216 |
+| LIMIT-08 | `max_entities_per_block` | 268,435,456 | 1,048,576 |
+| LIMIT-09 | `max_control_points` | 65,536 | 16,384 |
+| LIMIT-10 | `max_knots` | 65,553 | 16,401 |
+| LIMIT-11 | `max_nesting_depth` | 4 | 3 |
+| LIMIT-03 | `max_alloc_bytes` | 2,147,483,648 (2 GiB) | 268,435,456 (256 MiB) |
+| LIMIT-04 | `max_decode_work` | 1,099,511,627,776 | 17,179,869,184 |
+| LIMIT-14 | `max_raster_tiles` | 1,048,576 | 131,072 |
+
+The other limits are the same in both presets (LIMIT-12 is the artifact's own length, LIMIT-13 is 4,096 rasters and
+LIMIT-15 is a header allowance of 65,536 bytes). The ABI version stays 2: no export or layout changed, and a host
+that opens only files inside the browser values sees no difference. `crates/pvec-wasm/tests/issue_217_browser_limits.rs`
+holds a file the defaults admit and the browser preset refuses.
+
 ## Error codes
 
 | code | meaning |
@@ -292,6 +321,12 @@ exact geometry in a packed buffer.
 `wasm-bindgen` post-processing, rustc 1.99.0 in a `rust:1.99.0-bookworm` container: 466,775 bytes built on
 native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
 ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.
+
+Measured again for issue 217, at version 2: `cargo build --release --target wasm32-unknown-unknown -p pvec-wasm`, rustc
+1.99.1 in the `pvec-rust` image on native x86_64 (MARS), the same flags and no post-processing. The module is 658,184
+bytes with `Limits::BROWSER` wired in, and the commit before it built to 658,353 bytes under the same toolchain, so
+wiring the preset and the raster ceilings cost nothing measurable. The 466,775 bytes above are the version 1 module
+and are not comparable with these.
 
 ## The loadable module (issue 202)
 

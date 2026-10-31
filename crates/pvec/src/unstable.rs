@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
+pub use pvec_container::limits::Limits;
 pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
@@ -222,6 +223,17 @@ impl PvecReader {
     /// optional, see [`PvecReader::skipped_effects`]) and how it applies the browser limits.
     pub fn open_with_config(bytes: Vec<u8>, config: ReaderConfig) -> Result<PvecReader, PvecError> {
         PvecReader::from_source(crate::reader::Source::Memory(MemorySource::new(bytes)), config)
+    }
+
+    /// [`PvecReader::open_ranges`] with `config`, which is how a host that serves byte ranges applies the
+    /// browser limits. Behind the `http` feature.
+    #[cfg(feature = "http")]
+    pub fn open_ranges_with_config(
+        len: u64,
+        read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static,
+        config: ReaderConfig,
+    ) -> Result<PvecReader, PvecError> {
+        PvecReader::from_source(crate::reader::Source::Callback { len, read: Box::new(read) }, config)
     }
 
     /// What the open left undone, one entry per skipped capability in ascending id order, or nothing when
