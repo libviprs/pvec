@@ -107,6 +107,7 @@ Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is 
 
 ## What is not claimed
 
+* `fuzz_raster_plan` (pvec#220) has not run for the 4 hour budget of the others, and has not run on arm64 at all. It has the smoke budget in `cargo test` and the 300 second libFuzzer run of its acceptance criterion, recorded below once it is done.
 * Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.
 * The P8.1 benchmark corpus and the EPIC O gold fixtures are not in the seed corpus (see above), and the P2.8 and P4.8 conformance gates they would be judged by are not on main.

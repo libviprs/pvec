@@ -424,17 +424,19 @@ pub fn fuzz_raster_plan(data: &[u8]) -> String {
         plan.tiles.iter().all(|t| t.slot != TileSlot::NotStored),
         "a tile that is not stored was planned"
     );
-    let mut last_end = 0u64;
+    // the tiles are disjoint and sorted, so both ends ascend and a binary search finds the tiles of a range
+    let (mut last_end, mut covered) = (0u64, 0usize);
     for &(offset, len) in &plan.ranges {
         let end = offset + u64::from(len);
         assert!(offset >= last_end, "ranges overlap or are out of order");
         last_end = end;
-        let inside: Vec<&(u64, u64)> = stored.iter().filter(|s| s.0 >= offset && s.1 <= end).collect();
-        assert!(!inside.is_empty(), "a range with no tile in it");
-        assert_eq!(inside.iter().map(|s| s.0).min(), Some(offset), "a range starts before its first tile");
-        assert_eq!(inside.iter().map(|s| s.1).max(), Some(end), "a range ends after its last tile");
-        assert!(len <= max_request || inside.len() == 1, "a merged range over the request ceiling");
+        let (lo, hi) = (stored.partition_point(|s| s.0 < offset), stored.partition_point(|s| s.1 <= end));
+        assert!(lo < hi, "a range with no tile in it");
+        assert_eq!(stored[lo].0, offset, "a range starts before its first tile");
+        assert_eq!(stored[hi - 1].1, end, "a range ends after its last tile");
+        assert!(len <= max_request || hi - lo == 1, "a merged range over the request ceiling");
+        covered += hi - lo;
     }
-    assert!(stored.iter().all(|s| plan.ranges.iter().any(|&(o, l)| o <= s.0 && s.1 <= o + u64::from(l))));
+    assert_eq!(covered, stored.len(), "a stored tile is in no range");
     if plan.tiles.is_empty() { "empty".to_string() } else { "ok".to_string() }
 }

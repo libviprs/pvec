@@ -17,10 +17,10 @@ const TILE_LEN: u32 = 20_000;
 const CHANNELS: u32 = 4;
 const LIMIT_16: u64 = 256 << 20;
 
-/// Rows `[a b tx]`, `[c d ty]`: x = 2 px + 2 py, y = -py (an upright image has d < 0). The Jacobian
+/// x = 2 px + 2 py, y = -py (an upright image has d < 0). The Jacobian
 /// `[[2, 2], [0, -1]]` has `J^T J = [[4, 4], [4, 5]]`, trace 9 and determinant 4, so the squared singular
 /// values are (9 +- sqrt(65)) / 2 and the larger singular value is sqrt(8.5311) = 2.9208.
-const SHEARED: [f64; 6] = [2.0, 2.0, 0.0, 0.0, -1.0, 0.0];
+const SHEARED: [f64; 6] = [2.0, 2.0, 0.0, -1.0, 0.0, 0.0];
 
 fn grid_20k() -> RasterGrid {
     RasterGrid { width: 20_000, height: 20_000, tile_edge: 512, levels: 7, channels: CHANNELS }
@@ -70,8 +70,8 @@ fn level_follows_the_larger_singular_value() {
 fn level_is_unchanged_by_rotating_the_placement() {
     let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
     // rotate the sheared placement by 30 degrees in source space: R * J keeps the singular values
-    let [a, b, _, cc, d, _] = SHEARED;
-    let rotated = [c * a - s * cc, c * b - s * d, 0.0, s * a + c * cc, s * b + c * d, 0.0];
+    let [a, b, cc, d, _, _] = SHEARED;
+    let rotated = [c * a - s * cc, c * b - s * d, s * a + c * cc, s * b + c * d, 0.0, 0.0];
     for scale in [1.0 / 4.0, 1.0 / 16.0, 1.0 / 64.0, 1.0 / 300.0] {
         assert_eq!(choose_level(&rotated, scale, 9), choose_level(&SHEARED, scale, 9), "scale {scale}");
     }
@@ -88,7 +88,7 @@ fn overzoom_clamps_at_full_resolution() {
     let grid = grid_20k();
     let p = plan(
         &grid,
-        &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         &view([100.0, 100.0], [140.0, 140.0], 40.0),
         LIMIT_16,
         dense(grid),
@@ -108,16 +108,17 @@ fn a_rotation_overfetches_by_at_most_one_point_eight() {
     let grid = grid_20k();
     // pixel space is source space turned by 30 degrees, one source unit per pixel
     let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
-    let map = [c, -s, 2_000.0, s, c, 1_000.0];
+    let map = [c, -s, s, c, 2_000.0, 1_000.0];
     let q = view([6_000.0, 4_000.0], [10_000.0, 8_000.0], 1.0);
     let p = plan(&grid, &map, &q, u64::MAX, dense(grid)).unwrap();
     assert_eq!(p.level, 6);
 
     // the exact set: tiles whose square meets the viewport rectangle mapped back into pixel space
-    let det = map[0] * map[4] - map[1] * map[3];
+    let [a, b, cc, d, tx, ty] = map;
+    let det = a * d - b * cc;
     let inv = |x: f64, y: f64| {
-        let (dx, dy) = (x - map[2], y - map[5]);
-        [(map[4] * dx - map[1] * dy) / det, (-map[3] * dx + map[0] * dy) / det]
+        let (dx, dy) = (x - tx, y - ty);
+        [(d * dx - b * dy) / det, (-cc * dx + a * dy) / det]
     };
     let poly = [inv(6_000.0, 4_000.0), inv(10_000.0, 4_000.0), inv(10_000.0, 8_000.0), inv(6_000.0, 8_000.0)];
     let mut exact = Vec::new();
@@ -165,7 +166,7 @@ fn convex_overlap(a: &[[f64; 2]; 4], b: &[[f64; 2]; 4]) -> bool {
 fn ranges_stay_inside_the_tile_bytes_and_merge_close_tiles() {
     let grid = grid_20k();
     let q = view([1_000.0, 1_000.0], [2_800.0, 2_800.0], 1.0);
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
+    let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
     assert!(!p.tiles.is_empty() && !p.ranges.is_empty());
     let lo = p.tiles.iter().filter_map(stored).map(|(o, _)| o).min().unwrap();
     let hi = p.tiles.iter().filter_map(stored).map(|(o, l)| o + u64::from(l)).max().unwrap();
@@ -193,12 +194,12 @@ fn tiles_far_apart_are_separate_ranges_and_the_request_ceiling_splits_runs() {
         len: TILE_LEN,
     };
     let q = view([1_000.0, 1_000.0], [2_000.0, 1_500.0], 1.0);
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, sparse).unwrap();
+    let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, sparse).unwrap();
     assert_eq!(p.ranges.len(), p.tiles.len());
     // a ceiling of two tiles splits an adjacent run
     let q = view([0.0, 0.0], [2_000.0, 500.0], 1.0);
     let split =
-        plan_raster(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, GAP, 2 * TILE_LEN, dense(grid))
+        plan_raster(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, GAP, 2 * TILE_LEN, dense(grid))
             .unwrap();
     assert!(split.ranges.iter().all(|&(_, l)| l <= 2 * TILE_LEN));
 }
@@ -219,7 +220,7 @@ fn spaced(level: u32, col: u32, row: u32) -> TileSlot {
 #[test]
 fn a_tile_that_is_not_stored_yields_no_range_and_no_tile() {
     let grid = grid_20k();
-    let map = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+    let map = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
     let q = view([0.0, 0.0], [1_000.0, 500.0], 1.0);
     let hole = |l: u32, col: u32, row: u32| {
         if (col, row) == (1, 0) { TileSlot::NotStored } else { spaced(l, col, row) }
@@ -242,7 +243,7 @@ fn inline_tiles_are_reported_present_and_never_requested() {
     let inline_first = |l: u32, col: u32, row: u32| {
         if (col, row) == (0, 0) { TileSlot::Inline } else { spaced(l, col, row) }
     };
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, inline_first).unwrap();
+    let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, inline_first).unwrap();
     assert!(p.tiles.iter().any(|t| (t.col, t.row) == (0, 0) && t.slot == TileSlot::Inline));
     assert!(p.ranges.iter().all(|&(o, _)| o != TILES_AT), "the inline tile was requested");
     assert_eq!(p.ranges.len() + 1, p.tiles.len());
@@ -253,7 +254,7 @@ fn a_tiny_scale_is_planned_coarser_and_stays_under_limit_16() {
     // a 20,000 px image placed so one source unit is 16 pixels, seen at scale 1/16 of a 40,000-unit view:
     // the sharper direction asks for level 6 (full), whose window holds every tile.
     let grid = grid_20k();
-    let map = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+    let map = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
     let q = view([0.0, 0.0], [20_000.0, 20_000.0], 1.0);
     let tile_bytes = u64::from(grid.tile_edge).pow(2) * u64::from(CHANNELS);
     let fine = plan(&grid, &map, &q, u64::MAX, dense(grid)).unwrap();
@@ -277,7 +278,7 @@ fn a_tiny_scale_is_planned_coarser_and_stays_under_limit_16() {
 fn nothing_fits_when_one_tile_is_over_the_limit() {
     let grid = grid_20k();
     let q = view([0.0, 0.0], [100.0, 100.0], 1.0);
-    let r = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, 1024, dense(grid));
+    let r = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, 1024, dense(grid));
     assert_eq!(r, Err(RasterPlanError::OverBudget));
 }
 
@@ -285,7 +286,7 @@ fn nothing_fits_when_one_tile_is_over_the_limit() {
 fn a_singular_or_non_finite_map_is_refused() {
     let grid = grid_20k();
     let q = view([0.0, 0.0], [100.0, 100.0], 1.0);
-    for map in [[1.0, 2.0, 0.0, 2.0, 4.0, 0.0], [f64::NAN, 0.0, 0.0, 0.0, 1.0, 0.0], [0.0; 6]] {
+    for map in [[1.0, 2.0, 2.0, 4.0, 0.0, 0.0], [f64::NAN, 0.0, 0.0, 1.0, 0.0, 0.0], [0.0; 6]] {
         assert_eq!(plan(&grid, &map, &q, LIMIT_16, dense(grid)), Err(RasterPlanError::BadMap));
     }
 }
@@ -294,7 +295,7 @@ fn a_singular_or_non_finite_map_is_refused() {
 fn a_viewport_off_the_raster_plans_nothing() {
     let grid = grid_20k();
     let q = view([-5_000.0, -5_000.0], [-1_000.0, -1_000.0], 1.0);
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
+    let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
     assert!(p.tiles.is_empty() && p.ranges.is_empty());
 }
 
@@ -302,7 +303,28 @@ fn a_viewport_off_the_raster_plans_nothing() {
 fn a_huge_viewport_saturates_instead_of_overflowing() {
     let grid = grid_20k();
     let q = view([-1e9, -1e9], [1e9, 1e9], 1e-9);
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
+    let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
     assert!(p.decoded_bytes <= LIMIT_16);
     assert!(p.tiles.iter().all(|t| t.col < cols(&grid, p.level) && t.row < cols(&grid, p.level)));
+}
+
+/// The test vector of docs/RASTER.md chapter 5: a rotated and sheared 1024 by 512 image. `J = [[.5, .25],
+/// [.125, -.5]]`, so `J^T J = [[.265625, .0625], [.0625, .3125]]` with trace .578125 and determinant
+/// .28125^2 = .0791015625, and `sigma^2 = (.578125 + sqrt(.017822265625)) / 2 = .35581`, `sigma = .5965`.
+const RASTER_MD: [f64; 6] = [0.5, 0.25, 0.125, -0.5, 100.0, 50.0];
+
+#[test]
+fn the_raster_md_test_vector_picks_the_level_worked_out_by_hand() {
+    // sigma * scale = .5965 at scale 1 (-log2 .745, k 0), .2983 at 1/2 (1.745, k 1), .1491 at 1/4 (2.745, k 2)
+    // and the pyramid of a 1024 by 512 image at edge 256 has 3 levels (1024, 512, 256), so level = 2 - k
+    for (scale, level) in [(1.0, 2), (0.5, 1), (0.25, 0), (0.0625, 0)] {
+        assert_eq!(choose_level(&RASTER_MD, scale, 3), level, "scale {scale}");
+    }
+    // and a plan over its whole footprint (x 100..740, y -206..178) lands on that level and the grid of it
+    let grid = RasterGrid { width: 1024, height: 512, tile_edge: 256, levels: 3, channels: 4 };
+    let q = view([100.0, -206.0], [740.0, 178.0], 0.5);
+    let p = plan(&grid, &RASTER_MD, &q, LIMIT_16, |_, _, _| TileSlot::Inline).unwrap();
+    assert_eq!(p.level, 1);
+    assert!(p.tiles.iter().all(|t| t.col < 2 && t.row < 1), "level 1 is 512 by 256: 2 by 1 tiles");
+    assert_eq!(p.tiles.len(), 2);
 }

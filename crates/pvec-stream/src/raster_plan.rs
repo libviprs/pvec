@@ -83,7 +83,7 @@ const MAX_WINDOW_CELLS: u64 = 1 << 20;
 /// size at one device pixel or more: `k = floor(-log2(sigma))`, clamped to the pyramid. Overzoom
 /// (`sigma >= 1`) is full resolution.
 pub fn choose_level(pixel_to_source: &[f64; 6], scale: f64, levels: u32) -> u32 {
-    let [a, b, _, c, d, _] = *pixel_to_source;
+    let [a, b, c, d, _, _] = *pixel_to_source;
     let sum = a * a + b * b + c * c + d * d;
     let diff = a * a + b * b - c * c - d * d;
     let cross = a * c + b * d;
@@ -150,7 +150,7 @@ pub fn plan_raster(
     max_request_bytes: u32,
     slot: impl Fn(u32, u32, u32) -> TileSlot,
 ) -> Result<RasterPlan, RasterPlanError> {
-    let [a, b, tx, c, d, ty] = *pixel_to_source;
+    let [a, b, c, d, tx, ty] = *pixel_to_source;
     let det = a * d - b * c;
     let finite = pixel_to_source.iter().all(|v| v.is_finite()) && det.is_finite() && det != 0.0;
     if !(finite && query.scale.is_finite() && query.scale > 0.0)
