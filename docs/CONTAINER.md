@@ -463,6 +463,7 @@ Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 
 | INTEGRITY-02 | the block checksum table is not one 8 byte sum per block, overlaps a block, or runs into the directory |
 | INTEGRITY-03 | the XXH3-64 of a block's stored bytes is not the sum in the table |
 | INTEGRITY-04 | the reader was configured to require integrity and the file has no checksum table or no digest |
+| INTEGRITY-05 | the XXH3-64 of a raster tile's stored bytes is not the checksum in its index entry (checked on every tile read, whether or not the file has a checksum table) |
 
 The measurement behind the codec ids is `docs/spikes/04-6-compression.md`; the writer's default policy is the one `docs/bench/TUNING.md` records (P8.6).
 

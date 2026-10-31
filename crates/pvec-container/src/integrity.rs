@@ -216,6 +216,21 @@ pub enum IntegrityError {
     },
     /// The reader was told to require integrity and the file carries none.
     NotWritten,
+    /// A raster tile's bytes do not match the checksum in its index entry.
+    TileChecksum {
+        /// The raster.
+        raster: u32,
+        /// The level.
+        level: u32,
+        /// The column.
+        col: u32,
+        /// The row.
+        row: u32,
+        /// What the index holds.
+        expected: u64,
+        /// What the bytes hash to.
+        found: u64,
+    },
 }
 
 impl IntegrityError {
@@ -226,6 +241,7 @@ impl IntegrityError {
             IntegrityError::BadTable { .. } => "INTEGRITY-02",
             IntegrityError::BlockChecksum { .. } => "INTEGRITY-03",
             IntegrityError::NotWritten => "INTEGRITY-04",
+            IntegrityError::TileChecksum { .. } => "INTEGRITY-05",
         }
     }
 }
@@ -244,6 +260,10 @@ pub const INTEGRITY_RULES: &[(&str, &str)] = &[
     (
         "INTEGRITY-04",
         "the reader was configured to require integrity and the file has no checksum table or no digest",
+    ),
+    (
+        "INTEGRITY-05",
+        "the XXH3-64 of a raster tile's stored bytes is not the checksum in its index entry (checked on every tile read, whether or not the file has a checksum table)",
     ),
 ];
 
@@ -270,6 +290,10 @@ impl fmt::Display for IntegrityError {
             IntegrityError::NotWritten => {
                 write!(f, "{rule}: the file carries no checksum table or no artifact digest")
             }
+            IntegrityError::TileChecksum { raster, level, col, row, expected, found } => write!(
+                f,
+                "{rule}: tile ({col}, {row}) of level {level} of raster {raster} hashes to {found:016x}, its index entry is {expected:016x}"
+            ),
         }
     }
 }

@@ -24,6 +24,7 @@ use crate::blocks::AlignedBytes;
 use crate::blocks::advanced::{AdvancedCurveRecord, AdvancedView, BlockSlices, CurveView};
 use crate::blocks::arena::ArenaError;
 use crate::blocks::hot::{HotBlockView, HotError};
+use crate::blocks::raster::{IndexError, RasterIndex};
 use crate::compress::CodecError;
 use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
@@ -118,6 +119,8 @@ pub enum ReadError {
     Integrity(IntegrityError),
     /// A required capability is not supported.
     Negotiation(Refusal),
+    /// A raster was refused.
+    Raster(IndexError),
     /// The block was skipped when the file was opened, so its payload is not read.
     Skipped {
         /// The block.
@@ -150,6 +153,7 @@ impl ReadError {
             ReadError::Codec(e) => e.rule().to_string(),
             ReadError::Integrity(e) => e.rule().to_string(),
             ReadError::Negotiation(r) => r.rule().to_string(),
+            ReadError::Raster(e) => e.rule().to_string(),
             ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
@@ -179,6 +183,7 @@ impl fmt::Display for ReadError {
             ReadError::Codec(e) => write!(f, "{e}"),
             ReadError::Integrity(e) => write!(f, "{e}"),
             ReadError::Negotiation(e) => write!(f, "{e}"),
+            ReadError::Raster(e) => write!(f, "{e}"),
             ReadError::Skipped { id } => write!(f, "block {id} was skipped when the file was opened"),
         }
     }
@@ -738,6 +743,28 @@ impl<S: BlockSource> ContainerReader<S> {
         self.fetch(offset, len)
     }
 
+    /// The rasters (a stub).
+    pub fn rasters(&self) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// A stub.
+    pub fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError> {
+        Err(ReadError::Raster(IndexError::NoIndex { raster }))
+    }
+
+    /// A stub.
+    pub fn read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError> {
+        let _ = (raster, level, col, row);
+        Ok(None)
+    }
+
+    /// A stub.
+    pub fn validate_raster(&self, raster: u32) -> Result<(), ReadError> {
+        let _ = raster;
+        Ok(())
+    }
+
     /// Reads and checks the whole file: everything `open` checks, the bytes between blocks, and every
     /// block against the parsers, the directory and each other. A file that passes is a canonical
     /// artifact.
@@ -862,6 +889,28 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         let (offset, len) = self.shared.core.range_of(id)?;
         let _room = self.shared.admit_gap(len)?;
         self.fetch(offset, len).await
+    }
+
+    /// The rasters (a stub).
+    pub fn rasters(&self) -> Vec<u32> {
+        Vec::new()
+    }
+
+    /// A stub.
+    pub async fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError> {
+        Err(ReadError::Raster(IndexError::NoIndex { raster }))
+    }
+
+    /// A stub.
+    pub async fn read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError> {
+        let _ = (raster, level, col, row);
+        Ok(None)
+    }
+
+    /// A stub.
+    pub async fn validate_raster(&self, raster: u32) -> Result<(), ReadError> {
+        let _ = raster;
+        Ok(())
     }
 
     /// As [`ContainerReader::validate`].

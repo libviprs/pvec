@@ -102,8 +102,8 @@ fn side_of(cols: u32, rows: u32) -> u64 {
     u64::from(cols.max(rows)).next_power_of_two()
 }
 
-/// Why an index block or a tile set was refused. Every variant is `RASTER-02` except
-/// [`IndexError::TooManyTiles`], which is `LIMIT-14`, and the ones that only the writer can meet.
+/// Why an index block or a tile set was refused. [`IndexError::rule`] is `RASTER-02` for the ones about the
+/// bytes, `RASTER-06` for the ones about the directory and `LIMIT-14` for [`IndexError::TooManyTiles`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum IndexError {
@@ -176,6 +176,20 @@ pub enum IndexError {
         /// The level.
         level: u32,
     },
+    /// A raster named by a kind 10 block, or asked for, that has no kind 9 block (`RASTER-06`).
+    NoIndex {
+        /// The raster.
+        raster: u32,
+    },
+    /// A kind 10 block whose subtype names a level the index does not have, or a chunk the level does not have,
+    /// or which is stored with a codec (`RASTER-06`): a tile is read by range, which only a block stored as it
+    /// is allows.
+    Block {
+        /// The raster.
+        raster: u32,
+        /// The subtype of the block.
+        subtype: u16,
+    },
 }
 
 impl IndexError {
@@ -183,6 +197,7 @@ impl IndexError {
     pub fn rule(&self) -> &'static str {
         match self {
             IndexError::TooManyTiles { .. } => "LIMIT-14",
+            IndexError::NoIndex { .. } | IndexError::Block { .. } => "RASTER-06",
             _ => "RASTER-02",
         }
     }
@@ -218,6 +233,10 @@ impl fmt::Display for IndexError {
                 write!(f, "{rule}: tile ({col}, {row}) of level {level} is repeated or outside the grid")
             }
             IndexError::TooLarge { level } => write!(f, "{rule}: level {level} does not fit its chunks"),
+            IndexError::NoIndex { raster } => write!(f, "{rule}: raster {raster} has no index block"),
+            IndexError::Block { raster, subtype } => {
+                write!(f, "{rule}: the tile block {subtype} of raster {raster} is not a chunk the index has")
+            }
         }
     }
 }
