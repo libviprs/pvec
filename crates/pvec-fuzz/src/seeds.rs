@@ -211,7 +211,8 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
     /// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
     fn raster_seed() -> Option<Vec<u8>> {
         use pvec_components::{
-            Band, PixelFormat, Placement, RASTER_CAPABILITY, Stream, TileCodec, encode_rasters, encode_streams,
+            Band, PixelFormat, Placement, RASTER_CAPABILITY, Stream, TileCodec, encode_rasters,
+            encode_streams,
         };
         let payload = encode_rasters(&[Placement {
             pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
