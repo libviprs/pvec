@@ -1,4 +1,4 @@
-//! The six fuzz targets.
+//! The fuzz targets.
 //!
 //! Every target does three things with its input: it never panics, it never allocates in proportion to what
 //! the input claims (the reader accounts for that, and the smoke driver and libFuzzer's RSS limit hold it to
@@ -26,13 +26,14 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 6] = [
+pub const TARGETS: [(&str, Target); 7] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
     ("fuzz_advanced_blocks", fuzz_advanced_blocks),
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
+    ("fuzz_raster_index", fuzz_raster_index),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -338,4 +339,10 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
         }
         Err(e) => e.rule().to_string(),
     }
+}
+
+/// A raster index block.
+pub fn fuzz_raster_index(data: &[u8]) -> String {
+    let _ = data;
+    "stub".to_string()
 }

@@ -1,4 +1,4 @@
-//! Issue P7.8: the six targets exist, are wired to libFuzzer, and survive their seeds.
+//! Issue P7.8 and issue #218: the targets exist, are wired to libFuzzer, and survive their seeds.
 #![allow(unsafe_code)]
 
 mod support;
@@ -10,17 +10,18 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 6] = [
+const NAMES: [&str; 7] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
     "fuzz_advanced_blocks",
     "fuzz_decompress_boundary",
     "fuzz_component_streams",
+    "fuzz_raster_index",
 ];
 
 #[test]
-fn the_six_targets_are_the_ones_the_issue_names() {
+fn the_targets_are_the_ones_the_issues_name() {
     let names: Vec<&str> = TARGETS.iter().map(|(n, _)| *n).collect();
     assert_eq!(names, NAMES);
 }
@@ -112,5 +113,26 @@ fn the_hardening_report_names_every_target_and_says_what_was_not_run() {
         ["Seed corpus", "native arm64", "native x86_64", "## Findings", "has not run", "no-checksum-gate"]
     {
         assert!(doc.contains(needle), "docs/FUZZING.md does not say {needle}");
+    }
+}
+
+#[test]
+fn the_raster_index_target_reaches_its_parser_and_each_rule_it_is_for() {
+    let seeds = corpus();
+    let inputs = for_target("fuzz_raster_index", &seeds);
+    assert!(inputs.len() >= 20, "only {} seeds", inputs.len());
+    let words: std::collections::BTreeSet<String> =
+        inputs.iter().map(|i| pvec_fuzz::fuzz_raster_index(i)).collect();
+    for want in ["ok", "RASTER-02", "LIMIT-14"] {
+        assert!(words.contains(want), "no seed reaches {want}: {words:?}");
+    }
+}
+
+#[test]
+fn an_index_that_parses_is_the_one_the_writer_would_write() {
+    // the target asserts it, so a seed that parses and does not re-encode to itself would be a crash
+    let seeds = corpus();
+    for input in for_target("fuzz_raster_index", &seeds) {
+        assert_eq!(panics(|| drop(pvec_fuzz::fuzz_raster_index(&input))), None);
     }
 }

@@ -31,3 +31,12 @@ fn the_readme_says_how_a_reproducer_is_added() {
     let text = std::fs::read_to_string(repo().join("tests/regressions/README.md")).unwrap();
     assert!(text.contains("fuzz_") && text.contains("bounds") && text.contains("limit"));
 }
+
+#[test]
+fn the_readme_names_the_directory_of_every_target_including_the_raster_index() {
+    let text = std::fs::read_to_string(repo().join("tests/regressions/README.md")).unwrap();
+    for (name, _) in TARGETS {
+        assert!(text.contains(name), "tests/regressions/README.md does not name {name}");
+    }
+    assert!(TARGETS.iter().any(|(n, _)| *n == "fuzz_raster_index"));
+}
