@@ -211,7 +211,7 @@ fn the_writer_refuses_what_the_reader_would() {
     let ps = two_placements();
     // tiles for a raster the stream does not place
     let mut w = writer_with(&ps);
-    w.push_raster_tiles(id(7), vec![TileIn { level: 0, col: 0, row: 0, bytes: vec![1] }]).unwrap();
+    w.push_raster_tiles(id(7), vec![TileIn { level: 0, col: 0, row: 0, bytes: bytes_of(1, 0, 0, 0, 100) }]).unwrap();
     let e = w.finish().expect_err("no placement");
     assert!(matches!(e, WriteError::Raster(_)), "{e:?}");
     assert_eq!(e.rule(), "WRT-15");
@@ -229,15 +229,15 @@ fn the_writer_refuses_what_the_reader_would() {
         [1.0, 1.0],
     )
     .unwrap();
-    bare.push_raster_tiles(id(0), vec![TileIn { level: 0, col: 0, row: 0, bytes: vec![1] }]).unwrap();
+    bare.push_raster_tiles(id(0), vec![TileIn { level: 0, col: 0, row: 0, bytes: bytes_of(1, 0, 0, 0, 100) }]).unwrap();
     assert!(matches!(bare.finish(), Err(WriteError::Raster(_))));
     // a tile outside the grid, and the same tile twice
     for bad in [
-        vec![TileIn { level: 0, col: 1, row: 0, bytes: vec![1] }],
-        vec![TileIn { level: 9, col: 0, row: 0, bytes: vec![1] }],
+        vec![TileIn { level: 0, col: 1, row: 0, bytes: bytes_of(1, 0, 0, 0, 100) }],
+        vec![TileIn { level: 9, col: 0, row: 0, bytes: bytes_of(1, 0, 0, 0, 100) }],
         vec![
-            TileIn { level: 0, col: 0, row: 0, bytes: vec![1] },
-            TileIn { level: 0, col: 0, row: 0, bytes: vec![2] },
+            TileIn { level: 0, col: 0, row: 0, bytes: bytes_of(1, 0, 0, 0, 100) },
+            TileIn { level: 0, col: 0, row: 0, bytes: bytes_of(1, 0, 0, 0, 101) },
         ],
     ] {
         let mut w = writer_with(&ps);
