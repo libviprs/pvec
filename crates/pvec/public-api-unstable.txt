@@ -1,4 +1,6 @@
 unstable.rs: pub use crate::reader::LoadedEntity
+unstable.rs: pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec}
+unstable.rs: pub use pvec_container::blocks::raster::TileIn
 unstable.rs: pub use pvec_container::limits::Limits
 unstable.rs: pub use pvec_container::negotiate::{Effect, ReaderCapabilities}
 unstable.rs: pub use pvec_container::reader::ReaderConfig
@@ -14,3 +16,7 @@ unstable.rs: PvecReader::entities_in(&self, cells: Option<&[u32]>, advanced: boo
 unstable.rs: PvecReader::open_with_config(bytes: Vec<u8>, config: ReaderConfig) -> Result<PvecReader, PvecError>
 unstable.rs: PvecReader::open_ranges_with_config(len: u64, read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static, config: ReaderConfig) -> Result<PvecReader, PvecError>
 unstable.rs: PvecReader::skipped_effects(&self) -> Vec<(CapabilityId, Effect)>
+unstable.rs: PvecWriter::rasters(&mut self, placements: &[Placement]) -> Result<(), PvecError>
+unstable.rs: PvecWriter::raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError>
+unstable.rs: PvecReader::raster_placements(&self) -> Result<Vec<Placement>, PvecError>
+unstable.rs: PvecReader::raster_tile(&self, raster: RasterId, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError>

@@ -176,6 +176,12 @@ pub enum IndexError {
         /// The level.
         level: u32,
     },
+    /// A raster named by a kind 9 or 10 block, or asked for, that the placement stream does not place
+    /// (`RASTER-06`).
+    NoPlacement {
+        /// The raster.
+        raster: u32,
+    },
     /// A raster named by a kind 10 block, or asked for, that has no kind 9 block (`RASTER-06`).
     NoIndex {
         /// The raster.
@@ -197,7 +203,9 @@ impl IndexError {
     pub fn rule(&self) -> &'static str {
         match self {
             IndexError::TooManyTiles { .. } => "LIMIT-14",
-            IndexError::NoIndex { .. } | IndexError::Block { .. } => "RASTER-06",
+            IndexError::NoIndex { .. } | IndexError::NoPlacement { .. } | IndexError::Block { .. } => {
+                "RASTER-06"
+            }
             _ => "RASTER-02",
         }
     }
@@ -234,6 +242,9 @@ impl fmt::Display for IndexError {
             }
             IndexError::TooLarge { level } => write!(f, "{rule}: level {level} does not fit its chunks"),
             IndexError::NoIndex { raster } => write!(f, "{rule}: raster {raster} has no index block"),
+            IndexError::NoPlacement { raster } => {
+                write!(f, "{rule}: raster {raster} has no placement in the stream")
+            }
             IndexError::Block { raster, subtype } => {
                 write!(f, "{rule}: the tile block {subtype} of raster {raster} is not a chunk the index has")
             }

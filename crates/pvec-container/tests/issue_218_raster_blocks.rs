@@ -6,6 +6,7 @@
 mod support;
 
 use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
+use pvec_components::Placement;
 use pvec_container::Bounds;
 use pvec_container::blocks::raster::{
     CAPABILITY, IndexError, KIND_INDEX, KIND_TILES, RasterIndex, TileIn, build, subtype,
@@ -16,8 +17,8 @@ use pvec_container::reader::{AsyncContainerReader, ContainerReader, ReadError, R
 use pvec_container::source::{MemorySource, Recording};
 use pvec_container::writer::RawBlock;
 use std::future::Future;
-use support::art::{Art, SEALED, rebuild};
-use support::fixtures::fixtures;
+use support::art::{Art, rebuild};
+use support::raster::{grid, placement, writer_with};
 
 const MAX: u64 = 1 << 20;
 
@@ -48,24 +49,25 @@ fn pyramid(id: u32, grid: &[(u32, u32)], len: usize, skip: impl Fn(u32, u32, u32
     out
 }
 
+/// The placements of the two rasters: 0 is 1000 by 600 (three levels, 4 by 3 at full size) and 1 is 1400 by 900 (four
+/// levels, 6 by 4 at full size).
+fn placements() -> Vec<Placement> {
+    vec![placement(1000, 600, 256), placement(1400, 900, 256)]
+}
+
 /// Two rasters: 0 is sparse with its coarsest level inline, 1 has a level split into chunks.
 fn two() -> Vec<R> {
-    let grid = vec![(1, 1), (2, 2), (5, 3)];
+    let ps = placements();
+    let (g0, g1) = (grid(&ps[0]), grid(&ps[1]));
     vec![
         R {
             id: 0,
-            grid: grid.clone(),
-            tiles: pyramid(0, &grid, 40, |l, c, r| l == 2 && (c + r) % 2 == 1),
+            tiles: pyramid(0, &g0, 40, |l, c, r| l == 2 && (c + r) % 2 == 1),
+            grid: g0,
             inline: 1,
             chunk_bytes: 1 << 20,
         },
-        R {
-            id: 1,
-            grid: grid.clone(),
-            tiles: pyramid(1, &grid, 40, |_, _, _| false),
-            inline: 0,
-            chunk_bytes: 100,
-        },
+        R { id: 1, tiles: pyramid(1, &g1, 40, |_, _, _| false), grid: g1, inline: 0, chunk_bytes: 100 },
     ]
 }
 
@@ -102,23 +104,16 @@ fn block(
     }
 }
 
+/// A drawing with one line and the raster stream for the two placements, and no raster block yet.
 fn base() -> Art {
-    support::art::from_input_with(&fixtures()[2], SEALED)
+    Art::new(writer_with(&placements()).finish().unwrap())
 }
 
-/// `base` with capability 21 declared optional and `raster_blocks` after the geometry, in the canonical order:
+/// `base` (which declares capability 21 with its stream) with `raster_blocks` after the geometry, in the canonical order:
 /// every kind 9 block by raster, then every kind 10 block by raster and subtype.
 fn with_blocks(base: &Art, integrity: Integrity, mut raster_blocks: Vec<RawBlock>) -> Art {
     raster_blocks.sort_by_key(|b| (b.kind, b.cell, b.subtype));
-    rebuild(base, integrity, |m, blocks| {
-        m.capabilities.push(Declared {
-            id: CapabilityId::new(21),
-            requirement: Requirement::Optional,
-            version: Version::new(1, 1, 0),
-        });
-        m.capabilities.sort_by_key(|d| d.id);
-        blocks.extend(raster_blocks);
-    })
+    rebuild(base, integrity, |_, blocks| blocks.extend(raster_blocks))
 }
 
 fn file(integrity: Integrity) -> (Art, Vec<R>) {
@@ -187,12 +182,12 @@ fn a_tile_that_is_not_stored_returns_no_bytes_and_no_error() {
 fn a_tile_outside_the_pyramid_is_an_error_for_the_caller() {
     let (art, _) = file(Integrity::Full);
     let reader = open(&art);
-    for (l, c, r) in [(3, 0, 0), (2, 5, 0), (2, 0, 3), (0, 1, 0)] {
+    for (l, c, r) in [(3, 0, 0), (2, 4, 0), (2, 0, 3), (0, 1, 0)] {
         let e = reader.read_raster_tile(0, l, c, r).expect_err("outside the pyramid");
         assert!(matches!(e, ReadError::Raster(IndexError::Tile { .. })), "{e:?}");
     }
     let e = reader.read_raster_tile(9, 0, 0, 0).expect_err("no such raster");
-    assert!(matches!(e, ReadError::Raster(IndexError::NoIndex { raster: 9 })), "{e:?}");
+    assert!(matches!(e, ReadError::Raster(IndexError::NoPlacement { raster: 9 })), "{e:?}");
     assert_eq!(e.rule(), "RASTER-06");
 }
 
@@ -201,18 +196,30 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
     let (art, _) = file(Integrity::Full);
     let reader = open(&art);
     let index_entry = &art.entries[entry_of(&art, KIND_INDEX, 1, 0)];
-    let touched = |e: &pvec_container::directory::BlockEntry| {
-        reader.source().touched(e.offset, u64::from(e.stored_length))
+    // opening reads the first 4 KiB and the directory, which in a file this small can overlap a block, so the
+    // question is whether the index was asked for as a block
+    let asked = |e: &pvec_container::directory::BlockEntry| {
+        reader.source().requests().iter().any(|r| (r.offset, r.len) == (e.offset, e.stored_length))
     };
-    assert!(!touched(index_entry), "opening does not read an index");
+    assert!(!asked(index_entry), "opening does not read an index");
     let before = reader.source().requests().len();
-    // level 2 of raster 1 is in chunks of two tiles (40 bytes each, 100 a chunk)
+    // level 2 of raster 1 is 3 by 2 tiles of 40 bytes, 100 a chunk, so two to a chunk
     let got = reader.read_raster_tile(1, 2, 0, 0).unwrap().expect("stored");
     assert_eq!(got.as_slice(), &bytes_of(1, 2, 0, 0, 40)[..]);
     let seen = reader.source().requests();
-    assert_eq!(seen.len() - before, 2, "the index block and the tile: {:?}", &seen[before..]);
-    assert_eq!((seen[before].offset, seen[before].len), (index_entry.offset, index_entry.stored_length));
-    let tile = seen[before + 1];
+    assert_eq!(
+        seen.len() - before,
+        3,
+        "the component set, the index block and the tile: {:?}",
+        &seen[before..]
+    );
+    let components = art.entries.iter().find(|e| e.kind == 4).expect("the component set");
+    assert_eq!((seen[before].offset, seen[before].len), (components.offset, components.stored_length));
+    assert_eq!(
+        (seen[before + 1].offset, seen[before + 1].len),
+        (index_entry.offset, index_entry.stored_length)
+    );
+    let tile = seen[before + 2];
     assert_eq!(tile.len, 40, "the range of the tile and not of its chunk");
     // the request lies inside a chunk block of raster 1, level 2, and that chunk is longer than the request
     let chunk = art
@@ -228,7 +235,7 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
     assert!(chunk.stored_length > 40);
     // the second read of the same raster does not read the index again
     reader.read_raster_tile(1, 2, 1, 0).unwrap();
-    assert_eq!(reader.source().requests().len() - before, 3);
+    assert_eq!(reader.source().requests().len() - before, 4, "one more range, the tile");
 }
 
 #[test]
@@ -265,16 +272,16 @@ fn an_inline_tile_costs_the_index_block_and_nothing_else() {
 #[test]
 fn a_flipped_byte_inside_a_tile_fails_the_tile_check_and_the_file_still_opens() {
     let (art, rasters) = file(Integrity::Full);
-    // a byte of the tile (2, 4, 2) of raster 1
-    let tile = rasters[1].tiles.iter().find(|t| (t.level, t.col, t.row) == (2, 4, 2)).unwrap();
+    // a byte of the tile (3, 0, 0) of raster 1
+    let tile = rasters[1].tiles.iter().find(|t| (t.level, t.col, t.row) == (3, 0, 0)).unwrap();
     let index = RasterIndex::parse(
         &art.bytes[art.entries[entry_of(&art, KIND_INDEX, 1, 0)].offset as usize..]
             [..art.entries[entry_of(&art, KIND_INDEX, 1, 0)].stored_length as usize],
         MAX,
     )
     .unwrap();
-    let t = index.tile(2, 4, 2).unwrap();
-    let chunk = art.entries[entry_of(&art, KIND_TILES, 1, subtype(2, t.chunk).unwrap())];
+    let t = index.tile(3, 0, 0).unwrap();
+    let chunk = art.entries[entry_of(&art, KIND_TILES, 1, subtype(3, t.chunk).unwrap())];
     let at = chunk.offset as usize + t.offset as usize + 5;
     let mut bytes = art.bytes.clone();
     bytes[at] ^= 0x10;
@@ -284,10 +291,10 @@ fn a_flipped_byte_inside_a_tile_fails_the_tile_check_and_the_file_still_opens() 
         ReaderConfig { require_integrity: false, ..ReaderConfig::default() },
     )
     .expect("the file opens: the flip is in a payload");
-    let e = reader.read_raster_tile(1, 2, 4, 2).expect_err("the tile check fails");
+    let e = reader.read_raster_tile(1, 3, 0, 0).expect_err("the tile check fails");
     assert_eq!(e.rule(), "INTEGRITY-05", "{e}");
     // the neighbours in the same chunk, the other chunks and the geometry are fine
-    assert!(reader.read_raster_tile(1, 2, 3, 2).is_ok());
+    assert!(reader.read_raster_tile(1, 3, 1, 0).is_ok());
     assert!(reader.read_raster_tile(1, 1, 0, 0).is_ok());
     let _ = tile;
     // full validation fails the chunk, by the whole-block checksum
@@ -306,12 +313,12 @@ fn the_tile_check_holds_in_a_file_with_no_checksum_table() {
         MAX,
     )
     .unwrap();
-    let t = *index.tile(1, 1, 1).unwrap();
+    let t = *index.tile(1, 1, 0).unwrap();
     let chunk = art.entries[entry_of(&art, KIND_TILES, 1, subtype(1, t.chunk).unwrap())];
     let mut bytes = art.bytes.clone();
     bytes[chunk.offset as usize + t.offset as usize] ^= 1;
     let reader = ContainerReader::open(MemorySource::new(bytes), ReaderConfig::default()).unwrap();
-    assert_eq!(reader.read_raster_tile(1, 1, 1, 1).expect_err("checked").rule(), "INTEGRITY-05");
+    assert_eq!(reader.read_raster_tile(1, 1, 1, 0).expect_err("checked").rule(), "INTEGRITY-05");
 }
 
 #[test]
@@ -345,9 +352,10 @@ fn edit(raster_blocks: Vec<RawBlock>, f: impl FnOnce(&mut Vec<RawBlock>)) -> Vec
 fn raster_02_an_index_that_lies_about_its_size_is_refused_and_the_other_raster_still_reads() {
     let rasters = two();
     let mut all: Vec<RawBlock> = rasters.iter().flat_map(blocks_of).collect();
-    // raster 0's index: the header claims one more tile than the table holds
+    // raster 0's index: the header claims one more tile than the table holds (the offset of tile_total)
     let at = all.iter().position(|b| b.kind == KIND_INDEX && b.cell == 0).unwrap();
-    all[at].stored[8..12].copy_from_slice(&21u32.to_le_bytes());
+    let total = u32::from_le_bytes(all[at].stored[8..12].try_into().unwrap());
+    all[at].stored[8..12].copy_from_slice(&(total + 1).to_le_bytes());
     let art = with_blocks(&base(), Integrity::Full, all);
     let reader = open(&art);
     let e = reader.raster_index(0).expect_err("refused");
@@ -360,7 +368,7 @@ fn raster_02_an_index_that_lies_about_its_size_is_refused_and_the_other_raster_s
 fn raster_02_a_chunk_block_that_is_too_short_too_long_or_missing_is_refused() {
     let rasters = two();
     let blocks: Vec<RawBlock> = rasters.iter().flat_map(blocks_of).collect();
-    let st = subtype(2, 3).unwrap();
+    let st = subtype(3, 3).unwrap();
     let find = |b: &Vec<RawBlock>| {
         b.iter().position(|x| x.kind == KIND_TILES && x.cell == 1 && x.subtype == st).unwrap()
     };
@@ -452,19 +460,18 @@ fn raster_06_a_count_in_the_directory_that_is_not_the_tiles_is_refused() {
 #[test]
 fn raster_06_a_kind_9_or_10_entry_with_another_capability_or_none_refuses_the_file() {
     let rasters = two();
-    // 0 names nothing, 22 is a capability nobody registered, and the first of the base file's own owns no kinds
+    // 0 names nothing, 22 is a capability nobody registered, and 14 owns no kinds
     let base = base();
-    let other = base.manifest.capabilities[0].id.get();
-    assert!(other != 21 && other != 22);
-    for capability in [0u16, 22, other as u16] {
+    // 14 is a component capability, which owns no block kinds
+    for capability in [0u16, 22, 14] {
         let mut blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| b[0].capability = capability);
         blocks.sort_by_key(|b| (b.kind, b.cell, b.subtype));
         let art = rebuild(&base, Integrity::Full, |m, existing| {
-            for id in [21u32, 22] {
+            for id in [14u32, 22] {
                 m.capabilities.push(Declared {
                     id: CapabilityId::new(id),
                     requirement: Requirement::Optional,
-                    version: Version::new(1, 1, 0),
+                    version: Version::new(1, 0, 0),
                 });
             }
             m.capabilities.sort_by_key(|d| d.id);

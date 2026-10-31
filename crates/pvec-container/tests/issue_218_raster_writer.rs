@@ -308,3 +308,53 @@ fn the_stream_is_the_placement_the_blocks_are_built_from() {
         },
     );
 }
+
+#[test]
+fn a_reader_that_does_not_implement_21_skips_real_raster_blocks_and_the_geometry_is_bit_identical() {
+    // the third independence case of ADR 0018, now with real block content: the geometry of the file with the
+    // rasters, read by a reader without capability 21, is the geometry of the file without them
+    use pvec_container::directory::BlockKind;
+    use pvec_container::negotiate::{Effect, ReaderCapabilities, SkipReason};
+    use pvec_container::reader::BlockId;
+    let ps = two_placements();
+    let with = {
+        let mut w = writer_with(&ps);
+        w.raster_inline_bytes(0);
+        w.raster_chunk_bytes(2000);
+        w.push_raster_tiles(id(0), tiles(0, &ps[0], 700, |_, _, _| false)).unwrap();
+        w.push_raster_tiles(id(1), tiles(1, &ps[1], 700, |_, _, _| false)).unwrap();
+        w.finish().unwrap()
+    };
+    let without = writer_with(&ps).finish().unwrap();
+    let old = |bytes: Vec<u8>| {
+        let cfg = ReaderConfig {
+            capabilities: ReaderCapabilities::v1().without(pvec_capabilities::CapabilityId::new(21)),
+            ..ReaderConfig::default()
+        };
+        ContainerReader::open(MemorySource::new(bytes), cfg)
+            .expect("an optional capability does not stop the open")
+    };
+    let (a, b) = (old(with), old(without));
+    let partial = a.partial_open().expect("a degraded open");
+    let c = partial.capabilities.iter().find(|c| c.id.get() == 21).expect("21 is listed");
+    assert_eq!((c.reason, c.effect), (SkipReason::NotImplemented, Effect::Unrastered));
+    let raster_blocks = a.entries().iter().filter(|e| e.kind == KIND_INDEX || e.kind == KIND_TILES).count();
+    assert!(raster_blocks > 4);
+    assert_eq!(partial.blocks.len(), raster_blocks, "every raster block is a skip naming 21");
+    assert!(partial.blocks.iter().all(|s| s.reason == SkipReason::UnknownBlockKind));
+    a.validate().expect("the file validates around the blocks it skips");
+    let geometry = |r: &ContainerReader<MemorySource<Vec<u8>>>| -> Vec<Vec<u8>> {
+        (0..r.entries().len() as u32)
+            .filter(|i| {
+                matches!(
+                    r.entries()[*i as usize].block_kind(),
+                    Some(BlockKind::Hot | BlockKind::Records | BlockKind::Arena)
+                )
+            })
+            .map(|i| r.read_block(BlockId(i)).unwrap().as_bytes().to_vec())
+            .collect()
+    };
+    assert_eq!(geometry(&a), geometry(&b));
+    let first = a.entries().iter().position(|e| e.kind == KIND_INDEX).unwrap();
+    assert!(matches!(a.read_block(BlockId(first as u32)), Err(ReadError::Skipped { .. })));
+}

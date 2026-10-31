@@ -1224,7 +1224,9 @@ impl ContainerWriter {
             .find(|s| s.capability == RASTER_CAPABILITY)
             .ok_or(WriteError::Raster(IndexError::NoIndex { raster: first }))?;
         let placements = decode_rasters(&stream.payload).map_err(WriteError::Placement)?;
-        let mut plans: Vec<(u32, &Placement, Vec<(u32, u32)>)> = Vec::with_capacity(rasters.len());
+        // (raster, its placement, the grid of its levels)
+        type Plan<'a> = (u32, &'a Placement, Vec<(u32, u32)>);
+        let mut plans: Vec<Plan<'_>> = Vec::with_capacity(rasters.len());
         for &id in rasters.keys() {
             let p =
                 placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;

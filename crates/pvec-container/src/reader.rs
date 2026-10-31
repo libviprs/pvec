@@ -34,7 +34,8 @@ use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation}
 use crate::negotiate::{PartialOpen, ReaderCapabilities, Refusal};
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
-use pvec_components::StreamError;
+use pvec_capabilities::{Reader, Registry, Version};
+use pvec_components::{Placement, RasterError, RasterRead, StreamError, read_rasters, read_streams};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -122,6 +123,9 @@ pub enum ReadError {
     /// A raster was refused (`RASTER-nn`, or `LIMIT-14`). The raster is, and the file is not: the geometry and
     /// every other raster still read.
     Raster(IndexError),
+    /// The raster placement stream is damaged or refused (`RASTER-nn`, `COMP-nn`). The rasters are, the geometry
+    /// and the other streams are not.
+    Placement(RasterError),
     /// The block was skipped when the file was opened, so its payload is not read.
     Skipped {
         /// The block.
@@ -155,6 +159,7 @@ impl ReadError {
             ReadError::Integrity(e) => e.rule().to_string(),
             ReadError::Negotiation(r) => r.rule().to_string(),
             ReadError::Raster(e) => e.rule().to_string(),
+            ReadError::Placement(e) => e.rule().to_string(),
             ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
@@ -185,6 +190,7 @@ impl fmt::Display for ReadError {
             ReadError::Integrity(e) => write!(f, "{e}"),
             ReadError::Negotiation(e) => write!(f, "{e}"),
             ReadError::Raster(e) => write!(f, "{e}"),
+            ReadError::Placement(e) => write!(f, "{e}"),
             ReadError::Skipped { id } => write!(f, "block {id} was skipped when the file was opened"),
         }
     }
@@ -439,6 +445,8 @@ struct Shared {
     counters: Counters,
     /// The raster indexes read so far, parsed and checked, each with the room it holds in the budget.
     rasters: Mutex<HashMap<u32, (Arc<RasterIndex>, Reservation)>>,
+    /// The raster placements, read from the component set the first time a raster is asked for.
+    placements: Mutex<Option<Arc<Vec<Placement>>>>,
 }
 
 /// Where the bytes of a tile are, once its index entry is known.
@@ -460,7 +468,50 @@ impl Shared {
             counters,
             acct,
             rasters: Mutex::new(HashMap::new()),
+            placements: Mutex::new(None),
         }
+    }
+
+    /// The placement of `raster` when the placements were read before.
+    fn placement_cached(&self, raster: u32) -> Option<Result<Placement, ReadError>> {
+        let all = self.placements.lock().ok()?.clone()?;
+        Some(all.get(raster as usize).cloned().ok_or(ReadError::Raster(IndexError::NoPlacement { raster })))
+    }
+
+    /// The block that holds the component streams, when the file has one.
+    fn components_block(&self) -> Option<BlockId> {
+        self.core
+            .entries
+            .iter()
+            .position(|e| e.block_kind() == Some(crate::directory::BlockKind::Components))
+            .map(|i| BlockId(i as u32))
+    }
+
+    /// Reads the raster stream out of the component set `block` and keeps it, then gives `raster`'s placement.
+    /// A file with no component set, or none with a raster stream, places no raster; a damaged stream is an
+    /// error for the rasters and for nothing else.
+    fn placements_parsed(&self, raster: u32, block: Option<&DecodedBlock>) -> Result<Placement, ReadError> {
+        let placements = match block {
+            None => Vec::new(),
+            Some(b) => {
+                let registry = Registry::v1();
+                let reader = Reader {
+                    version: Version::new(1, 1, 0),
+                    implemented: registry.entries().iter().map(|c| c.id).collect(),
+                };
+                let opened = read_streams(b.as_bytes(), &registry, &reader).map_err(ReadError::Stream)?;
+                match read_rasters(&opened) {
+                    RasterRead::Absent => Vec::new(),
+                    RasterRead::Present(p) => p,
+                    RasterRead::Damaged(e) => return Err(ReadError::Placement(e)),
+                }
+            }
+        };
+        let found = placements.get(raster as usize).cloned();
+        if let Ok(mut slot) = self.placements.lock() {
+            *slot = Some(Arc::new(placements));
+        }
+        found.ok_or(ReadError::Raster(IndexError::NoPlacement { raster }))
     }
 
     /// The parsed index of `raster` when it was read before.
@@ -478,7 +529,12 @@ impl Shared {
 
     /// Parses the index block of `raster`, checks it against the directory, and keeps it. The tile table is
     /// held for as long as the reader holds the index, and that room is taken from the budget.
-    fn raster_parsed(&self, raster: u32, block: &DecodedBlock) -> Result<Arc<RasterIndex>, ReadError> {
+    fn raster_parsed(
+        &self,
+        raster: u32,
+        block: &DecodedBlock,
+        placement: &Placement,
+    ) -> Result<Arc<RasterIndex>, ReadError> {
         // LIMIT-14: the entries of the tile tables over the whole artifact, so what is held already counts
         let ceiling = u64::from(self.config.limits.max_raster_tiles);
         let held: u64 = self
@@ -495,6 +551,13 @@ impl Shared {
                 }),
                 other => ReadError::Raster(other),
             })?;
+        // the grid of the index is the grid of the placement, not one the file chose (RASTER-02)
+        if index.levels().len() != usize::from(placement.levels) {
+            return Err(ReadError::Raster(IndexError::Grid { level: index.levels().len() as u32 }));
+        }
+        index
+            .check_grid(placement.width, placement.height, u32::from(placement.tile_edge))
+            .map_err(ReadError::Raster)?;
         self.core.check_raster_blocks(raster, &index).map_err(ReadError::Raster)?;
         let room = (core::mem::size_of_val(index.tiles()) + block.as_bytes().len()) as u64;
         let held = self.reserve(room)?;
@@ -874,8 +937,22 @@ impl<S: BlockSource> ContainerReader<S> {
         if let Some(index) = self.shared.raster_cached(raster) {
             return Ok(index);
         }
+        let placement = self.raster_placement(raster)?;
         let block = self.read_block(self.shared.raster_index_id(raster)?)?;
-        self.shared.raster_parsed(raster, &block)
+        self.shared.raster_parsed(raster, &block, &placement)
+    }
+
+    /// The placement of `raster` from the raster stream of the component set, read when first asked for. A raster
+    /// the stream does not place is `RASTER-06`; a damaged stream is an error for the rasters only.
+    pub fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError> {
+        if let Some(p) = self.shared.placement_cached(raster) {
+            return p;
+        }
+        let block = match self.shared.components_block() {
+            Some(id) => Some(self.read_block(id)?),
+            None => None,
+        };
+        self.shared.placements_parsed(raster, block.as_deref())
     }
 
     /// The encoded bytes of tile `(col, row)` of `level` of `raster`, after the index's XXH3-64 has been checked
@@ -1078,8 +1155,21 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         if let Some(index) = self.shared.raster_cached(raster) {
             return Ok(index);
         }
+        let placement = self.raster_placement(raster).await?;
         let block = self.read_block(self.shared.raster_index_id(raster)?).await?;
-        self.shared.raster_parsed(raster, &block)
+        self.shared.raster_parsed(raster, &block, &placement)
+    }
+
+    /// As [`ContainerReader::raster_placement`].
+    pub async fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError> {
+        if let Some(p) = self.shared.placement_cached(raster) {
+            return p;
+        }
+        let block = match self.shared.components_block() {
+            Some(id) => Some(self.read_block(id).await?),
+            None => None,
+        };
+        self.shared.placements_parsed(raster, block.as_deref())
     }
 
     /// The encoded bytes of tile `(col, row)` of `level` of `raster`, after the index's XXH3-64 has been checked
