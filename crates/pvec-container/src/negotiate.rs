@@ -107,6 +107,15 @@ pub enum Refusal {
         /// The capability it names.
         capability: u16,
     },
+    /// A block of a kind a capability owns names another capability, or none.
+    OwnedKindMismatch {
+        /// The block.
+        block: BlockId,
+        /// Its kind id.
+        kind: u16,
+        /// The capability it names (0 for none).
+        capability: u16,
+    },
 }
 
 impl Refusal {
@@ -118,6 +127,7 @@ impl Refusal {
             Refusal::ReaderTooOld { .. } => "NEGOTIATE-03",
             Refusal::ComponentDeclaredRequired(_) | Refusal::ExtensionDeclaredRequired(_) => "NEGOTIATE-04",
             Refusal::UndeclaredBlockCapability { .. } => "NEGOTIATE-05",
+            Refusal::OwnedKindMismatch { .. } => "NEGOTIATE-06",
         }
     }
 }
@@ -141,6 +151,19 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
         "a component or an optional extension is declared required, which the registry does not allow",
     ),
     ("NEGOTIATE-05", "a block names a capability id the manifest does not declare"),
+    (
+        "NEGOTIATE-06",
+        "a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none",
+    ),
+];
+
+/// The block kinds a capability owns, outside `BlockKind::ALL`: the kind id, its name and the owner
+/// (ADR 0018). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
+/// a reader that implements the owner is handed the block, and one that does not skips it as a kind it does
+/// not know. `DIR-02` is untouched: a kind the format defines still names no capability.
+pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] = [
+    (9, "raster_index", CapabilityId::new(21)),
+    (10, "raster_tiles", CapabilityId::new(21)),
 ];
 
 impl fmt::Display for Refusal {
@@ -185,6 +208,13 @@ impl fmt::Display for Refusal {
                     block.0
                 )
             }
+            Refusal::OwnedKindMismatch { block, kind, capability } => {
+                write!(
+                    f,
+                    "{rule}: block {} is of kind {kind}, which belongs to another capability than the {capability} it names",
+                    block.0
+                )
+            }
         }
     }
 }
@@ -211,6 +241,8 @@ pub enum Effect {
     Unstyled,
     /// Entities lack a component: text, hatch, provenance, semantics.
     Uncomponented,
+    /// The drawing has raster images this reader cannot show.
+    Unrastered,
     /// The reader cannot say.
     Unknown,
 }
@@ -314,8 +346,12 @@ impl PartialOpen {
             self.capabilities.iter().filter(|c| c.effect == effect).map(name).collect::<Vec<_>>().join(", ")
         };
         let mut parts = Vec::new();
-        let (styles, components, unknown) =
-            (list(Effect::Unstyled), list(Effect::Uncomponented), list(Effect::Unknown));
+        let (styles, components, rasters, unknown) = (
+            list(Effect::Unstyled),
+            list(Effect::Uncomponented),
+            list(Effect::Unrastered),
+            list(Effect::Unknown),
+        );
         if !styles.is_empty() {
             parts.push(format!(
                 "the {} entities may be unstyled, because capability {styles} was not read",
@@ -326,6 +362,11 @@ impl PartialOpen {
             parts.push(format!(
                 "the {} entities may lack components, because capability {components} was not read",
                 self.entities
+            ));
+        }
+        if !rasters.is_empty() {
+            parts.push(format!(
+                "this file has an image this reader cannot show, because capability {rasters} was not read"
             ));
         }
         if !unknown.is_empty() {
@@ -365,6 +406,8 @@ fn effect_of(id: CapabilityId) -> Effect {
                 Effect::Uncomponented
             }
         }
+        // the raster capability (ADR 0018); the registry class takes over from the id once it exists
+        _ if id == CapabilityId::new(21) => Effect::Unrastered,
         _ => Effect::Unknown,
     }
 }
@@ -457,7 +500,19 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
             }
         }
         let by_capability = capability.and_then(|c| skipped_reason.get(&c.get()).copied());
-        let reason = if e.block_kind().is_none() {
+        // a kind a capability owns (CONTAINER.md 5.4 item 2): handed to the owner when this reader implements
+        // it, skipped as a kind it does not know otherwise
+        let owner = CAPABILITY_OWNED_KINDS.iter().find(|(k, _, _)| *k == e.kind).map(|(_, _, o)| *o);
+        if let Some(owner) = owner {
+            if capability != Some(owner) {
+                return Outcome::Refuse(Refusal::OwnedKindMismatch {
+                    block,
+                    kind: e.kind,
+                    capability: e.capability,
+                });
+            }
+        }
+        let reason = if e.block_kind().is_none() && !owner.is_some_and(|o| reader.supports(o).is_some()) {
             Some(SkipReason::UnknownBlockKind)
         } else if crate::compress::Codec::from_id(e.codec).is_none() {
             Some(SkipReason::UnknownCodec)
@@ -568,7 +623,11 @@ skips a block from a descriptor alone, and never requests a byte of its payload:
 * a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file \
 when it is set (`DIR-04`);\n\
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);\n\
-* a block whose capability the reader skipped is skipped with it.\n\n\
+* a block whose capability the reader skipped is skipped with it;\n\
+* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21 and are not in the kind table of \
+chapter 4) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not \
+know, naming the capability from its entry, when it does not. It must name its owner and no other capability \
+(`NEGOTIATE-06`).\n\n\
 A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and \
 a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which \
 reads every byte by definition. The \

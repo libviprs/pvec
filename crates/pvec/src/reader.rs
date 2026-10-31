@@ -194,11 +194,11 @@ fn advanced(
 impl PvecReader {
     /// Opens a file, checking the header, manifest and directory.
     pub fn open(bytes: Vec<u8>) -> Result<PvecReader, PvecError> {
-        PvecReader::from_source(Source::Memory(MemorySource::new(bytes)))
+        PvecReader::from_source(Source::Memory(MemorySource::new(bytes)), ReaderConfig::default())
     }
 
-    fn from_source(source: Source) -> Result<PvecReader, PvecError> {
-        let inner = ContainerReader::open(source, ReaderConfig::default()).map_err(container)?;
+    pub(crate) fn from_source(source: Source, config: ReaderConfig) -> Result<PvecReader, PvecError> {
+        let inner = ContainerReader::open(source, config).map_err(container)?;
         let manifest = Manifest::from_container(inner.manifest());
         Ok(PvecReader { inner, manifest })
     }
@@ -216,7 +216,7 @@ impl PvecReader {
         len: u64,
         read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static,
     ) -> Result<PvecReader, PvecError> {
-        PvecReader::from_source(Source::Callback { len, read: Box::new(read) })
+        PvecReader::from_source(Source::Callback { len, read: Box::new(read) }, ReaderConfig::default())
     }
 
     /// What the file says about itself.

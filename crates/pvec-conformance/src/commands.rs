@@ -147,7 +147,10 @@ fn kind_name(e: &BlockEntry) -> &'static str {
         Some(BlockKind::CellRefs) => "cell_refs",
         Some(BlockKind::Straddlers) => "straddlers",
         Some(BlockKind::Tier0) => "tier0",
-        None => "unknown",
+        None => pvec_container::negotiate::CAPABILITY_OWNED_KINDS
+            .iter()
+            .find(|(k, _, _)| *k == e.kind)
+            .map_or("unknown", |(_, name, _)| name),
     }
 }
 
