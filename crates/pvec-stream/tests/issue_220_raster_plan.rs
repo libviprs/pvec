@@ -5,7 +5,8 @@
 
 use pvec_container::BlockId;
 use pvec_stream::{
-    Aabb, PlannedTile, RasterGrid, RasterPlan, RasterPlanError, TileSlot, ViewportQuery, choose_level, plan_raster,
+    Aabb, PlannedTile, RasterGrid, RasterPlan, RasterPlanError, TileSlot, ViewportQuery, choose_level,
+    plan_raster,
 };
 
 const GAP: u32 = 64 << 10;
@@ -34,7 +35,11 @@ fn cols(grid: &RasterGrid, level: u32) -> u32 {
 fn dense(grid: RasterGrid) -> impl Fn(u32, u32, u32) -> TileSlot {
     move |level, col, row| {
         let ordinal = u64::from(row) * u64::from(cols(&grid, level)) + u64::from(col);
-        TileSlot::Stored { block: BlockId(40 + level), offset: TILES_AT + ordinal * u64::from(TILE_LEN), len: TILE_LEN }
+        TileSlot::Stored {
+            block: BlockId(40 + level),
+            offset: TILES_AT + ordinal * u64::from(TILE_LEN),
+            len: TILE_LEN,
+        }
     }
 }
 
@@ -75,10 +80,20 @@ fn level_is_unchanged_by_rotating_the_placement() {
 #[test]
 fn overzoom_clamps_at_full_resolution() {
     assert_eq!(choose_level(&SHEARED, 50.0, 6), 5);
-    assert_eq!(choose_level(&SHEARED, 1.0 / 2.9208, 6), 5, "exactly one device pixel per pixel is full resolution");
+    assert_eq!(
+        choose_level(&SHEARED, 1.0 / 2.9208, 6),
+        5,
+        "exactly one device pixel per pixel is full resolution"
+    );
     let grid = grid_20k();
-    let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &view([100.0, 100.0], [140.0, 140.0], 40.0), LIMIT_16, dense(grid))
-        .unwrap();
+    let p = plan(
+        &grid,
+        &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        &view([100.0, 100.0], [140.0, 140.0], 40.0),
+        LIMIT_16,
+        dense(grid),
+    )
+    .unwrap();
     assert_eq!(p.level, grid.levels - 1);
     assert_eq!(p.tiles.len(), 1);
 }
@@ -160,7 +175,8 @@ fn ranges_stay_inside_the_tile_bytes_and_merge_close_tiles() {
     }
     // every stored tile is covered by exactly one range
     for t in p.tiles.iter().filter_map(stored) {
-        let n = p.ranges.iter().filter(|&&(o, l)| o <= t.0 && t.0 + u64::from(t.1) <= o + u64::from(l)).count();
+        let n =
+            p.ranges.iter().filter(|&&(o, l)| o <= t.0 && t.0 + u64::from(t.1) <= o + u64::from(l)).count();
         assert_eq!(n, 1);
     }
     // a row of tiles is TILE_LEN apart in the file, so the 64 KiB gap joins neighbours: fewer ranges than tiles
@@ -181,8 +197,9 @@ fn tiles_far_apart_are_separate_ranges_and_the_request_ceiling_splits_runs() {
     assert_eq!(p.ranges.len(), p.tiles.len());
     // a ceiling of two tiles splits an adjacent run
     let q = view([0.0, 0.0], [2_000.0, 500.0], 1.0);
-    let split = plan_raster(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, GAP, 2 * TILE_LEN, dense(grid))
-        .unwrap();
+    let split =
+        plan_raster(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, GAP, 2 * TILE_LEN, dense(grid))
+            .unwrap();
     assert!(split.ranges.iter().all(|&(_, l)| l <= 2 * TILE_LEN));
 }
 
@@ -204,7 +221,9 @@ fn a_tile_that_is_not_stored_yields_no_range_and_no_tile() {
     let grid = grid_20k();
     let map = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
     let q = view([0.0, 0.0], [1_000.0, 500.0], 1.0);
-    let hole = |l: u32, col: u32, row: u32| if (col, row) == (1, 0) { TileSlot::NotStored } else { spaced(l, col, row) };
+    let hole = |l: u32, col: u32, row: u32| {
+        if (col, row) == (1, 0) { TileSlot::NotStored } else { spaced(l, col, row) }
+    };
     let whole = plan(&grid, &map, &q, LIMIT_16, spaced).unwrap();
     let holed = plan(&grid, &map, &q, LIMIT_16, hole).unwrap();
     assert_eq!(holed.tiles.len() + 1, whole.tiles.len());
@@ -220,7 +239,9 @@ fn a_tile_that_is_not_stored_yields_no_range_and_no_tile() {
 fn inline_tiles_are_reported_present_and_never_requested() {
     let grid = grid_20k();
     let q = view([0.0, 0.0], [1_000.0, 500.0], 1.0);
-    let inline_first = |l: u32, col: u32, row: u32| if (col, row) == (0, 0) { TileSlot::Inline } else { spaced(l, col, row) };
+    let inline_first = |l: u32, col: u32, row: u32| {
+        if (col, row) == (0, 0) { TileSlot::Inline } else { spaced(l, col, row) }
+    };
     let p = plan(&grid, &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &q, LIMIT_16, inline_first).unwrap();
     assert!(p.tiles.iter().any(|t| (t.col, t.row) == (0, 0) && t.slot == TileSlot::Inline));
     assert!(p.ranges.iter().all(|&(o, _)| o != TILES_AT), "the inline tile was requested");

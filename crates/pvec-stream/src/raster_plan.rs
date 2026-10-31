@@ -114,10 +114,13 @@ fn window(grid: &RasterGrid, level: u32, inverse: &[f64; 6], query: &ViewportQue
     let level_w = u64::from(grid.width).div_ceil(shrink as u64);
     let level_h = u64::from(grid.height).div_ceil(shrink as u64);
     let edge = f64::from(grid.tile_edge);
-    let (cols, rows) = (level_w.div_ceil(u64::from(grid.tile_edge)), level_h.div_ceil(u64::from(grid.tile_edge)));
+    let (cols, rows) =
+        (level_w.div_ceil(u64::from(grid.tile_edge)), level_h.div_ceil(u64::from(grid.tile_edge)));
     let cell = |v: f64| (v / shrink / edge).floor();
     let mut out = [0u64; 4];
-    for (i, (v, count)) in [(min[0], cols), (min[1], rows), (max[0], cols), (max[1], rows)].into_iter().enumerate() {
+    for (i, (v, count)) in
+        [(min[0], cols), (min[1], rows), (max[0], cols), (max[1], rows)].into_iter().enumerate()
+    {
         let c = cell(v);
         if c.is_nan() || (i < 2 && c >= count as f64) || (i >= 2 && c < 0.0) {
             return None;
@@ -207,7 +210,9 @@ fn merge_ranges(tiles: &[PlannedTile], gap: u32, max: u32) -> Vec<(u64, u32)> {
     let mut out: Vec<(u64, u64)> = Vec::new();
     for (start, end) in spans {
         match out.last_mut() {
-            Some((s, e)) if start.saturating_sub(*e) <= u64::from(gap) && end.max(*e) - *s <= u64::from(max) => {
+            Some((s, e))
+                if start.saturating_sub(*e) <= u64::from(gap) && end.max(*e) - *s <= u64::from(max) =>
+            {
                 *e = (*e).max(end);
             }
             _ => out.push((start, end)),
