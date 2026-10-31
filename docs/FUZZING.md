@@ -42,7 +42,7 @@ now implements the raster class as well as the components, decodes the raster st
 what decodes writes back to something that decodes to the same placements, and is seeded with one stream set holding a
 valid placement (the test vector of `docs/RASTER.md`). A smoke run is 300 seconds on MARS (native x86_64) per target:
 `fuzz_directory_traversal` ran 6,849,016 executions at about 22,700 a second and found nothing (issue 216), and
-`fuzz_component_streams` is in the results below. The long run of issue 190 has not run with these seeds; only the smoke
+`fuzz_component_streams` ran 10,444,284 executions at about 34,700 a second and found nothing (issue 217). The long run of issue 190 has not run with these seeds; only the smoke
 runs have.
 
 ## The mutator and the checksum gate
