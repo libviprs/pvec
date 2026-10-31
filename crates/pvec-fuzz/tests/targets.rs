@@ -117,8 +117,8 @@ fn the_hardening_report_names_every_target_and_says_what_was_not_run() {
 
 /// The `(kind, capability)` of every directory entry of `bytes`, when its header, manifest and directory parse.
 fn entry_pairs(bytes: &[u8]) -> Vec<(u16, u16)> {
-    use pvec_container::directory::{DirectoryPointer, parse_directory};
-    use pvec_container::{Header, Manifest};
+    use pvec_container::directory::parse_directory;
+    use pvec_container::{DirectoryPointer, Header, Manifest};
     let len = bytes.len() as u64;
     let Ok(header) = Header::parse(&bytes[..bytes.len().min(4096)], len) else { return Vec::new() };
     let (m0, m1) =
