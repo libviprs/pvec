@@ -244,7 +244,84 @@ blocks/mod.rs: pub mod advanced
 blocks/mod.rs: pub mod aligned
 blocks/mod.rs: pub mod arena
 blocks/mod.rs: pub mod hot
+blocks/mod.rs: pub mod raster
 blocks/mod.rs: pub use aligned::AlignedBytes
+blocks/raster.rs: pub const KIND_INDEX: u16
+blocks/raster.rs: pub const KIND_TILES: u16
+blocks/raster.rs: pub const CAPABILITY: u16
+blocks/raster.rs: pub const INLINE: u32
+blocks/raster.rs: pub const CHUNKS_PER_LEVEL: u32
+blocks/raster.rs: pub const MAX_LEVELS: u32
+blocks/raster.rs: pub const MAX_SIDE: u32
+blocks/raster.rs: pub const MAGIC: [u8; 4]
+blocks/raster.rs: pub const VERSION: u16
+blocks/raster.rs: pub const HEADER_LEN: usize
+blocks/raster.rs: pub const LEVEL_LEN: usize
+blocks/raster.rs: pub const TILE_LEN: usize
+blocks/raster.rs: pub fn subtype(level: u32, chunk: u32) -> Option<u16>
+blocks/raster.rs: pub fn hilbert_key(side: u64, col: u32, row: u32) -> u64
+blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum IndexError
+blocks/raster.rs: IndexError::Length { expected: u64, found: u64 }
+blocks/raster.rs: IndexError::Header
+blocks/raster.rs: IndexError::Levels { found: u32 }
+blocks/raster.rs: IndexError::TooManyTiles { declared: u64, ceiling: u64 }
+blocks/raster.rs: IndexError::Level { level: u32 }
+blocks/raster.rs: IndexError::Count
+blocks/raster.rs: IndexError::Grid { level: u32 }
+blocks/raster.rs: IndexError::Order { level: u32, ordinal: u32 }
+blocks/raster.rs: IndexError::Packing { ordinal: u32 }
+blocks/raster.rs: IndexError::Chunk { level: u32, chunk: u32 }
+blocks/raster.rs: IndexError::Tile { level: u32, col: u32, row: u32 }
+blocks/raster.rs: IndexError::TooLarge { level: u32 }
+blocks/raster.rs: IndexError::NoPlacement { raster: u32 }
+blocks/raster.rs: IndexError::NoIndex { raster: u32 }
+blocks/raster.rs: IndexError::Block { raster: u32, subtype: u16 }
+blocks/raster.rs: IndexError::rule(&self) -> &'static str
+blocks/raster.rs: impl fmt::Display for IndexError
+blocks/raster.rs: impl std::error::Error for IndexError {}
+blocks/raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Level
+blocks/raster.rs: Level.cols: u32
+blocks/raster.rs: Level.rows: u32
+blocks/raster.rs: Level.chunks: u32
+blocks/raster.rs: Level.first: u32
+blocks/raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Tile
+blocks/raster.rs: Tile.xxh3: u64
+blocks/raster.rs: Tile.col: u32
+blocks/raster.rs: Tile.row: u32
+blocks/raster.rs: Tile.offset: u32
+blocks/raster.rs: Tile.length: u32
+blocks/raster.rs: Tile.chunk: u32
+blocks/raster.rs: Tile::is_stored(&self) -> bool
+blocks/raster.rs: Tile::is_inline(&self) -> bool
+blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RasterIndex
+blocks/raster.rs: RasterIndex::parse(bytes: &[u8], max_tiles: u64) -> Result<RasterIndex, IndexError>
+blocks/raster.rs: RasterIndex::encode(&self) -> Vec<u8>
+blocks/raster.rs: RasterIndex::levels(&self) -> &[Level]
+blocks/raster.rs: RasterIndex::tiles(&self) -> &[Tile]
+blocks/raster.rs: RasterIndex::level_tiles(&self, level: u32) -> Option<&[Tile]>
+blocks/raster.rs: RasterIndex::stored(&self) -> u32
+blocks/raster.rs: RasterIndex::tile(&self, level: u32, col: u32, row: u32) -> Option<&Tile>
+blocks/raster.rs: RasterIndex::inline_bytes(&self, tile: &Tile) -> Option<&[u8]>
+blocks/raster.rs: RasterIndex::check_grid(&self, width: u32, height: u32, tile_edge: u32) -> Result<(), IndexError>
+blocks/raster.rs: RasterIndex::chunk_stats(&self, level: u32) -> Vec<(u32, u64)>
+blocks/raster.rs: RasterIndex::check_chunks(&self, length_of: impl Fn(u32, u32) -> Option<u32>) -> Result<(), IndexError>
+blocks/raster.rs: pub fn grid_of(width: u32, height: u32, tile_edge: u32, levels: u32, level: u32) -> (u32, u32)
+blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct TileIn
+blocks/raster.rs: TileIn.level: u32
+blocks/raster.rs: TileIn.col: u32
+blocks/raster.rs: TileIn.row: u32
+blocks/raster.rs: TileIn.bytes: Vec<u8>
+blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ChunkOut
+blocks/raster.rs: ChunkOut.level: u32
+blocks/raster.rs: ChunkOut.chunk: u32
+blocks/raster.rs: ChunkOut.count: u32
+blocks/raster.rs: ChunkOut.cols: [u32; 2]
+blocks/raster.rs: ChunkOut.rows: [u32; 2]
+blocks/raster.rs: ChunkOut.bytes: Vec<u8>
+blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Built
+blocks/raster.rs: Built.index: RasterIndex
+blocks/raster.rs: Built.chunks: Vec<ChunkOut>
+blocks/raster.rs: pub fn build(grid: &[(u32, u32)], tiles: Vec<TileIn>, inline_levels: u32, chunk_bytes: u32, max_tiles: u64) -> Result<Built, IndexError>
 compress.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub enum Codec
 compress.rs: Codec::None
 compress.rs: Codec::Lz4
@@ -338,6 +415,10 @@ engine.rs: Core::slice_of<'a>(&self, id: BlockId, request_offset: u64, bytes: &'
 engine.rs: Core::plan(&self, ids: &[BlockId], gap: u32, max: u32) -> Result<Vec<RangeRequest>, ReadError>
 engine.rs: Core::in_flight(&self, entry: &BlockEntry) -> u64
 engine.rs: Core::decode(&self, id: BlockId, stored: &[u8], reservation: Reservation) -> Result<DecodedBlock, ReadError>
+engine.rs: Core::raster_index_block(&self, raster: u32) -> Option<BlockId>
+engine.rs: Core::raster_chunk_block(&self, raster: u32, level: u32, chunk: u32) -> Option<BlockId>
+engine.rs: Core::raster_ids(&self) -> Vec<u32>
+engine.rs: Core::check_raster_blocks(&self, raster: u32, index: &raster::RasterIndex) -> Result<(), raster::IndexError>
 engine.rs: Core::advanced_chunks(&self) -> Result<&[[BlockId; 6]], ReadError>
 engine.rs: Validation<'a>::new(core: &'a Core, limits: &Limits, acct: &Accountant) -> Result<Validation<'a>, ReadError>
 engine.rs: Validation<'a>::next_need(&mut self) -> Option<Need>
@@ -418,6 +499,7 @@ integrity.rs: IntegrityError::ArtifactDigest { expected: [u8; 32], found: [u8; 3
 integrity.rs: IntegrityError::BadTable { reason: &'static str }
 integrity.rs: IntegrityError::BlockChecksum { block: u32, expected: u64, found: u64 }
 integrity.rs: IntegrityError::NotWritten
+integrity.rs: IntegrityError::TileChecksum { raster: u32, level: u32, col: u32, row: u32, expected: u64, found: u64 }
 integrity.rs: IntegrityError::rule(&self) -> &'static str
 integrity.rs: pub const INTEGRITY_RULES: &[(&str, &str)]
 integrity.rs: impl fmt::Display for IntegrityError
@@ -649,6 +731,8 @@ reader.rs: ReadError::Layout { rule: &'static str, detail: String }
 reader.rs: ReadError::Codec(CodecError)
 reader.rs: ReadError::Integrity(IntegrityError)
 reader.rs: ReadError::Negotiation(Refusal)
+reader.rs: ReadError::Raster(IndexError)
+reader.rs: ReadError::Placement(RasterError)
 reader.rs: ReadError::Skipped { id: u32 }
 reader.rs: ReadError::NoSuchBlock { id: u32, blocks: usize }
 reader.rs: ReadError::rule(&self) -> String
@@ -691,6 +775,12 @@ reader.rs: ContainerReader<S>::advanced_chunk_blocks(&self, chunks: &[usize]) ->
 reader.rs: ContainerReader<S>::advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError>
 reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
+reader.rs: ContainerReader<S>::rasters(&self) -> Vec<u32>
+reader.rs: ContainerReader<S>::raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: ContainerReader<S>::raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError>
+reader.rs: ContainerReader<S>::raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
+reader.rs: ContainerReader<S>::read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
+reader.rs: ContainerReader<S>::validate_raster(&self, raster: u32) -> Result<(), ReadError>
 reader.rs: ContainerReader<S>::validate(&self) -> Result<Validated, ReadError>
 reader.rs: pub struct AsyncContainerReader<S: AsyncBlockSource>
 reader.rs: AsyncContainerReader<S>::async fn open(source: S, config: ReaderConfig) -> Result<AsyncContainerReader<S>, ReadError>
@@ -700,6 +790,12 @@ reader.rs: AsyncContainerReader<S>::advanced_chunk_count(&self) -> Result<usize,
 reader.rs: AsyncContainerReader<S>::async fn advanced(&self, chunk: usize) -> Result<Option<AdvancedSet>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
+reader.rs: AsyncContainerReader<S>::rasters(&self) -> Vec<u32>
+reader.rs: AsyncContainerReader<S>::async fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn validate_raster(&self, raster: u32) -> Result<(), ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate(&self) -> Result<Validated, ReadError>
 reader.rs: pub fn render_markdown() -> String
 reader.rs: pub const READER_RULES: &[(&str, &str)]
@@ -875,6 +971,8 @@ writer.rs: WriteError::Stream(StreamError)
 writer.rs: WriteError::Container(ContainerError)
 writer.rs: WriteError::Geometry(GeometryError)
 writer.rs: WriteError::Tier0Cell { cell: u32 }
+writer.rs: WriteError::Raster(IndexError)
+writer.rs: WriteError::Placement(RasterError)
 writer.rs: WriteError::rule(&self) -> &'static str
 writer.rs: pub const WRITE_RULES: &[(&str, &str)]
 writer.rs: impl fmt::Display for WriteError
@@ -885,6 +983,8 @@ writer.rs: impl From<StreamError> for WriteError
 writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
 writer.rs: pub const ADVANCED_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_INLINE_BYTES: u64
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct Derived
 writer.rs: Derived.entity: EntityId
@@ -908,4 +1008,7 @@ writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds:
 writer.rs: ContainerWriter::set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_straddler_lists(&mut self, entries: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_tier0_leaf(&mut self, cell: u32, count: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
-writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>
+writer.rs: ContainerWriter::raster_chunk_bytes(&mut self, bytes: u32)
+writer.rs: ContainerWriter::raster_inline_bytes(&mut self, bytes: u64)
+writer.rs: ContainerWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>

@@ -36,7 +36,7 @@ while [ $# -gt 0 ]; do
     *) TARGETS+=("$1"); shift ;;
   esac
 done
-[ ${#TARGETS[@]} -gt 0 ] || TARGETS=(fuzz_header fuzz_directory_traversal fuzz_immediate_blocks fuzz_advanced_blocks fuzz_decompress_boundary fuzz_component_streams)
+[ ${#TARGETS[@]} -gt 0 ] || TARGETS=(fuzz_header fuzz_directory_traversal fuzz_immediate_blocks fuzz_advanced_blocks fuzz_decompress_boundary fuzz_component_streams fuzz_raster_index)
 
 case $HOST in
   # ~/.docker on mars is a dangling symlink, which makes `docker build` fail with "mkdir: file exists", so

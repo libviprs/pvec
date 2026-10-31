@@ -208,6 +208,10 @@ fn decoded(layout: &Layout, bytes: &[u8], i: usize) -> Option<Vec<u8>> {
 /// The inputs for one target, taken from the seeds: the whole artifact, its header, one hot block, the framed
 /// advanced blocks, a framed compressed block or the component stream set.
 pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
+    if target == "fuzz_raster_index" {
+        // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
+        return raster_index_inputs();
+    }
     /// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
     fn raster_seed() -> Option<Vec<u8>> {
         use pvec_components::{
@@ -319,5 +323,58 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
             }
         }
     }
+    one_of(out, |v| v.as_slice())
+}
+
+/// The inputs of `fuzz_raster_index`: the index blocks of the test-only tiler's pyramids (a single tile, a
+/// pyramid with inline levels, a sparse one, a split one, one with a tile table of 65,000
+/// entries), each with a handful of mutants from the structure-aware mutator, and the header-only blocks that
+/// claim more than the ceiling.
+fn raster_index_inputs() -> Vec<Vec<u8>> {
+    use pvec_container::blocks::raster::build;
+    use pvec_testkit::tiler::{Shape, tiles};
+    let shape = |width, height| Shape { width, height, tile_edge: 256, channels: 1, bit_depth: 1 };
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    let mut valid: Vec<Vec<u8>> = Vec::new();
+    // (shape, tiles kept, inline levels, bytes a chunk)
+    type Keep = fn(u32, u32, u32) -> bool;
+    let all: Keep = |_, _, _| true;
+    let sparse: Keep = |l, c, r| (l + c + r) % 3 != 0;
+    for (s, keep, inline, chunk) in [
+        (shape(200, 200), all, 0, 1 << 20),
+        (shape(700, 500), all, 0, 1 << 20),
+        (shape(700, 500), all, 2, 1 << 20),
+        (shape(700, 500), sparse, 1, 1 << 20),
+        (shape(1500, 900), all, 0, 20_000),
+        (shape(1500, 900), sparse, 3, 20_000),
+        (shape(256, 4096), all, 0, 1 << 20),
+    ] {
+        let grid = s.grid();
+        let built = build(&grid, tiles(s, keep), inline, chunk, 1 << 20).expect("the tiler's pyramid builds");
+        valid.push(built.index.encode());
+    }
+    // a wide level that is all entries and no bytes
+    let wide = build(&[(65_000, 1)], Vec::new(), 0, 1 << 20, 1 << 20).expect("a wide pyramid");
+    valid.push(wide.index.encode());
+    for (k, v) in valid.iter().enumerate() {
+        out.push(v.clone());
+        if v.len() <= 1 << 20 {
+            for m in 0..8u64 {
+                let mut mutant = v.clone();
+                crate::mutate::mutate_index(&mut mutant, 1 + m + 16 * k as u64);
+                out.push(mutant);
+            }
+        }
+    }
+    // a header that claims more than any block holds, and more than the ceiling
+    for tiles in [1u32, 4096, (1 << 20) + 1, u32::MAX] {
+        let mut h = vec![0u8; 32];
+        h[..4].copy_from_slice(b"PVX1");
+        h[4] = 1;
+        h[6] = 1;
+        h[8..12].copy_from_slice(&tiles.to_le_bytes());
+        out.push(h);
+    }
+    out.push(Vec::new());
     one_of(out, |v| v.as_slice())
 }

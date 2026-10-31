@@ -6,6 +6,8 @@
 
 use crate::writer::refused;
 use crate::{Bounds2, CapabilityId, Curve, EntityId, PvecError, PvecReader, PvecWriter};
+use pvec_capabilities::{Registry, Version};
+use pvec_components::{RASTER_CAPABILITY, encode_rasters};
 use pvec_container::Bounds;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
@@ -13,6 +15,8 @@ use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_b
 use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
+pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
+pub use pvec_container::blocks::raster::TileIn;
 pub use pvec_container::limits::Limits;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
 pub use pvec_container::reader::ReaderConfig;
@@ -28,6 +32,7 @@ pub(crate) enum Op {
     Curve(EntityId, Curve),
     Composite { id: EntityId, segments: Vec<EntityId>, bounds: Bounds2, closed: bool },
     Components(crate::components::Stream),
+    Raster(RasterId, Vec<TileIn>),
 }
 
 /// What an indexed writer remembers.
@@ -71,7 +76,7 @@ impl Indexing {
                     .iter()
                     .filter_map(|op| match op {
                         Op::Curve(id, _) | Op::Composite { id, .. } => Some(id.index() + 1),
-                        Op::Components(_) => None,
+                        Op::Components(_) | Op::Raster(..) => None,
                     })
                     .max()
                     .unwrap_or(0);
@@ -83,7 +88,7 @@ impl Indexing {
                         // A composite is in no leaf, so no leaf block ever carries its entry: the plan only
                         // needs one for every id to be complete, and `tier0_blocks` cuts the leaves' ids.
                         Op::Composite { id, .. } => plan.add_exact(*id),
-                        Op::Components(_) => Ok(()),
+                        Op::Components(_) | Op::Raster(..) => Ok(()),
                     }
                     .map_err(|e| write_error(e.rule()))?;
                 }
@@ -110,6 +115,7 @@ impl Indexing {
                     w.push_composite(meta, &segments, None, closed)
                 }
                 Op::Components(stream) => w.push_stream(stream),
+                Op::Raster(id, tiles) => w.push_raster_tiles(id, tiles),
             }
             .map_err(refused)?;
         }
@@ -244,5 +250,51 @@ impl PvecReader {
             .partial_open()
             .map(|p| p.capabilities.iter().map(|c| (c.id, c.effect)).collect())
             .unwrap_or_default()
+    }
+}
+
+impl PvecWriter {
+    /// Attaches the raster stream (capability 21): the placements, in `RasterId` order, that the tiles of
+    /// [`PvecWriter::raster_tiles`] are placed by. A placement the rules refuse (`RASTER-01`, `04`, `05`, `07`,
+    /// `LIMIT-13`) is an error here and not at `finish`.
+    pub fn rasters(&mut self, placements: &[Placement]) -> Result<(), PvecError> {
+        let payload = encode_rasters(placements).map_err(|e| write_error(e.rule()))?;
+        let version = Registry::v1().get(RASTER_CAPABILITY).map_or(Version::new(1, 0, 0), |c| c.version);
+        self.components(crate::components::Stream { capability: RASTER_CAPABILITY, version, payload })
+    }
+
+    /// Adds the encoded tiles of raster `raster` (PNG, JPEG or WebP, stored as they are), each with its level,
+    /// column and row. A tile with no bytes is a tile that is not stored. The tiles of one raster can come in
+    /// any number of calls and any order, and the file does not depend on either. What the container cannot
+    /// store is refused by `finish`, with the rule of the refusal.
+    pub fn raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
+        if let Some(index) = &mut self.index {
+            index.log.push(Op::Raster(raster, tiles.clone()));
+        }
+        self.inner.push_raster_tiles(raster, tiles).map_err(refused)
+    }
+}
+
+impl PvecReader {
+    /// The raster placements of the file, in `RasterId` order: empty when the file has none, and an error when
+    /// the stream is damaged (the geometry does not depend on it).
+    pub fn raster_placements(&self) -> Result<Vec<Placement>, PvecError> {
+        self.inner.raster_placements().map(|p| p.to_vec()).map_err(|e| PvecError::Read { rule: e.rule() })
+    }
+
+    /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum has been
+    /// checked against them: `None` for a tile that is not stored, and an error for a raster the file does not
+    /// have or one it refuses (the file and the other rasters are unaffected).
+    pub fn raster_tile(
+        &self,
+        raster: RasterId,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<Option<Vec<u8>>, PvecError> {
+        self.inner
+            .read_raster_tile(raster.index(), level, col, row)
+            .map(|t| t.map(|b| b.as_slice().to_vec()))
+            .map_err(|e| PvecError::Read { rule: e.rule() })
     }
 }

@@ -367,7 +367,7 @@ The block kinds:
 | 9 | raster_index | reserved, capability-owned by 21 (`docs/RASTER.md`): the level table and tile table of one raster, `cell` = its `RasterId` | 0 | tiles stored |
 | 10 | raster_tiles | reserved, capability-owned by 21 (`docs/RASTER.md`): the encoded tiles of one (raster, level, chunk), `cell` = its `RasterId` | `level * 1024 + chunk` | tiles in the chunk |
 
-Kinds 9 and 10 are not in `BlockKind::ALL` and not a kind "the format defines" for DIR-02: their entries name capability 21, a reader that does not implement it skips them as `UnknownBlockKind` naming 21, and the rest of the kind table is unchanged.
+Kinds 9 and 10 are not in `BlockKind::ALL` and not a kind "the format defines" for DIR-02: their entries name capability 21, a reader that does not implement it skips them as `UnknownBlockKind` naming 21, and the rest of the kind table is unchanged. The writer puts them after every kind the format defines, so the canonical order (group, cell, kind, subtype) puts every kind 9 block next to the others, by `RasterId`, and then every kind 10 block by `RasterId` and `level * 1024 + chunk`; LAYOUT-04 keys are therefore unique, and ascending by level inside a raster. Both are optional (the must-understand flag is clear), carry the has-bounds flag (the footprint of the raster's visible box in source space for a kind 9 block, the box of the chunk's tiles for a kind 10 block), are stored with codec 0 (a tile is read as a range of its chunk, which a compressed block would not allow) and name capability 21. The layout of both is `docs/RASTER.md` sections 2 and 3; a reader reads the index of a raster the first time that raster is asked for, and a tile is one range inside its chunk, checked against the index's XXH3-64 before it is returned (INTEGRITY-05), whether or not the file has a checksum table. The chunk's own checksum in the table is full validation's.
 
 Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set, the spatial directory, the reference arrays, the straddler lists and the Tier 0 blocks do not, so a reader that does not know them skips them. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, the spatial directory carries the box of its root, the straddler lists carry the union of the boxes they list, a Tier 0 block carries the bounds of its leaf, an arena or a component set carries none and its four bounds are zero. The codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:
 
@@ -426,6 +426,8 @@ Each refusal is a typed `WriteError` with a rule identifier.
 | WRT-12 | the manifest refused (the error carries its container error) |
 | WRT-13 | the semantic model refused |
 | WRT-14 | a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell |
+| WRT-15 | raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule) |
+| WRT-16 | the raster placement stream is refused (the error carries its RASTER rule) |
 
 ### 4.6 Review checklist
 
@@ -463,6 +465,7 @@ Two levels of integrity, from ADR 0006. The block checksum table is one XXH3-64 
 | INTEGRITY-02 | the block checksum table is not one 8 byte sum per block, overlaps a block, or runs into the directory |
 | INTEGRITY-03 | the XXH3-64 of a block's stored bytes is not the sum in the table |
 | INTEGRITY-04 | the reader was configured to require integrity and the file has no checksum table or no digest |
+| INTEGRITY-05 | the XXH3-64 of a raster tile's stored bytes is not the checksum in its index entry (checked on every tile read, whether or not the file has a checksum table) |
 
 The measurement behind the codec ids is `docs/spikes/04-6-compression.md`; the writer's default policy is the one `docs/bench/TUNING.md` records (P8.6).
 

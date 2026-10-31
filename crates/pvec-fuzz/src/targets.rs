@@ -1,4 +1,4 @@
-//! The six fuzz targets.
+//! The fuzz targets.
 //!
 //! Every target does three things with its input: it never panics, it never allocates in proportion to what
 //! the input claims (the reader accounts for that, and the smoke driver and libFuzzer's RSS limit hold it to
@@ -10,6 +10,7 @@ use pvec_capabilities::{Reader, Registry, Version};
 use pvec_container::blocks::AlignedBytes;
 use pvec_container::blocks::advanced::{AdvancedView, BlockSlices, CurveView};
 use pvec_container::blocks::hot::HotBlockView;
+use pvec_container::blocks::raster::RasterIndex;
 use pvec_container::compress::Codec;
 use pvec_container::directory::BlockKind;
 use pvec_container::integrity::{Integrity, artifact_digest, block_checksum};
@@ -26,13 +27,14 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 6] = [
+pub const TARGETS: [(&str, Target); 7] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
     ("fuzz_advanced_blocks", fuzz_advanced_blocks),
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
+    ("fuzz_raster_index", fuzz_raster_index),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -351,4 +353,68 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
         }
         Err(e) => e.rule().to_string(),
     }
+}
+
+/// A raster index block (kind 9, `docs/RASTER.md`): the second parser over hostile bytes that ADR 0018 adds.
+/// A block that parses is checked against everything the layout promises, and must encode to the bytes it came
+/// from, so a parser that accepts a block the writer would not write is a crash.
+pub fn fuzz_raster_index(data: &[u8]) -> String {
+    // LIMIT-14, the default ceiling on the entries of the tile tables of an artifact
+    let index = match RasterIndex::parse(data, u64::from(Limits::DEFAULT.max_raster_tiles)) {
+        Ok(i) => i,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert_eq!(index.encode(), data, "a block that parses is not the block that encodes");
+    let (mut ordinal, mut stored) = (0u64, 0u32);
+    for (l, level) in index.levels().iter().enumerate() {
+        assert_eq!(u64::from(level.first), ordinal, "a level that does not start where the last ended");
+        let tiles = index.level_tiles(l as u32).expect("the tiles of a level of the table");
+        assert_eq!(tiles.len() as u64, u64::from(level.cols) * u64::from(level.rows));
+        let mut chunks = std::collections::BTreeSet::new();
+        for t in tiles {
+            assert!(t.col < level.cols && t.row < level.rows, "a tile outside its level");
+            assert_eq!(index.tile(l as u32, t.col, t.row), Some(t), "a tile the lookup does not find");
+            if t.is_stored() {
+                stored += 1;
+                if t.is_inline() {
+                    let bytes = index.inline_bytes(t).expect("an inline tile has bytes");
+                    assert_eq!(bytes.len(), t.length as usize);
+                } else {
+                    assert!(t.chunk < level.chunks, "a tile in a chunk the level does not have");
+                    chunks.insert(t.chunk);
+                }
+            } else {
+                assert_eq!((t.xxh3, t.offset, t.chunk), (0, 0, 0), "an unstored tile that carries something");
+            }
+        }
+        assert_eq!(chunks.len() as u32, level.chunks, "a chunk with no tile");
+        assert!(
+            index.tile(l as u32, level.cols, 0).is_none() && index.tile(l as u32, 0, level.rows).is_none()
+        );
+        ordinal += u64::from(level.cols) * u64::from(level.rows);
+    }
+    assert_eq!(ordinal, index.tiles().len() as u64);
+    assert_eq!(stored, index.stored());
+    // the chunk blocks the tiles describe are exactly as long as their tiles
+    let chunk_end = |l: u32, c: u32| {
+        index
+            .level_tiles(l)?
+            .iter()
+            .filter(|t| t.is_stored() && !t.is_inline() && t.chunk == c)
+            .map(|t| t.offset + t.length)
+            .max()
+    };
+    index.check_chunks(chunk_end).expect("the chunks the tiles describe");
+    // the size a placement would have to give the last level for this index to be its pyramid, and some that it
+    // would not: a check against a placement is an answer and never a crash
+    let last = index.levels().last().expect("a level");
+    for (w, h, edge) in [
+        (last.cols.saturating_mul(256), last.rows.saturating_mul(256), 256),
+        (last.cols.saturating_mul(512), last.rows.saturating_mul(512), 512),
+        (u32::MAX, u32::MAX, 256),
+        (1, 1, 0),
+    ] {
+        let _ = index.check_grid(w, h, edge);
+    }
+    "ok".to_string()
 }

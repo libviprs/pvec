@@ -16,6 +16,7 @@
 use crate::blocks::advanced::{AdvancedBuilder, SplineSpec};
 use crate::blocks::arena::{ArenaError, PayloadKind};
 use crate::blocks::hot::{HotBlockBuilder, HotError, HotKind};
+use crate::blocks::raster::{self, IndexError, TileIn};
 use crate::compress::CodecPolicy;
 use crate::compress::pack;
 use crate::directory::{
@@ -24,12 +25,15 @@ use crate::directory::{
 use crate::error::ContainerError;
 use crate::header::{ChecksumAlgorithm, Header};
 use crate::integrity::{Integrity, artifact_digest, block_checksum};
+use crate::limits::Limits;
 use crate::manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest, Metadata};
 use crate::spec::{cap, dir};
 use core::cmp::Ordering;
 use core::fmt;
 use pvec_capabilities::{CapabilityId, Declared, Registry, Requirement, Version};
-use pvec_components::{Stream, StreamError, encode_streams};
+use pvec_components::{
+    Placement, RASTER_CAPABILITY, RasterError, RasterId, Stream, StreamError, decode_rasters, encode_streams,
+};
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
 use pvec_numeric::check_value;
@@ -276,6 +280,10 @@ pub enum WriteError {
         /// The cell.
         cell: u32,
     },
+    /// Raster tiles the container cannot store (the error carries its `RASTER-nn` or `LIMIT-14` rule).
+    Raster(IndexError),
+    /// The raster placement stream is refused (the error carries its rule).
+    Placement(RasterError),
 }
 
 impl WriteError {
@@ -296,6 +304,8 @@ impl WriteError {
             WriteError::Container(_) => "WRT-12",
             WriteError::Geometry(_) => "WRT-13",
             WriteError::Tier0Cell { .. } => "WRT-14",
+            WriteError::Raster(_) => "WRT-15",
+            WriteError::Placement(_) => "WRT-16",
         }
     }
 }
@@ -319,6 +329,11 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
         "WRT-14",
         "a Tier 0 block in cell 0 or in a straddler payload cell, or a second Tier 0 block for one cell",
     ),
+    (
+        "WRT-15",
+        "raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule)",
+    ),
+    ("WRT-16", "the raster placement stream is refused (the error carries its RASTER rule)"),
 ];
 
 impl fmt::Display for WriteError {
@@ -348,6 +363,8 @@ impl fmt::Display for WriteError {
             WriteError::Tier0Cell { cell } => {
                 write!(f, "{rule}: a Tier 0 block cannot be in cell {cell}, or twice")
             }
+            WriteError::Raster(e) => write!(f, "{rule}: {e}"),
+            WriteError::Placement(e) => write!(f, "{rule}: {e}"),
         }
     }
 }
@@ -441,6 +458,14 @@ struct AdvancedItem {
 /// and below 256 KiB the file and its block directory grow faster than the bytes shrink.
 pub const ADVANCED_CHUNK_BYTES: u32 = 256 * 1024;
 
+/// The most bytes of tiles one kind 10 block holds by default: the block ceiling of the browser preset, so a file
+/// opens under both presets. A level that would pass it is split into chunks.
+pub const RASTER_CHUNK_BYTES: u32 = 1 << 26;
+
+/// The bytes of the coarsest raster levels the index blocks hold inline by default, over every raster of the
+/// artifact: the Tier 0 share of the rasters (ADR 0018 proposes 256 KiB, and issue 220 measures it).
+pub const RASTER_INLINE_BYTES: u64 = 256 * 1024;
+
 /// A block ready to be placed.
 struct Planned {
     first_seen: usize,
@@ -471,6 +496,9 @@ pub struct ContainerWriter {
     cell_refs: Option<RefsItem>,
     straddlers: Option<SpatialItem>,
     tier0: Vec<Tier0Item>,
+    rasters: BTreeMap<u32, Vec<TileIn>>,
+    raster_chunk: u32,
+    raster_inline: u64,
 }
 
 /// A stored number the caller did not hand over: the writer derived it, within `bound` of the exact
@@ -584,6 +612,9 @@ impl ContainerWriter {
             cell_refs: None,
             straddlers: None,
             tier0: Vec::new(),
+            rasters: BTreeMap::new(),
+            raster_chunk: RASTER_CHUNK_BYTES,
+            raster_inline: RASTER_INLINE_BYTES,
         }
     }
 
@@ -945,6 +976,31 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// Sets the bytes at which a level of raster tiles is cut into chunks (default [`RASTER_CHUNK_BYTES`]). A
+    /// tile is never split, so one longer than this is refused when the file is finished.
+    pub fn raster_chunk_bytes(&mut self, bytes: u32) {
+        self.raster_chunk = bytes;
+    }
+
+    /// Sets how many bytes of the coarsest levels the index blocks hold inline, over every raster (default
+    /// [`RASTER_INLINE_BYTES`]). The levels are taken coarsest first, across the rasters, each raster's in order,
+    /// while they fit; a level that does not fit stops that raster. Nothing about the order they were pushed in
+    /// is used.
+    pub fn raster_inline_bytes(&mut self, bytes: u64) {
+        self.raster_inline = bytes;
+    }
+
+    /// Adds encoded tiles of raster `raster`, whose placement is in the raster stream pushed with
+    /// [`ContainerWriter::push_stream`] (capability 21). Each tile carries its level, column and row and the
+    /// bytes of its PNG, JPEG or WebP, which are stored as they are; a tile with no bytes is a tile that is not
+    /// stored. The tiles of one raster can come in any number of calls and in any order, and the file does not
+    /// depend on either. What the writer cannot store is refused by [`ContainerWriter::finish`]: tiles for a
+    /// raster the stream does not place, a tile outside its level or given twice, a tile longer than a chunk.
+    pub fn push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError> {
+        self.rasters.entry(raster.index()).or_default().extend(tiles);
+        Ok(())
+    }
+
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
     ///
     /// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
@@ -1155,11 +1211,95 @@ impl ContainerWriter {
         }))
     }
 
+    /// The kind 9 and kind 10 blocks of the rasters pushed, in the canonical order: every index by raster, then
+    /// every chunk by raster and subtype. They are codec 0 and optional, name capability 21, and carry the
+    /// footprint of the visible box (index) or of the tiles of the chunk (chunk) in source space.
+    fn raster_blocks(&mut self) -> Result<Vec<RawBlock>, WriteError> {
+        let rasters = std::mem::take(&mut self.rasters);
+        let Some(&first) = rasters.keys().next() else { return Ok(Vec::new()) };
+        let stream = self
+            .streams
+            .iter()
+            .map(|(_, s)| s)
+            .find(|s| s.capability == RASTER_CAPABILITY)
+            .ok_or(WriteError::Raster(IndexError::NoIndex { raster: first }))?;
+        let placements = decode_rasters(&stream.payload).map_err(WriteError::Placement)?;
+        // (raster, its placement, the grid of its levels)
+        type Plan<'a> = (u32, &'a Placement, Vec<(u32, u32)>);
+        let mut plans: Vec<Plan<'_>> = Vec::with_capacity(rasters.len());
+        for &id in rasters.keys() {
+            let p =
+                placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;
+            let n = u32::from(p.levels);
+            let grid =
+                (0..n).map(|l| raster::grid_of(p.width, p.height, u32::from(p.tile_edge), n, l)).collect();
+            plans.push((id, p, grid));
+        }
+        // LIMIT-14 over the artifact, at the default ceiling: the entries of every tile table
+        let mut left = u64::from(Limits::DEFAULT.max_raster_tiles);
+        // which levels are inline: the coarsest first across the rasters, each raster's in order, while they fit
+        let mut inline: BTreeMap<u32, u32> = plans.iter().map(|(id, _, _)| (*id, 0)).collect();
+        let mut candidates: Vec<(u32, u32, u64)> = Vec::new();
+        for (id, _, grid) in &plans {
+            let mut bytes = vec![0u64; grid.len()];
+            for t in rasters.get(id).into_iter().flatten() {
+                if let Some(b) = bytes.get_mut(t.level as usize) {
+                    *b += t.bytes.len() as u64;
+                }
+            }
+            candidates.extend(bytes.into_iter().enumerate().map(|(l, b)| (l as u32, *id, b)));
+        }
+        candidates.sort_unstable();
+        let (mut budget, mut closed) = (self.raster_inline, Vec::<u32>::new());
+        for (level, id, bytes) in candidates {
+            if closed.contains(&id) || inline.get(&id) != Some(&level) {
+                continue;
+            }
+            if bytes <= budget {
+                budget -= bytes;
+                inline.insert(id, level + 1);
+            } else {
+                closed.push(id);
+            }
+        }
+        let mut indexes = Vec::new();
+        let mut chunks = Vec::new();
+        let mut rasters = rasters;
+        for (id, p, grid) in plans {
+            let tiles = rasters.remove(&id).unwrap_or_default();
+            let total: u64 = grid.iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
+            let built =
+                raster::build(&grid, tiles, inline.get(&id).copied().unwrap_or(0), self.raster_chunk, left)
+                    .map_err(WriteError::Raster)?;
+            left -= total;
+            let footprint = pixel_box(p, p.visible_box.map(u64::from))?;
+            let encoded = built.index.encode();
+            indexes.push(raster_block(raster::KIND_INDEX, id, 0, built.index.stored(), footprint, encoded)?);
+            for c in built.chunks {
+                // a chunk's tiles are cells of its level, each `tile_edge` pixels of the level wide, and a pixel of
+                // the level is `2^(levels - 1 - level)` pixels of the image
+                let scale = 1u64 << (u32::from(p.levels) - 1 - c.level);
+                let edge = u64::from(p.tile_edge) * scale;
+                let area = [
+                    u64::from(c.cols[0]) * edge,
+                    u64::from(c.rows[0]) * edge,
+                    ((u64::from(c.cols[1]) + 1) * edge).min(u64::from(p.width)),
+                    ((u64::from(c.rows[1]) + 1) * edge).min(u64::from(p.height)),
+                ];
+                let st = raster::subtype(c.level, c.chunk).ok_or(WriteError::TooLarge)?;
+                chunks.push(raster_block(raster::KIND_TILES, id, st, c.count, pixel_box(p, area)?, c.bytes)?);
+            }
+        }
+        indexes.extend(chunks);
+        indexes.sort_by_key(|b| (b.kind, b.cell, b.subtype));
+        Ok(indexes)
+    }
+
     /// The artifact.
     ///
     /// Header, manifest, the blocks in canonical order each on a multiple of 8 bytes, then the block
     /// directory, and nothing else. Every padding byte is zero.
-    pub fn finish(self) -> Result<Vec<u8>, WriteError> {
+    pub fn finish(mut self) -> Result<Vec<u8>, WriteError> {
         if self.hot.is_empty() && self.advanced.is_empty() {
             return Err(WriteError::Empty);
         }
@@ -1276,6 +1416,8 @@ impl ContainerWriter {
                 stored,
             });
         }
+        // kinds 9 and 10 sort after every kind the format defines, so they close the directory in their own order
+        raw.extend(self.raster_blocks()?);
         let manifest = Manifest {
             unit: self.config.unit,
             bounds: source_bounds,
@@ -1288,6 +1430,45 @@ impl ContainerWriter {
         };
         assemble(manifest, &raw, self.options.integrity)
     }
+}
+
+/// The box in source space of a rectangle of pixels `[x0 y0 x1 y1]` of a raster, from its four corners through the
+/// placement's map.
+fn pixel_box(p: &Placement, rect: [u64; 4]) -> Result<Bounds, WriteError> {
+    let [a, b, c, d, tx, ty] = p.pixel_to_source;
+    let corners = [(rect[0], rect[1]), (rect[2], rect[1]), (rect[2], rect[3]), (rect[0], rect[3])];
+    let points: Vec<[f64; 2]> = corners
+        .iter()
+        .map(|&(x, y)| {
+            let (x, y) = (x as f64, y as f64);
+            [normal(a * x + b * y + tx), normal(c * x + d * y + ty)]
+        })
+        .collect();
+    checked_bounds(boxed(&points)).ok_or(WriteError::BadBounds { id: None })
+}
+
+/// One raster block: optional, optional-codec-free (codec 0), owned by capability 21, with its footprint.
+fn raster_block(
+    kind: u16,
+    raster: u32,
+    subtype: u16,
+    count: u32,
+    bounds: Bounds,
+    stored: Vec<u8>,
+) -> Result<RawBlock, WriteError> {
+    let uncompressed_length = u32::try_from(stored.len()).map_err(|_| WriteError::TooLarge)?;
+    Ok(RawBlock {
+        kind,
+        subtype,
+        cell: raster,
+        count,
+        bounds: Some(bounds),
+        flags: FLAG_HAS_BOUNDS,
+        codec: crate::directory::CODEC_NONE,
+        capability: raster::CAPABILITY,
+        uncompressed_length,
+        stored,
+    })
 }
 
 /// The start and sweep of an arc of a circle whose frame is turned by `rot`: the start moves by the

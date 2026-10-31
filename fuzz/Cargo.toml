@@ -65,3 +65,10 @@ path = "fuzz_targets/fuzz_component_streams.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_raster_index"
+path = "fuzz_targets/fuzz_raster_index.rs"
+test = false
+doc = false
+bench = false

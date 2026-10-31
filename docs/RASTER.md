@@ -74,6 +74,21 @@ tile's bytes. The coarsest levels, in order, are stored inline up to the Tier 0 
 so the first paint of every raster is one range over the adjacent kind 9 blocks. There is no `tier0_level` field:
 the reader sees what is inline.
 
+A parser accepts only what the writer writes, byte for byte, and checks all of it before it sizes anything by a count in
+the block. The counts in the header (`tile_total`, `tile_stored`, `chunk_total`, `inline_len`) must add up to the length of
+the block with the level table and the tile table (checked in `u64`), a ceiling on `tile_total` (LIMIT-14) is applied
+before the tile table is allocated, and `levels` is 1 to 64 so that `subtype = level * 1024 + chunk` fits 16 bits. In the
+level table `cols` and `rows` are 1 to 65,535, `chunks` is at most 1,024 (chunk numbers run from 0 to 1,023, which is what the subtype can name) and
+`first` is the number of entries before the level. In the tile table every `col` and `row` is inside its level and the
+Hilbert keys of a level strictly ascend (which also means no tile twice). A tile with `length` 0 has `chunk`, `offset` and
+`xxh3` 0. A level is either inline (`chunks` 0, every stored tile has `chunk` `0xFFFFFFFF`) or in chunks (every stored tile
+has a `chunk` below `chunks`), and the inline levels are the coarsest: no level after one that is in chunks is inline: the chunk numbers of the stored tiles of a level start at 0 and rise by one, every chunk has a
+tile, and inside a chunk the offsets are 0, then the end of the tile before, with no gap and no overlap. The inline tiles,
+in table order and across the levels, are the inline part from its first byte to the end of the block, so no byte of the
+block is unaddressed. `tile_stored` is the number of non-zero lengths, and it is the `count` of the directory entry. A chunk
+block is exactly its tiles: its stored length is the end of its last tile, and its `count` is the tiles the index puts in it.
+The XXH3-64 of a tile is checked when the tile is read, not when the index is parsed.
+
 ## 3. The tile blocks (kind 10)
 
 One per (raster, level, chunk). Directory entry: capability 21, `cell` = the `RasterId`,
@@ -165,3 +180,44 @@ LIMIT-13 is the count of placements. A damaged payload keeps its `COMP-NN` rule 
 | RASTER-07 | `BadText` | an attribution over 255 bytes, not UTF-8, or with a control character, a line or paragraph separator or a bidi override; a digest that is not 32 bytes |
 | COMP-NN | `Stream` | the payload is damaged: truncated (COMP-01), with trailing bytes (COMP-02), a reserved field set (COMP-12) or an undefined tag (COMP-11) |
 <!-- raster-errors:end -->
+
+## 7. An index block, byte by byte
+
+A 300 by 300 image in tiles of 256 is two levels, 1 by 1 and 2 by 2. Level 0 is inline (three bytes of tile), level 1 is
+one chunk, and the tile at column 1, row 0 of level 1 is not stored. This is the index block the code writes for it, as 187
+bytes: the header is the first 32, the level table the next 32, the tile table the next 120 (five entries of 24) and the
+inline part the last 3. A test decodes this dump by the offsets of section 2 alone.
+
+<!-- raster-example:begin -->
+```
+00000000  50 56 58 31 01 00 02 00 05 00 00 00 04 00 00 00
+00000010  01 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00
+00000020  01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00
+00000030  02 00 00 00 02 00 00 00 01 00 00 00 01 00 00 00
+00000040  ff ff ff ff b8 00 00 00 03 00 00 00 00 00 00 00
+00000050  af 19 77 c0 cd 72 0c a3 00 00 00 00 00 00 00 00
+00000060  03 00 00 00 00 00 00 00 fc 11 65 a9 92 a1 f7 10
+00000070  00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00
+00000080  00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 00
+00000090  03 00 00 00 01 00 01 00 aa 35 a9 dc 58 39 30 52
+000000a0  00 00 00 00 06 00 00 00 03 00 00 00 00 00 01 00
+000000b0  dc 81 a2 aa 0e e0 3d 88 a0 a1 a2
+```
+<!-- raster-example:end -->
+
+Read it from the top. `50 56 58 31` is `PVX1`, `01 00` the version, `02 00` two levels, then `tile_total` 5, `tile_stored` 4,
+`chunk_total` 1, `inline_len` 3 and 8 zero bytes. The level table: level 0 is 1 by 1 with no chunk and starts at tile 0,
+level 1 is 2 by 2 with one chunk and starts at tile 1. Tile 0 is `chunk` `ff ff ff ff` (inline), `offset` 184 (`b8`, a
+position in this block), `length` 3, column 0, row 0 and its checksum. Tiles 1 to 4 are level 1 in Hilbert order with the
+first step along x, (0, 0), (1, 0), (1, 1), (0, 1): the second of them is the one that is not stored, all zero, and the
+other three are chunk 0 at offsets 0, 3 and 6 of the chunk block.
+
+## 8. Fixtures and what they prove
+
+The raster fixture (`crates/pvec-testkit/tests/golden/raster-digests.txt`, written by the test-only tiler, whose PNGs have
+stored deflate blocks so that no image codec is needed anywhere) is one sparse gray raster of 700 by 500 pixels. What it
+proves is the container's claim: the tile bytes written are the tile bytes read, by digest, and the six coefficients of the
+placement come back as the same bits. Its evidence class is `container-claim-byte-preservation`, which is not a
+KNOWN_TRUTH_EXACT truth: that class supports what a source drawing meant, and keeping bytes is not one of the claims of the
+corpus, so the fixture is not in the corpus and `pvec-gold-fixtures` is not touched. A real scan is the producer's fixture
+(libviprs#1328).
