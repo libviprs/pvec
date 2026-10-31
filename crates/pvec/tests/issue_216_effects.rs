@@ -22,12 +22,9 @@ fn plain() -> Vec<u8> {
     let mut w = PvecWriter::new(manifest).unwrap();
     for i in 0..12u32 {
         let y = f64::from(i) * 1.37;
-        let line = Polyline::new(vec![
-            Point2 { x: 0.1, y },
-            Point2 { x: 10.3, y: y + 1.1 },
-            Point2 { x: 20.7, y },
-        ])
-        .unwrap();
+        let line =
+            Polyline::new(vec![Point2 { x: 0.1, y }, Point2 { x: 10.3, y: y + 1.1 }, Point2 { x: 20.7, y }])
+                .unwrap();
         w.push(EntityId::new(i).unwrap(), &Curve::Polyline(line)).unwrap();
     }
     w.finish().unwrap()

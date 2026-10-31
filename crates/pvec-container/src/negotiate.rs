@@ -161,10 +161,8 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
 /// (ADR 0018). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
 /// a reader that implements the owner is handed the block, and one that does not skips it as a kind it does
 /// not know. `DIR-02` is untouched: a kind the format defines still names no capability.
-pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] = [
-    (9, "raster_index", CapabilityId::new(21)),
-    (10, "raster_tiles", CapabilityId::new(21)),
-];
+pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] =
+    [(9, "raster_index", CapabilityId::new(21)), (10, "raster_tiles", CapabilityId::new(21))];
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

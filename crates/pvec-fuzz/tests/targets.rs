@@ -121,7 +121,8 @@ fn entry_pairs(bytes: &[u8]) -> Vec<(u16, u16)> {
     use pvec_container::{Header, Manifest};
     let len = bytes.len() as u64;
     let Ok(header) = Header::parse(&bytes[..bytes.len().min(4096)], len) else { return Vec::new() };
-    let (m0, m1) = (header.manifest_offset as usize, (header.manifest_offset + header.manifest_length) as usize);
+    let (m0, m1) =
+        (header.manifest_offset as usize, (header.manifest_offset + header.manifest_length) as usize);
     let Some(m) = bytes.get(m0..m1) else { return Vec::new() };
     let Ok(manifest) = Manifest::parse(m, &header, len) else { return Vec::new() };
     let Some(p) = manifest.directories.iter().find(|d| d.kind == DirectoryPointer::KIND_BLOCK) else {
@@ -137,13 +138,14 @@ fn entry_pairs(bytes: &[u8]) -> Vec<(u16, u16)> {
 fn the_directory_traversal_seeds_carry_kind_9_and_10_entries_with_capability_21_0_and_an_unregistered_one() {
     // issue 216: this is where the traversal changed, so the corpus has the capability-owned kinds in it
     let seeds = corpus();
-    let seen: std::collections::BTreeSet<(u16, u16)> = for_target("fuzz_directory_traversal", &seeds)
-        .iter()
-        .flat_map(|bytes| entry_pairs(bytes))
-        .collect();
+    let seen: std::collections::BTreeSet<(u16, u16)> =
+        for_target("fuzz_directory_traversal", &seeds).iter().flat_map(|bytes| entry_pairs(bytes)).collect();
     for kind in [9u16, 10] {
         for capability in [21u16, 0, 77] {
-            assert!(seen.contains(&(kind, capability)), "no seed has kind {kind} with capability {capability}");
+            assert!(
+                seen.contains(&(kind, capability)),
+                "no seed has kind {kind} with capability {capability}"
+            );
         }
     }
 }

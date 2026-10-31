@@ -86,7 +86,10 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         assert!(d.contains(needle), "docs/COMPATIBILITY.md does not mention {needle}");
     }
     let matrix = fs::read_to_string(repo_root().join("tests/compat/matrix.txt")).unwrap();
-    assert!(matrix.contains("case old-reader-raster-file-open-degraded"), "the 1.0.0 reader, raster file row");
+    assert!(
+        matrix.contains("case old-reader-raster-file-open-degraded"),
+        "the 1.0.0 reader, raster file row"
+    );
     let pairs = matrix.lines().filter(|l| l.starts_with("case ")).count();
     let words = ["eleven", "twelve", "thirteen", "fourteen"];
     assert!(
