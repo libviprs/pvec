@@ -564,8 +564,10 @@ negotiate.rs: Refusal::IncompatibleMajor { id: CapabilityId, file: Version, supp
 negotiate.rs: Refusal::ComponentDeclaredRequired(CapabilityId)
 negotiate.rs: Refusal::ExtensionDeclaredRequired(CapabilityId)
 negotiate.rs: Refusal::UndeclaredBlockCapability { block: BlockId, capability: u16 }
+negotiate.rs: Refusal::OwnedKindMismatch { block: BlockId, kind: u16, capability: u16 }
 negotiate.rs: Refusal::rule(&self) -> &'static str
 negotiate.rs: pub const NEGOTIATE_RULES: &[(&str, &str)]
+negotiate.rs: pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2]
 negotiate.rs: impl fmt::Display for Refusal
 negotiate.rs: impl std::error::Error for Refusal {}
 negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SkipReason
@@ -576,6 +578,7 @@ negotiate.rs: SkipReason::UnknownCodec
 negotiate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Effect
 negotiate.rs: Effect::Unstyled
 negotiate.rs: Effect::Uncomponented
+negotiate.rs: Effect::Unrastered
 negotiate.rs: Effect::Unknown
 negotiate.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct SkippedCapability
 negotiate.rs: SkippedCapability.id: CapabilityId

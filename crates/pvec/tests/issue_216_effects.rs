@@ -22,12 +22,9 @@ fn plain() -> Vec<u8> {
     let mut w = PvecWriter::new(manifest).unwrap();
     for i in 0..12u32 {
         let y = f64::from(i) * 1.37;
-        let line = Polyline::new(vec![
-            Point2 { x: 0.1, y },
-            Point2 { x: 10.3, y: y + 1.1 },
-            Point2 { x: 20.7, y },
-        ])
-        .unwrap();
+        let line =
+            Polyline::new(vec![Point2 { x: 0.1, y }, Point2 { x: 10.3, y: y + 1.1 }, Point2 { x: 20.7, y }])
+                .unwrap();
         w.push(EntityId::new(i).unwrap(), &Curve::Polyline(line)).unwrap();
     }
     w.finish().unwrap()
@@ -109,8 +106,8 @@ fn the_geometry_is_bit_identical_with_and_without_the_raster_entries() {
         assert_eq!((da.lo().to_bits(), da.hi().to_bits()), (db.lo().to_bits(), db.hi().to_bits()));
         for k in 0..=16 {
             let t = da.lo() + da.width() * f64::from(k) / 16.0;
-            let (pa, pb) = (ca.eval(t).unwrap(), cb.eval(t).unwrap());
-            assert_eq!((pa.x.to_bits(), pa.y.to_bits()), (pb.x.to_bits(), pb.y.to_bits()));
+            let (pa, pb) = (ca.point_at(t).unwrap(), cb.point_at(t).unwrap());
+            assert_eq!(pa.map(f64::to_bits), pb.map(f64::to_bits));
         }
     }
     assert_eq!(with.manifest().bounds.min.map(f64::to_bits), without.manifest().bounds.min.map(f64::to_bits));

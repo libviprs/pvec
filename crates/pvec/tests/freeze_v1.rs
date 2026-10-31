@@ -98,7 +98,7 @@ fn the_five_bench_reports_are_listed_in_a_checklist_with_their_state() {
 #[test]
 fn the_v1_constants_are_the_frozen_values() {
     assert_eq!((Header::MAJOR, Header::MINOR), (1, 0), "container version");
-    assert_eq!(FORMAT_VERSION, Version::new(1, 0, 0), "capability format version");
+    assert_eq!(FORMAT_VERSION, Version::new(1, 1, 0), "capability format version");
     let wasm = read("crates/pvec-wasm/src/abi.rs");
     assert!(wasm.contains("pub const WASM_ABI_VERSION: u32 = 2;"), "wasm_abi_version");
     let doc = freeze();
@@ -148,4 +148,11 @@ fn the_migration_note_has_its_three_sections() {
     {
         assert!(m.contains(h), "MIGRATION.md has no `{h}`");
     }
+}
+
+#[test]
+fn the_extension_rules_row_carries_the_dated_line_that_a_capability_may_own_block_kinds() {
+    let row = freeze().lines().find(|l| l.starts_with("| extension rules")).expect("the row").to_string();
+    assert!(row.contains("a capability may own block kinds"), "{row}");
+    assert!(row.contains("ADR 0018") && row.contains("2026-"), "{row}");
 }

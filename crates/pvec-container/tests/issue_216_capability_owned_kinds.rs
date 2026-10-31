@@ -82,7 +82,8 @@ fn geometry(reader: &Reader) -> Vec<(u16, u16, u32, Vec<u8>)> {
 fn a_reader_without_21_opens_degraded_lists_21_and_skips_both_entries_naming_it() {
     let base = art::from_input_with(&fixtures()[2], SEALED);
     let art = raster_file(&base);
-    let reader = open_with(art.bytes.clone(), without_21()).expect("an optional capability does not stop the open");
+    let reader =
+        open_with(art.bytes.clone(), without_21()).expect("an optional capability does not stop the open");
     let partial = reader.partial_open().expect("a report");
     let c = partial.capabilities.iter().find(|c| c.id == cap(21)).expect("21 is listed");
     assert_eq!((c.reason, c.effect), (SkipReason::NotImplemented, Effect::Unrastered));
@@ -105,8 +106,14 @@ fn a_skipped_raster_entry_is_never_fetched_and_the_geometry_is_bit_identical() {
     let reader = open_with(art.bytes.clone(), without_21()).unwrap();
     reader.validate().expect("the file validates around the raster entries");
     let ids: Vec<BlockId> = (0..art.entries.len() as u32).map(BlockId).collect();
-    let live: Vec<BlockId> =
-        ids.iter().copied().filter(|b| !art.entries[b.0 as usize].kind.eq(&RASTER_INDEX) && art.entries[b.0 as usize].kind != RASTER_TILES).collect();
+    let live: Vec<BlockId> = ids
+        .iter()
+        .copied()
+        .filter(|b| {
+            !art.entries[b.0 as usize].kind.eq(&RASTER_INDEX)
+                && art.entries[b.0 as usize].kind != RASTER_TILES
+        })
+        .collect();
     reader.read_blocks(&live).unwrap();
     for e in art.entries.iter().filter(|e| e.kind == RASTER_INDEX || e.kind == RASTER_TILES) {
         assert!(
@@ -151,7 +158,9 @@ fn a_newer_major_of_21_is_skipped_for_that_capability_only() {
 #[test]
 fn a_reserved_kind_with_capability_zero_or_another_capability_is_refused() {
     let base = art::from_input_with(&fixtures()[2], SEALED);
-    for (kind, capability) in [(RASTER_INDEX, 0u16), (RASTER_TILES, 0), (RASTER_INDEX, 14), (RASTER_TILES, 99)] {
+    for (kind, capability) in
+        [(RASTER_INDEX, 0u16), (RASTER_TILES, 0), (RASTER_INDEX, 14), (RASTER_TILES, 99)]
+    {
         let art = rebuild(&base, Integrity::Full, |m, blocks| {
             for id in [14u32, 99] {
                 m.capabilities.push(Declared {

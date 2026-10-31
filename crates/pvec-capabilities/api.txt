@@ -116,6 +116,7 @@ lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum 
 lib.rs: Class::Geometry
 lib.rs: Class::Component
 lib.rs: Class::Extension
+lib.rs: Class::Raster
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Requirement
 lib.rs: Requirement::Required
 lib.rs: Requirement::Optional

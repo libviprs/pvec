@@ -80,6 +80,11 @@ its descriptor alone (chapter 5), fit in the same 64 bytes.\n\n",
     ] {
         s.push_str(&format!("| {} | {} | {} | {} | {} |\n", kind.id(), kind.name(), holds, subtype, count));
     }
+    s.push_str(
+        "| 9 | raster_index | reserved, capability-owned by 21 (`docs/RASTER.md`): the level table and tile table of one raster, `cell` = its `RasterId` | 0 | tiles stored |\n\
+| 10 | raster_tiles | reserved, capability-owned by 21 (`docs/RASTER.md`): the encoded tiles of one (raster, level, chunk), `cell` = its `RasterId` | `level * 1024 + chunk` | tiles in the chunk |\n\n\
+Kinds 9 and 10 are not in `BlockKind::ALL` and not a kind \"the format defines\" for DIR-02: their entries name capability 21, a reader that does not implement it skips them as `UnknownBlockKind` naming 21, and the rest of the kind table is unchanged.\n",
+    );
     s.push_str(&format!(
         "\nFlag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). \
 Geometry blocks carry it; the component stream set, the spatial directory, the reference arrays, the straddler lists and the Tier 0 blocks do not, so a reader that does not know them skips them. \
@@ -111,8 +116,9 @@ The advanced curves are written as K chunks, each a record block and its five ar
 arenas number their entries in the order the writer first needs them, which is the same order, so shared \
 payloads land on the same entry whatever order the curves were pushed in (section 3.6). The capabilities \
 are those the caller listed plus those of the streams pushed, each once, and each is declared with the \
-version and requirement the registry gives it; the manifest's minimum reader is the highest the \
-declared capabilities ask for, and at least 1.0.0.\n\n\
+version and requirement the registry gives it; the manifest's minimum reader is the highest minimum \
+reader of the required capabilities, and at least 1.0.0. An optional capability is skippable by definition, so it \
+never raises that hoist: a file that carries capability 21 still opens, degraded, in a 1.0.0 reader.\n\n\
 Every scalar of every block, the directory and the manifest is written with an explicit little-endian \
 conversion, so nothing depends on the byte order of the host that wrote it. The tests write the same \
 input on x86_64 and on arm64 and compare the digests with a committed golden file.\n\n\

@@ -139,6 +139,9 @@ pub enum Class {
     /// construct (it exists because none fits), is optional unless an ADR is listed, and is registered only
     /// through [`Registry::register_extension`].
     Extension,
+    /// Pixels placed in the drawing's source space (ADR 0018). Optional by construction and never required,
+    /// refers to no entity, and may own block kinds. It is not a geometry extension.
+    Raster,
 }
 
 /// Whether a reader that lacks the capability may still open the file.
@@ -241,7 +244,7 @@ pub enum RegistryError {
     ReusedRetiredId(CapabilityId),
     /// An id below the highest one is neither live nor retired: it was deleted and could be reused.
     UnaccountedId(CapabilityId),
-    /// A component is registered as required.
+    /// A component or a raster entry is registered as required.
     ComponentMustBeOptional(&'static str),
     /// A geometry entry names no ISO construct.
     NoConstruct(&'static str),
@@ -307,7 +310,7 @@ impl fmt::Display for RegistryError {
                     "capability id {id} is neither registered nor retired, so it could be handed out again"
                 )
             }
-            RegistryError::ComponentMustBeOptional(n) => write!(f, "component {n} must be optional"),
+            RegistryError::ComponentMustBeOptional(n) => write!(f, "component or raster {n} must be optional"),
             RegistryError::NoConstruct(n) => {
                 write!(f, "geometry capability {n} names no ISO 10303-42 construct")
             }
@@ -487,7 +490,9 @@ impl Registry {
             }
         }
         if let Some(c) =
-            entries.iter().find(|c| c.class == Class::Component && c.requirement == Requirement::Required)
+            entries.iter().find(|c| {
+                matches!(c.class, Class::Component | Class::Raster) && c.requirement == Requirement::Required
+            })
         {
             return Err(RegistryError::ComponentMustBeOptional(c.name));
         }
@@ -532,7 +537,7 @@ impl Registry {
     pub fn validate_against_profile(&self, profile: &[ProfileSection]) -> Result<(), RegistryError> {
         for c in &self.entries {
             match c.class {
-                Class::Component => {
+                Class::Component | Class::Raster => {
                     if !c.iso_construct.is_empty() {
                         return Err(RegistryError::ComponentNamesConstruct(c.name));
                     }
@@ -604,7 +609,7 @@ impl Registry {
                             reader: reader.version,
                         });
                     }
-                    if c.class == Class::Component && d.requirement == Requirement::Required {
+                    if matches!(c.class, Class::Component | Class::Raster) && d.requirement == Requirement::Required {
                         return Err(NegotiationError::ComponentDeclaredRequired(d.id));
                     }
                     if c.class == Class::Extension
@@ -652,7 +657,7 @@ impl Registry {
         Ok(())
     }
 
-    /// The v1 registry: the thirteen capabilities of the semantic profile and the seven component streams.
+    /// The v1 registry: the thirteen capabilities of the semantic profile, the seven component streams and the raster capability (1.1.0).
     pub fn v1() -> Registry {
         let g = |id: CapabilityId,
                  name: &'static str,
@@ -818,6 +823,21 @@ impl Registry {
                 "semantic_class",
                 "element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve",
             ),
+            // the first entry of the Raster class (ADR 0018): placements in a stream, pixels in block kinds 9 and 10
+            Capability {
+                id: CapabilityId::new(21),
+                name: "raster",
+                class: Class::Raster,
+                version: Version::new(1, 0, 0),
+                iso_construct: "",
+                profile_section: 0,
+                requirement: Requirement::Optional,
+                step: StepBehaviour::NotApplicable,
+                gis: GisBehaviour::NotApplicable,
+                min_reader: Version::new(1, 1, 0),
+                restriction: "image placements in source space and the encoded tiles of block kinds 9 and 10, stored untouched, never required; see ADR 0018",
+                adr: None,
+            },
         ];
         let mut entries = entries;
         // line_style is at 2.0.0: width, dash phase and visibility are inline in each style (pvec#125)
@@ -846,6 +866,7 @@ impl Class {
             Class::Geometry => "geometry",
             Class::Component => "component",
             Class::Extension => "extension",
+            Class::Raster => "raster",
         }
     }
 }

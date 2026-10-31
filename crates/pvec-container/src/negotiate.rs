@@ -161,10 +161,8 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
 /// (ADR 0018). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
 /// a reader that implements the owner is handed the block, and one that does not skips it as a kind it does
 /// not know. `DIR-02` is untouched: a kind the format defines still names no capability.
-pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] = [
-    (9, "raster_index", CapabilityId::new(21)),
-    (10, "raster_tiles", CapabilityId::new(21)),
-];
+pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] =
+    [(9, "raster_index", CapabilityId::new(21)), (10, "raster_tiles", CapabilityId::new(21))];
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -637,10 +635,10 @@ format defines names none (`DIR-02`), because its kind fixes it.\n\n\
 ### 5.4 What a new capability must satisfy to be optional\n\n\
 A capability is optional, and so skippable by an old reader, only if it satisfies every one of these. One it cannot \
 satisfy is required, and an old reader refuses the file, which is the right outcome.\n\n\
-1. It adds information about the entities and never changes what a geometry block says. Style, text, hatch and \
+1. It adds information about the drawing and never changes what a geometry block says. Style, text, hatch and \
 provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` \
 (ADR 0008) and is always required.\n\
-2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id.\n\
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads "a kind the format defines".\n\
 3. The manifest declares it with the optional requirement and the version it was written at.\n\
 4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.\n\
 5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of \

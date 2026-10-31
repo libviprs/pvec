@@ -549,7 +549,7 @@ Two kinds of evidence, and neither is the writer's own opinion of itself:
 
 ### Not done
 
-Reading GeoPackage, raster and tile tables in the same file, styling, reprojection, and the
+Reading GeoPackage, raster and tile tables in the same file (a raster inside a PVec is ADR 0018 and `docs/RASTER.md`, and the GeoPackage export carries none), styling, reprojection, and the
 display-only tiled paths (chapter 5) are out of scope. `CURVEPOLYGON`, `MULTICURVE` and the surface
 types wait for an entity that needs them. Per-layer feature tables are not written: every entity is
 in `pvec_features`, and the layer or component grouping would be one more attribute column when an
@@ -666,7 +666,7 @@ real source turns up with one, that is a new issue with that source attached.
 
 ### Out of scope here
 
-PMTiles packaging (chapter 6), MapLibre styling, raster tiles, polygon and fill output, and any use of an
+PMTiles packaging (chapter 6), MapLibre styling, raster tiles (the MVT carries none; a raster is ADR 0018 and `docs/RASTER.md`, and its interchange chapter is written with the raster interchange task #222), polygon and fill output, and any use of an
 MVT as a source for comparison.
 
 ## 6. PMTiles packaging
@@ -742,7 +742,7 @@ which is copied in as given. The writer never reads a clock.
 ### Not done
 
 Serving, CDN and cache headers, MapLibre style authoring, mobile offline packaging and raster
-pyramids. Identical tile contents are not deduplicated, so the archive has no run lengths above one.
+pyramids (a PMTiles pyramid in and out of a PVec raster is ADR 0018 and `docs/RASTER.md`, and chapter 6 gains its passthrough with #222). Identical tile contents are not deduplicated, so the archive has no run lengths above one.
 
 ## 7. Fidelity reports
 

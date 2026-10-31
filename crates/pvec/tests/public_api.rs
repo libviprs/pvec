@@ -109,9 +109,23 @@ fn issue_52_the_unstable_snapshot_names_the_stream_types() {
     }
 }
 
+/// What the unstable module may re-export from the container, on purpose (issue 216, ADR 0018): the effect of a
+/// skipped capability, and the reader configuration that says which capabilities and limits an open uses. They
+/// carry no encoding detail. The stable snapshot may re-export none of it.
+const UNSTABLE_CONTAINER_REEXPORTS: [&str; 3] = [
+    "pvec_container::negotiate::{Effect, ReaderCapabilities}",
+    "pvec_container::limits::Limits",
+    "pvec_container::reader::ReaderConfig",
+];
+
 #[test]
 fn issue_52_no_container_or_serialization_name_is_reachable_through_the_facade() {
     let (stable, unstable) = snapshots();
+    let unstable: String = unstable
+        .lines()
+        .filter(|l| !(l.contains("pub use") && UNSTABLE_CONTAINER_REEXPORTS.iter().any(|a| l.contains(a))))
+        .map(|l| format!("{l}\n"))
+        .collect();
     for snap in [&stable, &unstable] {
         assert!(banned_wire_names(snap).is_empty(), "wire type in the facade:\n{snap}");
         for name in NEVER {
