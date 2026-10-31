@@ -479,8 +479,21 @@ impl Shared {
     /// Parses the index block of `raster`, checks it against the directory, and keeps it. The tile table is
     /// held for as long as the reader holds the index, and that room is taken from the budget.
     fn raster_parsed(&self, raster: u32, block: &DecodedBlock) -> Result<Arc<RasterIndex>, ReadError> {
-        // LIMIT-14, the ceiling on the entries of the tile tables, until the limits table carries it
-        let index = RasterIndex::parse(block.as_bytes(), 1 << 20).map_err(ReadError::Raster)?;
+        // LIMIT-14: the entries of the tile tables over the whole artifact, so what is held already counts
+        let ceiling = u64::from(self.config.limits.max_raster_tiles);
+        let held: u64 = self
+            .rasters
+            .lock()
+            .map(|m| m.values().map(|(i, _)| i.tiles().len() as u64).sum())
+            .unwrap_or_default();
+        let index = RasterIndex::parse(block.as_bytes(), ceiling.saturating_sub(held)).map_err(|e| match e {
+            IndexError::TooManyTiles { declared, .. } => ReadError::Limit(LimitExceeded {
+                limit: crate::limits::LimitKind::RasterTiles,
+                declared: held + declared,
+                ceiling,
+            }),
+            other => ReadError::Raster(other),
+        })?;
         self.core.check_raster_blocks(raster, &index).map_err(ReadError::Raster)?;
         let room = (core::mem::size_of_val(index.tiles()) + block.as_bytes().len()) as u64;
         let held = self.reserve(room)?;

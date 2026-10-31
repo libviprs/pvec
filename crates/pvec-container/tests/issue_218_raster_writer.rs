@@ -254,9 +254,9 @@ fn a_placement_with_no_tiles_is_a_file_with_no_raster_blocks_for_it() {
 
 #[test]
 fn limit_14_a_raster_of_131073_tiles_is_refused_under_the_browser_preset_and_read_under_the_default() {
-    // 25,600 by 25,600 pixels in tiles of 256: 100 by 100 tiles at full size and 133,000 or so over the pyramid,
-    // none stored, so the file is a table and no pixel
-    let p = placement(25_600, 25_600, 256);
+    // 81,920 by 81,920 pixels in tiles of 256: 320 by 320 tiles at full size and 136,539 over the pyramid, none
+    // stored, so the file is a table and no pixel
+    let p = placement(81_920, 81_920, 256);
     let total: u64 = grid(&p).iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
     assert!((131_073..=1 << 20).contains(&total), "{total}");
     let mut w = writer_with(std::slice::from_ref(&p));
