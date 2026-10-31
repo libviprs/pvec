@@ -31,9 +31,11 @@ struct R {
     chunk_bytes: u32,
 }
 
-fn bytes_of(raster: u32, level: u32, col: u32, row: u32, len: usize) -> Vec<u8> {
-    (0..len).map(|i| (raster * 97 + level * 31 + col * 7 + row * 3 + i as u32) as u8).collect()
-}
+use support::raster::bytes_of;
+
+/// The bytes of a tile, and how many a chunk may hold: two tiles to a chunk.
+const LEN: usize = 100;
+const CHUNK: u32 = 250;
 
 fn pyramid(id: u32, grid: &[(u32, u32)], len: usize, skip: impl Fn(u32, u32, u32) -> bool) -> Vec<TileIn> {
     let mut out = Vec::new();
@@ -62,12 +64,12 @@ fn two() -> Vec<R> {
     vec![
         R {
             id: 0,
-            tiles: pyramid(0, &g0, 40, |l, c, r| l == 2 && (c + r) % 2 == 1),
+            tiles: pyramid(0, &g0, LEN, |l, c, r| l == 2 && (c + r) % 2 == 1),
             grid: g0,
             inline: 1,
             chunk_bytes: 1 << 20,
         },
-        R { id: 1, tiles: pyramid(1, &g1, 40, |_, _, _| false), grid: g1, inline: 0, chunk_bytes: 100 },
+        R { id: 1, tiles: pyramid(1, &g1, LEN, |_, _, _| false), grid: g1, inline: 0, chunk_bytes: CHUNK },
     ]
 }
 
@@ -205,7 +207,7 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
     let before = reader.source().requests().len();
     // level 2 of raster 1 is 3 by 2 tiles of 40 bytes, 100 a chunk, so two to a chunk
     let got = reader.read_raster_tile(1, 2, 0, 0).unwrap().expect("stored");
-    assert_eq!(got.as_slice(), &bytes_of(1, 2, 0, 0, 40)[..]);
+    assert_eq!(got.as_slice(), &bytes_of(1, 2, 0, 0, LEN)[..]);
     let seen = reader.source().requests();
     assert_eq!(
         seen.len() - before,
@@ -220,7 +222,7 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
         (index_entry.offset, index_entry.stored_length)
     );
     let tile = seen[before + 2];
-    assert_eq!(tile.len, 40, "the range of the tile and not of its chunk");
+    assert_eq!(tile.len as usize, LEN, "the range of the tile and not of its chunk");
     // the request lies inside a chunk block of raster 1, level 2, and that chunk is longer than the request
     let chunk = art
         .entries
@@ -232,7 +234,7 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
                 && tile.offset + 40 <= e.offset + u64::from(e.stored_length)
         })
         .expect("inside a chunk");
-    assert!(chunk.stored_length > 40);
+    assert!(chunk.stored_length as usize > LEN);
     // the second read of the same raster does not read the index again
     reader.read_raster_tile(1, 2, 1, 0).unwrap();
     assert_eq!(reader.source().requests().len() - before, 4, "one more range, the tile");

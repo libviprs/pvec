@@ -2,6 +2,9 @@
 //! coefficients come back as the same bits, and every tile comes back with the same digest.
 #![cfg(feature = "unstable-stream")]
 
+#[path = "../../pvec-testkit/src/tilegen.rs"]
+mod tilegen;
+
 use pvec::unstable::{Band, PixelFormat, Placement, RasterId, TileCodec, TileIn};
 use pvec::{Bounds2, Curve, EntityId, Manifest, PvecReader, PvecWriter};
 use pvec_container::integrity::sha256;
@@ -45,7 +48,12 @@ fn tiles() -> Vec<TileIn> {
                 let bytes = if (l, col, row) == (2, 2, 1) {
                     Vec::new()
                 } else {
-                    (0..900u32).map(|i| (i + 13 * col + 29 * row + 71 * l as u32) as u8).collect()
+                    tilegen::png(
+                        256,
+                        1,
+                        8,
+                        &tilegen::payload(843, (13 * col + 29 * row + 71 * l as u32) as u8),
+                    )
                 };
                 out.push(TileIn { level: l as u32, col, row, bytes });
             }

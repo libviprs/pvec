@@ -40,9 +40,14 @@ pub fn grid(p: &Placement) -> Vec<(u32, u32)> {
     (0..n).map(|l| grid_of(p.width, p.height, u32::from(p.tile_edge), n, l)).collect()
 }
 
-/// Recognisable bytes for a tile: its place, repeated.
+#[path = "../../../pvec-testkit/src/tilegen.rs"]
+pub mod tilegen;
+
+/// A tile of `len` bytes (at least 57) that is a gray 8-bit PNG of 256 by 256 as far as its header goes and is
+/// recognisable by where it is: the sniffer reads headers only, and these are not pixels.
 pub fn bytes_of(raster: u32, level: u32, col: u32, row: u32, len: usize) -> Vec<u8> {
-    (0..len).map(|i| (raster * 97 + level * 31 + col * 7 + row * 3 + i as u32) as u8).collect()
+    let seed = (raster * 97 + level * 31 + col * 7 + row * 3) as u8;
+    tilegen::png(256, 1, 8, &tilegen::payload(len - 57, seed))
 }
 
 /// Every tile of a placement's grid, `len` bytes each, except those `skip` names.
