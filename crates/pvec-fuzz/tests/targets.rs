@@ -10,7 +10,7 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 7] = [
+const NAMES: [&str; 8] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
@@ -18,6 +18,7 @@ const NAMES: [&str; 7] = [
     "fuzz_decompress_boundary",
     "fuzz_component_streams",
     "fuzz_raster_index",
+    "fuzz_raster_headers",
 ];
 
 #[test]
@@ -190,4 +191,25 @@ fn fuzz_component_streams_is_seeded_with_one_valid_raster_placement_and_decodes_
         .map(|p| p.len())
         .sum::<usize>();
     assert!(placements >= 1, "no seed carries a valid raster placement");
+}
+
+#[test]
+fn the_raster_headers_target_reaches_ok_and_each_rule_it_is_for() {
+    let seeds = corpus();
+    let inputs = for_target("fuzz_raster_headers", &seeds);
+    // one tile of each codec and variant libviprs writes, at three edges, and the hostile corpus
+    assert!(inputs.len() >= 36 + 13, "only {} seeds", inputs.len());
+    let words: std::collections::BTreeSet<String> =
+        inputs.iter().map(|i| pvec_fuzz::fuzz_raster_headers(i)).collect();
+    for want in ["ok", "RASTER-03", "RASTER-04", "LIMIT-15"] {
+        assert!(words.contains(want), "no seed reaches {want}: {words:?}");
+    }
+}
+
+#[test]
+fn the_raster_headers_target_takes_a_frame_shorter_than_its_header_and_a_header_alone() {
+    for n in 0..4 {
+        assert_eq!(panics(|| drop(pvec_fuzz::fuzz_raster_headers(&vec![1u8; n]))), None);
+    }
+    assert_eq!(pvec_fuzz::fuzz_raster_headers(&[]), "short");
 }

@@ -97,3 +97,22 @@ fn each_family_of_hostile_fixture_exits_2_with_a_distinct_named_code() {
     }
     assert_eq!(codes.len(), picks.len(), "the eight attacks need eight distinct codes: {codes:?}");
 }
+
+/// Issue #219: the thirteen hostile tiles are corpus entries too. Each is a file whose geometry is fine and whose
+/// raster holds the tile, and `validate` exits 0 with the raster skipped by the rule the corpus names.
+#[test]
+fn the_thirteen_hostile_tiles_are_skipped_by_validate_with_their_rule_and_the_file_conforms() {
+    use pvec_testkit::raster_hostile::{file, hostile};
+    let tiles = hostile();
+    assert_eq!(tiles.len(), 13);
+    for t in tiles {
+        let out = pvec_conformance::commands::validate(&file(&t), "-");
+        assert_eq!((out.exit, out.error_code.as_deref()), (0, None), "{}: {}", t.name, out.human);
+        assert!(
+            out.human.contains(&format!("raster 0 skipped: {}", t.rule.unwrap())),
+            "{}: {}",
+            t.name,
+            out.human
+        );
+    }
+}

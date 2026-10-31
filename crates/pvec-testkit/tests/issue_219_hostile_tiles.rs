@@ -22,7 +22,9 @@ fn open(bytes: Vec<u8>) -> Reader {
 
 fn geometry(r: &Reader) -> Vec<Vec<u8>> {
     (0..r.entries().len() as u32)
-        .filter(|i| matches!(r.entries()[*i as usize].block_kind(), Some(BlockKind::Hot | BlockKind::Records)))
+        .filter(|i| {
+            matches!(r.entries()[*i as usize].block_kind(), Some(BlockKind::Hot | BlockKind::Records))
+        })
         .map(|i| r.read_block(BlockId(i)).unwrap().as_bytes().to_vec())
         .collect()
 }
@@ -57,7 +59,12 @@ fn every_hostile_tile_is_refused_by_its_rule_and_the_file_and_its_geometry_are_i
         });
         let b = pvec_container::Bounds { min: [0.0, 0.0], max: [10.0, 10.0] };
         w.push_line(
-            pvec_container::writer::EntityMeta { id: pvec_entity::EntityId::new(0).unwrap(), style: 0, cell: 0, bounds: b },
+            pvec_container::writer::EntityMeta {
+                id: pvec_entity::EntityId::new(0).unwrap(),
+                style: 0,
+                cell: 0,
+                bounds: b,
+            },
             [0.0, 0.0],
             [10.0, 10.0],
         )
@@ -72,7 +79,11 @@ fn every_hostile_tile_is_refused_by_its_rule_and_the_file_and_its_geometry_are_i
         assert_eq!(Some(e.rule().as_str()), t.rule, "{}: {e}", t.name);
         let v = r.validate_raster(0).expect_err(t.name);
         assert_eq!(Some(v.rule().as_str()), t.rule, "{}: {v}", t.name);
-        assert!(matches!(e, ReadError::Tile(_) | ReadError::Limit(_) | ReadError::Placement(_)), "{}: {e:?}", t.name);
+        assert!(
+            matches!(e, ReadError::Tile(_) | ReadError::Limit(_) | ReadError::Placement(_)),
+            "{}: {e:?}",
+            t.name
+        );
     }
 }
 
@@ -88,9 +99,17 @@ fn a_tile_over_the_ceiling_is_refused_from_its_length_without_a_range_being_requ
         assert_eq!(e.rule(), "LIMIT-15", "{}", t.name);
         let asked: Vec<_> = r.source().requests()[before..].to_vec();
         let tile_len = t.bytes.len() as u32;
-        assert!(asked.iter().all(|q| q.len != tile_len), "{}: a request of the tile's length: {asked:?}", t.name);
+        assert!(
+            asked.iter().all(|q| q.len != tile_len),
+            "{}: a request of the tile's length: {asked:?}",
+            t.name
+        );
         if let Some(c) = entry {
-            assert!(!asked.iter().any(|q| q.offset >= c.offset && q.offset < c.offset + u64::from(c.stored_length)));
+            assert!(
+                !asked
+                    .iter()
+                    .any(|q| q.offset >= c.offset && q.offset < c.offset + u64::from(c.stored_length))
+            );
         }
     }
 }
@@ -99,7 +118,8 @@ fn a_tile_over_the_ceiling_is_refused_from_its_length_without_a_range_being_requ
 fn every_accepted_variant_reads_back_byte_for_byte() {
     for t in accepted() {
         let r = open(file(&t));
-        let got = r.read_raster_tile(0, 0, 0, 0).unwrap_or_else(|e| panic!("{}: {e}", t.name)).expect("stored");
+        let got =
+            r.read_raster_tile(0, 0, 0, 0).unwrap_or_else(|e| panic!("{}: {e}", t.name)).expect("stored");
         assert_eq!(got.as_slice(), &t.bytes[..], "{}", t.name);
         r.validate_raster(0).unwrap_or_else(|e| panic!("{}: {e}", t.name));
     }
@@ -129,15 +149,27 @@ fn the_writer_refuses_every_hostile_tile_it_would_not_serve() {
         });
         let b = pvec_container::Bounds { min: [0.0, 0.0], max: [10.0, 10.0] };
         w.push_line(
-            pvec_container::writer::EntityMeta { id: pvec_entity::EntityId::new(0).unwrap(), style: 0, cell: 0, bounds: b },
+            pvec_container::writer::EntityMeta {
+                id: pvec_entity::EntityId::new(0).unwrap(),
+                style: 0,
+                cell: 0,
+                bounds: b,
+            },
             [0.0, 0.0],
             [10.0, 10.0],
         )
         .unwrap();
-        w.push_stream(Stream { capability: RASTER_CAPABILITY, version: pvec_capabilities::Version::new(1, 1, 0), payload })
-            .unwrap();
-        w.push_raster_tiles(RasterId::new(0).unwrap(), vec![TileIn { level: 0, col: 0, row: 0, bytes: t.bytes.clone() }])
-            .unwrap();
+        w.push_stream(Stream {
+            capability: RASTER_CAPABILITY,
+            version: pvec_capabilities::Version::new(1, 1, 0),
+            payload,
+        })
+        .unwrap();
+        w.push_raster_tiles(
+            RasterId::new(0).unwrap(),
+            vec![TileIn { level: 0, col: 0, row: 0, bytes: t.bytes.clone() }],
+        )
+        .unwrap();
         let e = w.finish().expect_err(t.name);
         assert_eq!(e.rule(), "WRT-17", "{}: {e}", t.name);
         assert!(e.to_string().contains(t.rule.unwrap()), "{}: {e}", t.name);
@@ -165,7 +197,8 @@ fn serve(files: Vec<(&'static str, Vec<u8>)>) -> (std::net::SocketAddr, std::thr
             let request = String::from_utf8_lossy(&request).to_string();
             let name = request.split_whitespace().nth(1).unwrap_or("/").trim_start_matches('/').to_string();
             let reply = files.iter().find(|(n, _)| *n == name).and_then(|(_, file)| {
-                let r = ContainerReader::open(MemorySource::new(file.clone()), ReaderConfig::default()).ok()?;
+                let r =
+                    ContainerReader::open(MemorySource::new(file.clone()), ReaderConfig::default()).ok()?;
                 r.read_raster_tile(0, 0, 0, 0).ok().flatten()
             });
             match reply {
@@ -179,7 +212,9 @@ fn serve(files: Vec<(&'static str, Vec<u8>)>) -> (std::net::SocketAddr, std::thr
                     let _ = conn.flush();
                 }
                 None => {
-                    let _ = conn.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    let _ = conn.write_all(
+                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    );
                 }
             }
         }
@@ -193,7 +228,8 @@ fn get(addr: std::net::SocketAddr, name: &str) -> (u16, Vec<u8>) {
     let mut out = Vec::new();
     c.read_to_end(&mut out).unwrap();
     let split = out.windows(4).position(|w| w == b"\r\n\r\n").map_or(out.len(), |i| i + 4);
-    let status: u16 = String::from_utf8_lossy(&out[..split]).split_whitespace().nth(1).unwrap().parse().unwrap();
+    let status: u16 =
+        String::from_utf8_lossy(&out[..split]).split_whitespace().nth(1).unwrap().parse().unwrap();
     (status, out[split..].to_vec())
 }
 

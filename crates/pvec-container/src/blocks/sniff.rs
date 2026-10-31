@@ -112,11 +112,15 @@ impl fmt::Display for TileRefusal {
             TileRefusal::UnknownCodec { id } => write!(f, "{rule}: tile codec {id} is not PNG, JPEG or WebP"),
             TileRefusal::Pair => write!(f, "{rule}: this codec cannot carry the placement's pixel format"),
             TileRefusal::Truncated => write!(f, "{rule}: the tile ends before its header does"),
-            TileRefusal::Malformed => write!(f, "{rule}: the tile's header is not the one the codec's contract needs"),
+            TileRefusal::Malformed => {
+                write!(f, "{rule}: the tile's header is not the one the codec's contract needs")
+            }
             TileRefusal::Size { width, height } => {
                 write!(f, "{rule}: the tile says {width} by {height}, not the placement's edge")
             }
-            TileRefusal::Format => write!(f, "{rule}: the tile's bit depth or channels are not the placement's"),
+            TileRefusal::Format => {
+                write!(f, "{rule}: the tile's bit depth or channels are not the placement's")
+            }
             TileRefusal::Interlace => write!(f, "{rule}: an interlaced tile"),
             TileRefusal::Animated => write!(f, "{rule}: an animated tile"),
             TileRefusal::Walk => write!(f, "{rule}: no start-of-frame marker within {JPEG_WALK} bytes"),
@@ -138,7 +142,8 @@ pub fn sniff_tile(p: &Placement, header_allowance: u32, bytes: &[u8]) -> Result<
         PixelFormat::Rgb => 3,
         _ => 4,
     };
-    sniff_codec(p.tile_codec.word(), u32::from(p.tile_edge), channels, p.bit_depth, header_allowance, bytes).map(|_| ())
+    sniff_codec(p.tile_codec.word(), u32::from(p.tile_edge), channels, p.bit_depth, header_allowance, bytes)
+        .map(|_| ())
 }
 
 /// [`sniff_tile`] from the numbers themselves, giving the bytes examined: `codec` is [`PNG`], [`JPEG`] or [`WEBP`], `channels` is 1 (gray), 2
@@ -348,7 +353,11 @@ pub fn webp(bytes: &[u8], tile_edge: u32) -> Result<usize, TileRefusal> {
         return Err(TileRefusal::Trailing);
     }
     let size = |width: u32, height: u32, seen: usize| {
-        if width == tile_edge && height == tile_edge { Ok(seen) } else { Err(TileRefusal::Size { width, height }) }
+        if width == tile_edge && height == tile_edge {
+            Ok(seen)
+        } else {
+            Err(TileRefusal::Size { width, height })
+        }
     };
     match look.get(12, 4).ok_or(end_of)? {
         // lossy: frame tag (3 bytes), start code, then 14 bits of width and of height with 2 bits of scale

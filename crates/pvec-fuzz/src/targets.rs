@@ -27,7 +27,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 7] = [
+pub const TARGETS: [(&str, Target); 8] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -35,6 +35,7 @@ pub const TARGETS: [(&str, Target); 7] = [
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
     ("fuzz_raster_index", fuzz_raster_index),
+    ("fuzz_raster_headers", fuzz_raster_headers),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -417,4 +418,10 @@ pub fn fuzz_raster_index(data: &[u8]) -> String {
         let _ = index.check_grid(w, h, edge);
     }
     "ok".to_string()
+}
+
+/// A tile header (a stub).
+pub fn fuzz_raster_headers(data: &[u8]) -> String {
+    let _ = data;
+    "stub".to_string()
 }

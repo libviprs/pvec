@@ -221,3 +221,26 @@ placement come back as the same bits. Its evidence class is `container-claim-byt
 KNOWN_TRUTH_EXACT truth: that class supports what a source drawing meant, and keeping bytes is not one of the claims of the
 corpus, so the fixture is not in the corpus and `pvec-gold-fixtures` is not touched. A real scan is the producer's fixture
 (libviprs#1328).
+
+## 9. The tile sniffers
+
+PVec never decodes a pixel. What stands between a hostile tile and the host's decoder is a bounded look at the tile's
+header, made by one sniffer for each codec before the bytes leave the reader (and before they are written, so a
+producer learns at write time what a reader would refuse). A sniffer looks through a counter that will not go past
+65,536 bytes of the tile, so the work per tile is a constant and not its length, and none reads a byte of pixel data. A
+tile passes only if it is the placement's `tile_edge` by `tile_edge`, in the placement's bit depth and channels, and is
+exactly one image and nothing after it.
+
+| codec | what is read | what is refused |
+|---|---|---|
+| PNG | the 8 byte signature, `IHDR` as the first chunk (13 bytes of data) with width and height equal to `tile_edge`, the bit depth equal to the placement's (1 or 8), the colour type that carries the placement's channels (gray 0, gray and alpha 4, RGB 2, RGBA 6), compression and filter 0; then the chunk framing, a length and a type for each chunk and never its data, to an `IEND` of length 0 | palette (colour type 3), 16-bit, 2-bit and 4-bit, bit depth 1 with anything but gray, interlace, a second `IHDR`, no `IDAT`, more than 4,096 chunks, and an `IEND` that is not the last chunk and the last byte of the tile (a polyglot). CRCs are the decoder's |
+| JPEG | `SOI`, then the marker segments by their lengths until `SOF0`, `SOF1` or `SOF2`, which must start inside the first 65,536 bytes; the frame header's precision (8), height and width (`tile_edge`), `Nf` (1 for gray, 3 for RGB, and equal to the placement's channels) and its length (`8 + 3 * Nf`); `EOI` as the last two bytes | a frame header past the walk, `Nf` of 2 or 4, precision other than 8, a start of scan before a frame, anything after `EOI` that does not end the tile in `EOI` again, and any JPEG under a placement with alpha or one bit (the pair, `RASTER-04`) |
+| WebP | `RIFF`, a size equal to the tile's length less 8, `WEBP`, and the first chunk: `VP8 ` (a key frame, the start code `9D 01 2A`, 14 bits of width and of height with the scale bits zero), `VP8L` (the signature `2F`, 14 bits of width and of height less one, version 0) or `VP8X` (a chunk of 10 bytes, the animation flag clear, a 24 bit canvas of width and height less one) | an animated `VP8X`, a RIFF size that is not the length, a size other than `tile_edge`. There is no channel check, because the header has none |
+
+The refusal names its rule: `RASTER-03` for anything about the bytes, `RASTER-04` for a codec id that is not 1, 2 or 3 (a
+`Raw` tile among them: raw pixels carry neither dimensions nor a pixel format) and for a JPEG under alpha or one bit, and
+`LIMIT-15` for a tile longer than `2 * 4 * tile_edge^2 + 65,536` bytes (589,824 at 256, 2,162,688 at 512, 8,454,144 at
+1024), which is decided from the length in the index before the range is requested. A reader refuses the raster's tile,
+not the file: `pvec validate` reports the raster as skipped with the rule, and the geometry gates pass. The thirteen
+hostile tiles (`pvec_testkit::raster_hostile`) are the corpus of all of this, and an origin that serves only what the
+reader accepts never serves one of them.

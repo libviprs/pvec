@@ -32,7 +32,15 @@ pub fn payload(len: usize, seed: u8) -> Vec<u8> {
 
 /// A PNG of `width` by `height` with the given IHDR fields and `data` bytes in one IDAT (several when `idats` is
 /// more than 1): the chunk framing is right and the pixel data is not.
-pub fn png_with(width: u32, height: u32, depth: u8, colour: u8, interlace: u8, data: &[u8], idats: usize) -> Vec<u8> {
+pub fn png_with(
+    width: u32,
+    height: u32,
+    depth: u8,
+    colour: u8,
+    interlace: u8,
+    data: &[u8],
+    idats: usize,
+) -> Vec<u8> {
     let mut out = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
     let mut ihdr = Vec::with_capacity(13);
     ihdr.extend_from_slice(&width.to_be_bytes());
@@ -64,7 +72,15 @@ pub fn png(edge: u32, channels: u8, depth: u8, data: &[u8]) -> Vec<u8> {
 /// A JPEG of `width` by `height` with `nf` components: SOI, a JFIF segment, a quantisation table, `pad` bytes of
 /// comment (to push the frame header out), the frame header (SOF2 when `progressive`), a Huffman table, the scan
 /// header, `data` bytes of entropy-coded data and, when `eoi`, EOI.
-pub fn jpeg_with(width: u32, height: u32, nf: u8, progressive: bool, pad: usize, data: &[u8], eoi: bool) -> Vec<u8> {
+pub fn jpeg_with(
+    width: u32,
+    height: u32,
+    nf: u8,
+    progressive: bool,
+    pad: usize,
+    data: &[u8],
+    eoi: bool,
+) -> Vec<u8> {
     let mut out = vec![0xFF, 0xD8];
     out.extend_from_slice(&[0xFF, 0xE0, 0, 16, b'J', b'F', b'I', b'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]);
     out.extend_from_slice(&[0xFF, 0xDB, 0, 67, 0]);

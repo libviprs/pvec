@@ -10,8 +10,8 @@ mod tilegen;
 
 use pvec_components::{Band, PixelFormat, Placement, TileCodec};
 use pvec_container::blocks::sniff::{
-    JPEG, JPEG_WALK, MAX_EXAMINED, MAX_PNG_CHUNKS, PNG, TileRefusal, WEBP, jpeg, max_tile_bytes, png, sniff_codec,
-    sniff_tile, webp,
+    JPEG, JPEG_WALK, MAX_EXAMINED, MAX_PNG_CHUNKS, PNG, TileRefusal, WEBP, jpeg, max_tile_bytes, png,
+    sniff_codec, sniff_tile, webp,
 };
 
 const ALLOWANCE: u32 = 65_536;
@@ -189,7 +189,11 @@ fn raster_03_a_jpeg_with_four_components_or_two_is_refused() {
     for nf in [2u8, 4] {
         let j = tilegen::jpeg(256, nf, false, &tilegen::payload(100, 1));
         for channels in [1u8, 3] {
-            assert_eq!(refused(JPEG, 256, channels, 8, &j), TileRefusal::Format, "Nf {nf} for {channels} channels");
+            assert_eq!(
+                refused(JPEG, 256, channels, 8, &j),
+                TileRefusal::Format,
+                "Nf {nf} for {channels} channels"
+            );
         }
     }
     // Nf is the placement's: a gray jpeg under an rgb placement and the other way round
@@ -218,11 +222,23 @@ fn raster_03_a_header_that_lies_about_the_size_is_refused() {
     }
     for (w, h) in [(255u32, 256u32), (256, 257), (512, 512)] {
         let j = tilegen::jpeg_with(w, h, 3, false, 0, &[1], true);
-        assert_eq!(refused(JPEG, 256, 3, 8, &j), TileRefusal::Size { width: w, height: h }, "jpeg {w} by {h}");
+        assert_eq!(
+            refused(JPEG, 256, 3, 8, &j),
+            TileRefusal::Size { width: w, height: h },
+            "jpeg {w} by {h}"
+        );
         let l = tilegen::webp_vp8l(w, h, &[1]);
-        assert_eq!(refused(WEBP, 256, 4, 8, &l), TileRefusal::Size { width: w, height: h }, "vp8l {w} by {h}");
+        assert_eq!(
+            refused(WEBP, 256, 4, 8, &l),
+            TileRefusal::Size { width: w, height: h },
+            "vp8l {w} by {h}"
+        );
         let x = tilegen::webp_vp8x(w, h, false, true, &[1]);
-        assert_eq!(refused(WEBP, 256, 4, 8, &x), TileRefusal::Size { width: w, height: h }, "vp8x {w} by {h}");
+        assert_eq!(
+            refused(WEBP, 256, 4, 8, &x),
+            TileRefusal::Size { width: w, height: h },
+            "vp8x {w} by {h}"
+        );
         let v = tilegen::webp_vp8(w as u16, h as u16, &[1]);
         assert_eq!(refused(WEBP, 256, 3, 8, &v), TileRefusal::Size { width: w, height: h }, "vp8 {w} by {h}");
     }
@@ -282,7 +298,11 @@ fn raster_04_a_codec_that_is_none_of_the_three_and_a_raw_tile_are_refused_by_pai
 fn raster_04_a_jpeg_under_a_placement_with_alpha_or_one_bit_is_refused_before_a_byte_is_read() {
     let j = tilegen::jpeg(256, 3, false, &[1]);
     for (channels, depth) in [(4u8, 8u8), (2, 8), (1, 1)] {
-        assert_eq!(refused(JPEG, 256, channels, depth, &j), TileRefusal::Pair, "{channels} channels at {depth}");
+        assert_eq!(
+            refused(JPEG, 256, channels, depth, &j),
+            TileRefusal::Pair,
+            "{channels} channels at {depth}"
+        );
     }
     let rgba = placement(TileCodec::Jpeg, PixelFormat::Rgba, 8, 256);
     assert_eq!(sniff_tile(&rgba, ALLOWANCE, &j), Err(TileRefusal::Pair));
@@ -309,7 +329,8 @@ fn a_tile_costs_a_constant_number_of_bytes_looked_at_whatever_its_length() {
     let n = sniff_codec(PNG, 256, 1, 8, ALLOWANCE, &many).unwrap();
     assert!(n <= 33 + 8 * MAX_PNG_CHUNKS && n <= MAX_EXAMINED, "{n}");
     // and one framed in more is refused instead of walked
-    let too_many = tilegen::png_with(256, 256, 8, 0, 0, &vec![7u8; MAX_PNG_CHUNKS + 100], MAX_PNG_CHUNKS + 100);
+    let too_many =
+        tilegen::png_with(256, 256, 8, 0, 0, &vec![7u8; MAX_PNG_CHUNKS + 100], MAX_PNG_CHUNKS + 100);
     assert_eq!(refused(PNG, 256, 1, 8, &too_many), TileRefusal::Malformed);
     // the three entry points agree with the dispatcher
     assert!(png(&small, 1024, 1, 8).is_ok() && jpeg(&j, 1024, 3).is_ok());

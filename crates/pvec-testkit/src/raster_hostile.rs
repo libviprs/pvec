@@ -9,7 +9,8 @@
 use crate::tilegen;
 use pvec_capabilities::Version;
 use pvec_components::{
-    Band, PixelFormat, Placement, RASTER_CAPABILITY, RasterId, Stream, TileCodec, encode_rasters, encode_streams,
+    Band, PixelFormat, Placement, RASTER_CAPABILITY, RasterId, Stream, TileCodec, encode_rasters,
+    encode_streams,
 };
 use pvec_container::blocks::raster::TileIn;
 use pvec_container::blocks::sniff::{JPEG_WALK, max_tile_bytes};
@@ -238,8 +239,12 @@ pub fn file(t: &Tile) -> Vec<u8> {
     }
     let mut w = ContainerWriter::new(config());
     let bounds = Bounds { min: [0.0, 0.0], max: [10.0, 10.0] };
-    w.push_line(EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds }, [0.0, 0.0], [10.0, 10.0])
-        .unwrap();
+    w.push_line(
+        EntityMeta { id: EntityId::new(0).unwrap(), style: 0, cell: 0, bounds },
+        [0.0, 0.0],
+        [10.0, 10.0],
+    )
+    .unwrap();
     w.push_stream(Stream {
         capability: RASTER_CAPABILITY,
         version: Version::new(1, 1, 0),
@@ -247,8 +252,11 @@ pub fn file(t: &Tile) -> Vec<u8> {
     })
     .unwrap();
     w.skip_tile_checks();
-    w.push_raster_tiles(RasterId::new(0).unwrap(), vec![TileIn { level: 0, col: 0, row: 0, bytes: t.bytes.clone() }])
-        .unwrap();
+    w.push_raster_tiles(
+        RasterId::new(0).unwrap(),
+        vec![TileIn { level: 0, col: 0, row: 0, bytes: t.bytes.clone() }],
+    )
+    .unwrap();
     let bytes = w.finish().expect("the hostile tile is written");
     if refused_pair { with_codec(&bytes, t.codec) } else { bytes }
 }
@@ -274,8 +282,12 @@ fn with_codec(file: &[u8], codec: u8) -> Vec<u8> {
             let mut s = opened.streams[0].clone();
             // the count, then the fixed part of the first record: the codec is its byte 75
             s.payload[4 + 75] = codec;
-            stored = encode_streams(&[Stream { capability: s.capability, version: s.version, payload: s.payload }])
-                .unwrap();
+            stored = encode_streams(&[Stream {
+                capability: s.capability,
+                version: s.version,
+                payload: s.payload,
+            }])
+            .unwrap();
             // stored as it is, whatever codec the block had
             (codec_id, uncompressed_length) = (0, stored.len() as u32);
         }

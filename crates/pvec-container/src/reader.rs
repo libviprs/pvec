@@ -1001,7 +1001,9 @@ impl<S: BlockSource> ContainerReader<S> {
         let at = (level, col, row);
         let (tile, plan) = self.shared.tile_plan(raster, &index, &placement, at)?;
         match (tile, plan) {
-            (Some(t), TilePlan::Inline(bytes)) => self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some),
+            (Some(t), TilePlan::Inline(bytes)) => {
+                self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some)
+            }
             (Some(t), TilePlan::Range { offset, len }) => {
                 let _room = self.shared.admit_gap(len)?;
                 let bytes = self.fetch(offset, len)?;
@@ -1049,7 +1051,13 @@ impl<S: BlockSource> ContainerReader<S> {
                     row: t.row,
                 }))?;
                 self.shared.tile_admitted(&placement, t)?;
-                self.shared.tile_verified(raster, &placement, (l, t.col, t.row), t, Bytes::new(bytes.to_vec()))?;
+                self.shared.tile_verified(
+                    raster,
+                    &placement,
+                    (l, t.col, t.row),
+                    t,
+                    Bytes::new(bytes.to_vec()),
+                )?;
             }
         }
         Ok(())
@@ -1228,7 +1236,9 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
         let at = (level, col, row);
         let (tile, plan) = self.shared.tile_plan(raster, &index, &placement, at)?;
         match (tile, plan) {
-            (Some(t), TilePlan::Inline(bytes)) => self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some),
+            (Some(t), TilePlan::Inline(bytes)) => {
+                self.shared.tile_verified(raster, &placement, at, &t, bytes).map(Some)
+            }
             (Some(t), TilePlan::Range { offset, len }) => {
                 let _room = self.shared.admit_gap(len)?;
                 let bytes = self.fetch(offset, len).await?;
@@ -1276,7 +1286,13 @@ impl<S: AsyncBlockSource> AsyncContainerReader<S> {
                     row: t.row,
                 }))?;
                 self.shared.tile_admitted(&placement, t)?;
-                self.shared.tile_verified(raster, &placement, (l, t.col, t.row), t, Bytes::new(bytes.to_vec()))?;
+                self.shared.tile_verified(
+                    raster,
+                    &placement,
+                    (l, t.col, t.row),
+                    t,
+                    Bytes::new(bytes.to_vec()),
+                )?;
             }
         }
         Ok(())

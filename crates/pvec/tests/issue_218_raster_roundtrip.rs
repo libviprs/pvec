@@ -48,7 +48,12 @@ fn tiles() -> Vec<TileIn> {
                 let bytes = if (l, col, row) == (2, 2, 1) {
                     Vec::new()
                 } else {
-                    tilegen::png(256, 1, 8, &tilegen::payload(843, (13 * col + 29 * row + 71 * l as u32) as u8))
+                    tilegen::png(
+                        256,
+                        1,
+                        8,
+                        &tilegen::payload(843, (13 * col + 29 * row + 71 * l as u32) as u8),
+                    )
                 };
                 out.push(TileIn { level: l as u32, col, row, bytes });
             }

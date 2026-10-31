@@ -287,11 +287,27 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
     };
     let l = Limits::DEFAULT;
     let written = |b: bool| s(if b { "verified" } else { "not_written" });
+    // a raster that is refused is a raster skipped, with its rule: the geometry and the other rasters are not
+    // affected, so the file still conforms
+    let rasters: Vec<(u32, Option<ReadError>)> =
+        reader.rasters().into_iter().map(|id| (id, reader.validate_raster(id).err())).collect();
+    let skipped_rasters = rasters.iter().filter(|(_, e)| e.is_some()).count();
     let result = Json::object([
         ("format_valid", Json::Bool(true)),
         ("blocks", u(v.blocks as u64)),
         ("entities", u(v.entities)),
         ("skipped_blocks", list(v.skipped.iter().map(|b| u(b.0)))),
+        (
+            "rasters",
+            list(rasters.iter().map(|(id, e)| {
+                Json::object([
+                    ("raster", u(*id)),
+                    ("status", s(if e.is_some() { "skipped" } else { "ok" })),
+                    ("rule", e.as_ref().map_or(Json::Null, |e| s(e.rule()))),
+                    ("message", e.as_ref().map_or(Json::Null, |e| s(e.to_string()))),
+                ])
+            })),
+        ),
         (
             "checks",
             Json::object([
@@ -317,8 +333,17 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
             ]),
         ),
     ]);
-    let human =
+    let mut human =
         format!("{path}: valid, {} blocks, {} entities, {} skipped\n", v.blocks, v.entities, v.skipped.len());
+    for (id, e) in rasters.iter().filter_map(|(id, e)| e.as_ref().map(|e| (id, e))) {
+        human.push_str(&format!("raster {id} skipped: {e}\n"));
+    }
+    if skipped_rasters > 0 {
+        human.push_str(&format!(
+            "{skipped_rasters} raster{} skipped\n",
+            if skipped_rasters == 1 { "" } else { "s" }
+        ));
+    }
     envelope("validate", path, size, exit::CONFORMS, None, result, human)
 }
 
