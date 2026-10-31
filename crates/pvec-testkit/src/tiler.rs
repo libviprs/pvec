@@ -101,11 +101,8 @@ pub fn png(edge: u32, channels: u8, bit_depth: u8, at: impl Fn(u32, u32) -> [u8;
         3 => 2,
         _ => 6,
     };
-    let row_bytes = if bit_depth == 1 {
-        (edge as usize).div_ceil(8)
-    } else {
-        edge as usize * usize::from(channels)
-    };
+    let row_bytes =
+        if bit_depth == 1 { (edge as usize).div_ceil(8) } else { edge as usize * usize::from(channels) };
     let mut raw = Vec::with_capacity((row_bytes + 1) * edge as usize);
     for y in 0..edge {
         raw.push(0);

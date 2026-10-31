@@ -61,14 +61,32 @@ pub const TILE_LEN: usize = 28;
 /// The `subtype` of the directory entry of chunk `chunk` of level `level`: `level * 1024 + chunk`, which is
 /// unique and ascends by level under LAYOUT-04. `None` when either does not fit.
 pub fn subtype(level: u32, chunk: u32) -> Option<u16> {
-    None
+    if level >= MAX_LEVELS || chunk >= CHUNKS_PER_LEVEL {
+        return None;
+    }
+    u16::try_from(level * CHUNKS_PER_LEVEL + chunk).ok()
 }
 
 /// The position of tile `(col, row)` along the Hilbert curve over the square of side `side`, which is a power
 /// of two at least as large as both. Distinct tiles of one level have distinct keys.
 pub fn hilbert_key(side: u64, col: u32, row: u32) -> u64 {
-    let _ = (side, col, row);
-    0
+    let (mut x, mut y) = (u64::from(col), u64::from(row));
+    let mut d = 0u64;
+    let mut s = side / 2;
+    while s > 0 {
+        let rx = u64::from(x & s != 0);
+        let ry = u64::from(y & s != 0);
+        d += s * s * ((3 * rx) ^ ry);
+        if ry == 0 {
+            if rx == 1 {
+                x = side - 1 - x;
+                y = side - 1 - y;
+            }
+            core::mem::swap(&mut x, &mut y);
+        }
+        s /= 2;
+    }
+    d
 }
 
 /// The side of the Hilbert square of a level of `cols` by `rows` tiles.
@@ -264,13 +282,152 @@ impl RasterIndex {
     /// the stored bytes of each chunk and of the inline part are packed with no gap and no overlap, in table
     /// order. A block that parses is the one [`RasterIndex::encode`] writes, byte for byte.
     pub fn parse(bytes: &[u8], max_tiles: u64) -> Result<RasterIndex, IndexError> {
-        let _ = (bytes, max_tiles);
-        Err(IndexError::Count)
+        if bytes.len() < HEADER_LEN {
+            return Err(IndexError::Length { expected: HEADER_LEN as u64, found: bytes.len() as u64 });
+        }
+        let (levels, tiles, stored, inline_len) =
+            (u32_at(bytes, 0), u32_at(bytes, 4), u32_at(bytes, 8), u32_at(bytes, 12));
+        if levels == 0 || levels > MAX_LEVELS {
+            return Err(IndexError::Levels { found: levels });
+        }
+        if u64::from(tiles) > max_tiles {
+            return Err(IndexError::TooManyTiles { declared: u64::from(tiles), ceiling: max_tiles });
+        }
+        let expected = HEADER_LEN as u64
+            + LEVEL_LEN as u64 * u64::from(levels)
+            + TILE_LEN as u64 * u64::from(tiles)
+            + u64::from(inline_len);
+        if expected != bytes.len() as u64 {
+            return Err(IndexError::Length { expected, found: bytes.len() as u64 });
+        }
+        // from here the declared counts are bounded by the length of the block itself
+        let mut level_table = Vec::with_capacity(levels as usize);
+        let mut first = 0u64;
+        for l in 0..levels {
+            let at = HEADER_LEN + LEVEL_LEN * l as usize;
+            let level = Level {
+                cols: u32_at(bytes, at),
+                rows: u32_at(bytes, at + 4),
+                chunks: u32_at(bytes, at + 8),
+                first: u32_at(bytes, at + 12),
+            };
+            let in_grid = (1..=MAX_SIDE).contains(&level.cols) && (1..=MAX_SIDE).contains(&level.rows);
+            if !in_grid || level.chunks > CHUNKS_PER_LEVEL || u64::from(level.first) != first {
+                return Err(IndexError::Level { level: l });
+            }
+            first += u64::from(level.cols) * u64::from(level.rows);
+            level_table.push(level);
+        }
+        if first != u64::from(tiles) {
+            return Err(IndexError::Count);
+        }
+        let table_at = HEADER_LEN + LEVEL_LEN * levels as usize;
+        let inline_at = table_at + TILE_LEN * tiles as usize;
+        let mut table = Vec::with_capacity(tiles as usize);
+        let mut counted = 0u32;
+        let mut inline_next = inline_at as u64;
+        for (l, level) in level_table.iter().enumerate() {
+            let l = l as u32;
+            let side = side_of(level.cols, level.rows);
+            let mut previous_key: Option<u64> = None;
+            let mut chunk = 0u32;
+            let mut chunk_next = 0u64;
+            let mut seen_chunk = false;
+            let n = u64::from(level.cols) * u64::from(level.rows);
+            for k in 0..n {
+                let ordinal = (u64::from(level.first) + k) as u32;
+                let at = table_at + TILE_LEN * ordinal as usize;
+                let t = Tile {
+                    xxh3: u64_at(bytes, at),
+                    col: u32_at(bytes, at + 8),
+                    row: u32_at(bytes, at + 12),
+                    offset: u32_at(bytes, at + 16),
+                    length: u32_at(bytes, at + 20),
+                    chunk: u32_at(bytes, at + 24),
+                };
+                if t.col >= level.cols || t.row >= level.rows {
+                    return Err(IndexError::Order { level: l, ordinal });
+                }
+                let key = hilbert_key(side, t.col, t.row);
+                if previous_key.is_some_and(|p| p >= key) {
+                    return Err(IndexError::Order { level: l, ordinal });
+                }
+                previous_key = Some(key);
+                if t.length == 0 {
+                    if t.xxh3 != 0 || t.offset != 0 || t.chunk != 0 {
+                        return Err(IndexError::Packing { ordinal });
+                    }
+                } else {
+                    counted += 1;
+                    if t.chunk == INLINE {
+                        // the inline part is the inline tiles one after the other, from its first byte to the end
+                        if level.chunks != 0 || u64::from(t.offset) != inline_next {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                        inline_next += u64::from(t.length);
+                        if inline_next > bytes.len() as u64 {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                    } else {
+                        if t.chunk >= level.chunks {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                        // chunks ascend by one, and a chunk's tiles are packed from its first byte
+                        if !seen_chunk {
+                            if t.chunk != 0 {
+                                return Err(IndexError::Packing { ordinal });
+                            }
+                            seen_chunk = true;
+                        } else if t.chunk == chunk + 1 {
+                            chunk = t.chunk;
+                            chunk_next = 0;
+                        } else if t.chunk != chunk {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                        if u64::from(t.offset) != chunk_next {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                        chunk_next += u64::from(t.length);
+                        if chunk_next > u64::from(u32::MAX) {
+                            return Err(IndexError::Packing { ordinal });
+                        }
+                    }
+                }
+                table.push(t);
+            }
+            // every chunk the level names has a tile in it, and none of the level is left unnamed
+            if level.chunks != 0 && (!seen_chunk || chunk + 1 != level.chunks) {
+                return Err(IndexError::Level { level: l });
+            }
+        }
+        if counted != stored || inline_next != bytes.len() as u64 {
+            return Err(IndexError::Count);
+        }
+        Ok(RasterIndex { levels: level_table, tiles: table, stored, inline: bytes[inline_at..].to_vec() })
     }
 
     /// The block, byte for byte what [`RasterIndex::parse`] accepts.
     pub fn encode(&self) -> Vec<u8> {
-        Vec::new()
+        let mut out = Vec::with_capacity(
+            HEADER_LEN + LEVEL_LEN * self.levels.len() + TILE_LEN * self.tiles.len() + self.inline.len(),
+        );
+        out.extend_from_slice(&(self.levels.len() as u32).to_le_bytes());
+        out.extend_from_slice(&(self.tiles.len() as u32).to_le_bytes());
+        out.extend_from_slice(&self.stored.to_le_bytes());
+        out.extend_from_slice(&(self.inline.len() as u32).to_le_bytes());
+        for l in &self.levels {
+            for v in [l.cols, l.rows, l.chunks, l.first] {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        for t in &self.tiles {
+            out.extend_from_slice(&t.xxh3.to_le_bytes());
+            for v in [t.col, t.row, t.offset, t.length, t.chunk] {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        out.extend_from_slice(&self.inline);
+        out
     }
 
     /// The level table, coarsest level first.
@@ -285,8 +442,9 @@ impl RasterIndex {
 
     /// The tile table of one level, in Hilbert order.
     pub fn level_tiles(&self, level: u32) -> Option<&[Tile]> {
-        let _ = level;
-        None
+        let l = self.levels.get(level as usize)?;
+        let first = l.first as usize;
+        self.tiles.get(first..first + l.cols as usize * l.rows as usize)
     }
 
     /// How many tiles have bytes. It is the `count` of the index block's directory entry.
@@ -297,14 +455,25 @@ impl RasterIndex {
     /// The entry of tile `(col, row)` of `level`: `None` when the level or the tile is outside the pyramid.
     /// A tile that is inside and not stored is an entry with length 0.
     pub fn tile(&self, level: u32, col: u32, row: u32) -> Option<&Tile> {
-        let _ = (level, col, row);
-        None
+        let l = self.levels.get(level as usize)?;
+        if col >= l.cols || row >= l.rows {
+            return None;
+        }
+        let tiles = self.level_tiles(level)?;
+        let side = side_of(l.cols, l.rows);
+        let key = hilbert_key(side, col, row);
+        let at = tiles.partition_point(|t| hilbert_key(side, t.col, t.row) < key);
+        tiles.get(at).filter(|t| t.col == col && t.row == row)
     }
 
     /// The bytes of an inline tile, or `None` for a tile that is stored in a chunk or not at all.
     pub fn inline_bytes(&self, tile: &Tile) -> Option<&[u8]> {
-        let _ = tile;
-        None
+        if !tile.is_stored() || !tile.is_inline() {
+            return None;
+        }
+        // offsets are positions in the block, and the inline part is its tail
+        let start = (tile.offset as usize).checked_sub(self.inline_start())?;
+        self.inline.get(start..start.checked_add(tile.length as usize)?)
     }
 
     fn inline_start(&self) -> usize {
@@ -315,7 +484,14 @@ impl RasterIndex {
     /// `height` pixels in tiles of `tile_edge`, level `levels - 1` at full size and each one above it halved
     /// with a ceiling. `RASTER-02`: the grid of the index is the grid of the placement, not one the file chose.
     pub fn check_grid(&self, width: u32, height: u32, tile_edge: u32) -> Result<(), IndexError> {
-        let _ = (width, height, tile_edge);
+        let n = self.levels.len() as u32;
+        for (l, level) in self.levels.iter().enumerate() {
+            let l = l as u32;
+            let (cols, rows) = grid_of(width, height, tile_edge, n, l);
+            if (level.cols, level.rows) != (cols, rows) {
+                return Err(IndexError::Grid { level: l });
+            }
+        }
         Ok(())
     }
 
@@ -323,15 +499,32 @@ impl RasterIndex {
     /// chunk's block, or `None` when the file has none. A chunk is exactly its tiles, so a block shorter than
     /// the last tile ends is refused (a read would run past it) and so is one longer (bytes nobody addresses).
     pub fn check_chunks(&self, length_of: impl Fn(u32, u32) -> Option<u32>) -> Result<(), IndexError> {
-        let _ = length_of;
+        for (l, level) in self.levels.iter().enumerate() {
+            let l = l as u32;
+            for chunk in 0..level.chunks {
+                let end = self
+                    .level_tiles(l)
+                    .into_iter()
+                    .flatten()
+                    .filter(|t| t.is_stored() && t.chunk == chunk)
+                    .map(|t| u64::from(t.offset) + u64::from(t.length))
+                    .max();
+                if end != length_of(l, chunk).map(u64::from) {
+                    return Err(IndexError::Chunk { level: l, chunk });
+                }
+            }
+        }
         Ok(())
     }
 }
 
 /// The columns and rows of level `level` of a pyramid of `levels` levels over `width` by `height` pixels.
 pub fn grid_of(width: u32, height: u32, tile_edge: u32, levels: u32, level: u32) -> (u32, u32) {
-    let _ = (width, height, tile_edge, levels, level);
-    (0, 0)
+    let shift = levels.saturating_sub(1).saturating_sub(level).min(63);
+    let scaled = |v: u32| (u64::from(v)).div_ceil(1u64 << shift).max(1);
+    let cols = scaled(width).div_ceil(u64::from(tile_edge.max(1)));
+    let rows = scaled(height).div_ceil(u64::from(tile_edge.max(1)));
+    (u32::try_from(cols).unwrap_or(u32::MAX), u32::try_from(rows).unwrap_or(u32::MAX))
 }
 
 /// A tile as the producer hands it over: its place in the pyramid and its encoded bytes, which are stored as
@@ -389,6 +582,115 @@ pub fn build(
     chunk_bytes: u32,
     max_tiles: u64,
 ) -> Result<Built, IndexError> {
-    let _ = (grid, tiles, inline_levels, chunk_bytes, max_tiles);
-    Err(IndexError::Count)
+    let n_levels = grid.len() as u32;
+    if n_levels == 0 || n_levels > MAX_LEVELS {
+        return Err(IndexError::Levels { found: n_levels });
+    }
+    let mut total = 0u64;
+    for (l, &(cols, rows)) in grid.iter().enumerate() {
+        if !(1..=MAX_SIDE).contains(&cols) || !(1..=MAX_SIDE).contains(&rows) {
+            return Err(IndexError::Level { level: l as u32 });
+        }
+        total += u64::from(cols) * u64::from(rows);
+    }
+    if total > max_tiles || total > u64::from(u32::MAX) {
+        return Err(IndexError::TooManyTiles {
+            declared: total,
+            ceiling: max_tiles.min(u64::from(u32::MAX)),
+        });
+    }
+    // the tiles in the order of the table, so that the table can be walked once
+    let mut given: Vec<(u32, u64, TileIn)> = Vec::with_capacity(tiles.len());
+    for t in tiles {
+        let &(cols, rows) = grid
+            .get(t.level as usize)
+            .filter(|(c, r)| t.col < *c && t.row < *r)
+            .ok_or(IndexError::Tile { level: t.level, col: t.col, row: t.row })?;
+        given.push((t.level, hilbert_key(side_of(cols, rows), t.col, t.row), t));
+    }
+    given.sort_unstable_by_key(|(level, key, _)| (*level, *key));
+    if let Some(w) = given.windows(2).find(|w| (w[0].0, w[0].1) == (w[1].0, w[1].1)) {
+        return Err(IndexError::Tile { level: w[1].2.level, col: w[1].2.col, row: w[1].2.row });
+    }
+    let mut given = given.into_iter().peekable();
+
+    let mut levels: Vec<Level> = Vec::with_capacity(grid.len());
+    let mut table: Vec<Tile> = Vec::with_capacity(total as usize);
+    let mut chunks: Vec<ChunkOut> = Vec::new();
+    let mut inline: Vec<u8> = Vec::new();
+    let mut stored = 0u32;
+    let inline_at = (HEADER_LEN + LEVEL_LEN * grid.len() + TILE_LEN * total as usize) as u64;
+    for (l, &(cols, rows)) in grid.iter().enumerate() {
+        let l = l as u32;
+        let side = side_of(cols, rows);
+        let mut cells: Vec<(u64, u32, u32)> = Vec::with_capacity(cols as usize * rows as usize);
+        for row in 0..rows {
+            for col in 0..cols {
+                cells.push((hilbert_key(side, col, row), col, row));
+            }
+        }
+        cells.sort_unstable();
+        let first = table.len() as u32;
+        let is_inline = l < inline_levels;
+        let mut level_chunks = 0u32;
+        let mut current: Option<ChunkOut> = None;
+        for (key, col, row) in cells {
+            let mut bytes = Vec::new();
+            if given.peek().is_some_and(|(gl, gk, _)| (*gl, *gk) == (l, key)) {
+                bytes = given.next().map(|(_, _, t)| t.bytes).unwrap_or_default();
+            }
+            if bytes.is_empty() {
+                table.push(Tile { xxh3: 0, col, row, offset: 0, length: 0, chunk: 0 });
+                continue;
+            }
+            let length = u32::try_from(bytes.len()).map_err(|_| IndexError::TooLarge { level: l })?;
+            stored += 1;
+            let xxh3 = block_checksum(&bytes);
+            if is_inline {
+                let offset = inline_at + inline.len() as u64;
+                let end = offset + u64::from(length);
+                let offset = u32::try_from(offset).map_err(|_| IndexError::TooLarge { level: l })?;
+                if u32::try_from(end).is_err() {
+                    return Err(IndexError::TooLarge { level: l });
+                }
+                inline.extend_from_slice(&bytes);
+                table.push(Tile { xxh3, col, row, offset, length, chunk: INLINE });
+                continue;
+            }
+            if length > chunk_bytes {
+                return Err(IndexError::TooLarge { level: l });
+            }
+            // a chunk takes the next tile unless that would pass the limit, and it is never empty
+            if current
+                .as_ref()
+                .is_some_and(|c| c.bytes.len() as u64 + u64::from(length) > u64::from(chunk_bytes))
+                && let Some(done) = current.take()
+            {
+                chunks.push(done);
+            }
+            let c = current.get_or_insert_with(|| {
+                let c = ChunkOut {
+                    level: l,
+                    chunk: level_chunks,
+                    count: 0,
+                    cols: [col, col],
+                    rows: [row, row],
+                    bytes: Vec::new(),
+                };
+                level_chunks += 1;
+                c
+            });
+            if c.chunk >= CHUNKS_PER_LEVEL {
+                return Err(IndexError::TooLarge { level: l });
+            }
+            table.push(Tile { xxh3, col, row, offset: c.bytes.len() as u32, length, chunk: c.chunk });
+            c.bytes.extend_from_slice(&bytes);
+            c.count += 1;
+            c.cols = [c.cols[0].min(col), c.cols[1].max(col)];
+            c.rows = [c.rows[0].min(row), c.rows[1].max(row)];
+        }
+        chunks.extend(current.take());
+        levels.push(Level { cols, rows, chunks: level_chunks, first });
+    }
+    Ok(Built { index: RasterIndex { levels, tiles: table, stored, inline }, chunks })
 }

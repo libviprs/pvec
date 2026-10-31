@@ -18,7 +18,8 @@ fn tiles(grid: &[(u32, u32)], len: usize, skip: impl Fn(u32, u32, u32) -> bool) 
     for (l, &(cols, rows)) in grid.iter().enumerate() {
         for row in 0..rows {
             for col in 0..cols {
-                let bytes = if skip(l as u32, col, row) { Vec::new() } else { bytes_of(l as u32, col, row, len) };
+                let bytes =
+                    if skip(l as u32, col, row) { Vec::new() } else { bytes_of(l as u32, col, row, len) };
                 out.push(TileIn { level: l as u32, col, row, bytes });
             }
         }
@@ -133,7 +134,8 @@ fn the_arrival_order_of_the_tiles_does_not_change_a_byte() {
 
 #[test]
 fn a_tile_with_no_bytes_is_not_stored_and_costs_nothing_but_its_entry() {
-    let built = build(&GRID, tiles(&GRID, 40, |l, c, r| l == 2 && (c + r) % 2 == 1), 0, 1 << 20, MAX).unwrap();
+    let built =
+        build(&GRID, tiles(&GRID, 40, |l, c, r| l == 2 && (c + r) % 2 == 1), 0, 1 << 20, MAX).unwrap();
     let index = RasterIndex::parse(&built.index.encode(), MAX).unwrap();
     let sparse = index.tile(2, 1, 0).unwrap();
     assert_eq!((sparse.length, sparse.xxh3, sparse.offset, sparse.chunk), (0, 0, 0, 0));
@@ -157,7 +159,8 @@ fn a_level_that_would_pass_the_chunk_limit_is_split_and_a_chunk_is_never_over_it
     assert_eq!(built.index.levels()[0].chunks, 1);
     // each chunk is exactly its tiles, so the index can be checked against the blocks
     let index = RasterIndex::parse(&built.index.encode(), MAX).unwrap();
-    let length = |l, c| built.chunks.iter().find(|b| b.level == l && b.chunk == c).map(|b| b.bytes.len() as u32);
+    let length =
+        |l, c| built.chunks.iter().find(|b| b.level == l && b.chunk == c).map(|b| b.bytes.len() as u32);
     index.check_chunks(length).unwrap();
 }
 
@@ -275,13 +278,14 @@ fn raster_02_tiles_out_of_the_grid_or_out_of_order_are_refused() {
     let good = small();
     let table = HEADER_LEN + LEVEL_LEN * 3;
     let entry = |ordinal: usize| table + TILE_LEN * ordinal;
-    // swap the entries of the first two tiles of level 1
+    // swap the places of the first two tiles of level 1, leaving what they hold where it is
     let mut swapped = good.clone();
-    let (a, b) = (entry(1), entry(2));
-    for i in 0..TILE_LEN {
+    let (a, b) = (entry(1) + 8, entry(2) + 8);
+    for i in 0..8 {
         swapped.swap(a + i, b + i);
     }
-    assert!(matches!(refused(&swapped), IndexError::Order { level: 1, .. }));
+    let e = refused(&swapped);
+    assert!(matches!(e, IndexError::Order { level: 1, .. }), "{e:?}");
     // a column outside the level
     let mut outside = good.clone();
     put(&mut outside, entry(1) + 8, 2);
@@ -302,7 +306,8 @@ fn raster_02_a_tile_that_breaks_the_packing_rules_is_refused() {
     let entry = |ordinal: u32| table + TILE_LEN * ordinal as usize;
     let level2 = built.index.levels()[2].first;
     // a chunked tile of level 2 that is the second of its chunk
-    let second_in_chunk = (level2..level2 + 15).find(|&o| built.index.tiles()[o as usize].offset == 40).unwrap();
+    let second_in_chunk =
+        (level2..level2 + 15).find(|&o| built.index.tiles()[o as usize].offset == 40).unwrap();
     let (offset, length, chunk) = (16, 20, 24);
     for (name, field, value) in [
         ("an offset inside the previous tile", offset, 20u32),
@@ -358,7 +363,9 @@ fn raster_02_the_levels_must_be_the_pyramid_the_placement_fixes() {
     index.check_grid(1280, 768, 256).unwrap();
     // any size that rounds to the same grid at every level is the same pyramid
     index.check_grid(1257, 700, 256).unwrap();
-    for (w, h, edge) in [(1280, 1025, 256), (1280, 768, 512), (2000, 768, 256), (1280, 700, 128), (1024, 768, 256)] {
+    for (w, h, edge) in
+        [(1280, 1025, 256), (1280, 768, 512), (2000, 768, 256), (1280, 700, 128), (1024, 768, 256)]
+    {
         let e = index.check_grid(w, h, edge).expect_err(&format!("{w}x{h}/{edge}"));
         assert!(matches!(e, IndexError::Grid { .. }), "{w}x{h}/{edge}: {e:?}");
         assert_eq!(e.rule(), "RASTER-02");
@@ -369,7 +376,9 @@ fn raster_02_the_levels_must_be_the_pyramid_the_placement_fixes() {
 fn raster_02_a_chunk_block_must_be_exactly_its_tiles() {
     let built = build(&GRID, tiles(&GRID, 40, |_, _, _| false), 1, 100, MAX).unwrap();
     let index = RasterIndex::parse(&built.index.encode(), MAX).unwrap();
-    let real = |l: u32, c: u32| built.chunks.iter().find(|b| b.level == l && b.chunk == c).map(|b| b.bytes.len() as u32);
+    let real = |l: u32, c: u32| {
+        built.chunks.iter().find(|b| b.level == l && b.chunk == c).map(|b| b.bytes.len() as u32)
+    };
     index.check_chunks(real).unwrap();
     let missing = |l, c| if (l, c) == (2, 3) { None } else { real(l, c) };
     let short = |l, c| real(l, c).map(|n| if (l, c) == (2, 0) { n - 1 } else { n });
