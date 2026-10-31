@@ -420,7 +420,7 @@ fn raster_header_inputs() -> Vec<Vec<u8>> {
         if bytes.len() <= 4096 {
             for m in 0..4u64 {
                 let mut mutant = out.last().cloned().unwrap_or_default();
-                let at = 3 + (m as usize * 7) % bytes.len().min(48).max(1);
+                let at = 3 + (m as usize * 7) % bytes.len().clamp(1, 48);
                 if let Some(b) = mutant.get_mut(at) {
                     *b ^= 1 << (m % 8);
                 }
