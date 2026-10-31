@@ -23,7 +23,7 @@ Each target asserts these, so a parser that accepts something it should have ref
 
 `fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218), and `fuzz_raster_headers` the eighth (issue #219; seeds: one tile of each codec and variant libviprs writes at 256, 512 and 1024, the thirteen hostile tiles of `pvec_testkit::raster_hostile` and four header mutants of each). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 65,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`. `fuzz_raster_plan` is the ninth (issue #220): its seeds are not artifacts either but framed placements and viewports (an upright image, a rotated and sheared one, a tiny scale, overzoom, a viewport off the image, a huge viewport, a singular map), each under two request limits.
 
-`fuzz_raster_archive` is the tenth (issue #222, the raster half of the PMTiles interchange): its seeds are sparse three level pyramids of each tile type with and without the placement, each cut short at six lengths and with a byte of the header and of the first directory flipped. It has run in `cargo test` (the seeds) and has not run under libFuzzer yet.
+`fuzz_raster_archive` is the tenth (issue #222, the raster half of the PMTiles interchange): its seeds are sparse three level pyramids of each tile type with and without the placement, each cut short at six lengths and with a byte of the header and of the first directory flipped. It ran 300 seconds under libFuzzer on mars (native x86_64, the row above): 2.55 million executions, no crash, no out-of-memory, no timeout. It has not run for the 4 hour budget and has not run on arm64.
 
 ## Seed corpus
 
@@ -83,6 +83,7 @@ On `fuzz_directory_traversal`, arm64, the mutator alone reached 4,271 edges in 3
 | `fuzz_component_streams` | mercury | native arm64 | yes | 301 s | 11,015,253 | 36,595 | 420 | 603 | 8 -> 74 | 413 MB |
 | `fuzz_component_streams` | mars | native x86_64 | yes | 121 s | 5,397,979 | 44,611 | 449 | 616 | 8 -> 58 | 417 MB |
 | `fuzz_raster_plan` | mars | native x86_64 | yes | 301 s | 12,390 | 41 | 379 | 1,291 | 16 -> 141 | 374 MB |
+| `fuzz_raster_archive` | mars | native x86_64 | yes | 301 s | 2,548,480 | 8,466 | not logged | not logged | 1,091 -> 2,035 | 817 MB |
 
 Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 413 to 576 MB is the process, libFuzzer and the sanitizer included, and the limit libFuzzer was given was 2,560 MB (the 2,048 MB `max_alloc_bytes` of the P4.8 budget plus 512 MB for the runtime): an execution over it is an `oom` artifact and would be a finding. Every target went past a million executions in its smoke budget on both architectures, the least being 2.48 million for the decompress boundary on x86_64.
 
