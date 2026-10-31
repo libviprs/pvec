@@ -14,6 +14,8 @@ pub struct RasterGrid {
     pub tile_edge: u32,
     /// Levels, the last one full resolution.
     pub levels: u32,
+    /// Channels of a decoded pixel (1 to 4), which sizes a decoded tile for `LIMIT-16`.
+    pub channels: u32,
 }
 
 /// What the raster index says about one tile.
@@ -68,21 +70,148 @@ pub enum RasterPlanError {
     OverBudget,
 }
 
+/// The most cells of one level window the plan will look at. It is `LIMIT-14`'s default tile count: an
+/// index cannot hold more tiles than that, so a window past it is not one a plan hands on.
+const MAX_WINDOW_CELLS: u64 = 1 << 20;
+
 /// The level whose pixels are not coarser than the device's sharper direction wants.
-pub fn choose_level(_pixel_to_source: &[f64; 6], _scale: f64, _levels: u32) -> u32 {
-    unimplemented!("pvec#220")
+///
+/// `scale` is device pixels per source unit. The device size of one full-resolution pixel is the
+/// Jacobian `scale * [[a, b], [c, d]]` of the placement, and its larger singular value is the number of
+/// device pixels the image's sharper direction spends on one pixel. A level that halves `k` times has
+/// pixels `2^k` times as big, so the finest level not under-sampled is the largest `k` that keeps that
+/// size at one device pixel or more: `k = floor(-log2(sigma))`, clamped to the pyramid. Overzoom
+/// (`sigma >= 1`) is full resolution.
+pub fn choose_level(pixel_to_source: &[f64; 6], scale: f64, levels: u32) -> u32 {
+    let [a, b, _, c, d, _] = *pixel_to_source;
+    let sum = a * a + b * b + c * c + d * d;
+    let diff = a * a + b * b - c * c - d * d;
+    let cross = a * c + b * d;
+    let sigma = scale * ((sum + diff.hypot(2.0 * cross)) / 2.0).sqrt();
+    let top = levels.saturating_sub(1);
+    if sigma.is_nan() || sigma < f64::MIN_POSITIVE {
+        return 0;
+    }
+    if sigma >= 1.0 {
+        return top;
+    }
+    let halvings = (-sigma.log2()).floor();
+    top - if halvings >= f64::from(top) { top } else { halvings as u32 }
+}
+
+/// The (col, row) window `[col0, col1] x [row0, row1]` of `level` that the viewport's box covers, or
+/// `None` when it misses the level. `inverse` maps source space to full-resolution pixels.
+fn window(grid: &RasterGrid, level: u32, inverse: &[f64; 6], query: &ViewportQuery) -> Option<[u64; 4]> {
+    let shrink = (1u64 << (grid.levels - 1 - level)) as f64;
+    let (lo, hi) = (query.bounds.min(), query.bounds.max());
+    let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+    for (x, y) in [(lo[0], lo[1]), (hi[0], lo[1]), (hi[0], hi[1]), (lo[0], hi[1])] {
+        let px = inverse[0] * x + inverse[1] * y + inverse[2];
+        let py = inverse[3] * x + inverse[4] * y + inverse[5];
+        min = [min[0].min(px), min[1].min(py)];
+        max = [max[0].max(px), max[1].max(py)];
+    }
+    let level_w = u64::from(grid.width).div_ceil(shrink as u64);
+    let level_h = u64::from(grid.height).div_ceil(shrink as u64);
+    let edge = f64::from(grid.tile_edge);
+    let (cols, rows) = (level_w.div_ceil(u64::from(grid.tile_edge)), level_h.div_ceil(u64::from(grid.tile_edge)));
+    let cell = |v: f64| (v / shrink / edge).floor();
+    let mut out = [0u64; 4];
+    for (i, (v, count)) in [(min[0], cols), (min[1], rows), (max[0], cols), (max[1], rows)].into_iter().enumerate() {
+        let c = cell(v);
+        if c.is_nan() || (i < 2 && c >= count as f64) || (i >= 2 && c < 0.0) {
+            return None;
+        }
+        // saturated in f64 first, so the cast is exact
+        out[i] = c.clamp(0.0, (count - 1) as f64) as u64;
+    }
+    (out[0] <= out[2] && out[1] <= out[3]).then_some(out)
 }
 
 /// Plans the tiles of one raster for `query`.
+///
+/// The level is [`choose_level`]'s. The (col, row) window is the pixel-space box of the viewport's four
+/// corners mapped through the inverse of `pixel_to_source`, so it over-fetches under rotation (about 1.8x
+/// at worst, ADR 0018). `slot` answers `(level, col, row)` from the raster index. While the decoded size
+/// of the tiles handed on (`tile_edge^2 * channels` each) is over `max_plan_decoded_bytes` (`LIMIT-16`),
+/// the plan drops one level coarser; if even the coarsest level does not fit it is refused. Stored tiles
+/// that are not inline are merged into ranges, tile with tile only: a gap of at most `gap_threshold`
+/// bytes is bridged while a range stays within `max_request_bytes`.
 pub fn plan_raster(
-    _grid: &RasterGrid,
-    _pixel_to_source: &[f64; 6],
-    _channels: u32,
-    _query: &ViewportQuery,
-    _max_plan_decoded_bytes: u64,
-    _gap_threshold: u32,
-    _max_request_bytes: u32,
-    _slot: impl Fn(u32, u32, u32) -> TileSlot,
+    grid: &RasterGrid,
+    pixel_to_source: &[f64; 6],
+    query: &ViewportQuery,
+    max_plan_decoded_bytes: u64,
+    gap_threshold: u32,
+    max_request_bytes: u32,
+    slot: impl Fn(u32, u32, u32) -> TileSlot,
 ) -> Result<RasterPlan, RasterPlanError> {
-    unimplemented!("pvec#220")
+    let [a, b, tx, c, d, ty] = *pixel_to_source;
+    let det = a * d - b * c;
+    let finite = pixel_to_source.iter().all(|v| v.is_finite()) && det.is_finite() && det != 0.0;
+    if !(finite && query.scale.is_finite() && query.scale > 0.0)
+        || grid.levels == 0
+        || grid.levels > 32
+        || grid.tile_edge == 0
+        || grid.width == 0
+        || grid.height == 0
+    {
+        return Err(RasterPlanError::BadMap);
+    }
+    let inverse = [d / det, -b / det, (b * ty - d * tx) / det, -c / det, a / det, (c * tx - a * ty) / det];
+    if !inverse.iter().all(|v| v.is_finite()) {
+        return Err(RasterPlanError::BadMap);
+    }
+    let unit = u64::from(grid.tile_edge).pow(2).saturating_mul(u64::from(grid.channels));
+    let mut level = choose_level(pixel_to_source, query.scale, grid.levels);
+    loop {
+        let mut tiles = Vec::new();
+        let fits = match window(grid, level, &inverse, query) {
+            None => true,
+            Some([c0, r0, c1, r1]) => {
+                let cells = (c1 - c0 + 1).saturating_mul(r1 - r0 + 1);
+                cells <= MAX_WINDOW_CELLS && {
+                    for row in r0..=r1 {
+                        for col in c0..=c1 {
+                            let slot = slot(level, col as u32, row as u32);
+                            if slot != TileSlot::NotStored {
+                                tiles.push(PlannedTile { col: col as u32, row: row as u32, slot });
+                            }
+                        }
+                    }
+                    (tiles.len() as u64).saturating_mul(unit) <= max_plan_decoded_bytes
+                }
+            }
+        };
+        if fits {
+            let decoded_bytes = tiles.len() as u64 * unit;
+            let ranges = merge_ranges(&tiles, gap_threshold, max_request_bytes);
+            return Ok(RasterPlan { level, tiles, ranges, decoded_bytes });
+        }
+        level = level.checked_sub(1).ok_or(RasterPlanError::OverBudget)?;
+    }
+}
+
+/// The stored, non-inline tiles as byte ranges in file order, a gap of at most `gap` bytes bridged while a
+/// range stays within `max` bytes. A tile longer than `max` is a range of its own.
+fn merge_ranges(tiles: &[PlannedTile], gap: u32, max: u32) -> Vec<(u64, u32)> {
+    let mut spans: Vec<(u64, u64)> = tiles
+        .iter()
+        .filter_map(|t| match t.slot {
+            TileSlot::Stored { offset, len, .. } => Some((offset, offset.saturating_add(u64::from(len)))),
+            _ => None,
+        })
+        .collect();
+    spans.sort_unstable();
+    spans.dedup();
+    let mut out: Vec<(u64, u64)> = Vec::new();
+    for (start, end) in spans {
+        match out.last_mut() {
+            Some((s, e)) if start.saturating_sub(*e) <= u64::from(gap) && end.max(*e) - *s <= u64::from(max) => {
+                *e = (*e).max(end);
+            }
+            _ => out.push((start, end)),
+        }
+    }
+    out.into_iter().map(|(s, e)| (s, u32::try_from(e - s).unwrap_or(u32::MAX))).collect()
 }

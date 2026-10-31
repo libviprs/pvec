@@ -492,3 +492,23 @@ Native x64 on MARS, `rustc 1.99.1`, `rooms-1m` of chapter 1.5 (15,625 hot blocks
 | zoom into a region the outer view decoded | no request for a decoded block | 0 ranges, 0 bytes |
 
 The last waste row is the honest limit of the fixed threshold: 64 KiB is about 25 blocks here, so a handful of scattered Hilbert runs read a lot of padding. Retuning the gap against block size is P8.6's, and the number is there so that tuning has something to beat.
+
+## 6. Rasters (ADR 0018, issue pvec#220)
+
+A raster is not in the spatial directory (chapter 1): its tiles are found through the raster's own index block, and the plan below is what turns a viewport into byte ranges. `plan_raster` in `pvec-stream` is that plan for one raster. It reads no file: it takes the grid the placement fixes (`RasterGrid`: width, height, `tile_edge`, `levels`, channels), the six coefficients of `pixel_to_source`, the viewport (`ViewportQuery`, so source-space bounds and display pixels per source unit) and a lookup from `(level, col, row)` to what the index says about that tile (`TileSlot`). The caller fetches the index block first, lazily, like the reference arrays.
+
+### 6.1 The level
+
+The device size of one full-resolution pixel is the Jacobian `scale * [[a, b], [c, d]]` of the placement. Its larger singular value `sigma` is how many display pixels the image's sharper direction spends on one pixel, and it is one number under a rotation, a shear or a non-uniform scale. A level that halved `k` times has pixels `2^k` times as big, so the level is the finest one that is not under-sampled: `k = floor(-log2 sigma)`, clamped to `0 .. levels - 1`, and the level is `levels - 1 - k`. With `sigma >= 1` (zoomed in past one device pixel per image pixel) the level clamps at full resolution, which is overzoom. A pure rotation changes no singular value, so it does not change the level.
+
+### 6.2 The window
+
+The four corners of the viewport go through the inverse of `pixel_to_source`; the pixel-space box of the four results is divided by the level's shrink and by `tile_edge`, floored, computed in `f64` and saturated to the level's `cols x rows`, so a huge or off-image viewport can neither overflow nor allocate. Under rotation the box over-fetches; the test holds it to 1.8x the exact tile set at 30 degrees, and a renderer may cull against the viewport polygon. A window past 2^20 cells (the default `LIMIT-14`, the most tiles an index can hold) is never walked: the plan goes coarser instead.
+
+### 6.3 The budget
+
+The plan sums `tile_edge^2 * channels` over the tiles it would hand on (stored and inline, not the ones the index says are not stored). While that is over `max_plan_decoded_bytes` (`LIMIT-16`, 256 MiB at the default, so 256 tiles of 512 px) it drops one level coarser, and if even the coarsest level does not fit, the raster is refused with `RasterPlanError::OverBudget`. A placement with a tiny scale therefore never puts every full-resolution tile into one plan.
+
+### 6.4 The ranges
+
+The stored tiles that are not inline are sorted by file offset and merged: a gap of at most `ReaderConfig::gap_threshold` (64 KiB) is bridged while a range stays within `max_request_bytes`. Only tiles merge with tiles. Kinds 9 and 10 sort after every geometry block in the canonical order, and a range never starts before its first tile or ends after its last, so a gap is never bridged into a hot block. A tile the index says is not stored (length 0) gives no tile and no range. An inline tile (the coarse levels kept in the index block for Tier 0) is in the plan as `TileSlot::Inline`, already present, and is not requested.
