@@ -37,6 +37,18 @@ Not included, and why: the P8.1 benchmark corpus after minimisation (P8.1 is not
 
 The corpus persists between runs in the docker volume `pvec-fuzz-corpus` on the host (`tools/fuzz.sh --keep-corpus`), and `cp -n` adds the seeds without overwriting what a run grew.
 
+### Raster seeds (issues 216 and 217, ADR 0018)
+
+`fuzz_directory_traversal` gets, for each of the writer bases, three files that add a kind 9 and a kind 10 entry naming
+capability 21, naming none, and naming an unregistered capability (77), so the traversal meets the capability-owned
+kinds in every state the negotiation rules decide: handed over, skipped, and refused (`NEGOTIATE-06`). `fuzz_component_streams`
+now implements the raster class as well as the components, decodes the raster stream of every set it opens, asserts that
+what decodes writes back to something that decodes to the same placements, and is seeded with one stream set holding a
+valid placement (the test vector of `docs/RASTER.md`). A smoke run is 300 seconds on MARS (native x86_64) per target:
+`fuzz_directory_traversal` ran 6,849,016 executions at about 22,700 a second and found nothing (issue 216), and
+`fuzz_component_streams` ran 10,444,284 executions at about 34,700 a second and found nothing (issue 217). The long run of issue 190 has not run with these seeds; only the smoke
+runs have.
+
 ## The mutator and the checksum gate
 
 A byte flip in a sealed artifact is stopped by a block checksum or the artifact digest, which is a check the fuzzer then spends its executions on. Two things deal with that:
@@ -66,6 +78,7 @@ On `fuzz_directory_traversal`, arm64, the mutator alone reached 4,271 edges in 3
 | `fuzz_decompress_boundary` (flag) | jupiter | native arm64 | no | 121 s | 4,599,176 | 38,009 | 2,160 | 4,051 | 409 -> 794 | 442 MB |
 | `fuzz_component_streams` | mercury | native arm64 | yes | 301 s | 11,015,253 | 36,595 | 420 | 603 | 8 -> 74 | 413 MB |
 | `fuzz_component_streams` | mars | native x86_64 | yes | 121 s | 5,397,979 | 44,611 | 449 | 616 | 8 -> 58 | 417 MB |
+| `fuzz_raster_plan` | mars | native x86_64 | yes | 301 s | 12,390 | 41 | 379 | 1,291 | 16 -> 141 | 374 MB |
 
 Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 413 to 576 MB is the process, libFuzzer and the sanitizer included, and the limit libFuzzer was given was 2,560 MB (the 2,048 MB `max_alloc_bytes` of the P4.8 budget plus 512 MB for the runtime): an execution over it is an `oom` artifact and would be a finding. Every target went past a million executions in its smoke budget on both architectures, the least being 2.48 million for the decompress boundary on x86_64.
 
@@ -94,7 +107,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 
 ## Capability matrix
 
-`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (eleven, with the outcome written in the fixture), builds the three readers (`S_old`, `S_new`, this build), and checks that each declared pair keeps its outcome, that every one of the 3 x 13 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
+`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (twelve, with the outcome written in the fixture), builds the three readers (`S_old`, `S_new`, this build), and checks that each declared pair keeps its outcome, that every one of the 3 x 13 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
 
 ## Running it
 
@@ -111,7 +124,7 @@ Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is 
 ## What is not claimed
 
 * `fuzz_raster_index` (issue #218) has not run for the nightly window: the long run above is of the first six targets and predates it. The nightly of the two raster targets on MARS is the last step of the raster work (issue #219), and it is recorded here when it has run, with its counts and platform.
-* `fuzz_raster_plan` (pvec#220) has not run for the 4 hour budget of the others, and has not run on arm64 at all. It has the smoke budget in `cargo test` and the 300 second libFuzzer run of its acceptance criterion, recorded below once it is done.
+* `fuzz_raster_plan` (pvec#220) has run 300 seconds on mars (native x86_64) and no other time: 12,390 executions with no crash, the row above. It has not run for the 4 hour budget of the others and has not run on arm64 at all. The throughput is 41 executions a second against thousands for the others, because one input can make the plan look at a window of a million cells at several levels, which is the bound that the plan keeps (`MAX_WINDOW_CELLS`) and not a stall; mars was also loaded by other jobs during the run (its load average was above 40).
 * Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.
 * The P8.1 benchmark corpus and the EPIC O gold fixtures are not in the seed corpus (see above), and the P2.8 and P4.8 conformance gates they would be judged by are not on main.

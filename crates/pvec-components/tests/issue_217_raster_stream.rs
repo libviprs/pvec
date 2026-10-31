@@ -90,10 +90,12 @@ fn a_reflection_and_a_non_uniform_scale_are_legal_and_d_below_zero_is_the_normal
 
 #[test]
 fn a_map_that_is_singular_under_pvecs_rule_is_refused_though_the_1e_12_rule_would_take_it() {
-    // det = 1e-11: above libviprs's 1e-12, at or below PVec's `REL * big^2` = 1e-10 with big = 1
-    let m: [f64; 6] = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
+    // det = REL / 10: above the absolute floor libviprs applies (`Policy::V1.abs`, 1e-12), at or below PVec's
+    // `REL * big^2` with big = 1. No tolerance literal outside the policy module, so both come from the policy.
+    let policy = pvec_numeric::Policy::V1;
+    let m: [f64; 6] = [1.0, 0.0, 0.0, policy.rel / 10.0, 0.0, 0.0];
     let det = m[0] * m[3] - m[1] * m[2];
-    assert!(det.abs() > 1e-12, "the 1e-12 rule accepts this map");
+    assert!(det.abs() > policy.abs, "the absolute rule accepts this map");
     assert_eq!(rule_of(with(|p| p.pixel_to_source = m)), "RASTER-05");
     // an exactly singular map too
     assert_eq!(rule_of(with(|p| p.pixel_to_source = [1.0, 2.0, 2.0, 4.0, 0.0, 0.0])), "RASTER-05");
@@ -117,7 +119,9 @@ fn raster_05_refuses_the_2_pow_20_bound_non_finite_and_a_footprint_corner_outsid
     assert_eq!(rule_of(huge), "RASTER-05");
     // a translation at the NP-02 bound is legal, one past it is not
     let edge = 2f64.powi(40);
-    assert!(encode_rasters(&[with(|p| p.pixel_to_source = [0.5, 0.0, 0.0, -0.5, edge - 1024.0, 0.0])]).is_ok());
+    assert!(
+        encode_rasters(&[with(|p| p.pixel_to_source = [0.5, 0.0, 0.0, -0.5, edge - 1024.0, 0.0])]).is_ok()
+    );
     assert_eq!(rule_of(with(|p| p.pixel_to_source = [0.5, 0.0, 0.0, -0.5, edge * 2.0, 0.0])), "RASTER-05");
 }
 
@@ -139,7 +143,7 @@ fn raster_01_refuses_a_tile_edge_outside_256_512_1024_levels_that_do_not_match_a
         p.visible_box = [0, 0, 512, 512];
         p.levels = 1;
     });
-    assert!(encode_rasters(&[one.clone()]).is_ok());
+    assert!(encode_rasters(std::slice::from_ref(&one)).is_ok());
     assert_eq!(rule_of(Placement { levels: 2, ..one }), "RASTER-01");
     for visible in [[0, 0, 1025, 512], [0, 0, 1024, 513], [10, 10, 10, 20], [20, 0, 10, 512], [0, 0, 0, 0]] {
         assert_eq!(rule_of(with(|p| p.visible_box = visible)), "RASTER-01", "{visible:?}");
@@ -152,7 +156,7 @@ fn raster_01_refuses_a_tile_edge_outside_256_512_1024_levels_that_do_not_match_a
 fn raster_01_keeps_cols_and_rows_inside_the_u16_of_the_index() {
     // 65,536 columns of 256 px
     let wide = with(|p| {
-        p.pixel_to_source = [1e-3, 0.0, 0.0, -1e-3, 0.0, 0.0];
+        p.pixel_to_source = [0.001, 0.0, 0.0, -0.001, 0.0, 0.0];
         p.tile_edge = 256;
         p.width = 65_536 * 256;
         p.height = 256;
@@ -166,11 +170,13 @@ fn raster_01_keeps_cols_and_rows_inside_the_u16_of_the_index() {
 
 #[test]
 fn raster_04_allows_jpeg_only_with_gray_or_rgb_at_eight_bits() {
-    let jpeg = |format, depth| with(move |p| {
-        p.tile_codec = TileCodec::Jpeg;
-        p.pixel_format = format;
-        p.bit_depth = depth;
-    });
+    let jpeg = |format, depth| {
+        with(move |p| {
+            p.tile_codec = TileCodec::Jpeg;
+            p.pixel_format = format;
+            p.bit_depth = depth;
+        })
+    };
     assert!(encode_rasters(&[jpeg(PixelFormat::Gray, 8)]).is_ok());
     assert!(encode_rasters(&[jpeg(PixelFormat::Rgb, 8)]).is_ok());
     assert_eq!(rule_of(jpeg(PixelFormat::GrayAlpha, 8)), "RASTER-04");
@@ -199,7 +205,10 @@ fn an_unknown_codec_id_is_a_raster_level_skip_with_its_own_reason_and_not_an_err
     assert_eq!(back[1], p);
     // 0 is not a codec either
     let zero = with(|p| p.tile_codec = TileCodec::Unknown(0));
-    assert_eq!(decode_rasters(&encode_rasters(&[zero]).unwrap()).unwrap()[0].skip(), Some(RasterSkip::UnknownCodec(0)));
+    assert_eq!(
+        decode_rasters(&encode_rasters(&[zero]).unwrap()).unwrap()[0].skip(),
+        Some(RasterSkip::UnknownCodec(0))
+    );
 }
 
 #[test]
@@ -226,14 +235,14 @@ fn the_wire_tags_map_to_their_words_and_back() {
 #[test]
 fn raster_07_refuses_an_attribution_with_a_bidi_override_a_control_or_a_line_separator() {
     for bad in [
-        "evil \u{202E}gnp.exe",   // right-to-left override
-        "x\u{202A}y",             // embedding
-        "x\u{2066}y",             // isolate
-        "line\nbreak",            // C0
-        "tab\there",              // C0
-        "nul\0",                  // C0
-        "c1 \u{0085} next line",  // C1
-        "del \u{007F}",           // DEL
+        "evil \u{202E}gnp.exe",  // right-to-left override
+        "x\u{202A}y",            // embedding
+        "x\u{2066}y",            // isolate
+        "line\nbreak",           // C0
+        "tab\there",             // C0
+        "nul\0",                 // C0
+        "c1 \u{0085} next line", // C1
+        "del \u{007F}",          // DEL
         "ls \u{2028} sep",
         "ps \u{2029} sep",
     ] {
@@ -242,7 +251,10 @@ fn raster_07_refuses_an_attribution_with_a_bidi_override_a_control_or_a_line_sep
     assert_eq!(rule_of(with(|p| p.attribution = "a".repeat(256))), "RASTER-07");
     assert!(encode_rasters(&[with(|p| p.attribution = "a".repeat(255))]).is_ok());
     // plain text in another script is fine
-    assert!(encode_rasters(&[with(|p| p.attribution = "Plan \u{00e9}tage 2 \u{2013} \u{6771}\u{4eac}".into())]).is_ok());
+    assert!(
+        encode_rasters(&[with(|p| p.attribution = "Plan \u{00e9}tage 2 \u{2013} \u{6771}\u{4eac}".into())])
+            .is_ok()
+    );
 }
 
 #[test]

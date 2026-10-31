@@ -4,8 +4,8 @@ use crate::abi::{
 };
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
-    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, ReaderConfig, SpatialDirectory,
-    Tier0Leaves, TileSlot, ViewportQuery, footprint,
+    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, RasterId, ReaderConfig,
+    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::RefCell;
@@ -391,7 +391,7 @@ impl Runtime {
             loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
         let index = index_of(&reader);
         // a reader is kept when a call can still read through it: an index, or rasters
-        let rasters = reader.raster_placements();
+        let rasters = reader.raster_placements().map(|p| (!p.is_empty()).then_some(p));
         let reader =
             if matches!(index, Ok(None)) && matches!(rasters, Ok(None)) { None } else { Some(reader) };
         Ok(self.insert(Item::File(Rc::new(File {
@@ -805,7 +805,7 @@ impl Runtime {
                 ranged.ranges.clear_needed();
             }
             let read = match reader.raster_placements() {
-                Ok(p) => Ok(p.map(Rc::new)),
+                Ok(p) => Ok((!p.is_empty()).then(|| Rc::new(p))),
                 Err(_) if file.ranged.as_ref().is_some_and(|r| !r.ranges.needed().is_empty()) => {
                     return Err(AbiError::NeedRange);
                 }
@@ -1018,7 +1018,8 @@ impl Runtime {
         if slot == TileSlot::NotStored {
             return Err(AbiError::TileNotStored);
         }
-        let bytes = match reader.raster_tile(raster, level, col, row) {
+        let id = RasterId::new(raster).map_err(|_| AbiError::BadArgument)?;
+        let bytes = match reader.raster_tile(id, level, col, row) {
             Ok(Some(b)) => b,
             Ok(None) => return Err(AbiError::TileNotStored),
             Err(_) if Self::waiting(&file) => return Err(AbiError::NeedRange),

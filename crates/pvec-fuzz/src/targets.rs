@@ -361,7 +361,7 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
 /// from, so a parser that accepts a block the writer would not write is a crash.
 pub fn fuzz_raster_index(data: &[u8]) -> String {
     // LIMIT-14, the default ceiling on the entries of the tile tables of an artifact
-    let index = match RasterIndex::parse(data, 1 << 20) {
+    let index = match RasterIndex::parse(data, u64::from(Limits::DEFAULT.max_raster_tiles)) {
         Ok(i) => i,
         Err(e) => return e.rule().to_string(),
     };

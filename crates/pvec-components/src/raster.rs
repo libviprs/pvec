@@ -27,14 +27,9 @@ pub const RASTER_CAPABILITY: CapabilityId = CapabilityId::new(21);
 /// default from this, so the two cannot disagree.
 pub const MAX_RASTERS: u32 = 4_096;
 
-/// Bytes of the fixed part of one record, before the digest and the attribution.
-const ROW: usize = 88;
 /// The stored `layer_index` that means none.
 const NO_LAYER: u32 = u32::MAX;
-/// Largest `cols` or `rows` of a level, which the 16-bit fields of the index block can hold.
-const MAX_GRID: u64 = 65_535;
-/// Longest attribution, in bytes, and the length of a source digest.
-const MAX_ATTRIBUTION: usize = 255;
+/// The length of a source digest, which is the size of a SHA-256.
 const DIGEST: usize = 32;
 
 /// The position of a raster in the stream: dense from 0 in the producer's source draw order. A raster is not an
@@ -224,26 +219,29 @@ impl Placement {
         }
     }
 
-    /// The fewest levels whose coarsest is one tile: the smallest `n` with `max(width, height) <= tile_edge * 2^(n-1)`.
-    fn expected_levels(&self) -> u8 {
-        let longest = u64::from(self.width.max(self.height));
-        let mut levels = 1u8;
-        while (u64::from(self.tile_edge) << (levels - 1)) < longest {
-            levels += 1;
-        }
-        levels
-    }
-
     /// The rules that refuse one raster, in the order RASTER-01, 04, 05, 07.
     fn check(&self) -> Result<(), RasterError> {
+        // the largest `cols` or `rows` of a level, which the 16-bit fields of the index block can hold, and the
+        // longest attribution in bytes
+        const MAX_GRID: u64 = 65_535;
+        const MAX_ATTRIBUTION: usize = 255;
         let [x0, y0, x1, y1] = self.visible_box;
         let cells = |n: u32| u64::from(n).div_ceil(u64::from(self.tile_edge));
+        // the fewest levels whose coarsest is one tile: the smallest `n` with `max(width, height) <= edge * 2^(n-1)`
+        let expected_levels = |edge: u16| {
+            let longest = u64::from(self.width.max(self.height));
+            let mut levels = 1u8;
+            while levels < 32 && (u64::from(edge) << (levels - 1)) < longest {
+                levels += 1;
+            }
+            levels
+        };
         if !matches!(self.tile_edge, 256 | 512 | 1024)
             || self.width == 0
             || self.height == 0
             || cells(self.width) > MAX_GRID
             || cells(self.height) > MAX_GRID
-            || self.levels != self.expected_levels()
+            || self.levels != expected_levels(self.tile_edge)
             || x0 >= x1
             || y0 >= y1
             || x1 > self.width
@@ -338,7 +336,11 @@ impl std::error::Error for RasterError {}
 /// The rows of the error table of `docs/RASTER.md`: rule, error and meaning. A test renders the table from this
 /// and fails if the document differs.
 pub const RASTER_ERRORS: &[(&str, &str, &str)] = &[
-    ("LIMIT-13", "TooMany", "more placements than the ceiling of 4,096, refused before the table is allocated"),
+    (
+        "LIMIT-13",
+        "TooMany",
+        "more placements than the ceiling of 4,096, refused before the table is allocated",
+    ),
     (
         "RASTER-01",
         "BadGrid",
@@ -407,6 +409,8 @@ pub fn encode_rasters(placements: &[Placement]) -> Result<Vec<u8>, RasterError> 
 /// Reads a payload, which must be consumed exactly. The count is held to LIMIT-13 before the bytes are looked at
 /// and before anything is allocated from it, and every record is held to the rules of [`Placement`].
 pub fn decode_rasters(bytes: &[u8]) -> Result<Vec<Placement>, RasterError> {
+    // bytes of the fixed part of one record, before the digest and the attribution
+    const ROW: usize = 88;
     let mut r = R::new(bytes);
     let n = r.u32()?;
     if n > MAX_RASTERS {

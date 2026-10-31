@@ -266,7 +266,7 @@ fn issue_221_the_plan_call_is_the_plan_of_pvec_stream() {
     {
         let h = rt.raster_plan(f, window(win), scale, 0.0).unwrap();
         let reader = PvecReader::open(bytes.clone()).unwrap();
-        let placements = reader.raster_placements().unwrap().unwrap();
+        let placements = reader.raster_placements().unwrap();
         let q = ViewportQuery::new(Aabb::new([win[0], win[1]], [win[2], win[3]]).unwrap(), scale);
         let ids = rt.raster_u32(h, 0).unwrap().to_vec();
         assert_eq!(ids, vec![0, 1], "the skipped raster is not in the plan");
