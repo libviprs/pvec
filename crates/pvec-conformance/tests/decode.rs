@@ -78,3 +78,38 @@ fn every_kind_of_hot_and_advanced_entity_decodes_to_the_locus_it_was_written_fro
         }
     }
 }
+
+#[test]
+fn kind_name_covers_the_capability_owned_kinds_and_inspect_reports_them_by_name() {
+    use pvec_capabilities::{Declared, Requirement, Version};
+    use pvec_container::writer::RawBlock;
+    let mut w = PvecWriter::new(manifest()).unwrap();
+    w.push(EntityId::new(0).unwrap(), &circle()).unwrap();
+    let base = w.finish().unwrap();
+    let raw = |kind: u16| RawBlock {
+        kind,
+        subtype: 0,
+        cell: 0,
+        count: 1,
+        bounds: None,
+        flags: 0,
+        codec: 0,
+        capability: 21,
+        uncompressed_length: 8,
+        stored: vec![0; 8],
+    };
+    let bytes = support::rebuild(&base, |m, blocks| {
+        m.capabilities.push(Declared {
+            id: CapabilityId::new(21),
+            requirement: Requirement::Optional,
+            version: Version::new(1, 0, 0),
+        });
+        m.capabilities.sort_by_key(|d| d.id);
+        blocks.extend([raw(9), raw(10)]);
+    });
+    let report = pvec_conformance::commands::inspect(&bytes, "raster.pvec").report.render();
+    for name in ["raster_index", "raster_tiles"] {
+        assert!(report.contains(name), "inspect does not name {name}: {report}");
+    }
+    assert!(!report.contains("\"unknown\""), "{report}");
+}

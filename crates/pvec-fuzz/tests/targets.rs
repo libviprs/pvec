@@ -1,4 +1,4 @@
-//! Issue P7.8 (and pvec#220 for the seventh): the targets exist, are wired to libFuzzer, and survive their seeds.
+//! Issue P7.8, issue #218 and pvec#220: the targets exist, are wired to libFuzzer, and survive their seeds.
 #![allow(unsafe_code)]
 
 mod support;
@@ -10,13 +10,14 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 7] = [
+const NAMES: [&str; 8] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
     "fuzz_advanced_blocks",
     "fuzz_decompress_boundary",
     "fuzz_component_streams",
+    "fuzz_raster_index",
     "fuzz_raster_plan",
 ];
 
@@ -113,5 +114,61 @@ fn the_hardening_report_names_every_target_and_says_what_was_not_run() {
         ["Seed corpus", "native arm64", "native x86_64", "## Findings", "has not run", "no-checksum-gate"]
     {
         assert!(doc.contains(needle), "docs/FUZZING.md does not say {needle}");
+    }
+}
+
+#[test]
+fn the_raster_index_target_reaches_its_parser_and_each_rule_it_is_for() {
+    let seeds = corpus();
+    let inputs = for_target("fuzz_raster_index", &seeds);
+    assert!(inputs.len() >= 20, "only {} seeds", inputs.len());
+    let words: std::collections::BTreeSet<String> =
+        inputs.iter().map(|i| pvec_fuzz::fuzz_raster_index(i)).collect();
+    for want in ["ok", "RASTER-02", "LIMIT-14"] {
+        assert!(words.contains(want), "no seed reaches {want}: {words:?}");
+    }
+}
+
+#[test]
+fn an_index_that_parses_is_the_one_the_writer_would_write() {
+    // the target asserts it, so a seed that parses and does not re-encode to itself would be a crash
+    let seeds = corpus();
+    for input in for_target("fuzz_raster_index", &seeds) {
+        assert_eq!(panics(|| drop(pvec_fuzz::fuzz_raster_index(&input))), None);
+    }
+}
+
+/// The `(kind, capability)` of every directory entry of `bytes`, when its header, manifest and directory parse.
+fn entry_pairs(bytes: &[u8]) -> Vec<(u16, u16)> {
+    use pvec_container::directory::parse_directory;
+    use pvec_container::{DirectoryPointer, Header, Manifest};
+    let len = bytes.len() as u64;
+    let Ok(header) = Header::parse(&bytes[..bytes.len().min(4096)], len) else { return Vec::new() };
+    let (m0, m1) =
+        (header.manifest_offset as usize, (header.manifest_offset + header.manifest_length) as usize);
+    let Some(m) = bytes.get(m0..m1) else { return Vec::new() };
+    let Ok(manifest) = Manifest::parse(m, &header, len) else { return Vec::new() };
+    let Some(p) = manifest.directories.iter().find(|d| d.kind == DirectoryPointer::KIND_BLOCK) else {
+        return Vec::new();
+    };
+    let Some(t) = bytes.get(p.offset as usize..(p.offset + p.length) as usize) else { return Vec::new() };
+    parse_directory(t, u64::from(header.header_len), len)
+        .map(|es| es.iter().map(|e| (e.kind, e.capability)).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn the_directory_traversal_seeds_carry_kind_9_and_10_entries_with_capability_21_0_and_an_unregistered_one() {
+    // issue 216: this is where the traversal changed, so the corpus has the capability-owned kinds in it
+    let seeds = corpus();
+    let seen: std::collections::BTreeSet<(u16, u16)> =
+        for_target("fuzz_directory_traversal", &seeds).iter().flat_map(|bytes| entry_pairs(bytes)).collect();
+    for kind in [9u16, 10] {
+        for capability in [21u16, 0, 77] {
+            assert!(
+                seen.contains(&(kind, capability)),
+                "no seed has kind {kind} with capability {capability}"
+            );
+        }
     }
 }

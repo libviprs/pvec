@@ -4,7 +4,7 @@ This is the hardening report for issue P7.8 (pvec#59), and how to rerun it. The 
 
 ## What is fuzzed
 
-The seven targets (the seventh, `fuzz_raster_plan`, is pvec#220 and has had the smoke budget but no long run yet) are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
+The eight targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
 
 | target | input | what it holds the reader to |
 |---|---|---|
@@ -14,9 +14,12 @@ The seven targets (the seventh, `fuzz_raster_plan`, is pvec#220 and has had the 
 | `fuzz_advanced_blocks` | six `u32` lengths, then the records, knots, weights, control points, segments and trims blocks | an accepted spline has a knot vector of the right length that does not decrease, finite numbers and strictly positive weights; a composite names only records that exist; nesting is checked before any segment is resolved |
 | `fuzz_decompress_boundary` | `[codec][declared length u32][stored bytes]`, laid out as a one-block artifact and read back | a block that decodes decodes to exactly the declared length and no more than the expansion ratio (64) times the stored length; a bomb is `LIMIT-01` |
 | `fuzz_component_streams` | a component stream set | a frame is stepped over by its declared length; only registered streams are read |
+| `fuzz_raster_index` | one raster index block (kind 9, `docs/RASTER.md`) | a block that parses encodes back to the same bytes; every level starts where the last ended and holds `cols * rows` tiles in the grid; every tile the lookup is asked for is found; an inline tile has its bytes (its checksum is the reader's to check when the tile is read, not the parser's); a tile in a chunk names a chunk the level has and every chunk has a tile; a tile that is not stored carries zeros; the chunk blocks the tiles describe are exactly as long as their tiles; a count in the header is checked against the block's length before anything is sized by it |
 | `fuzz_raster_plan` | a raster grid, a placement (six `f64`) and a viewport, framed in 116 bytes (pvec#220) | the plan never panics; every tile is inside its level, the decoded bytes are under the limit (`LIMIT-16`), a range starts at its first tile and ends at its last, no range is over the request ceiling unless it is one tile, and a not-stored tile is in no range |
 
 Each target asserts these, so a parser that accepts something it should have refused is a crash, as well as one that panics.
+
+`fuzz_raster_index` is the seventh and the first of the raster targets (ADR 0018, issue #218). Its seeds are not artifacts: they are the index blocks of the test-only tiler in `pvec-testkit` (a single tile, a pyramid with inline levels, a sparse one, a split one, a 65,000 entry tile table), eight mutants of each from `pvec_fuzz::mutate::mutate_index` (which keeps the length, so the counts in the header keep adding up and a mutant reaches the parts behind the length check), and header-only blocks that claim more tiles than the ceiling. Its libFuzzer entry point has the same mutator as `fuzz_mutator!`.
 
 ## Seed corpus
 
@@ -96,7 +99,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 ## Running it
 
 ```
-tools/fuzz.sh --host mercury --seconds 300                      # all seven targets, arm64, the smoke budget
+tools/fuzz.sh --host mercury --seconds 300                      # all eight targets, arm64, the smoke budget
 tools/fuzz.sh --host mars --seconds 300 fuzz_header             # one target, native x86_64
 tools/fuzz.sh --host jupiter --no-checksum-gate fuzz_directory_traversal
 tools/fuzz.sh --host mars --seconds 14400                       # the nightly: 4 hours per target, one after the other
@@ -107,6 +110,7 @@ Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is 
 
 ## What is not claimed
 
+* `fuzz_raster_index` (issue #218) has not run for the nightly window: the long run above is of the first six targets and predates it. The nightly of the two raster targets on MARS is the last step of the raster work (issue #219), and it is recorded here when it has run, with its counts and platform.
 * `fuzz_raster_plan` (pvec#220) has not run for the 4 hour budget of the others, and has not run on arm64 at all. It has the smoke budget in `cargo test` and the 300 second libFuzzer run of its acceptance criterion, recorded below once it is done.
 * Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.

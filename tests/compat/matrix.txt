@@ -23,9 +23,22 @@ case old-reader-new-file-unknown-optional-block
 reader = s_old
 base = mixed
 caps = 99:optional:3.1
-garbage = 9:99:64
+garbage = 99:99:64
 outcome = open_degraded
 skipped = 14,15,16,18,20,99
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+blocks = 99:unknown_block_kind
+geometry = same
+
+# Kinds 9 and 10 are owned by capability 21 (ADR 0018), so the "unknown kind" case above uses a kind no
+# capability owns. An optional 21 leaves min_reader at 1.0.0, so a 1.0.0 reader gets as far as the skip path.
+case old-reader-raster-file-open-degraded
+reader = s_old
+base = mixed
+caps = 21:optional:1.0
+garbage = 9:21:64
+outcome = open_degraded
+skipped = 14,15,16,18,20,21
 reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
 blocks = 9:unknown_block_kind
 geometry = same
