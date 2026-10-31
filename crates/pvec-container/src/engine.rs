@@ -607,28 +607,25 @@ impl Core {
     ) -> Result<(), raster::IndexError> {
         use raster::IndexError;
         let bad = |subtype| IndexError::Block { raster, subtype };
+        // the index block: its count is the tiles stored, and it is stored as it is
         let index_entry = self.raster_index_block(raster).and_then(|id| self.entries.get(id.0 as usize));
-        if index_entry.is_none_or(|e| e.count != index.stored()) {
+        if index_entry.is_none_or(|e| e.count != index.stored() || e.codec != crate::directory::CODEC_NONE) {
             return Err(bad(0));
         }
+        // what each chunk of each level holds, in one pass over the tile table
+        let stats: Vec<Vec<(u32, u64)>> =
+            (0..index.levels().len() as u32).map(|l| index.chunk_stats(l)).collect();
         let key = (BlockKind::group(raster::KIND_TILES), raster);
         let from = self.entries.partition_point(|e| (BlockKind::group(e.kind), e.cell) < key);
         for e in self.entries[from..].iter().take_while(|e| (BlockKind::group(e.kind), e.cell) == key) {
             let (level, chunk) = (
-                u32::from(e.subtype) / raster::CHUNKS_PER_LEVEL,
-                u32::from(e.subtype) % raster::CHUNKS_PER_LEVEL,
+                usize::from(e.subtype) / raster::CHUNKS_PER_LEVEL as usize,
+                usize::from(e.subtype) % raster::CHUNKS_PER_LEVEL as usize,
             );
-            let Some(l) = index.levels().get(level as usize).filter(|l| chunk < l.chunks) else {
+            let Some(&(count, _)) = stats.get(level).and_then(|s| s.get(chunk)) else {
                 return Err(bad(e.subtype));
             };
-            let tiles = index
-                .level_tiles(level)
-                .into_iter()
-                .flatten()
-                .filter(|t| t.is_stored() && !t.is_inline() && t.chunk == chunk)
-                .count();
-            let _ = l;
-            if e.codec != crate::directory::CODEC_NONE || e.count as usize != tiles {
+            if e.codec != crate::directory::CODEC_NONE || e.count != count {
                 return Err(bad(e.subtype));
             }
         }

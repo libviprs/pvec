@@ -78,11 +78,11 @@ A parser accepts only what the writer writes, byte for byte, and checks all of i
 the block. The counts in the header (`tile_total`, `tile_stored`, `chunk_total`, `inline_len`) must add up to the length of
 the block with the level table and the tile table (checked in `u64`), a ceiling on `tile_total` (LIMIT-14) is applied
 before the tile table is allocated, and `levels` is 1 to 64 so that `subtype = level * 1024 + chunk` fits 16 bits. In the
-level table `cols` and `rows` are 1 to 65,535, `chunks` is at most 1,023 (the subtype names a chunk below 1,024) and
+level table `cols` and `rows` are 1 to 65,535, `chunks` is at most 1,024 (chunk numbers run from 0 to 1,023, which is what the subtype can name) and
 `first` is the number of entries before the level. In the tile table every `col` and `row` is inside its level and the
 Hilbert keys of a level strictly ascend (which also means no tile twice). A tile with `length` 0 has `chunk`, `offset` and
 `xxh3` 0. A level is either inline (`chunks` 0, every stored tile has `chunk` `0xFFFFFFFF`) or in chunks (every stored tile
-has a `chunk` below `chunks`): the chunk numbers of the stored tiles of a level start at 0 and rise by one, every chunk has a
+has a `chunk` below `chunks`), and the inline levels are the coarsest: no level after one that is in chunks is inline: the chunk numbers of the stored tiles of a level start at 0 and rise by one, every chunk has a
 tile, and inside a chunk the offsets are 0, then the end of the tile before, with no gap and no overlap. The inline tiles,
 in table order and across the levels, are the inline part from its first byte to the end of the block, so no byte of the
 block is unaddressed. `tile_stored` is the number of non-zero lengths, and it is the `count` of the directory entry. A chunk
