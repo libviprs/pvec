@@ -320,11 +320,11 @@ pub fn fuzz_decompress_boundary(data: &[u8]) -> String {
 pub fn fuzz_component_streams(data: &[u8]) -> String {
     let registry = Registry::v1();
     let reader = Reader {
-        version: Version::new(1, 0, 0),
+        version: Version::new(1, 1, 0),
         implemented: registry
             .entries()
             .iter()
-            .filter(|c| c.class == pvec_capabilities::Class::Component)
+            .filter(|c| matches!(c.class, pvec_capabilities::Class::Component | pvec_capabilities::Class::Raster))
             .map(|c| c.id)
             .collect(),
     };
@@ -334,6 +334,13 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
                 opened.streams.iter().all(|s| registry.get(s.capability).is_some()),
                 "a stream of an unknown capability was read"
             );
+            // the raster placements (issue 217): what decodes is valid, and writes back to something that decodes
+            // to the same placements
+            if let pvec_components::RasterRead::Present(placements) = pvec_components::read_rasters(&opened) {
+                let again = pvec_components::encode_rasters(&placements)
+                    .and_then(|bytes| pvec_components::decode_rasters(&bytes));
+                assert_eq!(again.as_ref(), Ok(&placements), "a decoded raster stream did not survive a round trip");
+            }
             "ok".to_string()
         }
         Err(e) => e.rule().to_string(),

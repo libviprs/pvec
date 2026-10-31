@@ -1,5 +1,5 @@
 //! Independent component streams (issue P3.7): layer, line style, text, hatch, source provenance and
-//! reserved space for future DWG semantics.
+//! reserved space for future DWG semantics, and since issue 217 the raster placement stream (ADR 0018).
 //!
 //! Style, text and hatch evolve on a different schedule from the geometry mathematics, so they live
 //! outside the geometry oracle. Each stream has its own registry capability id and semantic version
@@ -14,6 +14,7 @@
 mod error;
 mod frame;
 mod payloads;
+mod raster;
 mod semantic;
 
 pub use error::{ComponentError, StreamError};
@@ -22,6 +23,10 @@ pub use payloads::{
     Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef,
     LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT,
     ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream,
+};
+pub use raster::{
+    Band, MAX_RASTERS, PixelFormat, Placement, RASTER_CAPABILITY, RASTER_ERRORS, RasterError, RasterId,
+    RasterRead, RasterSkip, TileCodec, decode_rasters, encode_rasters, read_rasters,
 };
 pub use semantic::{
     ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord,

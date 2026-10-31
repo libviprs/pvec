@@ -18,6 +18,10 @@ container layout of [`CONTAINER.md`](CONTAINER.md) for someone who has to decide
 * A new minor container version that only adds optional fields after the existing header.
 * Writer defaults that do not change what a reader must accept (codec choice, block packing, index tuning).
 * Tightened limits in the browser preset, and faster or smaller readers behind the same behaviour.
+* The WASM module opening with `Limits::BROWSER` where it used `Limits::DEFAULT` (issue 217, no `wasm_abi_version`
+  change). A file between the two presets is now refused by the module, and nothing else moves. `docs/WASM_ABI.md`
+  (the Limits section) lists every value before and after: for example `max_block_bytes` 256 MiB to 64 MiB,
+  `max_expansion_ratio` 64 to 32, `max_alloc_bytes` 2 GiB to 256 MiB and `max_nesting_depth` 4 to 3.
 
 ## What requires v2
 

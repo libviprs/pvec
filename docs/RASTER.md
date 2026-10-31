@@ -136,7 +136,7 @@ SVG order `[0.5 0.125 0.25 -0.5 100 50]`, DXF `P = (228, -206)`, `U = (0.5, 0.12
 
 The rules refuse the raster, never the file. The limits LIMIT-13 to LIMIT-16 (`docs/SECURITY_LIMITS.md`) bound the
 number of placements, the number of tiles, the stored bytes of one tile and the decoded bytes of a plan. The rendered
-error table (`RasterError`) joins this table with #217.
+error table (`RasterError`, section 6.1) is generated from the code.
 
 | rule | what is refused |
 |---|---|
@@ -147,3 +147,13 @@ error table (`RasterError`) joins this table with #217.
 | RASTER-05 | `pixel_to_source` passes NP-19 with the 2^20 bound, the footprint corners pass NP-02, `-0.0` is normalised |
 | RASTER-06 | consistency from the directory and the stream alone: one placement per `RasterId` named by any kind 9 or 10 block, one kind 9 block per placement, `subtype` levels below `levels`, a kind 9 or 10 entry with a capability other than 21 is refused |
 | RASTER-07 | `attribution` plain text as defined above; `source_digest` 32 bytes |
+
+### 6.1 The error table
+
+Every `RasterError` of `pvec-components` with its rule, as the code reports it. The rows below are generated from
+`RASTER_ERRORS` and a test (`crates/pvec-checks/tests/issue_217_raster_errors.rs`) fails if they differ. The stream-level
+rules are RASTER-01, 04, 05 and 07; RASTER-02, 03 and 06 belong to the index and the sniffers (issues 218 and 219).
+LIMIT-13 is the count of placements. A damaged payload keeps its `COMP-NN` rule and drops this stream only.
+
+<!-- raster-errors:begin -->
+<!-- raster-errors:end -->
