@@ -310,7 +310,9 @@ impl fmt::Display for RegistryError {
                     "capability id {id} is neither registered nor retired, so it could be handed out again"
                 )
             }
-            RegistryError::ComponentMustBeOptional(n) => write!(f, "component or raster {n} must be optional"),
+            RegistryError::ComponentMustBeOptional(n) => {
+                write!(f, "component or raster {n} must be optional")
+            }
             RegistryError::NoConstruct(n) => {
                 write!(f, "geometry capability {n} names no ISO 10303-42 construct")
             }
@@ -489,11 +491,9 @@ impl Registry {
                 return Err(RegistryError::UnaccountedId(CapabilityId::new(expected)));
             }
         }
-        if let Some(c) =
-            entries.iter().find(|c| {
-                matches!(c.class, Class::Component | Class::Raster) && c.requirement == Requirement::Required
-            })
-        {
+        if let Some(c) = entries.iter().find(|c| {
+            matches!(c.class, Class::Component | Class::Raster) && c.requirement == Requirement::Required
+        }) {
             return Err(RegistryError::ComponentMustBeOptional(c.name));
         }
         if let Some(c) = entries.iter().find(|c| {
@@ -609,7 +609,9 @@ impl Registry {
                             reader: reader.version,
                         });
                     }
-                    if matches!(c.class, Class::Component | Class::Raster) && d.requirement == Requirement::Required {
+                    if matches!(c.class, Class::Component | Class::Raster)
+                        && d.requirement == Requirement::Required
+                    {
                         return Err(NegotiationError::ComponentDeclaredRequired(d.id));
                     }
                     if c.class == Class::Extension
