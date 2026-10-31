@@ -107,6 +107,7 @@ name = "pvec-checks"
 version = "0.0.0"
 dependencies = [
  "pvec-capabilities",
+ "pvec-components",
  "pvec-corpus",
 ]
 
@@ -128,6 +129,7 @@ dependencies = [
  "pvec-codec",
  "pvec-entity",
  "pvec-geometry",
+ "pvec-numeric",
 ]
 
 [[package]]

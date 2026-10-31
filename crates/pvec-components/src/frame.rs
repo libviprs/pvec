@@ -63,8 +63,9 @@ fn v1_registry() -> &'static Registry {
 fn check_not_geometry(registry: &Registry, id: CapabilityId) -> Result<(), StreamError> {
     match registry.get(id).map(|c| c.class) {
         Some(Class::Geometry) => Err(StreamError::GeometryCapability(id)),
-        Some(Class::Component) | None => Ok(()),
-        Some(_) => Err(StreamError::NotAComponent(id)),
+        // an extension is registered through its own gate; a component and the raster class (ADR 0018) are streams
+        Some(Class::Extension) => Err(StreamError::NotAComponent(id)),
+        Some(_) | None => Ok(()),
     }
 }
 

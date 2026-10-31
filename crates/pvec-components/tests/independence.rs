@@ -208,3 +208,63 @@ fn a_damaged_payload_in_any_one_stream_cannot_move_the_geometry_verdict_or_stop_
         assert_eq!(decode(&block).unwrap().len(), 4, "stream {damaged} damaged");
     }
 }
+
+// ---------------------------------------------------------------- the raster case (issue 217)
+
+#[test]
+fn the_geometry_verdict_is_identical_with_the_raster_stream_without_it_and_with_it_unknown() {
+    use pvec_components::{Band, PixelFormat, Placement, RASTER_CAPABILITY, TileCodec, encode_rasters};
+    let r = Registry::v1();
+    let block = encode(&geometry()).unwrap().bytes;
+    let baseline = verdict(&block);
+    let raster = Stream {
+        capability: RASTER_CAPABILITY,
+        version: r.get(RASTER_CAPABILITY).expect("registered").version,
+        payload: encode_rasters(&[Placement {
+            pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
+            width: 1024,
+            height: 512,
+            visible_box: [0, 0, 1024, 512],
+            tile_edge: 512,
+            levels: 2,
+            tile_codec: TileCodec::Png,
+            pixel_format: PixelFormat::Rgba,
+            bit_depth: 8,
+            opacity: 255,
+            band: Band::Overlay,
+            layer_index: Some(0),
+            source_digest: Some([1; 32]),
+            attribution: "survey".into(),
+        }])
+        .unwrap(),
+    };
+    let mut with = all_streams(&r);
+    with.push(raster);
+    let set = encode_streams(&with).unwrap();
+    let knows_all = pvec_capabilities::Reader {
+        version: Version::new(1, 1, 0),
+        implemented: vec![
+            ids::LAYER,
+            ids::LINE_STYLE,
+            ids::TEXT,
+            ids::HATCH,
+            ids::SOURCE_PROVENANCE,
+            ids::DWG_SEMANTICS,
+            RASTER_CAPABILITY,
+        ],
+    };
+    assert_eq!(read_streams(&set, &r, &knows_all).unwrap().streams.len(), 7);
+    assert_eq!(verdict(&block), baseline, "with the raster stream present");
+    // removed
+    let without = encode_streams(&all_streams(&r)).unwrap();
+    assert_eq!(read_streams(&without, &r, &knows_all).unwrap().streams.len(), 6);
+    assert_eq!(verdict(&block), baseline, "with the raster stream removed");
+    // unknown to the reader: reported as skipped, never an error
+    let old = pvec_capabilities::Reader { version: Version::new(1, 0, 0), implemented: vec![ids::LAYER] };
+    let opened = read_streams(&set, &r, &old).unwrap();
+    assert!(opened.skipped.iter().any(|s| s.capability == RASTER_CAPABILITY));
+    assert_eq!(verdict(&block), baseline, "with the raster stream skipped");
+    // and a damaged raster payload cannot move it either
+    assert!(decode_rasters(&[0xff; 9]).is_err());
+    assert_eq!(verdict(&block), baseline, "with the raster payload damaged");
+}

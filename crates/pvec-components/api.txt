@@ -53,6 +53,7 @@ frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
 lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream, }
+lib.rs: pub use raster::{ Band, MAX_RASTERS, PixelFormat, Placement, RASTER_CAPABILITY, RASTER_ERRORS, RasterError, RasterId, RasterRead, RasterSkip, TileCodec, decode_rasters, encode_rasters, read_rasters, }
 lib.rs: pub use semantic::{ ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord, SemanticClassStream, SemanticRead, SourceTag, }
 payloads.rs: pub const MAX_TABLE: usize
 payloads.rs: pub const MAX_NAME: usize
@@ -130,6 +131,68 @@ payloads.rs: ReservedStream::const CAPABILITY: CapabilityId
 payloads.rs: ReservedStream::encode(&self) -> Res<Vec<u8>>
 payloads.rs: ReservedStream::decode(bytes: &[u8]) -> Res<ReservedStream>
 payloads.rs: ReservedStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+raster.rs: pub const RASTER_CAPABILITY: CapabilityId
+raster.rs: pub const MAX_RASTERS: u32
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct RasterId(u32)
+raster.rs: RasterId::new(index: u32) -> Result<RasterId, RasterError>
+raster.rs: RasterId::index(self) -> u32
+raster.rs: RasterId::cell(self) -> u32
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum TileCodec
+raster.rs: TileCodec::Png
+raster.rs: TileCodec::Jpeg
+raster.rs: TileCodec::Webp
+raster.rs: TileCodec::Unknown(u8)
+raster.rs: TileCodec::word(self) -> u8
+raster.rs: TileCodec::from_word(w: u8) -> TileCodec
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum PixelFormat
+raster.rs: PixelFormat::Gray
+raster.rs: PixelFormat::GrayAlpha
+raster.rs: PixelFormat::Rgb
+raster.rs: PixelFormat::Rgba
+raster.rs: PixelFormat::word(self) -> u8
+raster.rs: PixelFormat::from_word(w: u8) -> Option<PixelFormat>
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Band
+raster.rs: Band::Underlay
+raster.rs: Band::Overlay
+raster.rs: Band::word(self) -> u8
+raster.rs: Band::from_word(w: u8) -> Option<Band>
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RasterSkip
+raster.rs: RasterSkip::UnknownCodec(u8)
+raster.rs: #[derive(Clone, Debug, PartialEq)] pub struct Placement
+raster.rs: Placement.pixel_to_source: [f64; 6]
+raster.rs: Placement.width: u32
+raster.rs: Placement.height: u32
+raster.rs: Placement.visible_box: [u32; 4]
+raster.rs: Placement.tile_edge: u16
+raster.rs: Placement.levels: u8
+raster.rs: Placement.tile_codec: TileCodec
+raster.rs: Placement.pixel_format: PixelFormat
+raster.rs: Placement.bit_depth: u8
+raster.rs: Placement.opacity: u8
+raster.rs: Placement.band: Band
+raster.rs: Placement.layer_index: Option<u32>
+raster.rs: Placement.source_digest: Option<[u8; 32]>
+raster.rs: Placement.attribution: String
+raster.rs: Placement::skip(&self) -> Option<RasterSkip>
+raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RasterError
+raster.rs: RasterError::TooMany { declared: u64 }
+raster.rs: RasterError::BadGrid
+raster.rs: RasterError::BadFormat
+raster.rs: RasterError::BadTransform(NumericError)
+raster.rs: RasterError::BadText
+raster.rs: RasterError::Stream(ComponentError)
+raster.rs: impl From<ComponentError> for RasterError
+raster.rs: RasterError::rule(&self) -> &'static str
+raster.rs: impl fmt::Display for RasterError
+raster.rs: impl std::error::Error for RasterError {}
+raster.rs: pub const RASTER_ERRORS: &[(&str, &str, &str)]
+raster.rs: pub fn encode_rasters(placements: &[Placement]) -> Result<Vec<u8>, RasterError>
+raster.rs: pub fn decode_rasters(bytes: &[u8]) -> Result<Vec<Placement>, RasterError>
+raster.rs: #[derive(Clone, Debug, PartialEq)] pub enum RasterRead
+raster.rs: RasterRead::Absent
+raster.rs: RasterRead::Present(Vec<Placement>)
+raster.rs: RasterRead::Damaged(RasterError)
+raster.rs: pub fn read_rasters(opened: &Opened) -> RasterRead
 semantic.rs: pub const MAX_HOLES: usize
 semantic.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum ElementClass
 semantic.rs: ElementClass::Other
