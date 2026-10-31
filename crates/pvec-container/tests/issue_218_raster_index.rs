@@ -440,3 +440,60 @@ fn limit_14_131073_tiles_are_refused_under_the_browser_ceiling_and_accepted_unde
     assert_eq!(RasterIndex::parse(&bytes, default).unwrap().tiles().len(), 131_073);
     assert_eq!(RasterIndex::parse(&bytes, 131_073).unwrap().stored(), 0);
 }
+
+// the inline levels are the coarsest ones, and a chunk's numbers are one pass over the table
+
+#[test]
+fn raster_02_an_inline_level_after_a_level_in_chunks_is_refused() {
+    // two levels of one tile each: level 0 in chunk 0, level 1 inline, which no writer makes
+    let tile = |chunk: u32, offset: u32| {
+        let mut e = Vec::new();
+        for v in [chunk, offset, 3] {
+            e.extend_from_slice(&v.to_le_bytes());
+        }
+        e.extend_from_slice(&[0, 0, 0, 0]); // col, row
+        e.extend_from_slice(&pvec_container::integrity::block_checksum(&[1, 2, 3]).to_le_bytes());
+        e
+    };
+    let mut b = header(2, 2);
+    put(&mut b, 12, 2); // tile_stored
+    put(&mut b, 16, 1); // chunk_total
+    put(&mut b, 20, 3); // inline_len
+    for (cols, rows, chunks, first) in [(1u32, 1u32, 1u32, 0u32), (1, 1, 0, 1)] {
+        for v in [cols, rows, chunks, first] {
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+    }
+    let inline_at = (b.len() + 2 * TILE_LEN) as u32;
+    b.extend(tile(0, 0));
+    b.extend(tile(INLINE, inline_at));
+    b.extend_from_slice(&[1, 2, 3]);
+    assert!(matches!(refused(&b), IndexError::Packing { ordinal: 1 }), "{:?}", refused(&b));
+    // the mirror image, inline first and then chunks, is what the writer makes and parses
+    let mut ok = header(2, 2);
+    put(&mut ok, 12, 2);
+    put(&mut ok, 16, 1);
+    put(&mut ok, 20, 3);
+    for (cols, rows, chunks, first) in [(1u32, 1u32, 0u32, 0u32), (1, 1, 1, 1)] {
+        for v in [cols, rows, chunks, first] {
+            ok.extend_from_slice(&v.to_le_bytes());
+        }
+    }
+    ok.extend(tile(INLINE, inline_at));
+    ok.extend(tile(0, 0));
+    ok.extend_from_slice(&[1, 2, 3]);
+    RasterIndex::parse(&ok, MAX).expect("inline first, then chunks");
+}
+
+#[test]
+fn the_chunk_stats_of_a_level_are_the_tiles_and_the_end_of_each_chunk() {
+    let built = build(&GRID, tiles(&GRID, 40, |_, _, _| false), 1, 100, MAX).unwrap();
+    let index = RasterIndex::parse(&built.index.encode(), MAX).unwrap();
+    assert!(index.chunk_stats(0).is_empty(), "an inline level has no chunk");
+    assert!(index.chunk_stats(9).is_empty(), "nor does a level that is not there");
+    let stats = index.chunk_stats(2);
+    assert_eq!(stats.len(), 8);
+    // 15 tiles of 40 bytes, two to a chunk: seven chunks of 80 and a last one of 40
+    assert_eq!(stats.iter().map(|s| s.0).sum::<u32>(), 15);
+    assert!(stats[..7].iter().all(|s| *s == (2, 80)) && stats[7] == (1, 40), "{stats:?}");
+}

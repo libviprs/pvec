@@ -376,6 +376,7 @@ impl RasterIndex {
         let mut table = Vec::with_capacity(tiles as usize);
         let mut counted = 0u32;
         let mut inline_next = inline_at as u64;
+        let mut chunked_before = false;
         for (l, level) in level_table.iter().enumerate() {
             let l = l as u32;
             let side = side_of(level.cols, level.rows);
@@ -410,8 +411,9 @@ impl RasterIndex {
                 } else {
                     counted += 1;
                     if t.chunk == INLINE {
-                        // the inline part is the inline tiles one after the other, from its first byte to the end
-                        if level.chunks != 0 || u64::from(t.offset) != inline_next {
+                        // the inline part is the inline tiles one after the other, from its first byte to the end,
+                        // and the inline levels are the coarsest ones: none comes after a level in chunks
+                        if level.chunks != 0 || chunked_before || u64::from(t.offset) != inline_next {
                             return Err(IndexError::Packing { ordinal });
                         }
                         inline_next += u64::from(t.length);
@@ -449,6 +451,7 @@ impl RasterIndex {
             if level.chunks != 0 && (!seen_chunk || chunk + 1 != level.chunks) {
                 return Err(IndexError::Level { level: l });
             }
+            chunked_before |= level.chunks != 0;
         }
         if counted != stored || inline_next != bytes.len() as u64 {
             return Err(IndexError::Count);
@@ -529,12 +532,9 @@ impl RasterIndex {
             return None;
         }
         // offsets are positions in the block, and the inline part is its tail
-        let start = (tile.offset as usize).checked_sub(self.inline_start())?;
+        let start = (tile.offset as usize)
+            .checked_sub(HEADER_LEN + LEVEL_LEN * self.levels.len() + TILE_LEN * self.tiles.len())?;
         self.inline.get(start..start.checked_add(tile.length as usize)?)
-    }
-
-    fn inline_start(&self) -> usize {
-        HEADER_LEN + LEVEL_LEN * self.levels.len() + TILE_LEN * self.tiles.len()
     }
 
     /// Checks the levels against the pyramid the placement fixes: `levels` levels over an image of `width` by
@@ -552,22 +552,29 @@ impl RasterIndex {
         Ok(())
     }
 
+    /// What the tiles of `level` put in each of its chunks, in one pass over the table: for chunk `k`, the number of
+    /// stored tiles and the end of the last one (the length the chunk's block has to be). Empty for a level that
+    /// is inline or not in the pyramid.
+    pub fn chunk_stats(&self, level: u32) -> Vec<(u32, u64)> {
+        let Some(l) = self.levels.get(level as usize) else { return Vec::new() };
+        let mut stats = vec![(0u32, 0u64); l.chunks as usize];
+        for t in self.level_tiles(level).into_iter().flatten().filter(|t| t.is_stored() && !t.is_inline()) {
+            if let Some(slot) = stats.get_mut(t.chunk as usize) {
+                slot.0 += 1;
+                slot.1 = slot.1.max(u64::from(t.offset) + u64::from(t.length));
+            }
+        }
+        stats
+    }
+
     /// Checks the kind 10 blocks against the index: `length_of(level, chunk)` is the stored length of that
     /// chunk's block, or `None` when the file has none. A chunk is exactly its tiles, so a block shorter than
     /// the last tile ends is refused (a read would run past it) and so is one longer (bytes nobody addresses).
     pub fn check_chunks(&self, length_of: impl Fn(u32, u32) -> Option<u32>) -> Result<(), IndexError> {
-        for (l, level) in self.levels.iter().enumerate() {
-            let l = l as u32;
-            for chunk in 0..level.chunks {
-                let end = self
-                    .level_tiles(l)
-                    .into_iter()
-                    .flatten()
-                    .filter(|t| t.is_stored() && t.chunk == chunk)
-                    .map(|t| u64::from(t.offset) + u64::from(t.length))
-                    .max();
-                if end != length_of(l, chunk).map(u64::from) {
-                    return Err(IndexError::Chunk { level: l, chunk });
+        for l in 0..self.levels.len() as u32 {
+            for (chunk, (_, end)) in self.chunk_stats(l).into_iter().enumerate() {
+                if Some(end) != length_of(l, chunk as u32).map(u64::from) {
+                    return Err(IndexError::Chunk { level: l, chunk: chunk as u32 });
                 }
             }
         }
