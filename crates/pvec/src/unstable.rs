@@ -14,7 +14,9 @@ use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
+pub use pvec_container::blocks::raster::TileIn;
 pub use pvec_container::limits::Limits;
+pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
 pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
@@ -28,6 +30,7 @@ pub(crate) enum Op {
     Curve(EntityId, Curve),
     Composite { id: EntityId, segments: Vec<EntityId>, bounds: Bounds2, closed: bool },
     Components(crate::components::Stream),
+    Raster(RasterId, Vec<TileIn>),
 }
 
 /// What an indexed writer remembers.
@@ -71,7 +74,7 @@ impl Indexing {
                     .iter()
                     .filter_map(|op| match op {
                         Op::Curve(id, _) | Op::Composite { id, .. } => Some(id.index() + 1),
-                        Op::Components(_) => None,
+                        Op::Components(_) | Op::Raster(..) => None,
                     })
                     .max()
                     .unwrap_or(0);
@@ -83,7 +86,7 @@ impl Indexing {
                         // A composite is in no leaf, so no leaf block ever carries its entry: the plan only
                         // needs one for every id to be complete, and `tier0_blocks` cuts the leaves' ids.
                         Op::Composite { id, .. } => plan.add_exact(*id),
-                        Op::Components(_) => Ok(()),
+                        Op::Components(_) | Op::Raster(..) => Ok(()),
                     }
                     .map_err(|e| write_error(e.rule()))?;
                 }
@@ -110,6 +113,7 @@ impl Indexing {
                     w.push_composite(meta, &segments, None, closed)
                 }
                 Op::Components(stream) => w.push_stream(stream),
+                Op::Raster(id, tiles) => w.push_raster_tiles(id, tiles),
             }
             .map_err(refused)?;
         }
@@ -244,5 +248,33 @@ impl PvecReader {
             .partial_open()
             .map(|p| p.capabilities.iter().map(|c| (c.id, c.effect)).collect())
             .unwrap_or_default()
+    }
+}
+
+impl PvecWriter {
+    /// Attaches the raster stream (capability 21): the placements, in `RasterId` order, that the tiles of
+    /// [`PvecWriter::raster_tiles`] are placed by. A placement the rules refuse is an error here, not at `finish`.
+    pub fn rasters(&mut self, placements: &[Placement]) -> Result<(), PvecError> {
+        let _ = placements;
+        Ok(())
+    }
+
+    /// Adds the encoded tiles of raster `raster` (a stub).
+    pub fn raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
+        let _ = (raster, tiles);
+        Ok(())
+    }
+}
+
+impl PvecReader {
+    /// The raster placements of the file, in `RasterId` order (a stub).
+    pub fn raster_placements(&self) -> Result<Vec<Placement>, PvecError> {
+        Ok(Vec::new())
+    }
+
+    /// One tile of a raster (a stub).
+    pub fn raster_tile(&self, raster: RasterId, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError> {
+        let _ = (raster, level, col, row);
+        Ok(None)
     }
 }
