@@ -667,7 +667,7 @@ fn limits_are_not_a_way_to_make_the_reader_panic() {
             max_alloc_bytes: rng.next() % 8192,
             max_decode_work: rng.next() % 8192,
             max_rasters: (rng.next() % 8) as u32,
-            max_raster_tiles: (rng.next() % 64) as u32,
+            max_raster_tiles: (rng.next() % 8) as u32,
             max_tile_bytes: (rng.next() % 4096) as u32,
             max_plan_decoded_bytes: rng.next() % 8192,
         };

@@ -389,8 +389,11 @@ impl Runtime {
         };
         ranges.clear_needed();
         let source = Arc::clone(&ranges);
-        let opened =
-            PvecReader::open_ranges_with_config(ranges.len, move |offset, len| source.read(offset, len), browser());
+        let opened = PvecReader::open_ranges_with_config(
+            ranges.len,
+            move |offset, len| source.read(offset, len),
+            browser(),
+        );
         let reader = match opened {
             Ok(r) => r,
             Err(_) => {

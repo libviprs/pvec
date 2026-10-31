@@ -312,7 +312,11 @@ fn the_raster_stream_has_the_next_dense_id_after_semantic_class_and_is_never_req
     let r = reg();
     let ids_after_geometry: Vec<u32> =
         r.entries().iter().filter(|c| c.class != Class::Geometry).map(|c| c.id.get()).collect();
-    assert_eq!(ids_after_geometry, (14..=21).collect::<Vec<u32>>(), "dense, 21 right after semantic_class (20)");
+    assert_eq!(
+        ids_after_geometry,
+        (14..=21).collect::<Vec<u32>>(),
+        "dense, 21 right after semantic_class (20)"
+    );
     let c = r.get(RASTER_CAPABILITY).expect("registered");
     assert_eq!((c.id.get(), c.name, c.requirement), (21, "raster", Requirement::Optional));
     assert_eq!(RASTER_CAPABILITY.get(), ids::SEMANTIC_CLASS.get() + 1);

@@ -1,4 +1,5 @@
 unstable.rs: pub use crate::reader::LoadedEntity
+unstable.rs: pub use pvec_container::limits::Limits
 unstable.rs: pub use pvec_container::negotiate::{Effect, ReaderCapabilities}
 unstable.rs: pub use pvec_container::reader::ReaderConfig
 unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, ViewportQuery, }
@@ -11,4 +12,5 @@ unstable.rs: PvecReader::tier0_ranges(&self, leaves: &Tier0Leaves, cells: &[Cell
 unstable.rs: PvecReader::entity_ranges(&self, cells: Option<&[u32]>, advanced: bool) -> Result<Vec<(u64, u32)>, PvecError>
 unstable.rs: PvecReader::entities_in(&self, cells: Option<&[u32]>, advanced: bool) -> Result<Vec<LoadedEntity>, PvecError>
 unstable.rs: PvecReader::open_with_config(bytes: Vec<u8>, config: ReaderConfig) -> Result<PvecReader, PvecError>
+unstable.rs: PvecReader::open_ranges_with_config(len: u64, read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static, config: ReaderConfig) -> Result<PvecReader, PvecError>
 unstable.rs: PvecReader::skipped_effects(&self) -> Vec<(CapabilityId, Effect)>
