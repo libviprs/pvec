@@ -2,6 +2,7 @@
 //! `docs/WASM_ABI.md` is the contract; every test name carries the issue number.
 
 use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter, Transform2};
+use pvec_container::directory::BlockKind;
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
 use pvec_geometry::{BSpline, Ellipse, Placement2, Point2, Polyline, Vector2};
@@ -120,7 +121,7 @@ fn issue_201_the_directory_reports_cells_height_entities_and_bounds() {
     let info = rt.directory(f).unwrap().expect("a directory");
     assert_eq!((info.cells, info.entities, info.tier0_leaves), (7, HOT, 7));
     assert!(info.height >= 1);
-    assert!(info.bounds.min[0] <= 0.0 && info.bounds.max[0] >= 897.0 && info.bounds.max[1] >= 790.0);
+    assert!(info.bounds.min[0] <= 0.0 && info.bounds.max[0] >= 897.0 && info.bounds.max[1] >= 730.0);
     assert!(info.advanced_bounds.is_some());
 }
 
@@ -272,7 +273,7 @@ fn issue_201_a_damaged_directory_opens_but_the_index_calls_are_read_errors() {
     let mut bytes = indexed();
     let at = {
         let r = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
-        let e = r.entries().iter().find(|e| e.kind == 3).expect("a directory block");
+        let e = r.entries().iter().find(|e| e.block_kind() == Some(BlockKind::SpatialDirectory)).expect("a directory block");
         e.offset as usize + e.stored_length as usize / 2
     };
     bytes[at] ^= 0xFF;

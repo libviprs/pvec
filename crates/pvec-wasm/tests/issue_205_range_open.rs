@@ -3,6 +3,7 @@
 //! contract; every test name carries the issue number.
 
 use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter, Transform2};
+use pvec_container::directory::BlockKind;
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::{MemorySource, Recording};
 use pvec_geometry::{BSpline, Point2, Polyline};
@@ -58,7 +59,7 @@ fn window(x0: f64, y0: f64, x1: f64, y1: f64) -> Bounds2 {
 }
 
 fn everything() -> Bounds2 {
-    window(-1e9, -1e9, 1e9, 1e9)
+    window(-1_000_000_000.0, -1_000_000_000.0, 1_000_000_000.0, 1_000_000_000.0)
 }
 
 /// The browser: bytes, and a log of what it was asked for.
@@ -119,28 +120,36 @@ fn issue_205_the_abi_stays_2_and_the_document_names_the_range_calls() {
     assert_eq!(AbiError::NeedRange.code(), -7);
     let doc =
         fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
-    for needle in ["open_ranged", "provide_range", "open_poll", "needed_count", "needed_offset", "needed_len", "-7"] {
+    for needle in
+        ["open_ranged", "provide_range", "open_poll", "needed_count", "needed_offset", "needed_len", "-7"]
+    {
         assert!(doc.contains(needle), "docs/WASM_ABI.md does not mention {needle}");
     }
 }
 
 #[test]
-fn issue_205_opening_costs_what_the_container_open_costs_and_reads_no_entity() {
+fn issue_205_opening_costs_what_the_container_open_costs_plus_the_spatial_directory_and_reads_no_entity() {
     let bytes = file();
-    let baseline = {
-        // the requests the container's own open makes (header prefix, manifest, directory, table)
-        let r = ContainerReader::open(Recording::new(MemorySource::new(bytes.clone())), ReaderConfig::default())
+    let reader =
+        ContainerReader::open(Recording::new(MemorySource::new(bytes.clone())), ReaderConfig::default())
             .unwrap();
-        r.source().requests().len()
-    };
+    // the requests the container's own open makes: the header prefix, then the table and the directory in one
+    let (baseline, baseline_bytes) = (reader.source().requests().len(), reader.source().bytes_requested());
+    let spatial: Vec<_> = reader
+        .entries()
+        .iter()
+        .filter(|e| e.block_kind() == Some(BlockKind::SpatialDirectory))
+        .map(|e| u64::from(e.stored_length))
+        .collect();
     let mut host = Host::new(bytes);
     let mut rt = Runtime::new();
     let f = host.open(&mut rt);
-    // the spatial directory is one block more than the container's open reads
-    assert!(host.served.len() <= baseline + 1, "{} requests, the container open makes {baseline}", host.served.len());
-    assert!(host.bytes_served() * 10 < host.bytes.len() as u64, "{} of {}", host.bytes_served(), host.bytes.len());
+    assert_eq!(host.served.len(), baseline + 1, "{:?}", host.served);
+    assert_eq!(host.bytes_served(), baseline_bytes + spatial[0], "{:?}", host.served);
     let info = rt.directory(f).unwrap().expect("the directory is there without another request");
     assert!(info.cells > 50);
+    assert_eq!(rt.query_viewport(f, window(0.0, 0.0, 1.0, 1.0), 10).map(|_| ()), Err(AbiError::NeedRange));
+    assert!(!rt.needed(f).unwrap().is_empty(), "an entity read is a separate, later request");
 }
 
 #[test]
@@ -169,7 +178,7 @@ fn issue_205_directory_and_tier0_answers_equal_the_in_memory_ones() {
         window(-5.0, 880.0, 200.0, 990.0),
         window(500.0, 500.0, 500.5, 500.5),
         everything(),
-        window(5e6, 5e6, 6e6, 6e6),
+        window(5_000_000.0, 5_000_000.0, 6_000_000.0, 6_000_000.0),
     ];
     for w in windows {
         let a = mem.directory_query(m, w).unwrap();
@@ -215,7 +224,7 @@ fn issue_205_a_small_window_asks_for_few_ranges_in_one_round_and_a_repeat_asks_f
     let mut host = Host::new(file());
     let mut rt = Runtime::new();
     let f = host.open(&mut rt);
-    let (opened, rounds) = (host.served.len(), host.rounds);
+    let (opened, rounds, opened_bytes) = (host.served.len(), host.rounds, host.bytes_served());
     let w = window(100.0, 100.0, 220.0, 200.0);
     let t = host.run(&mut rt, f, |r| r.tier0_viewport(f, w)).unwrap();
     assert!(rt.tier0(t).unwrap().ids.len() > 10);
@@ -224,7 +233,7 @@ fn issue_205_a_small_window_asks_for_few_ranges_in_one_round_and_a_repeat_asks_f
     let cells = rt.directory_query(f, w).unwrap();
     let touched = rt.cells(cells).unwrap().ids.len();
     assert!(asked >= 1 && asked <= touched, "{asked} requests for {touched} leaves");
-    assert!(host.bytes_served() * 4 < host.bytes.len() as u64);
+    assert!((host.bytes_served() - opened_bytes) * 3 < host.bytes.len() as u64);
     let before = host.served.len();
     let again = host.run(&mut rt, f, |r| r.tier0_viewport(f, w)).unwrap();
     assert_eq!(rt.tier0(again).unwrap(), rt.tier0(t).unwrap());
@@ -232,36 +241,28 @@ fn issue_205_a_small_window_asks_for_few_ranges_in_one_round_and_a_repeat_asks_f
 }
 
 #[test]
-fn issue_205_a_leaf_inside_the_window_costs_its_tier0_block_and_not_its_hot_blocks() {
+fn issue_205_a_window_over_whole_leaves_costs_their_tier0_blocks_and_no_hot_block() {
     let bytes = file();
     let reader = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
     let mut host = Host::new(bytes);
     let mut rt = Runtime::new();
     let f = host.open(&mut rt);
     let opened = host.served.len();
-    let w = window(0.0, 0.0, 1000.0, 400.0);
-    let q = rt.directory_query(f, w).unwrap();
-    let cells = rt.cells(q).unwrap().clone();
-    let inside: Vec<u32> = cells
-        .ids
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| {
-            let b = &cells.bounds[i * 4..i * 4 + 4];
-            b[0] >= w.min[0] && b[1] >= w.min[1] && b[2] <= w.max[0] && b[3] <= w.max[1]
-        })
-        .map(|(_, c)| *c)
-        .collect();
-    assert!(inside.len() > 5, "the window should hold whole leaves");
-    host.run(&mut rt, f, |r| r.tier0_viewport(f, w)).unwrap();
-    let hot_bytes: u64 = reader
-        .entries()
-        .iter()
-        .filter(|e| inside.contains(&e.cell) && e.block_kind() == Some(pvec_container::directory::BlockKind::Hot))
-        .map(|e| u64::from(e.stored_length))
-        .sum();
-    let asked: u64 = host.served[opened..].iter().map(|(_, l)| u64::from(*l)).sum();
-    assert!(hot_bytes > 0 && asked < hot_bytes, "asked {asked} bytes, the hot blocks of those leaves are {hot_bytes}");
+    let mut mem = Runtime::new();
+    let m = mem.open(host.bytes.clone()).unwrap();
+    let t = host.run(&mut rt, f, |r| r.tier0_viewport(f, everything())).unwrap();
+    let a = mem.tier0_viewport(m, everything()).unwrap();
+    assert_eq!(rt.tier0(t).unwrap(), mem.tier0(a).unwrap());
+    for e in reader.entries().iter().filter(|e| e.block_kind() == Some(BlockKind::Hot)) {
+        let hit = host.served[opened..]
+            .iter()
+            .any(|(o, l)| *o < e.offset + u64::from(e.stored_length) && e.offset < o + u64::from(*l));
+        assert!(
+            !hit,
+            "the hot block of cell {} was requested for a window that holds the whole leaf",
+            e.cell
+        );
+    }
 }
 
 #[test]

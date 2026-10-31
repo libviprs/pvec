@@ -68,8 +68,11 @@ pick.rs: PickIndex::refine(&mut self, id: EntityId, curve: Curve) -> Result<Enti
 pick.rs: PickIndex::query_point(&self, p: Point2, tol: PickTolerance) -> Option<Pick>
 pick.rs: PickIndex::query_rect(&self, r: Bounds2, mode: RectMode) -> EntityIdBatch
 pick.rs: PickIndex::query_nearest(&self, p: Point2, max_dist: f64) -> Option<Pick>
+reader.rs: impl BlockSource for Source
+reader.rs: pub type LoadedEntity = (Option<u32>, EntityId, Curve, u32)
 reader.rs: pub struct PvecReader
 reader.rs: PvecReader::open(bytes: Vec<u8>) -> Result<PvecReader, PvecError>
+reader.rs: PvecReader::open_ranges(len: u64, read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static) -> Result<PvecReader, PvecError>
 reader.rs: PvecReader::manifest(&self) -> &Manifest
 reader.rs: PvecReader::entity_count(&self) -> Result<u64, PvecError>
 reader.rs: PvecReader::entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError>

@@ -1,4 +1,4 @@
-# The WASM packed output ABI (issues P7.3 and #201)
+# The WASM packed output ABI (issues P7.3, #201 and #205)
 
 `pvec-wasm` exports the `pvec` facade to a browser as four typed arrays per batch and integer handles. No
 export returns an object, an array of objects or a string, so a frame does not pay the allocator once
@@ -45,9 +45,13 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `tier0_viewport` | file, `min_x, min_y, max_x, max_y` | a Tier 0 handle (version 2) |
 | `tier0_stat` | Tier 0 handle, number | one count (version 2) |
 | `tier0_buffer_len`, `tier0_buffer_ptr`, `tier0_buffer_elem` | Tier 0 handle, array number | length, byte offset, element type (version 2) |
+| `open_ranged` | the file's length in bytes | an opening handle (issue #205) |
+| `provide_range` | handle, `offset`, bytes | 0 (issue #205) |
+| `open_poll` | the opening handle | the same handle, now a file, or -7 (issue #205) |
+| `needed_count`, `needed_offset`, `needed_len` | handle, range number | how many ranges a -7 left to provide, and where and how long each is (issue #205) |
 
-`open` takes the file whole. The reader works on bytes in memory, and the `http` feature of the facade
-is a marker, so a range callback is not here yet (issue #205).
+`open` takes the file whole. A file can instead be opened by byte ranges the host supplies (issue #205), which
+is the next section.
 
 `query_viewport` keeps the entities whose bounds meet the box, in ascending `EntityId` order, and at
 most `budget` of them; `batch_truncated` says when it cut. A curve with no bounds (an unbounded line)
@@ -80,6 +84,52 @@ map at a coordinate offset of a million needs. The consumer adds the origin back
 A viewport query that returns N entities costs JS four typed arrays, made by the consumer over linear
 memory (`new Float64Array(memory.buffer, ptr, len)`), whatever N is. A test counts them at N = 1, 1,000
 and 100,000.
+
+## Opening by byte ranges (issue #205)
+
+A browser that opens a container with HTTP range requests cannot hand the module the file, and the module
+cannot call back into JS and wait for a `fetch`: the module has no import of its own (the loadable module of
+issue 202 has one, the externref table), and a synchronous callback would need a synchronous request. So the
+range callback is a loop the host runs, and the module says what it needs. `pvec::PvecReader::open_ranges` is
+the Rust side (the `http` feature of the facade, which this made real): the reader reads through a function that
+returns the bytes of a range. Here that function reads what the host has provided, and when a range is not
+there it notes it and stops the call, which then returns -7.
+
+```
+h = open_ranged(length)                    // nothing is read yet
+loop: r = open_poll(h)
+      if r == -7: for i in 0 .. needed_count(h): provide_range(h, needed_offset(h, i), bytes of that range)
+      else break                           // r == h, and h is now a file; r < 0 is an error
+// any call that reads (query_viewport, tier0_viewport) on the file does the same:
+loop: r = tier0_viewport(h, ...); if r == -7: provide what needed_* names, and call again
+```
+
+Rules:
+
+* A call that returns -7 changed nothing, so the same call is made again after the ranges are provided. The
+  module names every range that call needs at once (blocks close together are one range, the way the
+  reader plans them), so a window costs one round trip, not one per block. Opening is sequential by nature: the
+  header, then the table and the directory, then the spatial directory.
+* Opening reads the header (4 KiB), the block table and directory, and the spatial directory block, and no
+  entity. Over a 109 KB test file that is three requests, the two a container open makes and the one block of the
+  spatial directory. `directory_stat`, `directory_bound` and `directory_query` then need nothing more.
+* `tier0_viewport` needs the Tier 0 block of each leaf the window touches. A leaf the window holds whole costs
+  no hot block, because every entity of it is in the window and the leaf says how many there are. A leaf the
+  window only cuts costs its hot blocks, because `uncovered` and the cull by the bounds of each entity need
+  them, and the advanced curves cost their chunks when their bounds can meet the window. `query_viewport`
+  needs the hot blocks of the leaves it touches and the same advanced chunks. A file with no directory has
+  nothing to cull by, so its first `query_viewport` needs all of it. The results are the ones `open` gives for
+  the same bytes, which a test compares for several windows.
+* What was provided stays: a range may be bigger than what was asked (a host that fetches a larger first
+  range saves round trips), a repeated call needs nothing, and the module keeps the provided bytes until the
+  handle is released. The host decides what to provide, so it decides the memory.
+* A range that is not inside the file is -3. A handle that is not range-opened has no ranges: `provide_range`,
+  `open_poll` and `needed_*` on it are -5. A call on a handle that has not finished opening is -5. What the host
+  provides is untrusted like any bytes: bytes that are not a PVec file are -4 from `open_poll`, and a block that
+  does not check is -4 from the call that read it, whatever the host sent.
+* The ABI version stays **2**. The calls are additions, and -7 comes only from a range-opened handle, so every
+  call of version 2 on a file made by `open` works as before. A consumer that wants ranges tests that the module
+  exports `open_ranged`, which it needs to do once at start, next to the version check.
 
 ## The spatial directory and the Tier 0 stream (version 2)
 
@@ -134,8 +184,7 @@ A file with no directory answers `directory_query` and `tier0_viewport` with -6.
 Tier 0 block the reader refuses still opens (the entities do not depend on it), and those calls return -4.
 Windows must be finite and ordered (`min <= max`), or the call returns -3. These are the handles and the
 memory rules below, unchanged: `release` frees them, a view is current while `memory_epoch()` is, and both
-result kinds keep what they need after the file is released. Byte ranges of blocks, and a `open` that takes a
-range callback, are not here: the second waits for the `http` feature of the facade.
+result kinds keep what they need after the file is released. A file opened by ranges answers these calls too (above).
 
 ## Conformance
 
@@ -170,6 +219,7 @@ exact geometry in a packed buffer.
 | -4 | the bytes are not a PVec file this reader accepts |
 | -5 | the handle is live but is not the kind this call takes |
 | -6 | the file has no spatial directory, which the call needs (version 2) |
+| -7 | the call needs byte ranges of a range-opened file that were not provided yet: `needed_*` names them (issue #205) |
 
 ## Size
 

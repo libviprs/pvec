@@ -4,16 +4,62 @@ use pvec_container::blocks::advanced::CurveView;
 use pvec_container::blocks::hot::HotKind;
 use pvec_container::directory::{BlockKind, STRADDLER_CELL_FIRST};
 use pvec_container::reader::{BlockId, ContainerReader, ReaderConfig};
-use pvec_container::source::MemorySource;
+use pvec_container::source::{BlockSource, Bytes, MemorySource, SourceError};
 use pvec_geometry::{
     BSpline, Circle, Composite, Curve2d, Ellipse, GeometryError, Line, Placement2, Point2, Polyline,
     RationalBSpline, Trim, Trimmed, Vector2,
 };
 use pvec_numeric::detmath;
 
-/// Reads a PVec file held in memory.
+/// Where the reader gets its bytes: the file in memory, or (feature `http`) a callback that returns byte
+/// ranges. The reader is written against `BlockSource`, and a facade type cannot name the container's, so
+/// this is the one type that implements it for both (contract).
+pub(crate) enum Source {
+    Memory(MemorySource<Vec<u8>>),
+    #[cfg(feature = "http")]
+    Callback {
+        len: u64,
+        read: Box<dyn Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync>,
+    },
+}
+
+impl BlockSource for Source {
+    fn len(&self) -> u64 {
+        match self {
+            Source::Memory(m) => BlockSource::len(m),
+            #[cfg(feature = "http")]
+            Source::Callback { len, .. } => *len,
+        }
+    }
+
+    fn read_range(&self, offset: u64, len: u32) -> Result<Bytes, SourceError> {
+        match self {
+            Source::Memory(m) => m.read_range(offset, len),
+            #[cfg(feature = "http")]
+            Source::Callback { len: source_len, read } => {
+                match offset.checked_add(u64::from(len)) {
+                    Some(end) if end <= *source_len => {}
+                    _ => {
+                        return Err(SourceError::OutOfRange {
+                            offset,
+                            len: u64::from(len),
+                            source_len: *source_len,
+                        });
+                    }
+                }
+                read(offset, len).map(Bytes::new).map_err(SourceError::Io)
+            }
+        }
+    }
+}
+
+/// An entity read from a file: the leaf of the hot block it came from (`None` for an advanced curve), its id,
+/// its curve and its style reference.
+pub type LoadedEntity = (Option<u32>, EntityId, Curve, u32);
+
+/// Reads a PVec file held in memory, or (feature `http`) behind a range callback.
 pub struct PvecReader {
-    pub(crate) inner: ContainerReader<MemorySource<Vec<u8>>>,
+    pub(crate) inner: ContainerReader<Source>,
     manifest: Manifest,
 }
 
@@ -148,20 +194,29 @@ fn advanced(
 impl PvecReader {
     /// Opens a file, checking the header, manifest and directory.
     pub fn open(bytes: Vec<u8>) -> Result<PvecReader, PvecError> {
-        let inner =
-            ContainerReader::open(MemorySource::new(bytes), ReaderConfig::default()).map_err(container)?;
+        PvecReader::from_source(Source::Memory(MemorySource::new(bytes)))
+    }
+
+    fn from_source(source: Source) -> Result<PvecReader, PvecError> {
+        let inner = ContainerReader::open(source, ReaderConfig::default()).map_err(container)?;
         let manifest = Manifest::from_container(inner.manifest());
         Ok(PvecReader { inner, manifest })
     }
 
-    /// Opens a file of `len` bytes through a read callback (red stub, issue #205).
+    /// Opens a file of `len` bytes that is read through `read(offset, len)`, which returns exactly `len`
+    /// bytes starting at `offset` (an HTTP range request, a cache, a file). Opening asks for the first
+    /// bytes of the file, then the manifest and the block directory when they did not fit, and reads
+    /// nothing else: a block is read when a call needs it, one range per block, and the reader keeps what
+    /// it decoded. What `read` returns is checked like any other bytes: a reply of another length, or an
+    /// error, is a [`PvecError`], and a range outside the file is refused before `read` is called.
+    ///
+    /// Behind the `http` feature, which adds this call and no type.
     #[cfg(feature = "http")]
     pub fn open_ranges(
         len: u64,
         read: impl Fn(u64, u32) -> Result<Vec<u8>, String> + Send + Sync + 'static,
     ) -> Result<PvecReader, PvecError> {
-        let _ = (len, read);
-        todo!("issue #205")
+        PvecReader::from_source(Source::Callback { len, read: Box::new(read) })
     }
 
     /// What the file says about itself.
@@ -181,26 +236,35 @@ impl PvecReader {
     /// Writing what is read back writes the same bytes. An unbounded line is not storable, and a
     /// composite whose segments are trimmed is refused here for now.
     pub fn entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError> {
-        Ok(self.scan()?.into_iter().map(|(id, curve, _)| (id, curve)).collect())
+        Ok(self.scan(None, true)?.into_iter().map(|(_, id, curve, _)| (id, curve)).collect())
     }
 
     /// The style reference of every entity, in ascending entity id order: an opaque index the style
     /// component stream resolves, `0` where the writer gave none.
     pub fn styles(&self) -> Result<Vec<(EntityId, u32)>, PvecError> {
-        Ok(self.scan()?.into_iter().map(|(id, _, style)| (id, style)).collect())
+        Ok(self.scan(None, true)?.into_iter().map(|(_, id, _, style)| (id, style)).collect())
     }
 
     /// Both of the above in one pass over the blocks (conversion layer: hot and advanced records to
-    /// curves, with the style column that goes with them).
-    fn scan(&self) -> Result<Vec<(EntityId, Curve, u32)>, PvecError> {
+    /// curves, with the style column that goes with them), each with the cell of the hot block it came
+    /// from (`None` for an advanced curve). `cells` limits the hot blocks to those cells (all when
+    /// `None`), and `advanced` says whether the advanced curves are read at all.
+    pub(crate) fn scan(
+        &self,
+        cells: Option<&[u32]>,
+        advanced_too: bool,
+    ) -> Result<Vec<LoadedEntity>, PvecError> {
         let id = |raw: u32| {
             EntityId::new(raw)
                 .map_err(|_| PvecError::Read { rule: "ENTITY-ID: not a valid entity id".to_string() })
         };
-        let mut out: Vec<(EntityId, Curve, u32)> = Vec::new();
+        let mut out: Vec<LoadedEntity> = Vec::new();
         for (at, entry) in self.inner.entries().iter().enumerate() {
             // The straddler pages repeat payloads that a leaf's own block holds.
             if entry.block_kind() != Some(BlockKind::Hot) || entry.cell >= STRADDLER_CELL_FIRST {
+                continue;
+            }
+            if cells.is_some_and(|c| !c.contains(&entry.cell)) {
                 continue;
             }
             let block = self.inner.read_block(BlockId(at as u32)).map_err(container)?;
@@ -239,18 +303,19 @@ impl PvecReader {
                         arc(ellipse, col("start")[k], col("sweep")[k])?
                     }
                 };
-                out.push((id(*raw)?, curve, hot.styles()[k]));
+                out.push((Some(entry.cell), id(*raw)?, curve, hot.styles()[k]));
             }
         }
-        for chunk in 0..self.inner.advanced_chunk_count().map_err(container)? {
+        let chunks = if advanced_too { self.inner.advanced_chunk_count().map_err(container)? } else { 0 };
+        for chunk in 0..chunks {
             let Some(set) = self.inner.advanced(chunk).map_err(container)? else { continue };
             let view = set.view().map_err(container)?;
             for index in 0..view.len() {
                 let Some(record) = view.record(index) else { continue };
-                out.push((id(record.id)?, advanced(&view, index, 1)?, record.style));
+                out.push((None, id(record.id)?, advanced(&view, index, 1)?, record.style));
             }
         }
-        out.sort_by_key(|(id, _, _)| id.index());
+        out.sort_by_key(|(_, id, _, _)| id.index());
         Ok(out)
     }
 }

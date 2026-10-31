@@ -27,7 +27,10 @@ fn file() -> Vec<u8> {
     w.finish().unwrap()
 }
 
-fn from(bytes: Arc<Vec<u8>>, log: Arc<Mutex<Vec<(u64, u32)>>>) -> impl Fn(u64, u32) -> Result<Vec<u8>, String> {
+fn from(
+    bytes: Arc<Vec<u8>>,
+    log: Arc<Mutex<Vec<(u64, u32)>>>,
+) -> impl Fn(u64, u32) -> Result<Vec<u8>, String> {
     move |offset, len| {
         log.lock().unwrap().push((offset, len));
         let end = offset.checked_add(u64::from(len)).filter(|e| *e <= bytes.len() as u64);
@@ -40,7 +43,8 @@ fn issue_205_open_ranges_reads_the_same_entities_as_open() {
     let bytes = file();
     let whole = PvecReader::open(bytes.clone()).unwrap();
     let log = Arc::new(Mutex::new(Vec::new()));
-    let ranged = PvecReader::open_ranges(bytes.len() as u64, from(Arc::new(bytes), Arc::clone(&log))).unwrap();
+    let ranged =
+        PvecReader::open_ranges(bytes.len() as u64, from(Arc::new(bytes), Arc::clone(&log))).unwrap();
     assert_eq!(ranged.manifest(), whole.manifest());
     assert_eq!(ranged.entity_count().unwrap(), whole.entity_count().unwrap());
     assert_eq!(ranged.entities().unwrap(), whole.entities().unwrap());
