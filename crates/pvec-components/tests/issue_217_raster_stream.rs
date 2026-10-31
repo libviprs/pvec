@@ -90,10 +90,12 @@ fn a_reflection_and_a_non_uniform_scale_are_legal_and_d_below_zero_is_the_normal
 
 #[test]
 fn a_map_that_is_singular_under_pvecs_rule_is_refused_though_the_1e_12_rule_would_take_it() {
-    // det = 1e-11: above libviprs's 1e-12, at or below PVec's `REL * big^2` = 1e-10 with big = 1
-    let m: [f64; 6] = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
+    // det = REL / 10: above the absolute floor libviprs applies (`Policy::V1.abs`, 1e-12), at or below PVec's
+    // `REL * big^2` with big = 1. No tolerance literal outside the policy module, so both come from the policy.
+    let policy = pvec_numeric::Policy::V1;
+    let m: [f64; 6] = [1.0, 0.0, 0.0, policy.rel / 10.0, 0.0, 0.0];
     let det = m[0] * m[3] - m[1] * m[2];
-    assert!(det.abs() > 1e-12, "the 1e-12 rule accepts this map");
+    assert!(det.abs() > policy.abs, "the absolute rule accepts this map");
     assert_eq!(rule_of(with(|p| p.pixel_to_source = m)), "RASTER-05");
     // an exactly singular map too
     assert_eq!(rule_of(with(|p| p.pixel_to_source = [1.0, 2.0, 2.0, 4.0, 0.0, 0.0])), "RASTER-05");
@@ -154,7 +156,7 @@ fn raster_01_refuses_a_tile_edge_outside_256_512_1024_levels_that_do_not_match_a
 fn raster_01_keeps_cols_and_rows_inside_the_u16_of_the_index() {
     // 65,536 columns of 256 px
     let wide = with(|p| {
-        p.pixel_to_source = [1e-3, 0.0, 0.0, -1e-3, 0.0, 0.0];
+        p.pixel_to_source = [0.001, 0.0, 0.0, -0.001, 0.0, 0.0];
         p.tile_edge = 256;
         p.width = 65_536 * 256;
         p.height = 256;
