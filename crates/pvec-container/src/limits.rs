@@ -17,6 +17,7 @@
 //! from [`LIMIT_TABLE`] and the two presets.
 
 use core::fmt;
+use pvec_components::MAX_RASTERS;
 use pvec_numeric::{MAX_CONTROL_POINTS, MAX_ENTITIES, MAX_KNOTS, MAX_NESTING_DEPTH};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -49,11 +50,19 @@ pub enum LimitKind {
     /// A descriptor's offset plus length passes the end of the artifact, or overflows. The ceiling is
     /// the artifact's own length, so there is no field for it.
     Extent,
+    /// An artifact declares more raster placements than the ceiling (ADR 0018).
+    Rasters,
+    /// An artifact declares more raster tiles than the ceiling.
+    RasterTiles,
+    /// A raster tile is stored as more bytes than the placement's formula allows.
+    TileBytes,
+    /// A plan would hand the host more decoded raster bytes at once than the ceiling.
+    PlanDecodedBytes,
 }
 
 impl LimitKind {
     /// Every limit, in rule order.
-    pub const ALL: [LimitKind; 12] = [
+    pub const ALL: [LimitKind; 16] = [
         LimitKind::ExpansionRatio,
         LimitKind::BlockBytes,
         LimitKind::AllocationBudget,
@@ -66,6 +75,10 @@ impl LimitKind {
         LimitKind::Knots,
         LimitKind::NestingDepth,
         LimitKind::Extent,
+        LimitKind::Rasters,
+        LimitKind::RasterTiles,
+        LimitKind::TileBytes,
+        LimitKind::PlanDecodedBytes,
     ];
 
     /// The rule identifier of `docs/SECURITY_LIMITS.md`.
@@ -83,6 +96,10 @@ impl LimitKind {
             LimitKind::Knots => "LIMIT-10",
             LimitKind::NestingDepth => "LIMIT-11",
             LimitKind::Extent => "LIMIT-12",
+            LimitKind::Rasters => "LIMIT-13",
+            LimitKind::RasterTiles => "LIMIT-14",
+            LimitKind::TileBytes => "LIMIT-15",
+            LimitKind::PlanDecodedBytes => "LIMIT-16",
         }
     }
 
@@ -101,6 +118,10 @@ impl LimitKind {
             LimitKind::Knots => "max_knots",
             LimitKind::NestingDepth => "max_nesting_depth",
             LimitKind::Extent => "the artifact length",
+            LimitKind::Rasters => "max_rasters",
+            LimitKind::RasterTiles => "max_raster_tiles",
+            LimitKind::TileBytes => "max_tile_bytes",
+            LimitKind::PlanDecodedBytes => "max_plan_decoded_bytes",
         }
     }
 }
@@ -197,6 +218,15 @@ pub struct Limits {
     pub max_alloc_bytes: u64,
     /// The most decode work over the life of a reader, in bytes stored plus bytes decoded.
     pub max_decode_work: u64,
+    /// The most raster placements one artifact may declare (ADR 0018, proposed).
+    pub max_rasters: u32,
+    /// The most raster tiles one artifact may declare, over every raster (proposed).
+    pub max_raster_tiles: u32,
+    /// The header allowance added to `2 * 4 * tile_edge^2` to give the most bytes one raster tile may be stored
+    /// as: the formula is a function of the placement, so this field is only its constant term (proposed).
+    pub max_tile_bytes: u32,
+    /// The most decoded raster bytes one plan may hand the host at once (proposed).
+    pub max_plan_decoded_bytes: u64,
 }
 
 impl Limits {
@@ -213,6 +243,10 @@ impl Limits {
         max_nesting_depth: MAX_NESTING_DEPTH as u32,
         max_alloc_bytes: 1 << 31,
         max_decode_work: 1 << 40,
+        max_rasters: MAX_RASTERS,
+        max_raster_tiles: 1 << 20,
+        max_tile_bytes: 1 << 16,
+        max_plan_decoded_bytes: 1 << 28,
     };
 
     /// The stricter preset for a browser tab, where memory is a few hundred megabytes and a hostile file
@@ -229,6 +263,10 @@ impl Limits {
         max_nesting_depth: 3,
         max_alloc_bytes: 1 << 28,
         max_decode_work: 1 << 34,
+        max_rasters: MAX_RASTERS,
+        max_raster_tiles: 1 << 17,
+        max_tile_bytes: 1 << 16,
+        max_plan_decoded_bytes: 1 << 28,
     };
 
     /// The value of one limit, widened.
@@ -246,6 +284,10 @@ impl Limits {
             LimitKind::Knots => u64::from(self.max_knots),
             LimitKind::NestingDepth => u64::from(self.max_nesting_depth),
             LimitKind::Extent => self.max_artifact_bytes,
+            LimitKind::Rasters => u64::from(self.max_rasters),
+            LimitKind::RasterTiles => u64::from(self.max_raster_tiles),
+            LimitKind::TileBytes => u64::from(self.max_tile_bytes),
+            LimitKind::PlanDecodedBytes => self.max_plan_decoded_bytes,
         }
     }
 
@@ -352,6 +394,26 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
         kind: LimitKind::Extent,
         rationale: "Every offset and length in the file is attacker-controlled, and a range past the end of the artifact (or one whose end wraps around 2^64) is never fetched. The ceiling is the length of the artifact itself, so it has no configuration of its own and no browser value.",
         enforced: "the block directory, from the raw entries, before the table is parsed or any block fetched",
+    },
+    LimitRow {
+        kind: LimitKind::Rasters,
+        rationale: "Proposed (ADR 0018): 4,096 placements. Each raster has an index block of 64 bytes in the directory, so the ceiling is 256 KiB of directory, about 0.5% of a 50 MB file. The value stays proposed until the measurements of issue 220.",
+        enforced: "the raster stream, when the placements are read, before the table is allocated; and when the stream is written",
+    },
+    LimitRow {
+        kind: LimitKind::RasterTiles,
+        rationale: "Proposed (ADR 0018): 1,048,576 tiles per artifact and 131,072 in the browser. An index entry is about 24 bytes, so that is 24 MiB and 3 MiB of index at the ceilings, inside LIMIT-02; the numbers borrow LIMIT-06's. Proposed until issue 220 measures it.",
+        enforced: "the raster index block (issue 218), from the counts in its header, before the tile table is allocated",
+    },
+    LimitRow {
+        kind: LimitKind::TileBytes,
+        rationale: "Proposed (ADR 0018): one tile is stored as at most `2 * 4 * tile_edge^2` plus this field's allowance of 65,536 bytes (589,824 at an edge of 256, 2,162,688 at 512, 8,454,144 at 1024). An uncompressed RGBA PNG of the tile is `4 * edge^2` plus framing, so twice that admits every honest encoding and refuses a progressive JPEG whose only purpose is decode time. Proposed until issue 220 measures it.",
+        enforced: "the tile read (issue 219), from the length in the raster index, before the range is requested",
+    },
+    LimitRow {
+        kind: LimitKind::PlanDecodedBytes,
+        rationale: "Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. Proposed until issue 220 measures it.",
+        enforced: "the raster plan (issue 220), before the first range of the plan is requested",
     },
 ];
 

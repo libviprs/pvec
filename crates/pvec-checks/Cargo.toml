@@ -14,4 +14,5 @@ workspace = true
 
 [dev-dependencies]
 pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-components = { path = "../pvec-components" }
 pvec-corpus = { path = "../pvec-corpus" }

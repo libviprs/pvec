@@ -284,3 +284,59 @@ fn bumping_any_one_component_leaves_every_geometry_version_and_every_other_compo
         }
     }
 }
+
+// ---------------------------------------------------------------- the raster stream (issue 217)
+
+fn raster_payload() -> Vec<u8> {
+    encode_rasters(&[Placement {
+        pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
+        width: 1024,
+        height: 512,
+        visible_box: [0, 0, 1024, 512],
+        tile_edge: 512,
+        levels: 2,
+        tile_codec: TileCodec::Png,
+        pixel_format: PixelFormat::Rgba,
+        bit_depth: 8,
+        opacity: 255,
+        band: Band::Underlay,
+        layer_index: None,
+        source_digest: None,
+        attribution: String::new(),
+    }])
+    .unwrap()
+}
+
+#[test]
+fn the_raster_stream_has_the_next_dense_id_after_semantic_class_and_is_never_required() {
+    let r = reg();
+    let ids_after_geometry: Vec<u32> =
+        r.entries().iter().filter(|c| c.class != Class::Geometry).map(|c| c.id.get()).collect();
+    assert_eq!(
+        ids_after_geometry,
+        (14..=21).collect::<Vec<u32>>(),
+        "dense, 21 right after semantic_class (20)"
+    );
+    let c = r.get(RASTER_CAPABILITY).expect("registered");
+    assert_eq!((c.id.get(), c.name, c.requirement), (21, "raster", Requirement::Optional));
+    assert_eq!(RASTER_CAPABILITY.get(), ids::SEMANTIC_CLASS.get() + 1);
+}
+
+#[test]
+fn a_set_that_carries_the_raster_stream_encodes_and_decodes_with_the_stream_unknown() {
+    let r = reg();
+    let version = r.get(RASTER_CAPABILITY).unwrap().version;
+    let streams = vec![
+        Stream { capability: ids::LAYER, version: r.get(ids::LAYER).unwrap().version, payload: vec![0; 4] },
+        Stream { capability: RASTER_CAPABILITY, version, payload: raster_payload() },
+    ];
+    let set = encode_streams(&streams).expect("a raster stream is framed like any other");
+    let old = reader_knowing(&[ids::LAYER]);
+    let opened = read_streams(&set, &r, &old).unwrap();
+    assert_eq!(opened.streams.len(), 1, "the layer stream is still read");
+    assert_eq!(opened.skipped.len(), 1);
+    assert_eq!(
+        (opened.skipped[0].capability, opened.skipped[0].reason),
+        (RASTER_CAPABILITY, SkipReason::NotImplemented)
+    );
+}

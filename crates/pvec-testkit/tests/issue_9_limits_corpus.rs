@@ -48,3 +48,16 @@ fn the_committed_limits_document_is_exactly_the_generated_one_and_lists_the_brow
         assert!(committed.contains(kind.rule()), "the document does not mention {}", kind.rule());
     }
 }
+
+#[test]
+fn the_committed_document_lists_the_four_raster_ceilings_with_their_values() {
+    let committed = std::fs::read_to_string(doc_path()).unwrap_or_default();
+    for needle in [
+        "| LIMIT-13 | Rasters | `max_rasters` | 4096 | 4096 |",
+        "| LIMIT-14 | RasterTiles | `max_raster_tiles` | 1048576 | 131072 |",
+        "| LIMIT-15 | TileBytes | `max_tile_bytes` | 65536 | 65536 |",
+        "| LIMIT-16 | PlanDecodedBytes | `max_plan_decoded_bytes` | 268435456 | 268435456 |",
+    ] {
+        assert!(committed.contains(needle), "docs/SECURITY_LIMITS.md has no row {needle}");
+    }
+}

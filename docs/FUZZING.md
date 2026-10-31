@@ -33,13 +33,17 @@ Not included, and why: the P8.1 benchmark corpus after minimisation (P8.1 is not
 
 The corpus persists between runs in the docker volume `pvec-fuzz-corpus` on the host (`tools/fuzz.sh --keep-corpus`), and `cp -n` adds the seeds without overwriting what a run grew.
 
-### Raster seeds (issue 216, ADR 0018)
+### Raster seeds (issues 216 and 217, ADR 0018)
 
 `fuzz_directory_traversal` gets, for each of the writer bases, three files that add a kind 9 and a kind 10 entry naming
 capability 21, naming none, and naming an unregistered capability (77), so the traversal meets the capability-owned
-kinds in every state the negotiation rules decide: handed over, skipped, and refused (`NEGOTIATE-06`). A smoke run is
-300 seconds on MARS (native x86_64): `fuzz_directory_traversal` ran 6,849,016 executions at about 22,700 a second and
-found nothing. The long run of issue 190 has not run with these seeds; only the smoke run has.
+kinds in every state the negotiation rules decide: handed over, skipped, and refused (`NEGOTIATE-06`). `fuzz_component_streams`
+now implements the raster class as well as the components, decodes the raster stream of every set it opens, asserts that
+what decodes writes back to something that decodes to the same placements, and is seeded with one stream set holding a
+valid placement (the test vector of `docs/RASTER.md`). A smoke run is 300 seconds on MARS (native x86_64) per target:
+`fuzz_directory_traversal` ran 6,849,016 executions at about 22,700 a second and found nothing (issue 216), and
+`fuzz_component_streams` ran 10,444,284 executions at about 34,700 a second and found nothing (issue 217). The long run of issue 190 has not run with these seeds; only the smoke
+runs have.
 
 ## The mutator and the checksum gate
 

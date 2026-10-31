@@ -3,7 +3,9 @@ use crate::abi::{
     TIER0_INFEASIBLE_OTHER, TIER0_VERTEX_CAP,
 };
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
-use pvec::unstable::{Aabb, InfeasibleReason, PreviewForm, SpatialDirectory, Tier0Leaves};
+use pvec::unstable::{
+    Aabb, InfeasibleReason, Limits, PreviewForm, ReaderConfig, SpatialDirectory, Tier0Leaves,
+};
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
@@ -219,6 +221,12 @@ fn entity(cell: Option<u32>, id: EntityId, curve: Curve, style: u32) -> (u32, Rc
 }
 
 /// The spatial directory and Tier 0 leaf table of an opened reader, `Ok(None)` for a file with no directory.
+/// The reader configuration of every open path: the browser limits, because the module runs in a tab where a
+/// hostile file is a tab that stops responding. (Until issue 217 the module opened with `Limits::DEFAULT`.)
+fn browser() -> ReaderConfig {
+    ReaderConfig { limits: Limits::BROWSER, ..ReaderConfig::default() }
+}
+
 fn index_of(reader: &PvecReader) -> Result<Option<Index>, AbiError> {
     match reader.spatial_directory() {
         Ok(Some(dir)) => match reader.tier0_leaves(&dir) {
@@ -320,7 +328,7 @@ impl Runtime {
     /// Opens a PVec file held in memory and returns its handle.
     pub fn open(&mut self, bytes: Vec<u8>) -> Result<u32, AbiError> {
         let read = |_: PvecError| AbiError::Read;
-        let reader = PvecReader::open(bytes).map_err(read)?;
+        let reader = PvecReader::open_with_config(bytes, browser()).map_err(read)?;
         let loaded = reader.entities_in(None, true).map_err(read)?;
         let entities =
             loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
@@ -381,7 +389,11 @@ impl Runtime {
         };
         ranges.clear_needed();
         let source = Arc::clone(&ranges);
-        let opened = PvecReader::open_ranges(ranges.len, move |offset, len| source.read(offset, len));
+        let opened = PvecReader::open_ranges_with_config(
+            ranges.len,
+            move |offset, len| source.read(offset, len),
+            browser(),
+        );
         let reader = match opened {
             Ok(r) => r,
             Err(_) => {
