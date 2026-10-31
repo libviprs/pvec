@@ -188,18 +188,22 @@ result kinds keep what they need after the file is released. A file opened by ra
 
 ## Rasters (version 2, additive; issue #221, ADR 0018)
 
-A file may carry raster placements (capability 21) and their tiles. The module stores and returns the **encoded**
-tile bytes untouched and decodes nothing: it has no image codec in it, and a test (`crate_boundaries`) fails if a
-dependency of `pvec-wasm` is an image crate. The host decodes with `createImageBitmap`, orientation "none" and
-colour-space conversion "none". These exports are **additions to version 2**: `wasm_abi_version` still returns 2, and a
-consumer finds them by testing that the module exports `raster_stat`, once at start, next to the version check (the way
-`open_ranged` is found). A module without them is a version 2 module that predates rasters, and every other call works.
+A file may carry raster placements (capability 21) and their tiles (`docs/RASTER.md`). The module stores and returns
+the **encoded** tile bytes untouched and decodes nothing: it has no image codec in it, and
+`crates/pvec-checks/tests/crate_boundaries.rs` fails if a dependency of `pvec-wasm` is an image crate. The host
+decodes with `createImageBitmap`, orientation "none" and colour-space conversion "none". These exports are
+**additions to version 2**: `wasm_abi_version` still returns 2, and a consumer finds them by testing that the module
+exports `raster_stat`, once at start, next to the version check (the way `open_ranged` is found). A module without
+it is a version 2 module that predates rasters, and every other call works. Every test below is in
+`crates/pvec-wasm/tests/issue_221_raster_exports.rs` (`issue_221_raster_exports`), named for what it holds.
 
 `raster_stat(file, n)`: 0 rasters in the file, 1 rasters skipped, 2 whether the file has an image this reader cannot
-show (`Effect::Unrastered`, 0 or 1: some raster is skipped, or the file declares capability 21 and this build does not
-implement it), 3 whether the file has a raster stream at all (0 or 1). `raster_skipped(file, i, n)` for the `i`th skipped
-raster (ascending raster id): `n` 0 the `RasterId`, 1 the number of the `RASTER-NN` rule that skipped it (3 for
-`RASTER-03`; 0 for an unknown `tile_codec`, which is a raster-level skip of its own).
+show (`Effect::Unrastered`, 0 or 1: some raster is skipped, or the raster stream is refused), 3 whether the file has a
+raster stream at all (0 or 1). `raster_skipped(file, i, n)` for the `i`th skipped raster (ascending raster id): `n` 0
+the `RasterId`, 1 the number of the `RASTER-NN` rule that skipped it (4 for `RASTER-04`, an unknown `tile_codec`,
+which is known from the placement; the rule of a raster a call found refused, such as a failed `RASTER-03` sniff, is
+added to the list by that call). On a range-opened file the first raster call may return -7 until the block that holds
+the placements is provided.
 
 `raster_placement(file, r)` returns a result handle for raster number `r` (the dense `RasterId`). Arrays are read with
 `raster_buffer_len`, `raster_buffer_ptr` and `raster_buffer_elem` (result, array number):
@@ -207,46 +211,52 @@ raster (ascending raster id): `n` 0 the `RasterId`, 1 the number of the `RASTER-
 | # | array | element | stride |
 |---|---|---|---|
 | 0 | `pixel_to_source`, PVec `Transform2` order `[a b c d tx ty]`, the authored bits | `Float64Array` | 6 |
-| 1 | `width, height, visible_box (x0, y0, x1, y1), tile_edge, levels, tile_codec, channels, bit_depth, opacity, band, layer_index` (`layer_index` is 4294967295 when the raster has no layer) | `Uint32Array` | 15 |
+| 1 | `width, height, visible_box (x0, y0, x1, y1), tile_edge, levels, tile_codec, channels, bit_depth, opacity, band, layer_index` (`layer_index` is 4294967295 when the raster has no layer) | `Uint32Array` | 14 |
 | 2 | `attribution`, plain UTF-8 text, the host escapes it | `Uint8Array` | 1 |
 | 3 | `source_digest`, 32 bytes, or empty | `Uint8Array` | 1 |
 
 `raster_plan(file, min_x, min_y, max_x, max_y, scale, max_decoded)` returns a result handle: for every raster that is
 not skipped and whose footprint meets the window, the level and the tiles the viewport needs, which is
-`pvec-stream`'s `plan_raster` (STREAMING.md section 6) and nothing else. `scale` is display pixels per source unit;
-`max_decoded` is `LIMIT-16` in bytes, and 0 means the module's default. The result is a prefetch hint for the host's range
-cache: the tiles are not read. Arrays (`raster_buffer_*`):
+`pvec-stream`'s `plan_placed` (STREAMING.md section 6) and nothing else. `scale` is display pixels per source unit;
+`max_decoded` is `LIMIT-16` in bytes, and 0 means the module's (the browser preset). The result is a prefetch hint for
+the host's range cache: the tiles are not read. A raster that `LIMIT-16` cannot fit even at its coarsest level is left
+out. On a range-opened file the module names the index blocks of every raster the window touches in one round (-7).
+Arrays (`raster_buffer_*`; `n` rasters in the result):
 
 | # | array | element | stride |
 |---|---|---|---|
 | 0 | raster ids, ascending | `Uint32Array` | 1 |
 | 1 | level chosen, after `LIMIT-16` | `Uint32Array` | 1 |
-| 2 | tile table: `rasters + 1` offsets into arrays 3 to 8 | `Uint32Array` | 1 |
-| 3 | `col, row` | `Uint32Array` | 2 |
+| 2 | tile table: `n + 1` offsets into arrays 3 to 7, in tiles | `Uint32Array` | 1 |
+| 3 | `col, row` of each tile | `Uint32Array` | 2 |
 | 4 | block id of the chunk, or 4294967295 for an inline tile | `Uint32Array` | 1 |
 | 5 | file offset of the tile's first byte (an integer below 2^53) | `Float64Array` | 1 |
 | 6 | stored length | `Uint32Array` | 1 |
 | 7 | 1 for an inline tile (already in the module, not requested), else 0 | `Uint32Array` | 1 |
-| 8 | the merged byte ranges `offset, length` of the stored tiles (`ReaderConfig::gap_threshold`) | `Float64Array` | 2 |
+| 8 | the merged byte ranges `offset, length` of the stored tiles (`ReaderConfig::gap_threshold`, tile with tile only) | `Float64Array` | 2 |
+| 9 | range table: `n + 1` offsets into array 8, in ranges | `Uint32Array` | 1 |
 
 `raster_tile(file, r, level, col, row)` returns a result handle whose array 0 is the encoded bytes of that tile
 (`Uint8Array`, element type 3), after the index's XXH3-64 check and before anything else. It follows the -7 protocol
-of issue #205 on a range-opened file: the module names the tile's own range, and never the chunk around it
-(`needed_*`), and there is no second mechanism. It reads through `read_block` rules and never through the whole-block
-`read_stored`, so the chunk's block checksum is not what vouches for the tile; the index checksum is.
+of issue #205 on a range-opened file: the module names the ranges it needs in turn, the raster's index block first and
+then **the tile's own range**, never the chunk around it (`needed_*`), and there is no second mechanism. The module
+reads the tile by range (`ContainerReader::read_raster_tile`) and never through the whole-block `read_stored`, so the
+chunk's block checksum is not what vouches for the tile; the index checksum is.
 
 **Cache policy (the alternative to a range-release export).** The bytes of a tile live in three places: the range the
-host provided, the module's decoded cache, and the result handle. `release(handle)` frees the handle and drops the
-tile's provided range, so a host that releases a tile handle after `createImageBitmap` has copied the bytes holds no
-tile in the module. There is no separate range-release export. The #220 measurement decides whether that is enough;
-if it is not, a `release_range` export is an addition of the same kind.
+host provided, the module's decoded cache (none for a tile: the index is cached, the tile is not) and the result
+handle. `release(handle)` frees the handle **and drops the tile's range from the ranges the host provided**, keeping the
+rest of any larger range that held it, so a host that releases a tile handle after `createImageBitmap` has copied the
+bytes holds no tile in the module, and asks again (the host's own cache can answer) if it wants the tile once more.
+There is no separate range-release export. The #220 measurement decides whether that is enough; if it is not, a
+`release_range` export is an addition of the same kind.
 
-Codes (negative, additions to the table below): -8 the file has no raster stream, -9 the tile is not stored (a
-sparse pyramid: it draws nothing), -10 the raster is skipped by a `RASTER-NN` rule (`raster_skipped` says which). -3
-keeps meaning a bad id, level, column or row, and -4 a failed checksum (the index's or, for the index block, the
-block's).
+Codes (negative, additions to the table below): -8 the file has no raster stream, -9 the tile is not stored (a sparse
+pyramid: it draws nothing), -10 the raster is skipped by a `RASTER-NN` rule (`raster_skipped` says which). -3 keeps
+meaning a bad id, level, column or row, and -4 a failed checksum (the index's or, for the index block, the block's).
 
-The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`.
+The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
+(`raster_buffer_elem` and the other `*_elem` calls return it).
 
 ## Conformance
 

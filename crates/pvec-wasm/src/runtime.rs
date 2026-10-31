@@ -4,8 +4,8 @@ use crate::abi::{
 };
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
-    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, ReaderConfig, SpatialDirectory, Tier0Leaves,
-    TileSlot, ViewportQuery, footprint,
+    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, ReaderConfig, SpatialDirectory,
+    Tier0Leaves, TileSlot, ViewportQuery, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::RefCell;
@@ -159,6 +159,9 @@ struct Ranged {
     loaded: RefCell<Loaded>,
 }
 
+/// What reading the raster stream gave: the placements, no stream, or the error of a damaged one.
+type Placements = Result<Option<Rc<Vec<Placement>>>, AbiError>;
+
 /// What an open file keeps: the entities, keyed by id, and its index. A file opened from whole bytes has
 /// every entity from the start; one opened by ranges has the entities of the leaves its calls have read.
 /// A batch shares the entities it holds, so releasing the file does not pull the curves out from under it.
@@ -170,7 +173,7 @@ struct File {
     index: Result<Option<Index>, AbiError>,
     ranged: Option<Ranged>,
     /// The raster placements once read (`None` until then): the error of a damaged stream, no stream, or the placements.
-    rasters: RefCell<Option<Result<Option<Rc<Vec<Placement>>>, AbiError>>>,
+    rasters: RefCell<Option<Placements>>,
     /// The rasters a call found it cannot draw, by raster id, with the number of the `RASTER-NN` rule.
     skipped: RefCell<BTreeMap<u32, u32>>,
 }
@@ -299,14 +302,25 @@ enum Item {
     Cells(CellList),
     Tier0(Tier0Stream),
     /// A raster placement (`raster_placement`): the six coefficients, the numeric fields, the attribution and the digest.
-    Placement { map: Vec<f64>, fields: Vec<u32>, attribution: Vec<u8>, digest: Vec<u8> },
+    Placement {
+        map: Vec<f64>,
+        fields: Vec<u32>,
+        attribution: Vec<u8>,
+        digest: Vec<u8>,
+    },
     /// The tiles of a viewport (`raster_plan`) as parallel arrays, numbered as in `docs/WASM_ABI.md`: `u32s` are
     /// arrays 0 (raster ids), 1 (levels), 2 (tile table), 3 (col, row), 4 (block ids), 6 (lengths), 7 (inline
     /// flags) and 9 (range table); `f64s` are arrays 5 (file offsets) and 8 (merged ranges).
-    RasterPlan { u32s: [Vec<u32>; 8], f64s: [Vec<f64>; 2] },
+    RasterPlan {
+        u32s: [Vec<u32>; 8],
+        f64s: [Vec<f64>; 2],
+    },
     /// The encoded bytes of one tile and, on a range-opened file, the range to drop from the provided ones when it
     /// is released.
-    Tile { bytes: Vec<u8>, forget: Option<(Arc<Ranges>, u64, u32)> },
+    Tile {
+        bytes: Vec<u8>,
+        forget: Option<(Arc<Ranges>, u64, u32)>,
+    },
 }
 
 struct Slot {
@@ -378,7 +392,8 @@ impl Runtime {
         let index = index_of(&reader);
         // a reader is kept when a call can still read through it: an index, or rasters
         let rasters = reader.raster_placements();
-        let reader = if matches!(index, Ok(None)) && matches!(rasters, Ok(None)) { None } else { Some(reader) };
+        let reader =
+            if matches!(index, Ok(None)) && matches!(rasters, Ok(None)) { None } else { Some(reader) };
         Ok(self.insert(Item::File(Rc::new(File {
             reader,
             entities: RefCell::new(entities),
@@ -436,8 +451,11 @@ impl Runtime {
         };
         ranges.clear_needed();
         let source = Arc::clone(&ranges);
-        let opened =
-            PvecReader::open_ranges_with_config(ranges.len, move |offset, len| source.read(offset, len), browser());
+        let opened = PvecReader::open_ranges_with_config(
+            ranges.len,
+            move |offset, len| source.read(offset, len),
+            browser(),
+        );
         let reader = match opened {
             Ok(r) => r,
             Err(_) => {
@@ -807,7 +825,8 @@ impl Runtime {
     fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, u32>, AbiError> {
         let mut out = file.skipped.borrow().clone();
         match self.placements(file) {
-            Ok(p) => out.extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, 4))),
+            Ok(p) => out
+                .extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, 4))),
             Err(AbiError::NoRaster) => {}
             Err(e) => return Err(e),
         }
@@ -901,12 +920,18 @@ impl Runtime {
     /// The tiles each raster needs for `bounds` at `scale` display pixels per source unit (`pvec-stream`'s plan and
     /// nothing else). On a range-opened file the index blocks of every raster the window touches are named at once
     /// (-7); the tiles themselves are not read. A raster the limit cannot fit even at its coarsest level is left out.
-    pub fn raster_plan(&mut self, file: u32, bounds: Bounds2, scale: f64, max_decoded: f64) -> Result<u32, AbiError> {
+    pub fn raster_plan(
+        &mut self,
+        file: u32,
+        bounds: Bounds2,
+        scale: f64,
+        max_decoded: f64,
+    ) -> Result<u32, AbiError> {
         let file = self.file(file)?;
         let all = self.placements(&file)?;
         let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
         let max = match max_decoded {
-            m if m == 0.0 => None,
+            0.0 => None,
             m if m.is_finite() && m > 0.0 && m <= 9_007_199_254_740_992.0 => Some(m as u64),
             _ => return Err(AbiError::BadArgument),
         };
@@ -925,8 +950,8 @@ impl Runtime {
             if skipped.contains_key(&id) || !footprint(p).is_some_and(|f| f.intersects(&q)) {
                 continue;
             }
-            match reader.raster_index(id) {
-                Ok(index) => indexes.push((id, p, index)),
+            match reader.raster_load(id) {
+                Ok(()) => indexes.push((id, p)),
                 Err(e) if !Self::waiting(&file) => {
                     Self::refused(&file, id, &e);
                 }
@@ -939,8 +964,8 @@ impl Runtime {
         let (mut u32s, mut f64s): ([Vec<u32>; 8], [Vec<f64>; 2]) = Default::default();
         u32s[2].push(0);
         u32s[7].push(0);
-        for (id, p, index) in indexes {
-            let Ok(plan) = reader.raster_plan(id, p, &index, &query, max) else { continue };
+        for (id, p) in indexes {
+            let Ok(plan) = reader.raster_plan(id, p, &query, max) else { continue };
             u32s[0].push(id);
             u32s[1].push(plan.level);
             for t in &plan.tiles {
@@ -964,7 +989,14 @@ impl Runtime {
     /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum. On a
     /// range-opened file the module names the ranges in turn: the raster's index block, then the tile's own range
     /// and never the chunk around it (-7 each time).
-    pub fn raster_tile(&mut self, file: u32, raster: u32, level: u32, col: u32, row: u32) -> Result<u32, AbiError> {
+    pub fn raster_tile(
+        &mut self,
+        file: u32,
+        raster: u32,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<u32, AbiError> {
         let file = self.file(file)?;
         let all = self.placements(&file)?;
         let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
@@ -977,15 +1009,12 @@ impl Runtime {
         if let Some(ranged) = &file.ranged {
             ranged.ranges.clear_needed();
         }
-        let index = match reader.raster_index(raster) {
-            Ok(i) => i,
+        let slot = match reader.raster_tile_slot(raster, level, col, row) {
+            Ok(Some(slot)) => slot,
+            Ok(None) => return Err(AbiError::BadArgument),
             Err(_) if Self::waiting(&file) => return Err(AbiError::NeedRange),
             Err(e) => return Err(Self::refused(&file, raster, &e)),
         };
-        if index.tile(level, col, row).is_none() {
-            return Err(AbiError::BadArgument);
-        }
-        let slot = reader.raster_tile_slot(raster, &index, level, col, row);
         if slot == TileSlot::NotStored {
             return Err(AbiError::TileNotStored);
         }
@@ -1008,7 +1037,7 @@ impl Runtime {
     /// Array `which` of a raster result: a placement has 0 the six coefficients (`Float64Array`), 1 the fields, 2 the
     /// attribution and 3 the digest; a plan has the ten arrays of `docs/WASM_ABI.md`; a tile has array 0, the bytes.
     fn raster_array(&self, result: u32, which: u32) -> Result<RasterArray<'_>, AbiError> {
-        use RasterArray::{F64, U32, U8};
+        use RasterArray::{F64, U8, U32};
         match self.get(result)? {
             Item::Placement { map, fields, attribution, digest } => match which {
                 0 => Ok(F64(map)),

@@ -313,7 +313,15 @@ pub fn raster_placement(file: u32, raster: u32) -> i32 {
 /// arrays (`raster_buffer_*`), or a negative code (-7 until the index blocks it needs are provided).
 /// `max_decoded` is `LIMIT-16` in bytes, 0 for the module's.
 #[wasm_bindgen]
-pub fn raster_plan(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64, scale: f64, max_decoded: f64) -> i32 {
+pub fn raster_plan(
+    file: u32,
+    min_x: f64,
+    min_y: f64,
+    max_x: f64,
+    max_y: f64,
+    scale: f64,
+    max_decoded: f64,
+) -> i32 {
     RUNTIME.with(|r| {
         code(r.borrow_mut().raster_plan(file, window(min_x, min_y, max_x, max_y), scale, max_decoded))
     })

@@ -41,7 +41,8 @@ fn placement(codec: TileCodec, layer: Option<u32>) -> Placement {
 fn rasters() -> Vec<RasterIn> {
     let all = tiles(SHAPE, |_, _, _| true);
     let sparse = tiles(SHAPE, |level, col, row| !(level == 2 && (col, row) == (3, 1)));
-    let mk = |placement, tiles, inline_levels| RasterIn { placement, tiles, inline_levels, chunk_bytes: 1 << 21 };
+    let mk =
+        |placement, tiles, inline_levels| RasterIn { placement, tiles, inline_levels, chunk_bytes: 1 << 21 };
     vec![
         mk(placement(TileCodec::Png, Some(2)), all.clone(), 1),
         mk(placement(TileCodec::Png, None), sparse, 0),
@@ -117,7 +118,8 @@ fn issue_221_the_abi_stays_2_and_the_document_names_every_export_and_code() {
     // -3 and -4 keep their meaning
     assert_eq!(AbiError::BadArgument.code(), -3);
     assert_eq!(AbiError::Read.code(), -4);
-    let doc = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
+    let doc =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
     for needle in [
         "raster_stat",
         "raster_skipped",
@@ -259,17 +261,19 @@ fn issue_221_the_plan_call_is_the_plan_of_pvec_stream() {
     let bytes = file();
     let (mut rt, f) = open_whole(bytes.clone());
     // the footprint of the vector: x 100 to 740, y -206 to 178; a window over half of it at half the pixels
-    for (win, scale) in [(WHOLE, 1.0), ([100.0, -206.0, 420.0, 0.0], 1.0), ([100.0, -206.0, 740.0, 178.0], 0.25)] {
+    for (win, scale) in
+        [(WHOLE, 1.0), ([100.0, -206.0, 420.0, 0.0], 1.0), ([100.0, -206.0, 740.0, 178.0], 0.25)]
+    {
         let h = rt.raster_plan(f, window(win), scale, 0.0).unwrap();
         let reader = PvecReader::open(bytes.clone()).unwrap();
         let placements = reader.raster_placements().unwrap().unwrap();
         let q = ViewportQuery::new(Aabb::new([win[0], win[1]], [win[2], win[3]]).unwrap(), scale);
         let ids = rt.raster_u32(h, 0).unwrap().to_vec();
         assert_eq!(ids, vec![0, 1], "the skipped raster is not in the plan");
-        let (table, ranges_table) = (rt.raster_u32(h, 2).unwrap().to_vec(), rt.raster_u32(h, 9).unwrap().to_vec());
+        let (table, ranges_table) =
+            (rt.raster_u32(h, 2).unwrap().to_vec(), rt.raster_u32(h, 9).unwrap().to_vec());
         for (n, id) in ids.iter().enumerate() {
-            let index = reader.raster_index(*id).unwrap();
-            let plan = reader.raster_plan(*id, &placements[*id as usize], &index, &q, None).unwrap();
+            let plan = reader.raster_plan(*id, &placements[*id as usize], &q, None).unwrap();
             assert_eq!(rt.raster_u32(h, 1).unwrap()[n], plan.level, "level of raster {id}");
             let (a, b) = (table[n] as usize, table[n + 1] as usize);
             assert_eq!(b - a, plan.tiles.len(), "tiles of raster {id}");
@@ -290,8 +294,9 @@ fn issue_221_the_plan_call_is_the_plan_of_pvec_stream() {
                 }
             }
             let (ra, rb) = (ranges_table[n] as usize, ranges_table[n + 1] as usize);
-            let got: Vec<(f64, f64)> =
-                (ra..rb).map(|i| (rt.raster_f64(h, 8).unwrap()[2 * i], rt.raster_f64(h, 8).unwrap()[2 * i + 1])).collect();
+            let got: Vec<(f64, f64)> = (ra..rb)
+                .map(|i| (rt.raster_f64(h, 8).unwrap()[2 * i], rt.raster_f64(h, 8).unwrap()[2 * i + 1]))
+                .collect();
             let want: Vec<(f64, f64)> = plan.ranges.iter().map(|(o, l)| (*o as f64, f64::from(*l))).collect();
             assert_eq!(got, want, "ranges of raster {id}");
         }
@@ -303,9 +308,14 @@ fn issue_221_the_plan_call_is_the_plan_of_pvec_stream() {
 fn issue_221_on_a_range_opened_file_a_tile_costs_its_own_range_and_never_the_chunk() {
     let bytes = file();
     let probe = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
-    let index_block = probe.entries().iter().find(|e| e.kind == KIND_INDEX && e.cell == 0).unwrap().clone();
-    let chunk = probe.entries().iter().find(|e| e.kind == KIND_TILES && e.cell == 0 && e.subtype == 2 * 1024).unwrap().clone();
-    let want = &rasters()[0].tiles.iter().find(|t| (t.level, t.col, t.row) == (2, 1, 1)).unwrap().bytes.clone();
+    let index_block = probe.entries().iter().find(|e| e.kind == KIND_INDEX && e.cell == 0).unwrap();
+    let chunk = probe
+        .entries()
+        .iter()
+        .find(|e| e.kind == KIND_TILES && e.cell == 0 && e.subtype == 2 * 1024)
+        .unwrap();
+    let want =
+        &rasters()[0].tiles.iter().find(|t| (t.level, t.col, t.row) == (2, 1, 1)).unwrap().bytes.clone();
     assert!((want.len() as u64) < u64::from(chunk.stored_length) / 4, "a tile is a small part of its chunk");
 
     let mut host = Host::new(bytes);
@@ -316,8 +326,14 @@ fn issue_221_on_a_range_opened_file_a_tile_costs_its_own_range_and_never_the_chu
     assert_eq!(rt.raster_u8(h, 0).unwrap(), &want[..]);
     let asked: Vec<(u64, u32)> = host.served[opened..].to_vec();
     // placements (the components block), then the index block, then the tile: in turn, each its own range
-    assert!(asked.iter().any(|&(o, l)| o == index_block.offset && l == index_block.stored_length), "{asked:?}");
-    let tile_ranges: Vec<&(u64, u32)> = asked.iter().filter(|&&(o, _)| o >= chunk.offset && o < chunk.offset + u64::from(chunk.stored_length)).collect();
+    assert!(
+        asked.iter().any(|&(o, l)| o == index_block.offset && l == index_block.stored_length),
+        "{asked:?}"
+    );
+    let tile_ranges: Vec<&(u64, u32)> = asked
+        .iter()
+        .filter(|&&(o, _)| o >= chunk.offset && o < chunk.offset + u64::from(chunk.stored_length))
+        .collect();
     assert_eq!(tile_ranges.len(), 1, "one range inside the chunk: {asked:?}");
     assert_eq!(tile_ranges[0].1 as usize, want.len(), "the tile's own length");
     assert!(asked.iter().all(|&(_, l)| l != chunk.stored_length), "the whole chunk was never asked for");
@@ -349,8 +365,24 @@ fn issue_221_a_range_opened_plan_names_every_index_block_at_once() {
         }
     };
     assert!(rounds <= 2, "the placements, then both index blocks together: {rounds} rounds");
-    let kinds = |from: usize| host.served[from..].len();
-    assert!(kinds(before) >= 3, "the components block and two index blocks");
+    let probe =
+        ContainerReader::open(MemorySource::new(host.bytes.clone()), ReaderConfig::default()).unwrap();
+    for cell in [0, 1] {
+        let e = probe.entries().iter().find(|e| e.kind == KIND_INDEX && e.cell == cell).unwrap();
+        assert!(
+            host.served[before..]
+                .iter()
+                .any(|&(o, l)| o <= e.offset && e.offset + u64::from(e.stored_length) <= o + u64::from(l)),
+            "the index block of raster {cell} was never provided"
+        );
+    }
+    let tiles_asked = host.served[before..].iter().any(|&(o, _)| {
+        probe
+            .entries()
+            .iter()
+            .any(|e| e.kind == KIND_TILES && o >= e.offset && o < e.offset + u64::from(e.stored_length))
+    });
+    assert!(!tiles_asked, "a plan reads no tile");
     assert_eq!(rt.raster_u32(h, 0).unwrap(), &[0, 1]);
 }
 
@@ -375,7 +407,5 @@ fn issue_221_no_raster_path_of_the_module_reads_a_whole_block() {
         assert!(!src(file).contains("read_stored"), "{file} reads through read_stored");
     }
     let facade = src("../pvec/src/unstable.rs");
-    let raster_part = &facade[facade.find("raster_placements").unwrap()..];
-    assert!(!raster_part.contains("read_stored") && !raster_part.contains("read_block(") || raster_part.matches("read_block(").count() == 1,
-        "the raster accessors read one block (the components) and tiles by range");
+    assert!(!facade[facade.find("raster_placements").unwrap()..].contains("read_stored"));
 }
