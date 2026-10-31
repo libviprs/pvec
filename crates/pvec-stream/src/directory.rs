@@ -26,7 +26,7 @@ use pvec_numeric::{MAX_ENTITIES, check_value};
 use std::num::NonZeroU32;
 
 /// Entities per cell (the leaf capacity) that a writer cuts the directory at, and the checked-in default
-/// of this crate. [`build_directory`] and [`classify`] take the capacity as an argument, because a file
+/// of this crate. [`build_directory`] and [`classify`](crate::classify) take the capacity as an argument, because a file
 /// records the one it was built with (SPD-02) and the structural fixtures of the tests are small leaves;
 /// a writer passes this.
 ///
