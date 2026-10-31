@@ -1,4 +1,4 @@
-//! Issue P7.8: the six targets exist, are wired to libFuzzer, and survive their seeds.
+//! Issue P7.8 (and pvec#220 for the seventh): the targets exist, are wired to libFuzzer, and survive their seeds.
 #![allow(unsafe_code)]
 
 mod support;
@@ -10,17 +10,18 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 6] = [
+const NAMES: [&str; 7] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
     "fuzz_advanced_blocks",
     "fuzz_decompress_boundary",
     "fuzz_component_streams",
+    "fuzz_raster_plan",
 ];
 
 #[test]
-fn the_six_targets_are_the_ones_the_issue_names() {
+fn the_targets_are_the_ones_the_issues_name() {
     let names: Vec<&str> = TARGETS.iter().map(|(n, _)| *n).collect();
     assert_eq!(names, NAMES);
 }

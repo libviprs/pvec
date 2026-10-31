@@ -4,7 +4,7 @@ This is the hardening report for issue P7.8 (pvec#59), and how to rerun it. The 
 
 ## What is fuzzed
 
-The six targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
+The seven targets (the seventh, `fuzz_raster_plan`, is pvec#220 and has had the smoke budget but no long run yet) are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
 
 | target | input | what it holds the reader to |
 |---|---|---|
@@ -14,6 +14,7 @@ The six targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`
 | `fuzz_advanced_blocks` | six `u32` lengths, then the records, knots, weights, control points, segments and trims blocks | an accepted spline has a knot vector of the right length that does not decrease, finite numbers and strictly positive weights; a composite names only records that exist; nesting is checked before any segment is resolved |
 | `fuzz_decompress_boundary` | `[codec][declared length u32][stored bytes]`, laid out as a one-block artifact and read back | a block that decodes decodes to exactly the declared length and no more than the expansion ratio (64) times the stored length; a bomb is `LIMIT-01` |
 | `fuzz_component_streams` | a component stream set | a frame is stepped over by its declared length; only registered streams are read |
+| `fuzz_raster_plan` | a raster grid, a placement (six `f64`) and a viewport, framed in 116 bytes (pvec#220) | the plan never panics; every tile is inside its level, the decoded bytes are under the limit (`LIMIT-16`), a range starts at its first tile and ends at its last, no range is over the request ceiling unless it is one tile, and a not-stored tile is in no range |
 
 Each target asserts these, so a parser that accepts something it should have refused is a crash, as well as one that panics.
 
@@ -95,7 +96,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 ## Running it
 
 ```
-tools/fuzz.sh --host mercury --seconds 300                      # all six targets, arm64, the smoke budget
+tools/fuzz.sh --host mercury --seconds 300                      # all seven targets, arm64, the smoke budget
 tools/fuzz.sh --host mars --seconds 300 fuzz_header             # one target, native x86_64
 tools/fuzz.sh --host jupiter --no-checksum-gate fuzz_directory_traversal
 tools/fuzz.sh --host mars --seconds 14400                       # the nightly: 4 hours per target, one after the other

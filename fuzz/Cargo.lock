@@ -141,6 +141,7 @@ dependencies = [
  "pvec-container",
  "pvec-corpus",
  "pvec-entity",
+ "pvec-stream",
  "pvec-testkit",
 ]
 

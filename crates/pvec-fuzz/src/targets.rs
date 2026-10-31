@@ -26,13 +26,14 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 6] = [
+pub const TARGETS: [(&str, Target); 7] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
     ("fuzz_advanced_blocks", fuzz_advanced_blocks),
     ("fuzz_decompress_boundary", fuzz_decompress_boundary),
     ("fuzz_component_streams", fuzz_component_streams),
+    ("fuzz_raster_plan", fuzz_raster_plan),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -338,4 +339,102 @@ pub fn fuzz_component_streams(data: &[u8]) -> String {
         }
         Err(e) => e.rule().to_string(),
     }
+}
+
+/// The bytes of a `fuzz_raster_plan` input: grid, tile lookup seed, request limits, placement and viewport.
+pub const RASTER_PLAN_FRAME: usize = 116;
+
+/// A raster placement and a viewport (pvec#220), framed as little endian
+/// `[width u32][height u32][edge selector u8][levels u8][channels u8][slot seed u8][gap u32][max request u32]`
+/// `[max plan decoded bytes u64][pixel_to_source 6 x f64][min x, min y, max x, max y, scale 5 x f64]`.
+///
+/// The plan must never panic or allocate in proportion to what the numbers claim, and when it plans it must
+/// keep what it promised: every tile inside its level, decoded bytes under the limit, every range inside the
+/// bytes of the tiles it fetches (a gap is only ever bridged between two tiles), no range over the request
+/// ceiling unless it is one tile, and no inline or not-stored tile in a range.
+pub fn fuzz_raster_plan(data: &[u8]) -> String {
+    use pvec_container::BlockId;
+    use pvec_stream::{Aabb, RasterGrid, RasterPlanError, TileSlot, ViewportQuery, plan_raster};
+    let Some(f) = data.get(..RASTER_PLAN_FRAME) else { return "short".to_string() };
+    let u32_at = |i: usize| u32::from_le_bytes(f[i..i + 4].try_into().expect("4 bytes"));
+    let f64_at = |i: usize| f64::from_le_bytes(f[i..i + 8].try_into().expect("8 bytes"));
+    let grid = RasterGrid {
+        width: u32_at(0),
+        height: u32_at(4),
+        tile_edge: 256 << (f[8] % 3),
+        levels: u32::from(f[9]) % 33,
+        channels: u32::from(f[10]) % 5,
+    };
+    let seed = f[11];
+    let (gap, max_request) = (u32_at(12), u32_at(16));
+    let max_decoded = u64::from_le_bytes(f[20..28].try_into().expect("8 bytes"));
+    let map: [f64; 6] = std::array::from_fn(|i| f64_at(28 + 8 * i));
+    let v: [f64; 5] = std::array::from_fn(|i| f64_at(76 + 8 * i));
+    let Ok(bounds) = Aabb::new([v[0], v[1]], [v[2], v[3]]) else { return "bad_box".to_string() };
+    let query = ViewportQuery::new(bounds, v[4]);
+    // a tile's slot is a pure function of where it is, so the same lookup answers every call
+    let slot = |level: u32, col: u32, row: u32| {
+        let h = (u64::from(level) << 40 ^ u64::from(col) << 20 ^ u64::from(row))
+            .wrapping_add(u64::from(seed))
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        match h >> 61 {
+            0 => TileSlot::NotStored,
+            1 => TileSlot::Inline,
+            _ => {
+                // RASTER-02 keeps tiles of one chunk apart, so a tile owns the 256 KiB slot its index names
+                let index = (h >> 20) & 0xF_FFFF;
+                TileSlot::Stored {
+                    block: BlockId((h >> 40) as u32 & 0xFF),
+                    offset: 1_000_000 + index * 0x4_0000,
+                    len: 1 + (index.wrapping_mul(2_654_435_761) & 0x3_FFFF) as u32,
+                }
+            }
+        }
+    };
+    let plan = match plan_raster(&grid, &map, &query, max_decoded, gap, max_request, slot) {
+        Ok(p) => p,
+        Err(RasterPlanError::BadMap) => return "bad_map".to_string(),
+        Err(RasterPlanError::OverBudget) => return "over_budget".to_string(),
+        Err(_) => return "refused".to_string(),
+    };
+    assert!(plan.level < grid.levels, "a level outside the pyramid");
+    let shrink = 1u64 << (grid.levels - 1 - plan.level);
+    let edge = u64::from(grid.tile_edge);
+    let (cols, rows) = (
+        u64::from(grid.width).div_ceil(shrink).div_ceil(edge),
+        u64::from(grid.height).div_ceil(shrink).div_ceil(edge),
+    );
+    assert!(
+        plan.tiles.iter().all(|t| u64::from(t.col) < cols && u64::from(t.row) < rows),
+        "a tile outside its level"
+    );
+    assert!(plan.decoded_bytes <= max_decoded, "the plan is over the decoded byte limit");
+    assert_eq!(plan.decoded_bytes, plan.tiles.len() as u64 * edge * edge * u64::from(grid.channels));
+    let mut stored: Vec<(u64, u64)> = plan
+        .tiles
+        .iter()
+        .filter_map(|t| match t.slot {
+            TileSlot::Stored { offset, len, .. } => Some((offset, offset + u64::from(len))),
+            _ => None,
+        })
+        .collect();
+    stored.sort_unstable();
+    stored.dedup();
+    assert!(
+        plan.tiles.iter().all(|t| t.slot != TileSlot::NotStored),
+        "a tile that is not stored was planned"
+    );
+    let mut last_end = 0u64;
+    for &(offset, len) in &plan.ranges {
+        let end = offset + u64::from(len);
+        assert!(offset >= last_end, "ranges overlap or are out of order");
+        last_end = end;
+        let inside: Vec<&(u64, u64)> = stored.iter().filter(|s| s.0 >= offset && s.1 <= end).collect();
+        assert!(!inside.is_empty(), "a range with no tile in it");
+        assert_eq!(inside.iter().map(|s| s.0).min(), Some(offset), "a range starts before its first tile");
+        assert_eq!(inside.iter().map(|s| s.1).max(), Some(end), "a range ends after its last tile");
+        assert!(len <= max_request || inside.len() == 1, "a merged range over the request ceiling");
+    }
+    assert!(stored.iter().all(|s| plan.ranges.iter().any(|&(o, l)| o <= s.0 && s.1 <= o + u64::from(l))));
+    if plan.tiles.is_empty() { "empty".to_string() } else { "ok".to_string() }
 }

@@ -139,7 +139,8 @@ fn window(grid: &RasterGrid, level: u32, inverse: &[f64; 6], query: &ViewportQue
 /// of the tiles handed on (`tile_edge^2 * channels` each) is over `max_plan_decoded_bytes` (`LIMIT-16`),
 /// the plan drops one level coarser; if even the coarsest level does not fit it is refused. Stored tiles
 /// that are not inline are merged into ranges, tile with tile only: a gap of at most `gap_threshold`
-/// bytes is bridged while a range stays within `max_request_bytes`.
+/// bytes is bridged while a range stays within `max_request_bytes`. Tiles of one raster do not overlap in the
+/// file (RASTER-02 refuses an index where they do), which the ranges rely on.
 pub fn plan_raster(
     grid: &RasterGrid,
     pixel_to_source: &[f64; 6],
