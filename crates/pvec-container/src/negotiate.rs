@@ -581,7 +581,7 @@ satisfy is required, and an old reader refuses the file, which is the right outc
 1. It adds information about the drawing and never changes what a geometry block says. Style, text, hatch and \
 provenance are the examples; a new geometry kind is not, it needs an ADR and a section of `docs/ISO_PROFILE.md` \
 (ADR 0008) and is always required.\n\
-2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads "a kind the format defines".\n\
+2. Every block it writes has the must-understand bit clear, and the descriptor of each names the capability id. This path is first used by capability 21 (`raster`, kinds 9 and 10), which is why DIR-02 reads \"a kind the format defines\".\n\
 3. The manifest declares it with the optional requirement and the version it was written at.\n\
 4. Its blocks are delimited by their descriptors alone: a reader never needs to read a payload to know where it ends.\n\
 5. Nothing a reader that does skip it must read points into it: no geometry block, record or arena refers to a block of \
