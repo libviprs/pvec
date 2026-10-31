@@ -141,7 +141,7 @@ fn raster_01_refuses_a_tile_edge_outside_256_512_1024_levels_that_do_not_match_a
         p.visible_box = [0, 0, 512, 512];
         p.levels = 1;
     });
-    assert!(encode_rasters(&[one.clone()]).is_ok());
+    assert!(encode_rasters(std::slice::from_ref(&one)).is_ok());
     assert_eq!(rule_of(Placement { levels: 2, ..one }), "RASTER-01");
     for visible in [[0, 0, 1025, 512], [0, 0, 1024, 513], [10, 10, 10, 20], [20, 0, 10, 512], [0, 0, 0, 0]] {
         assert_eq!(rule_of(with(|p| p.visible_box = visible)), "RASTER-01", "{visible:?}");
