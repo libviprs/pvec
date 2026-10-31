@@ -6,15 +6,15 @@
 mod support;
 
 use pvec_capabilities::{CapabilityId, Declared, Requirement, Version};
+use pvec_container::Bounds;
 use pvec_container::blocks::raster::{
     CAPABILITY, IndexError, KIND_INDEX, KIND_TILES, RasterIndex, TileIn, build, subtype,
 };
-use pvec_container::directory::{FLAG_HAS_BOUNDS, ENTRY_LEN};
+use pvec_container::directory::FLAG_HAS_BOUNDS;
 use pvec_container::integrity::{Integrity, block_checksum};
-use pvec_container::reader::{AsyncContainerReader, BlockId, ContainerReader, ReadError, ReaderConfig};
+use pvec_container::reader::{AsyncContainerReader, ContainerReader, ReadError, ReaderConfig};
 use pvec_container::source::{MemorySource, Recording};
 use pvec_container::writer::RawBlock;
-use pvec_container::{Bounds, Limits};
 use std::future::Future;
 use support::art::{Art, SEALED, rebuild};
 use support::fixtures::fixtures;
@@ -39,11 +39,8 @@ fn pyramid(id: u32, grid: &[(u32, u32)], len: usize, skip: impl Fn(u32, u32, u32
     for (l, &(cols, rows)) in grid.iter().enumerate() {
         for row in 0..rows {
             for col in 0..cols {
-                let bytes = if skip(l as u32, col, row) {
-                    Vec::new()
-                } else {
-                    bytes_of(id, l as u32, col, row, len)
-                };
+                let bytes =
+                    if skip(l as u32, col, row) { Vec::new() } else { bytes_of(id, l as u32, col, row, len) };
                 out.push(TileIn { level: l as u32, col, row, bytes });
             }
         }
@@ -62,7 +59,13 @@ fn two() -> Vec<R> {
             inline: 1,
             chunk_bytes: 1 << 20,
         },
-        R { id: 1, grid: grid.clone(), tiles: pyramid(1, &grid, 40, |_, _, _| false), inline: 0, chunk_bytes: 100 },
+        R {
+            id: 1,
+            grid: grid.clone(),
+            tiles: pyramid(1, &grid, 40, |_, _, _| false),
+            inline: 0,
+            chunk_bytes: 100,
+        },
     ]
 }
 
@@ -77,7 +80,14 @@ fn blocks_of(r: &R) -> Vec<RawBlock> {
     out
 }
 
-fn block(kind: u16, cell: u32, subtype: u16, count: u32, stored: Vec<u8>, bounds: Option<Bounds>) -> RawBlock {
+fn block(
+    kind: u16,
+    cell: u32,
+    subtype: u16,
+    count: u32,
+    stored: Vec<u8>,
+    bounds: Option<Bounds>,
+) -> RawBlock {
     RawBlock {
         kind,
         subtype,
@@ -197,8 +207,8 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
     assert!(!touched(index_entry), "opening does not read an index");
     let before = reader.source().requests().len();
     // level 2 of raster 1 is in chunks of two tiles (40 bytes each, 100 a chunk)
-    let got = reader.read_raster_tile(1, 2, 4, 2).unwrap().expect("stored");
-    assert_eq!(got.as_slice(), &bytes_of(1, 2, 4, 2, 40)[..]);
+    let got = reader.read_raster_tile(1, 2, 0, 0).unwrap().expect("stored");
+    assert_eq!(got.as_slice(), &bytes_of(1, 2, 0, 0, 40)[..]);
     let seen = reader.source().requests();
     assert_eq!(seen.len() - before, 2, "the index block and the tile: {:?}", &seen[before..]);
     assert_eq!((seen[before].offset, seen[before].len), (index_entry.offset, index_entry.stored_length));
@@ -209,12 +219,15 @@ fn the_index_is_read_lazily_and_a_tile_is_one_range_inside_its_chunk() {
         .entries
         .iter()
         .find(|e| {
-            e.kind == KIND_TILES && e.cell == 1 && e.offset <= tile.offset && tile.offset + 40 <= e.offset + u64::from(e.stored_length)
+            e.kind == KIND_TILES
+                && e.cell == 1
+                && e.offset <= tile.offset
+                && tile.offset + 40 <= e.offset + u64::from(e.stored_length)
         })
         .expect("inside a chunk");
     assert!(chunk.stored_length > 40);
     // the second read of the same raster does not read the index again
-    reader.read_raster_tile(1, 2, 3, 2).unwrap();
+    reader.read_raster_tile(1, 2, 1, 0).unwrap();
     assert_eq!(reader.source().requests().len() - before, 3);
 }
 
@@ -348,22 +361,33 @@ fn raster_02_a_chunk_block_that_is_too_short_too_long_or_missing_is_refused() {
     let rasters = two();
     let blocks: Vec<RawBlock> = rasters.iter().flat_map(blocks_of).collect();
     let st = subtype(2, 3).unwrap();
-    let find = |b: &Vec<RawBlock>| b.iter().position(|x| x.kind == KIND_TILES && x.cell == 1 && x.subtype == st).unwrap();
+    let find = |b: &Vec<RawBlock>| {
+        b.iter().position(|x| x.kind == KIND_TILES && x.cell == 1 && x.subtype == st).unwrap()
+    };
     for (name, f) in [
-        ("short", Box::new(|b: &mut Vec<RawBlock>| {
-            let i = find(b);
-            b[i].stored.pop();
-            b[i].uncompressed_length -= 1;
-        }) as Box<dyn Fn(&mut Vec<RawBlock>)>),
-        ("long", Box::new(|b: &mut Vec<RawBlock>| {
-            let i = find(b);
-            b[i].stored.push(0);
-            b[i].uncompressed_length += 1;
-        })),
-        ("missing", Box::new(|b: &mut Vec<RawBlock>| {
-            let i = find(b);
-            b.remove(i);
-        })),
+        (
+            "short",
+            Box::new(|b: &mut Vec<RawBlock>| {
+                let i = find(b);
+                b[i].stored.pop();
+                b[i].uncompressed_length -= 1;
+            }) as Box<dyn Fn(&mut Vec<RawBlock>)>,
+        ),
+        (
+            "long",
+            Box::new(|b: &mut Vec<RawBlock>| {
+                let i = find(b);
+                b[i].stored.push(0);
+                b[i].uncompressed_length += 1;
+            }),
+        ),
+        (
+            "missing",
+            Box::new(|b: &mut Vec<RawBlock>| {
+                let i = find(b);
+                b.remove(i);
+            }),
+        ),
     ] {
         let art = with_blocks(&base(), Integrity::Full, edit(blocks.clone(), |b| f(b)));
         let e = refused_raster(&art, 1);
@@ -374,7 +398,9 @@ fn raster_02_a_chunk_block_that_is_too_short_too_long_or_missing_is_refused() {
 #[test]
 fn raster_06_a_tile_block_with_no_index_is_refused() {
     let rasters = two();
-    let blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| b.retain(|x| !(x.kind == KIND_INDEX && x.cell == 1)));
+    let blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| {
+        b.retain(|x| !(x.kind == KIND_INDEX && x.cell == 1))
+    });
     let art = with_blocks(&base(), Integrity::Full, blocks);
     let reader = open(&art);
     assert_eq!(reader.rasters(), vec![0, 1], "raster 1 is named by its tile blocks");
@@ -388,7 +414,8 @@ fn raster_06_a_tile_block_with_no_index_is_refused() {
 fn raster_06_a_tile_block_of_a_level_or_chunk_the_index_does_not_have_is_refused() {
     let rasters = two();
     let blocks: Vec<RawBlock> = rasters.iter().flat_map(blocks_of).collect();
-    for (name, level, chunk) in [("a level beyond levels", 5u32, 0u32), ("a chunk beyond the level's", 2, 20)] {
+    for (name, level, chunk) in [("a level beyond levels", 5u32, 0u32), ("a chunk beyond the level's", 2, 20)]
+    {
         let mut extra = blocks.clone();
         extra.push(block(KIND_TILES, 1, subtype(level, chunk).unwrap(), 1, vec![1, 2, 3], None));
         let art = with_blocks(&base(), Integrity::Full, extra);
@@ -425,22 +452,21 @@ fn raster_06_a_count_in_the_directory_that_is_not_the_tiles_is_refused() {
 #[test]
 fn raster_06_a_kind_9_or_10_entry_with_another_capability_or_none_refuses_the_file() {
     let rasters = two();
-    for capability in [0u16, 7, 22] {
-        let blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| b[0].capability = capability);
-        // the manifest has to declare what a block names, or the file is refused for that first
-        let art = rebuild(&base(), Integrity::Full, |m, existing| {
-            for id in [7u32, 22] {
+    // 0 names nothing, 22 is a capability nobody registered, and the first of the base file's own owns no kinds
+    let base = base();
+    let other = base.manifest.capabilities[0].id.get();
+    assert!(other != 21 && other != 22);
+    for capability in [0u16, 22, other as u16] {
+        let mut blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| b[0].capability = capability);
+        blocks.sort_by_key(|b| (b.kind, b.cell, b.subtype));
+        let art = rebuild(&base, Integrity::Full, |m, existing| {
+            for id in [21u32, 22] {
                 m.capabilities.push(Declared {
                     id: CapabilityId::new(id),
                     requirement: Requirement::Optional,
-                    version: Version::new(1, 0, 0),
+                    version: Version::new(1, 1, 0),
                 });
             }
-            m.capabilities.push(Declared {
-                id: CapabilityId::new(21),
-                requirement: Requirement::Optional,
-                version: Version::new(1, 1, 0),
-            });
             m.capabilities.sort_by_key(|d| d.id);
             existing.extend(blocks);
         });
@@ -463,5 +489,4 @@ fn the_default_ceiling_admits_the_index_of_a_pyramid_and_refuses_one_over_it() {
     let art = with_blocks(&base(), Integrity::Full, blocks);
     let e = open(&art).raster_index(0).expect_err("over the ceiling");
     assert_eq!(e.rule(), "LIMIT-14", "{e}");
-    let _ = (Limits::DEFAULT, ENTRY_LEN);
 }
