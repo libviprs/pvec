@@ -353,6 +353,12 @@ release directory (`tools/wasm-release.sh`, after `wasm-bindgen`) holds a module
 `336ae9a30668b003c7e2325b758a7fb05ee52cde5062a25a385a9030ea554ae1`, commit `149ed15`; `tools/wasm-release-selftest.sh DIR`
 probes its raster exports on `tests/compat/raster-probe.pvec` and passes, and a module built without them fails the probe.
 
+Measured again for issue 232 (rule names for `LIMIT-NN` and a refused stream, no new export): the staged module is
+716,752 bytes, sha256 `3e8c4b498fabe5d5d4f4b3050d2fa34584263f98c0985076d7c0af242dad43d0`, commit `d12242d`, built by
+`tools/wasm-release.sh` on MARS; the self-test passes, and its probe now also reads `raster_stat` 4 and 5 and
+`raster_skipped` selector 2. That is 9,208 more than the 707,544 above, which also covers the commits between `149ed15`
+and this one.
+
 ## The loadable module (issue 202)
 
 The raw `cargo build --target wasm32-unknown-unknown` output is not loadable: it has hashed export names
