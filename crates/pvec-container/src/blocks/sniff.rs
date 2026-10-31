@@ -152,8 +152,22 @@ pub fn sniff_codec(
     header_allowance: u32,
     bytes: &[u8],
 ) -> Result<usize, TileRefusal> {
-    let _ = (codec, tile_edge, channels, bit_depth, header_allowance, bytes);
-    Ok(1)
+    let ceiling = max_tile_bytes(tile_edge, header_allowance);
+    if bytes.len() as u64 > ceiling {
+        return Err(TileRefusal::TooLarge { found: bytes.len() as u64, ceiling });
+    }
+    match codec {
+        PNG => png(bytes, tile_edge, channels, bit_depth),
+        JPEG => {
+            // JPEG has no alpha, and no 1-bit depth
+            if !matches!(channels, 1 | 3) || bit_depth != 8 {
+                return Err(TileRefusal::Pair);
+            }
+            jpeg(bytes, tile_edge, channels)
+        }
+        WEBP => webp(bytes, tile_edge),
+        id => Err(TileRefusal::UnknownCodec { id }),
+    }
 }
 
 /// A view of a tile that counts what is looked at and refuses to look at more than [`MAX_EXAMINED`] bytes. A
@@ -194,18 +208,187 @@ impl<'a> Look<'a> {
 
 /// PNG: see the module documentation. Gives the bytes examined.
 pub fn png(bytes: &[u8], tile_edge: u32, channels: u8, bit_depth: u8) -> Result<usize, TileRefusal> {
-    let _ = (bytes, tile_edge, channels, bit_depth);
-    Ok(1)
+    const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    let mut look = Look::new(bytes);
+    let end_of = TileRefusal::Truncated;
+    if look.get(0, 8).ok_or(end_of)? != SIGNATURE {
+        return Err(TileRefusal::Malformed);
+    }
+    // IHDR is the first chunk, 13 bytes of data
+    if look.be32(8).ok_or(end_of)? != 13 || look.get(12, 4).ok_or(end_of)? != b"IHDR" {
+        return Err(TileRefusal::Malformed);
+    }
+    let width = look.be32(16).ok_or(end_of)?;
+    let height = look.be32(20).ok_or(end_of)?;
+    let (depth, colour, compression, filter, interlace) = match look.get(24, 5).ok_or(end_of)? {
+        &[a, b, c, d, e] => (a, b, c, d, e),
+        _ => return Err(end_of),
+    };
+    if width != tile_edge || height != tile_edge {
+        return Err(TileRefusal::Size { width, height });
+    }
+    // the colour type that carries these channels; palette (3) carries none
+    let expected_colour = match channels {
+        1 => 0,
+        2 => 4,
+        3 => 2,
+        4 => 6,
+        _ => return Err(TileRefusal::Format),
+    };
+    // depth 1 exists for gray only, and 16-bit is never admitted
+    let legal = depth == bit_depth && (depth == 8 || (depth == 1 && colour == 0));
+    if colour != expected_colour || !legal {
+        return Err(TileRefusal::Format);
+    }
+    if compression != 0 || filter != 0 {
+        return Err(TileRefusal::Malformed);
+    }
+    if interlace != 0 {
+        return Err(TileRefusal::Interlace);
+    }
+    // chunk framing, headers only, from the end of IHDR to an IEND that ends the tile
+    let mut at = 8 + 12 + 13;
+    let mut data = false;
+    for _ in 0..MAX_PNG_CHUNKS {
+        let len = look.be32(at).ok_or(end_of)?;
+        let kind = look.get(at + 4, 4).ok_or(end_of)?;
+        if len > i32::MAX as u32 {
+            return Err(TileRefusal::Malformed);
+        }
+        let end = (at as u64) + 12 + u64::from(len);
+        if end > bytes.len() as u64 {
+            return Err(TileRefusal::Truncated);
+        }
+        match kind {
+            b"IHDR" => return Err(TileRefusal::Malformed),
+            b"IDAT" => data = true,
+            b"IEND" => {
+                if len != 0 || !data {
+                    return Err(TileRefusal::Malformed);
+                }
+                return if end == bytes.len() as u64 { Ok(look.seen) } else { Err(TileRefusal::Trailing) };
+            }
+            _ => {}
+        }
+        at = end as usize;
+    }
+    Err(TileRefusal::Malformed)
 }
 
 /// JPEG: see the module documentation. Gives the bytes examined.
 pub fn jpeg(bytes: &[u8], tile_edge: u32, channels: u8) -> Result<usize, TileRefusal> {
-    let _ = (bytes, tile_edge, channels);
-    Ok(1)
+    let mut look = Look::new(bytes);
+    let end_of = TileRefusal::Truncated;
+    if look.get(0, 2).ok_or(end_of)? != [0xFF, 0xD8] {
+        return Err(TileRefusal::Malformed);
+    }
+    let mut at = 2usize;
+    loop {
+        if at >= JPEG_WALK {
+            return Err(TileRefusal::Walk);
+        }
+        // a marker is FF, any number of FF fill bytes, then its code
+        if look.u8(at).ok_or(end_of)? != 0xFF {
+            return Err(TileRefusal::Malformed);
+        }
+        let mut code_at = at + 1;
+        while look.u8(code_at) == Some(0xFF) {
+            code_at += 1;
+            if code_at >= JPEG_WALK {
+                return Err(TileRefusal::Walk);
+            }
+        }
+        let code = look.u8(code_at).ok_or(end_of)?;
+        match code {
+            // SOF0, SOF1, SOF2: the frame header
+            0xC0..=0xC2 => {
+                let len = usize::from(look.be16(code_at + 1).ok_or(end_of)?);
+                if len < 8 {
+                    return Err(TileRefusal::Malformed);
+                }
+                let precision = look.u8(code_at + 3).ok_or(end_of)?;
+                let height = u32::from(look.be16(code_at + 4).ok_or(end_of)?);
+                let width = u32::from(look.be16(code_at + 6).ok_or(end_of)?);
+                let nf = look.u8(code_at + 8).ok_or(end_of)?;
+                if width != tile_edge || height != tile_edge {
+                    return Err(TileRefusal::Size { width, height });
+                }
+                if precision != 8 || nf != channels || len != 8 + 3 * usize::from(nf) {
+                    return Err(TileRefusal::Format);
+                }
+                // the stream ends with EOI on the tile's last byte
+                let tail = bytes.len().checked_sub(2).and_then(|n| look.get(n, 2));
+                return if tail == Some(&[0xFF, 0xD9]) { Ok(look.seen) } else { Err(TileRefusal::Trailing) };
+            }
+            // markers with no length: TEM and RSTn
+            0x01 | 0xD0..=0xD7 => at = code_at + 1,
+            // a second SOI, EOI or SOS before a frame header, or a reserved marker: no frame to read
+            0xD8 | 0xD9 | 0xDA | 0x00 => return Err(TileRefusal::Malformed),
+            // every other segment has a length that includes its own two bytes
+            _ => {
+                let len = usize::from(look.be16(code_at + 1).ok_or(end_of)?);
+                if len < 2 {
+                    return Err(TileRefusal::Malformed);
+                }
+                at = code_at + 1 + len;
+            }
+        }
+    }
 }
 
 /// WebP: see the module documentation. Gives the bytes examined.
 pub fn webp(bytes: &[u8], tile_edge: u32) -> Result<usize, TileRefusal> {
-    let _ = (bytes, tile_edge);
-    Ok(1)
+    let mut look = Look::new(bytes);
+    let end_of = TileRefusal::Truncated;
+    if look.get(0, 4).ok_or(end_of)? != b"RIFF" || look.get(8, 4).ok_or(end_of)? != b"WEBP" {
+        return Err(TileRefusal::Malformed);
+    }
+    // the RIFF size is the rest of the tile, so nothing follows the last chunk
+    if u64::from(look.le32(4).ok_or(end_of)?) + 8 != bytes.len() as u64 {
+        return Err(TileRefusal::Trailing);
+    }
+    let size = |width: u32, height: u32, seen: usize| {
+        if width == tile_edge && height == tile_edge { Ok(seen) } else { Err(TileRefusal::Size { width, height }) }
+    };
+    match look.get(12, 4).ok_or(end_of)? {
+        // lossy: frame tag (3 bytes), start code, then 14 bits of width and of height with 2 bits of scale
+        b"VP8 " => {
+            let tag = look.get(20, 3).ok_or(end_of)?;
+            if tag[0] & 1 != 0 || look.get(23, 3).ok_or(end_of)? != [0x9D, 0x01, 0x2A] {
+                return Err(TileRefusal::Malformed);
+            }
+            let dims = look.get(26, 4).ok_or(end_of)?;
+            let (w, h) = (u16::from_le_bytes([dims[0], dims[1]]), u16::from_le_bytes([dims[2], dims[3]]));
+            if w >> 14 != 0 || h >> 14 != 0 {
+                return Err(TileRefusal::Format);
+            }
+            size(u32::from(w & 0x3FFF), u32::from(h & 0x3FFF), look.seen)
+        }
+        // lossless: the signature byte, then 14 bits of width less one and of height less one
+        b"VP8L" => {
+            if look.u8(20) != Some(0x2F) {
+                return Err(TileRefusal::Malformed);
+            }
+            let bits = look.le32(21).ok_or(end_of)?;
+            if bits >> 29 != 0 {
+                // the version field is 0 in every stream that exists
+                return Err(TileRefusal::Format);
+            }
+            size((bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1, look.seen)
+        }
+        // extended: a flags byte, then the canvas, 24 bits of width less one and of height less one
+        b"VP8X" => {
+            if look.le32(16).ok_or(end_of)? != 10 {
+                return Err(TileRefusal::Malformed);
+            }
+            if look.u8(20).ok_or(end_of)? & 0x02 != 0 {
+                return Err(TileRefusal::Animated);
+            }
+            let canvas = look.get(24, 6).ok_or(end_of)?;
+            let w = u32::from_le_bytes([canvas[0], canvas[1], canvas[2], 0]) + 1;
+            let h = u32::from_le_bytes([canvas[3], canvas[4], canvas[5], 0]) + 1;
+            size(w, h, look.seen)
+        }
+        _ => Err(TileRefusal::Malformed),
+    }
 }
