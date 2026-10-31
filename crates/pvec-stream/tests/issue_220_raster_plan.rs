@@ -100,7 +100,7 @@ fn overzoom_clamps_at_full_resolution() {
 
 #[test]
 fn a_far_zoom_out_clamps_at_the_one_tile_level() {
-    assert_eq!(choose_level(&SHEARED, 1e-9, 6), 0);
+    assert_eq!(choose_level(&SHEARED, 1.0 / 1_000_000_000.0, 6), 0);
 }
 
 #[test]
@@ -302,7 +302,7 @@ fn a_viewport_off_the_raster_plans_nothing() {
 #[test]
 fn a_huge_viewport_saturates_instead_of_overflowing() {
     let grid = grid_20k();
-    let q = view([-1e9, -1e9], [1e9, 1e9], 1e-9);
+    let q = view([-1_000_000_000.0; 2], [1_000_000_000.0; 2], 1.0 / 1_000_000_000.0);
     let p = plan(&grid, &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &q, LIMIT_16, dense(grid)).unwrap();
     assert!(p.decoded_bytes <= LIMIT_16);
     assert!(p.tiles.iter().all(|t| t.col < cols(&grid, p.level) && t.row < cols(&grid, p.level)));

@@ -69,9 +69,9 @@ fn the_fixture_is_a_valid_scan_over_the_drawing() {
     assert!(a > 0.0 && d < 0.0 && b == 0.0 && c == 0.0, "upright: y flips");
     // the four corners of the sheet land on the corners of the drawing's box
     assert_eq!((tx, ty), (0.0, 600.0));
-    assert!(
-        (a * f64::from(SCAN.width) - 800.0).abs() < 1e-9 && (ty + d * f64::from(SCAN.height)).abs() < 1e-9
-    );
+    // 800 / 8192 and 600 / 6144 are exact in binary, so the corners land exactly
+    assert_eq!(a * f64::from(SCAN.width), 800.0);
+    assert_eq!(ty + d * f64::from(SCAN.height), 0.0);
 }
 
 #[test]
