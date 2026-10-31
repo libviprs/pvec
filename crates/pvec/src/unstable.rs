@@ -6,11 +6,9 @@
 
 use crate::writer::refused;
 use crate::{Bounds2, CapabilityId, Curve, EntityId, PvecError, PvecReader, PvecWriter};
-use pvec_capabilities::{Reader, Registry, Version};
-use pvec_components::{RASTER_CAPABILITY, RasterRead, encode_rasters, read_rasters, read_streams};
+use pvec_capabilities::{Registry, Version};
+use pvec_components::{RASTER_CAPABILITY, encode_rasters};
 use pvec_container::Bounds;
-use pvec_container::directory::BlockKind;
-use pvec_container::reader::BlockId;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
@@ -282,24 +280,7 @@ impl PvecReader {
     /// The raster placements of the file, in `RasterId` order: empty when the file has none, and an error when
     /// the stream is damaged (the geometry does not depend on it).
     pub fn raster_placements(&self) -> Result<Vec<Placement>, PvecError> {
-        let Some(at) =
-            self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
-        else {
-            return Ok(Vec::new());
-        };
-        let block =
-            self.inner.read_block(BlockId(at as u32)).map_err(|e| PvecError::Read { rule: e.rule() })?;
-        let registry = Registry::v1();
-        let reader = Reader {
-            version: pvec_capabilities::FORMAT_VERSION,
-            implemented: registry.entries().iter().map(|c| c.id).collect(),
-        };
-        let opened = read_streams(block.as_bytes(), &registry, &reader).map_err(|e| read_error(e.rule()))?;
-        match read_rasters(&opened) {
-            RasterRead::Absent => Ok(Vec::new()),
-            RasterRead::Present(placements) => Ok(placements),
-            RasterRead::Damaged(e) => Err(read_error(e.rule())),
-        }
+        self.inner.raster_placements().map(|p| p.to_vec()).map_err(|e| PvecError::Read { rule: e.rule() })
     }
 
     /// The encoded bytes of tile `(col, row)` of `level` of raster `raster`, after the index's checksum has been

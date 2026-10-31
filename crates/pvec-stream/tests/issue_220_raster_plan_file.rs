@@ -119,7 +119,7 @@ fn an_inline_tile_is_present_and_the_coarse_level_costs_no_request() {
     let reader = open(&bytes);
     let index = reader.raster_index(0).unwrap();
     let mut config = ReaderConfig::default();
-    config.limits.max_plan_decoded_bytes = 256 * 256; // one tile: forces the coarsest level
+    config.limits.max_plan_decoded_bytes = 256 * 256 * 4; // one tile: forces the coarsest level
     let plan =
         plan_placed(&reader, 0, &placement(TileCodec::Png), &index, &whole_footprint(1.0), &config).unwrap();
     assert_eq!(plan.level, 0);

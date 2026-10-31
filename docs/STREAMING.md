@@ -507,7 +507,7 @@ The four corners of the viewport go through the inverse of `pixel_to_source`; th
 
 ### 6.3 The budget
 
-The plan sums `tile_edge^2 * channels` over the tiles it would hand on (stored and inline, not the ones the index says are not stored). While that is over `max_plan_decoded_bytes` (`LIMIT-16`, 256 MiB at the default, so 256 tiles of 512 px) it drops one level coarser, and if even the coarsest level does not fit, the raster is refused with `RasterPlanError::OverBudget`. A placement with a tiny scale therefore never puts every full-resolution tile into one plan.
+The plan sums `tile_edge^2 * channels` (4 for a placed raster, see 6.5) over the tiles it would hand on (stored and inline, not the ones the index says are not stored). While that is over `max_plan_decoded_bytes` (`LIMIT-16`, 256 MiB at the default, so 256 tiles of 512 px) it drops one level coarser, and if even the coarsest level does not fit, the raster is refused with `RasterPlanError::OverBudget`. A placement with a tiny scale therefore never puts every full-resolution tile into one plan.
 
 ### 6.4 The ranges
 
@@ -515,7 +515,7 @@ The stored tiles that are not inline are sorted by file offset and merged: a gap
 
 ### 6.5 From a file
 
-`plan_placed(reader, raster, placement, index, query, config)` is `plan_raster` for an open file. The caller has the placement (the raster stream, `pvec-components`) and the parsed index block (`ContainerReader::raster_index`, which fetches it lazily; in the browser the `-7` protocol of `WASM_ABI.md` does). The function reads nothing: it asks the reader for its directory only, to turn the index's `(chunk, offset)` into a block and a file offset (`offset` of the chunk's block plus the tile's offset in it). `LIMIT-16`, the gap and the request ceiling come from the `ReaderConfig`. A raster with an unknown tile codec is `RasterPlanError::Skipped`, and a tile whose chunk the directory lacks or whose range is past the chunk is planned as not stored (the open-time check, `check_raster_blocks`, refuses such a file first). The channels that size a decoded tile are the placement's pixel format (1 to 4).
+`plan_placed(reader, raster, placement, index, query, config)` is `plan_raster` for an open file. The caller has the placement (the raster stream, `pvec-components`) and the parsed index block (`ContainerReader::raster_index`, which fetches it lazily; in the browser the `-7` protocol of `WASM_ABI.md` does). The function reads nothing: it asks the reader for its directory only, to turn the index's `(chunk, offset)` into a block and a file offset (`offset` of the chunk's block plus the tile's offset in it). `LIMIT-16`, the gap and the request ceiling come from the `ReaderConfig`. A raster with an unknown tile codec is `RasterPlanError::Skipped`, and a tile whose chunk the directory lacks or whose range is past the chunk is planned as not stored (the open-time check, `check_raster_blocks`, refuses such a file first). A decoded tile is counted at four bytes a pixel whatever the placement's pixel format says, because the host decodes every tile to RGBA.
 
 ### 6.6 The Tier 0 share
 

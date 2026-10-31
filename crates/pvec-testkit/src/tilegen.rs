@@ -4,6 +4,7 @@
 //!
 //! The module is plain `std`, so the tests of `pvec-container`, which cannot depend on this crate, include it
 //! by path.
+#![allow(dead_code)]
 
 fn crc32(bytes: &[u8]) -> u32 {
     let mut c = !0u32;

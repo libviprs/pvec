@@ -2,7 +2,7 @@
 
 use crate::directory::Aabb;
 use crate::viewport::{PlanSource, ViewportQuery};
-use pvec_components::{PixelFormat, Placement};
+use pvec_components::Placement;
 use pvec_container::blocks::raster::{KIND_TILES, RasterIndex, subtype};
 use pvec_container::{BlockId, ReaderConfig};
 use std::collections::HashMap;
@@ -251,13 +251,8 @@ pub fn plan_placed<R: PlanSource>(
         height: placement.height,
         tile_edge: u32::from(placement.tile_edge),
         levels: u32::from(placement.levels),
-        channels: match placement.pixel_format {
-            PixelFormat::Gray => 1,
-            PixelFormat::GrayAlpha => 2,
-            PixelFormat::Rgb => 3,
-            // Rgba, and any format a later minor adds: the most a decoded pixel can take
-            _ => 4,
-        },
+        // the host decodes every tile to RGBA whatever the placement says, so a decoded tile is four bytes a pixel
+        channels: 4,
     };
     let slot = tile_slots(reader, raster, index);
     plan_raster(

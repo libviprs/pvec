@@ -304,6 +304,7 @@ blocks/raster.rs: RasterIndex::stored(&self) -> u32
 blocks/raster.rs: RasterIndex::tile(&self, level: u32, col: u32, row: u32) -> Option<&Tile>
 blocks/raster.rs: RasterIndex::inline_bytes(&self, tile: &Tile) -> Option<&[u8]>
 blocks/raster.rs: RasterIndex::check_grid(&self, width: u32, height: u32, tile_edge: u32) -> Result<(), IndexError>
+blocks/raster.rs: RasterIndex::chunk_stats(&self, level: u32) -> Vec<(u32, u64)>
 blocks/raster.rs: RasterIndex::check_chunks(&self, length_of: impl Fn(u32, u32) -> Option<u32>) -> Result<(), IndexError>
 blocks/raster.rs: pub fn grid_of(width: u32, height: u32, tile_edge: u32, levels: u32, level: u32) -> (u32, u32)
 blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct TileIn
@@ -805,6 +806,7 @@ reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestSta
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: ContainerReader<S>::rasters(&self) -> Vec<u32>
 reader.rs: ContainerReader<S>::raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: ContainerReader<S>::raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError>
 reader.rs: ContainerReader<S>::raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
 reader.rs: ContainerReader<S>::read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
 reader.rs: ContainerReader<S>::validate_raster(&self, raster: u32) -> Result<(), ReadError>
@@ -819,6 +821,7 @@ reader.rs: AsyncContainerReader<S>::async fn verify_artifact_digest(&self) -> Re
 reader.rs: AsyncContainerReader<S>::async fn read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: AsyncContainerReader<S>::rasters(&self) -> Vec<u32>
 reader.rs: AsyncContainerReader<S>::async fn raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
+reader.rs: AsyncContainerReader<S>::async fn raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn read_raster_tile(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<Bytes>, ReadError>
 reader.rs: AsyncContainerReader<S>::async fn validate_raster(&self, raster: u32) -> Result<(), ReadError>
