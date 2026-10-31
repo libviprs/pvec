@@ -348,3 +348,24 @@ fn input_order_does_not_matter_entries_come_out_sorted_and_lookup_works() {
     assert!(r.get(CapabilityId::new(2)).is_none());
     assert!(r.get(CapabilityId::new(5)).is_none());
 }
+
+#[test]
+fn the_raster_entry_is_21_class_raster_optional_and_1_1_0() {
+    let r = Registry::v1();
+    let c = r.get(CapabilityId::new(21)).expect("capability 21 is registered");
+    assert_eq!(c.name, "raster");
+    assert_eq!(c.class, Class::Raster);
+    assert_eq!(c.requirement, Requirement::Optional);
+    assert_eq!(c.min_reader, Version::new(1, 1, 0));
+    assert!(c.iso_construct.is_empty() && c.adr.is_none());
+    assert!(c.restriction.contains("ADR 0018"));
+    assert_eq!(r.by_name("raster").map(|c| c.id.get()), Some(21));
+}
+
+#[test]
+fn a_raster_class_entry_can_never_be_required() {
+    let mut c = component(1, "raster");
+    c.class = Class::Raster;
+    c.requirement = Requirement::Required;
+    assert_eq!(Registry::new(vec![c], vec![]).unwrap_err(), RegistryError::ComponentMustBeOptional("raster"));
+}

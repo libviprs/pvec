@@ -1,8 +1,7 @@
 # ADR 0018: Raster graphics inside a PVec artifact
 
-Status: Proposed, 2026-10-30, revised 2026-10-30 after a 7-role expert review (see "Review"). Decides #212.
-Awaiting Rom's ratification, and depends on the ratification of ADR 0017, which it amends (see "What this
-scopes"). Builds on ADR 0002 (authored bits), ADR 0005 (the index), ADR 0006 (per-block codec and checksum),
+Status: Accepted, 2026-10-31 (proposed 2026-10-30, revised 2026-10-30 after a 7-role expert review, see "Review").
+Decides #212. Ratified together with ADR 0017, which it amends (see "What this scopes" and "Ratification"). Builds on ADR 0002 (authored bits), ADR 0005 (the index), ADR 0006 (per-block codec and checksum),
 ADR 0007 (tiers), ADR 0008 and ADR 0010 (extension rules, the registry), ADR 0013 (governance) and ADR 0014
 (component streams).
 
@@ -436,16 +435,52 @@ and no geometry is affected. PMTiles to PVec import is the stage 6 path. GeoPack
 * Baking clips into alpha forces PNG or WebP on a clipped aerial that was JPEG; a polygon clip in the placement
   (open question 3) is the way out if that cost shows up.
 
+## Ratification
+
+Rom accepted this ADR and ADR 0017 on 2026-10-31 by asking for the whole of EPIC R (#214) to be resolved. The
+status flips are this change (#215), a fresh docs PR after #213, not an edit of it. He took the four decisions of
+the panel consensus (section 8) at the panel's recommended values, and I record them here as decisions, not
+questions:
+
+1. **Scan-only sheets stay out of v1.** WRT-01 keeps refusing an artifact with no entity, and capability 21 can
+   never be required, so a sheet of placements alone is not a v1 artifact. Open question 1 is closed. Reopening it
+   means dropping the optional-only rule, which the Reversal threshold already prices.
+2. **Capability-owned block kinds are the model.** Kinds 9 (`raster_index`) and 10 (`raster_tiles`) are reserved in
+   the CONTAINER.md kind table as owned by capability 21, they are not in `BlockKind::ALL`, DIR-02 stands as
+   written, and this is the first use of the chapter 5.4 item 2 path. `docs/FREEZE-v1.md` records it on the
+   extension-rules row, on purpose and dated.
+3. **The new `Raster` class.** Capability 21 `raster` is its first entry: optional by construction,
+   never required, no entity reference, may own block kinds. ADR 0010 gets a dated amendment. A raster is not a
+   geometry extension, so ADR 0013's review does not apply to it.
+4. **The tile edge range is 256 to 1024**, powers of two (the review's dissent for 256 to 512 stays recorded).
+
+The gaps the epic listed are settled the same way:
+
+* **Fuzz targets.** Three new ones, so `TARGETS` grows from six to nine: `fuzz_raster_index` (#218),
+  `fuzz_raster_headers` (#219) and `fuzz_raster_plan` (#220). The panel's "a seventh" was the first of the three.
+* **Fixture home.** Raster fixtures are container tests with digest equality, in the `pvec-testkit` golden set
+  (#218). `pvec-gold-fixtures` stays untouched: a raster has no oracle to be compared against, so an evidence class
+  there would claim something nobody measured.
+* **PMTiles split.** The byte-level import and export (archive plus a placement in, kinds 9 and 10 out, and back)
+  is `pvec-interchange` (#222). Composing the placement from a georeference is libviprs's (libviprs/libviprs#1328).
+  "Interchange" and the staged plan's stage 8 agree once read this way.
+* **Tier 0 cap owner.** The writer owns the inline cap: how many coarse levels go inline is a writer setting whose
+  default is the proposed 256 KB, and the index records what is inline. `plan_tiered` reads the index and its
+  budget can only lower what is fetched at Tier 0, never raise it, so when the two differ the smaller wins in the
+  plan and the file is unchanged. #220 measures the value and may change the default.
+* **PDF images.** The counting step is in libviprs#1328 and the bake rules are the first follow-up after the epic.
+
 ## Open questions
 
-1. Scan-only sheets: WRT-01 refuses a file with no entity. Should v1 allow an artifact of placements only, and if so
-   may it require capability 21? I lean towards no for v1 and this needs Rom's decision, since it changes the use case.
+1. Scan-only sheets: decided, out of v1 (see Ratification).
 2. Where does the CRS identifier live (placement, manifest or sidecar) so the out-of-band georeference of a
-   geo-referenced raster can be rebuilt reproducibly?
+   geo-referenced raster can be rebuilt reproducibly? Still open on purpose: it needs an answer only when a
+   producer wants the reproducible rebuild, and libviprs/libviprs#1328 proceeds with the out-of-band georeference.
 3. A polygon clip in the placement with a stencil pass, as a v1.x addition, if baking into alpha proves too costly.
-4. Is the Hilbert order inside a level worth the writer complexity on real scans (stage 4 measures requests per
-   viewport against row-major)?
-5. The constants: the texture budget, the per-plan cap and the Tier 0 cap, after measurement.
+4. Is the Hilbert order inside a level worth the writer complexity on real scans? #220 measures requests per
+   viewport against row-major. The PMTiles export of #222 does not depend on the answer.
+5. The constants: the texture budget, the per-plan cap and the Tier 0 value. #220 measures them on the reference
+   machine; the owner of the Tier 0 cap is settled in Ratification.
 
 ## Reversal threshold
 

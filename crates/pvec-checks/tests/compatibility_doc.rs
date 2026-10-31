@@ -78,3 +78,14 @@ fn the_document_states_the_lifecycle_the_lint_enforces() {
     assert!(d.contains(&format!("at least {DEPRECATED_MIN_MINORS} minor releases as `deprecated`")));
     assert!(d.contains(&format!("at least {WRITE_DISABLED_MIN_MINORS} minor releases as `write-disabled`")));
 }
+
+#[test]
+fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
+    let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
+    assert!(text.starts_with("# ") && text.contains("format_version = \"1.1.0\""));
+    let s = Snapshot::parse(&text).unwrap();
+    let e = s.entries.iter().find(|e| e.id == 21).expect("entry 21");
+    assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("raster", "raster", "optional"));
+    assert_eq!(e.min_reader.to_string(), "1.1.0");
+    assert_eq!(e.status_since.to_string(), "1.1.0");
+}
