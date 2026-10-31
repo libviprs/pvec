@@ -257,6 +257,12 @@ holds a file the defaults admit and the browser preset refuses.
 native x86_64 (MARS) and 466,223 bytes built on native arm64 (mercury). The module has 17 entry points of
 ours and 84 exports the toolchain adds. The size is recorded for P8.2, and no ceiling is asserted.
 
+Measured again for issue 217, at version 2: `cargo build --release --target wasm32-unknown-unknown -p pvec-wasm`, rustc
+1.99.1 in the `pvec-rust` image on native x86_64 (MARS), the same flags and no post-processing. The module is 658,184
+bytes with `Limits::BROWSER` wired in, and the commit before it built to 658,353 bytes under the same toolchain, so
+wiring the preset and the raster ceilings cost nothing measurable. The 466,775 bytes above are the version 1 module
+and are not comparable with these.
+
 ## The loadable module (issue 202)
 
 The raw `cargo build --target wasm32-unknown-unknown` output is not loadable: it has hashed export names

@@ -156,4 +156,12 @@ rules are RASTER-01, 04, 05 and 07; RASTER-02, 03 and 06 belong to the index and
 LIMIT-13 is the count of placements. A damaged payload keeps its `COMP-NN` rule and drops this stream only.
 
 <!-- raster-errors:begin -->
+| rule | error | meaning |
+|---|---|---|
+| LIMIT-13 | `TooMany` | more placements than the ceiling of 4,096, refused before the table is allocated |
+| RASTER-01 | `BadGrid` | a tile edge outside 256, 512 and 1024, a level count other than the fewest whose coarsest level is one tile, a grid wider than 65,535 tiles, or a visible box that is empty or outside the image |
+| RASTER-04 | `BadFormat` | JPEG with anything but gray or RGB at eight bits; an unknown codec id is not an error, it skips the raster |
+| RASTER-05 | `BadTransform` | a pixel to source map that fails NP-19 (a non-finite entry, a linear entry above 2^20, a singular map under PVec's rule) or a footprint corner that fails NP-02 |
+| RASTER-07 | `BadText` | an attribution over 255 bytes, not UTF-8, or with a control character, a line or paragraph separator or a bidi override; a digest that is not 32 bytes |
+| COMP-NN | `Stream` | the payload is damaged: truncated (COMP-01), with trailing bytes (COMP-02), a reserved field set (COMP-12) or an undefined tag (COMP-11) |
 <!-- raster-errors:end -->

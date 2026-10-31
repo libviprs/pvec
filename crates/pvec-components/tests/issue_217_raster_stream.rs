@@ -91,7 +91,7 @@ fn a_reflection_and_a_non_uniform_scale_are_legal_and_d_below_zero_is_the_normal
 #[test]
 fn a_map_that_is_singular_under_pvecs_rule_is_refused_though_the_1e_12_rule_would_take_it() {
     // det = 1e-11: above libviprs's 1e-12, at or below PVec's `REL * big^2` = 1e-10 with big = 1
-    let m = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
+    let m: [f64; 6] = [1.0, 0.0, 0.0, 1e-11, 0.0, 0.0];
     let det = m[0] * m[3] - m[1] * m[2];
     assert!(det.abs() > 1e-12, "the 1e-12 rule accepts this map");
     assert_eq!(rule_of(with(|p| p.pixel_to_source = m)), "RASTER-05");

@@ -22,6 +22,10 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 | LIMIT-10 | Knots | `max_knots` | 65553 | 16401 |
 | LIMIT-11 | NestingDepth | `max_nesting_depth` | 4 | 3 |
 | LIMIT-12 | Extent | none | the artifact length | the artifact length |
+| LIMIT-13 | Rasters | `max_rasters` | 4096 | 4096 |
+| LIMIT-14 | RasterTiles | `max_raster_tiles` | 1048576 | 131072 |
+| LIMIT-15 | TileBytes | `max_tile_bytes` | 65536 | 65536 |
+| LIMIT-16 | PlanDecodedBytes | `max_plan_decoded_bytes` | 268435456 | 268435456 |
 
 ## Rationale and where each is enforced
 
@@ -39,6 +43,10 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 | LIMIT-10 | Cites NP-18's maximum of knots on one curve (control points plus degree plus one at the maxima). | reading a curve, from the offset-table entry, before anything is copied |
 | LIMIT-11 | Cites NP-18's maximum composite nesting depth (4, the outermost curve counting as 1). A walk deeper than this is refused before the segments are resolved, so the recursion is bounded by the ceiling. | the nesting walk over the record block, before any segment is resolved |
 | LIMIT-12 | Every offset and length in the file is attacker-controlled, and a range past the end of the artifact (or one whose end wraps around 2^64) is never fetched. The ceiling is the length of the artifact itself, so it has no configuration of its own and no browser value. | the block directory, from the raw entries, before the table is parsed or any block fetched |
+| LIMIT-13 | Proposed (ADR 0018): 4,096 placements. Each raster has an index block of 64 bytes in the directory, so the ceiling is 256 KiB of directory, about 0.5% of a 50 MB file. The value stays proposed until the measurements of issue 220. | the raster stream, when the placements are read, before the table is allocated; and when the stream is written |
+| LIMIT-14 | Proposed (ADR 0018): 1,048,576 tiles per artifact and 131,072 in the browser. An index entry is about 24 bytes, so that is 24 MiB and 3 MiB of index at the ceilings, inside LIMIT-02; the numbers borrow LIMIT-06's. Proposed until issue 220 measures it. | the raster index block (issue 218), from the counts in its header, before the tile table is allocated |
+| LIMIT-15 | Proposed (ADR 0018): one tile is stored as at most `2 * 4 * tile_edge^2` plus this field's allowance of 65,536 bytes (589,824 at an edge of 256, 2,162,688 at 512, 8,454,144 at 1024). An uncompressed RGBA PNG of the tile is `4 * edge^2` plus framing, so twice that admits every honest encoding and refuses a progressive JPEG whose only purpose is decode time. Proposed until issue 220 measures it. | the tile read (issue 219), from the length in the raster index, before the range is requested |
+| LIMIT-16 | Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. Proposed until issue 220 measures it. | the raster plan (issue 220), before the first range of the plan is requested |
 
 ## Refusal behaviour
 

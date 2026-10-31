@@ -456,7 +456,11 @@ limits.rs: LimitKind::ControlPoints
 limits.rs: LimitKind::Knots
 limits.rs: LimitKind::NestingDepth
 limits.rs: LimitKind::Extent
-limits.rs: LimitKind::const ALL: [LimitKind; 12]
+limits.rs: LimitKind::Rasters
+limits.rs: LimitKind::RasterTiles
+limits.rs: LimitKind::TileBytes
+limits.rs: LimitKind::PlanDecodedBytes
+limits.rs: LimitKind::const ALL: [LimitKind; 16]
 limits.rs: LimitKind::rule(self) -> &'static str
 limits.rs: LimitKind::field(self) -> &'static str
 limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct LimitExceeded
@@ -484,6 +488,10 @@ limits.rs: Limits.max_knots: u32
 limits.rs: Limits.max_nesting_depth: u32
 limits.rs: Limits.max_alloc_bytes: u64
 limits.rs: Limits.max_decode_work: u64
+limits.rs: Limits.max_rasters: u32
+limits.rs: Limits.max_raster_tiles: u32
+limits.rs: Limits.max_tile_bytes: u32
+limits.rs: Limits.max_plan_decoded_bytes: u64
 limits.rs: Limits::const DEFAULT: Limits
 limits.rs: Limits::const BROWSER: Limits
 limits.rs: Limits::get(&self, kind: LimitKind) -> u64
