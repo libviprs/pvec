@@ -338,6 +338,14 @@ bytes with `Limits::BROWSER` wired in, and the commit before it built to 658,353
 wiring the preset and the raster ceilings cost nothing measurable. The 466,775 bytes above are the version 1 module
 and are not comparable with these.
 
+Measured again for issue 221, the raster exports, same command, toolchain and host: 668,425 bytes at the commit before
+them (the plan of issue 220, on the raster blocks of issue 218) and 744,291 bytes with the eight `raster_*` exports,
+so the group costs 75,866 bytes (+11.3%). Against the 658,184 bytes of the issue 217 measurement that is 86,107 more in
+all, and the module is still a range-opened reader with no image codec in it (`crate_boundaries`). The staged
+release directory (`tools/wasm-release.sh`, after `wasm-bindgen`) holds a module of 707,544 bytes, sha256
+`336ae9a30668b003c7e2325b758a7fb05ee52cde5062a25a385a9030ea554ae1`, commit `149ed15`; `tools/wasm-release-selftest.sh DIR`
+probes its raster exports on `tests/compat/raster-probe.pvec` and passes, and a module built without them fails the probe.
+
 ## The loadable module (issue 202)
 
 The raw `cargo build --target wasm32-unknown-unknown` output is not loadable: it has hashed export names
