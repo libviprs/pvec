@@ -22,8 +22,9 @@ pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
 pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
-    InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry,
-    Tier0Leaves, Tier0Plan, ViewportQuery,
+    InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, RasterPlan, RasterPlanError,
+    ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot, ViewportQuery,
+    footprint, reported_extent,
 };
 
 /// One push, kept so that `finish` can lay the file out again with cells.
@@ -296,5 +297,58 @@ impl PvecReader {
             .read_raster_tile(raster.index(), level, col, row)
             .map(|t| t.map(|b| b.as_slice().to_vec()))
             .map_err(|e| PvecError::Read { rule: e.rule() })
+    }
+}
+
+impl PvecReader {
+    /// The rasters the directory names, ascending.
+    pub fn rasters(&self) -> Vec<u32> {
+        self.inner.rasters()
+    }
+
+    /// Reads the index block of `raster` and keeps it, which a plan or a tile call then finds. On a file behind
+    /// ranges it is the call that names the block's range; a host that plans for several rasters loads each first
+    /// so that every missing range is named at once.
+    pub fn raster_load(&self, raster: u32) -> Result<(), PvecError> {
+        self.inner.raster_index(raster).map(drop).map_err(crate::reader::container)
+    }
+
+    /// The tiles of `raster` that `query` needs: `pvec_stream::plan_placed` over this reader's directory and
+    /// limits, with `LIMIT-16` replaced by `max_decoded` when given. It reads the index block when it has not
+    /// (see [`PvecReader::raster_load`]) and no tile.
+    pub fn raster_plan(
+        &self,
+        raster: u32,
+        placement: &Placement,
+        query: &ViewportQuery,
+        max_decoded: Option<u64>,
+    ) -> Result<RasterPlan, PvecError> {
+        let index = self.inner.raster_index(raster).map_err(crate::reader::container)?;
+        let mut config = self.inner.config().clone();
+        if let Some(max) = max_decoded {
+            config.limits.max_plan_decoded_bytes = max;
+        }
+        pvec_stream::plan_placed(&self.inner, raster, placement, &index, query, &config).map_err(|e| {
+            read_error(match e {
+                RasterPlanError::OverBudget => "LIMIT-16",
+                RasterPlanError::Skipped => "RASTER-04",
+                _ => "RASTER-05",
+            })
+        })
+    }
+
+    /// Where tile `(level, col, row)` of `raster` is: the range of its chunk a host would fetch, inline in the
+    /// index block, or not stored. `None` for an address outside the pyramid.
+    pub fn raster_tile_slot(
+        &self,
+        raster: u32,
+        level: u32,
+        col: u32,
+        row: u32,
+    ) -> Result<Option<TileSlot>, PvecError> {
+        let index = self.inner.raster_index(raster).map_err(crate::reader::container)?;
+        Ok(index
+            .tile(level, col, row)
+            .map(|_| pvec_stream::tile_slots(&self.inner, raster, &index)(level, col, row)))
     }
 }

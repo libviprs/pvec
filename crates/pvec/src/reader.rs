@@ -63,7 +63,7 @@ pub struct PvecReader {
     manifest: Manifest,
 }
 
-fn container(e: pvec_container::reader::ReadError) -> PvecError {
+pub(crate) fn container(e: pvec_container::reader::ReadError) -> PvecError {
     PvecError::Read { rule: e.rule() }
 }
 

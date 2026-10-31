@@ -223,7 +223,9 @@ raster_plan.rs: RasterPlanError::Skipped
 raster_plan.rs: pub fn choose_level(pixel_to_source: &[f64; 6], scale: f64, levels: u32) -> u32
 raster_plan.rs: pub fn plan_raster(grid: &RasterGrid, pixel_to_source: &[f64; 6], query: &ViewportQuery, max_plan_decoded_bytes: u64, gap_threshold: u32, max_request_bytes: u32, slot: impl Fn(u32, u32, u32) -> TileSlot) -> Result<RasterPlan, RasterPlanError>
 raster_plan.rs: pub fn plan_placed<R: PlanSource>(reader: &R, raster: u32, placement: &Placement, index: &RasterIndex, query: &ViewportQuery, config: &ReaderConfig) -> Result<RasterPlan, RasterPlanError>
+raster_plan.rs: pub fn footprint(p: &Placement) -> Option<Aabb>
 raster_plan.rs: pub fn reported_extent(root: Aabb, placements: &[Placement]) -> Aabb
+raster_plan.rs: pub fn tile_slots<'a, R: PlanSource>(reader: &R, raster: u32, index: &'a RasterIndex) -> impl Fn(u32, u32, u32) -> TileSlot + 'a
 scheduler.rs: pub trait Clock
 scheduler.rs: Clock::now(&self) -> Duration
 scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Interaction

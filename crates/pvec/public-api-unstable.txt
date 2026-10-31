@@ -4,7 +4,7 @@ unstable.rs: pub use pvec_container::blocks::raster::TileIn
 unstable.rs: pub use pvec_container::limits::Limits
 unstable.rs: pub use pvec_container::negotiate::{Effect, ReaderCapabilities}
 unstable.rs: pub use pvec_container::reader::ReaderConfig
-unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, ViewportQuery, }
+unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, RasterPlan, RasterPlanError, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot, ViewportQuery, footprint, reported_extent, }
 unstable.rs: PvecWriter::new_indexed(manifest: crate::Manifest, cell_capacity: u32, tier0_max_error: Option<f64>) -> Result<PvecWriter, PvecError>
 unstable.rs: PvecReader::spatial_directory(&self) -> Result<Option<SpatialDirectory>, PvecError>
 unstable.rs: PvecReader::tier0_leaves(&self, directory: &SpatialDirectory) -> Result<Tier0Leaves, PvecError>
@@ -20,3 +20,7 @@ unstable.rs: PvecWriter::rasters(&mut self, placements: &[Placement]) -> Result<
 unstable.rs: PvecWriter::raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError>
 unstable.rs: PvecReader::raster_placements(&self) -> Result<Vec<Placement>, PvecError>
 unstable.rs: PvecReader::raster_tile(&self, raster: RasterId, level: u32, col: u32, row: u32) -> Result<Option<Vec<u8>>, PvecError>
+unstable.rs: PvecReader::rasters(&self) -> Vec<u32>
+unstable.rs: PvecReader::raster_load(&self, raster: u32) -> Result<(), PvecError>
+unstable.rs: PvecReader::raster_plan(&self, raster: u32, placement: &Placement, query: &ViewportQuery, max_decoded: Option<u64>) -> Result<RasterPlan, PvecError>
+unstable.rs: PvecReader::raster_tile_slot(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<TileSlot>, PvecError>

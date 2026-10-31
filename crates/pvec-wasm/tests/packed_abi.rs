@@ -316,3 +316,20 @@ fn issue_54_the_surface_check_catches_an_export_that_returns_strings_or_objects(
         "wrapped signatures are read whole"
     );
 }
+
+#[test]
+fn issue_221_the_u8_buffers_and_the_element_type_table_are_as_documented() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let abi = fs::read_to_string(manifest.join("src/abi.rs")).unwrap();
+    let body = abi.split("pub enum ElemType {").nth(1).and_then(|b| b.split('}').next()).unwrap();
+    let variants: Vec<&str> =
+        body.lines().map(str::trim).filter(|l| l.ends_with(',') && !l.starts_with("///")).collect();
+    assert_eq!(variants, ["F64,", "F32,", "U32,", "U8,"], "the element type table has four entries");
+    let bindings = fs::read_to_string(manifest.join("src/bindings.rs")).unwrap();
+    for (name, code) in [("F64", 0), ("F32", 1), ("U32", 2), ("U8", 3)] {
+        assert!(bindings.contains(&format!("ElemType::{name} => {code},")), "ElemType::{name} is not {code}");
+    }
+    let doc = fs::read_to_string(manifest.join("../../docs/WASM_ABI.md")).unwrap();
+    assert!(doc.contains("The element type table has four entries"));
+    assert!(doc.contains("`Uint8Array`, element type 3"));
+}
