@@ -85,14 +85,15 @@ The same targets also run on stable Rust without libFuzzer, so the pull request 
 
 ## The raster targets (issues #218 and #219)
 
-The smoke budget of a pull request for the raster work is 300 seconds a target, run on MARS (native x86_64, one container, two cpus) with `tools/fuzz.sh --host mars --seconds 300 fuzz_raster_index fuzz_directory_traversal`. `fuzz_directory_traversal` has the kind 9 and kind 10 seed entries of issue #216 in its corpus, which is where the traversal changed. No run produced a crash, an out-of-memory or a timeout.
+The smoke budget of a pull request for the raster work is 300 seconds a target, run on MARS (native x86_64, one container, two cpus) with `tools/fuzz.sh --host mars --seconds 300 fuzz_raster_index fuzz_raster_headers fuzz_directory_traversal`. `fuzz_directory_traversal` has the kind 9 and kind 10 seed entries of issue #216 in its corpus, which is where the traversal changed. No run produced a crash, an out-of-memory or a timeout.
 
 | target | host | platform | time | executions | exec/s | edges | features | corpus | peak RSS |
 |---|---|---|---|---|---|---|---|---|---|
 | `fuzz_raster_index` | mars | native x86_64 | 301 s | 38,193,245 | 126,887 | 479 | 1,159 | 69 -> 102 | 457 MB |
 | `fuzz_directory_traversal` | mars | native x86_64 | 301 s | 7,927,434 | 26,336 | 4,251 | 9,976 | 257 -> 1,067 | 466 MB |
+| `fuzz_raster_headers` | mars | native x86_64 | 301 s | 80,509,768 | 267,474 | not kept | not kept | 147 -> 520 | 624 MB |
 
-The index target plateaus early (479 edges after 1.3 million executions): its parser is a short chain of checks, and the structure-aware mutator keeps the length so the counts keep adding up. The corpus of the run lives in a docker volume that `tools/fuzz.sh` removes at the end unless `--keep-corpus` is given; the seeds are rebuilt from the tiler by `seed-corpus`, so nothing is lost by that.
+The edge and feature counts of the headers run were not kept (the log keeps its last forty lines). The index target plateaus early (479 edges after 1.3 million executions): its parser is a short chain of checks, and the structure-aware mutator keeps the length so the counts keep adding up. The corpus of the run lives in a docker volume that `tools/fuzz.sh` removes at the end unless `--keep-corpus` is given; the seeds are rebuilt from the tiler by `seed-corpus`, so nothing is lost by that.
 
 ## The long run (P7.8, issue #190)
 
