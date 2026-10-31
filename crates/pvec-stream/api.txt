@@ -117,6 +117,7 @@ generation.rs: DropCounts::total(&self) -> u64
 lib.rs: pub use directory::*
 lib.rs: pub use generation::*
 lib.rs: pub use ownership::*
+lib.rs: pub use raster_plan::*
 lib.rs: pub use scheduler::*
 lib.rs: pub use straddler::*
 lib.rs: pub use tier0_leaf::*
@@ -196,6 +197,33 @@ ownership.rs: ViewportRefs.refs: Vec<PayloadRef>
 ownership.rs: pub fn gather(dir: &SpatialDirectory, refs: &CellRefs, viewport: &Aabb) -> ViewportRefs
 ownership.rs: pub fn advanced_rows<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs) -> Result<Vec<(usize, Vec<u32>)>, OwnershipError>
 ownership.rs: pub fn read_viewport<S: BlockSource>(reader: &ContainerReader<S>, gathered: &ViewportRefs, mut visit: impl FnMut(EntityId, &HotBlockView<'_>, usize)) -> Result<usize, OwnershipError>
+raster_plan.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct RasterGrid
+raster_plan.rs: RasterGrid.width: u32
+raster_plan.rs: RasterGrid.height: u32
+raster_plan.rs: RasterGrid.tile_edge: u32
+raster_plan.rs: RasterGrid.levels: u32
+raster_plan.rs: RasterGrid.channels: u32
+raster_plan.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum TileSlot
+raster_plan.rs: TileSlot::NotStored
+raster_plan.rs: TileSlot::Inline
+raster_plan.rs: TileSlot::Stored { block: BlockId, offset: u64, len: u32 }
+raster_plan.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct PlannedTile
+raster_plan.rs: PlannedTile.col: u32
+raster_plan.rs: PlannedTile.row: u32
+raster_plan.rs: PlannedTile.slot: TileSlot
+raster_plan.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct RasterPlan
+raster_plan.rs: RasterPlan.level: u32
+raster_plan.rs: RasterPlan.tiles: Vec<PlannedTile>
+raster_plan.rs: RasterPlan.ranges: Vec<(u64, u32)>
+raster_plan.rs: RasterPlan.decoded_bytes: u64
+raster_plan.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum RasterPlanError
+raster_plan.rs: RasterPlanError::BadMap
+raster_plan.rs: RasterPlanError::OverBudget
+raster_plan.rs: RasterPlanError::Skipped
+raster_plan.rs: pub fn choose_level(pixel_to_source: &[f64; 6], scale: f64, levels: u32) -> u32
+raster_plan.rs: pub fn plan_raster(grid: &RasterGrid, pixel_to_source: &[f64; 6], query: &ViewportQuery, max_plan_decoded_bytes: u64, gap_threshold: u32, max_request_bytes: u32, slot: impl Fn(u32, u32, u32) -> TileSlot) -> Result<RasterPlan, RasterPlanError>
+raster_plan.rs: pub fn plan_placed<R: PlanSource>(reader: &R, raster: u32, placement: &Placement, index: &RasterIndex, query: &ViewportQuery, config: &ReaderConfig) -> Result<RasterPlan, RasterPlanError>
+raster_plan.rs: pub fn reported_extent(root: Aabb, placements: &[Placement]) -> Aabb
 scheduler.rs: pub trait Clock
 scheduler.rs: Clock::now(&self) -> Duration
 scheduler.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Interaction
@@ -456,6 +484,7 @@ tiers.rs: Scene::same_drawing(&self, other: &Scene) -> bool
 tiers.rs: Scene::apply(&mut self, result: RefinementResult) -> Result<Applied, Tier0Error>
 tiers.rs: Scene::refine(&mut self, id: EntityId, exact: &Curve) -> Result<Refined, Tier0Error>
 viewport.rs: pub const DEFAULT_PREFETCH_MARGIN_PX: f64
+viewport.rs: pub const RASTER_TIER0_CAP: u64
 viewport.rs: pub trait PlanSource
 viewport.rs: PlanSource::entries(&self) -> &[BlockEntry]
 viewport.rs: PlanSource::plan(&self, ids: &[BlockId]) -> Result<Vec<RangeRequest>, ReadError>
@@ -468,6 +497,7 @@ viewport.rs: ViewportQuery.scale: f64
 viewport.rs: ViewportQuery.tier_budget: u64
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ViewportConfig
 viewport.rs: ViewportConfig.prefetch_margin_px: f64
+viewport.rs: ViewportConfig.raster_tier0_cap: u64
 viewport.rs: impl Default for ViewportConfig
 viewport.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Priority
 viewport.rs: Priority::Visible
