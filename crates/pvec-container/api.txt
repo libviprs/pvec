@@ -964,6 +964,8 @@ writer.rs: WriteError::Stream(StreamError)
 writer.rs: WriteError::Container(ContainerError)
 writer.rs: WriteError::Geometry(GeometryError)
 writer.rs: WriteError::Tier0Cell { cell: u32 }
+writer.rs: WriteError::Raster(IndexError)
+writer.rs: WriteError::Placement(RasterError)
 writer.rs: WriteError::rule(&self) -> &'static str
 writer.rs: pub const WRITE_RULES: &[(&str, &str)]
 writer.rs: impl fmt::Display for WriteError
@@ -974,6 +976,8 @@ writer.rs: impl From<StreamError> for WriteError
 writer.rs: impl From<ContainerError> for WriteError
 writer.rs: impl From<GeometryError> for WriteError
 writer.rs: pub const ADVANCED_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_CHUNK_BYTES: u32
+writer.rs: pub const RASTER_INLINE_BYTES: u64
 writer.rs: #[derive(Debug)] pub struct ContainerWriter
 writer.rs: #[derive(Clone, Debug, PartialEq)] pub struct Derived
 writer.rs: Derived.entity: EntityId
@@ -997,4 +1001,7 @@ writer.rs: ContainerWriter::set_spatial_directory(&mut self, nodes: u32, bounds:
 writer.rs: ContainerWriter::set_cell_refs(&mut self, cells: u32, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::set_straddler_lists(&mut self, entries: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::push_tier0_leaf(&mut self, cell: u32, count: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
-writer.rs: ContainerWriter::finish(self) -> Result<Vec<u8>, WriteError>
+writer.rs: ContainerWriter::raster_chunk_bytes(&mut self, bytes: u32)
+writer.rs: ContainerWriter::raster_inline_bytes(&mut self, bytes: u64)
+writer.rs: ContainerWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>
