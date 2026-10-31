@@ -78,3 +78,39 @@ fn the_document_states_the_lifecycle_the_lint_enforces() {
     assert!(d.contains(&format!("at least {DEPRECATED_MIN_MINORS} minor releases as `deprecated`")));
     assert!(d.contains(&format!("at least {WRITE_DISABLED_MIN_MINORS} minor releases as `write-disabled`")));
 }
+
+#[test]
+fn the_document_and_the_matrix_agree_on_the_raster_row() {
+    let d = doc();
+    for needle in ["Effect::Unrastered", "NEGOTIATE-06", "capability-owned", "`min_reader` at 1.0.0"] {
+        assert!(d.contains(needle), "docs/COMPATIBILITY.md does not mention {needle}");
+    }
+    let conformance = fs::read_to_string(repo_root().join("docs/CONFORMANCE.md")).unwrap();
+    assert!(
+        conformance.contains("tests/compat/raster-degraded.pvec") && conformance.contains("capability 21"),
+        "the forward-compatible gate names the raster fixture"
+    );
+    assert!(repo_root().join("tests/compat/raster-degraded.pvec").is_file(), "the fixture is checked in");
+    let matrix = fs::read_to_string(repo_root().join("tests/compat/matrix.txt")).unwrap();
+    assert!(
+        matrix.contains("case old-reader-raster-file-open-degraded"),
+        "the 1.0.0 reader, raster file row"
+    );
+    let pairs = matrix.lines().filter(|l| l.starts_with("case ")).count();
+    let words = ["eleven", "twelve", "thirteen", "fourteen"];
+    assert!(
+        d.contains(&format!("outcome of {} reader and file pairs", words[pairs - 11])),
+        "the document counts {pairs} pairs differently"
+    );
+}
+
+#[test]
+fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
+    let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
+    assert!(text.starts_with("# ") && text.contains("format_version = \"1.1.0\""));
+    let s = Snapshot::parse(&text).unwrap();
+    let e = s.entries.iter().find(|e| e.id == 21).expect("entry 21");
+    assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("raster", "raster", "optional"));
+    assert_eq!(e.min_reader.to_string(), "1.1.0");
+    assert_eq!(e.status_since.to_string(), "1.1.0");
+}

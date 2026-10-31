@@ -28,6 +28,7 @@ The STEP and GIS columns are what the semantic profile declares for each capabil
 | 18 | `source_provenance` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | source handle bytes per EntityId; never inside the id |
 | 19 | `dwg_semantics` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | reserved space for future DWG semantics; opaque to a reader that does not know it |
 | 20 | `semantic_class` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | element classes (wall, column) by EntityId and room and corridor regions bounded by EntityId rings; embeds no curve |
+| 21 | `raster` | raster | 1.0.0 | none | none | optional | not applicable | not applicable | 1.1.0 | none | image placements in source space and the encoded tiles of block kinds 9 and 10, stored untouched, never required; see ADR 0018 |
 
 ## Retired ids
 

@@ -778,7 +778,10 @@ impl<'a> Validation<'a> {
             Some(BlockKind::SpatialDirectory | BlockKind::CellRefs | BlockKind::Tier0) => {}
             // likewise the straddler lists: `pvec-stream` checks them against this directory when they are opened
             Some(BlockKind::Straddlers) => {}
-            // a block of a kind nobody knows is skipped when the file is opened and never fed here
+            // a block of a kind nobody knows is skipped when the file is opened and never fed here; one of a
+            // kind a capability owns that this reader implements was handed over, and its payload is the
+            // capability's to parse
+            None if crate::negotiate::CAPABILITY_OWNED_KINDS.iter().any(|(k, _, _)| *k == entry.kind) => {}
             None => return Err(internal()),
         }
         Ok(())

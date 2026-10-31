@@ -14,6 +14,7 @@ only page that defines one.
 
 * [CONTAINER.md](CONTAINER.md): header, manifest, blocks, writer, negotiation, and an annotated hex dump of a real file (chapter 6).
 * [GEOMETRY_ENCODING.md](GEOMETRY_ENCODING.md): how geometry is encoded in blocks.
+* [RASTER.md](RASTER.md): rasters inside an artifact, the placement and the index and tile blocks (ADR 0018).
 * [CAPABILITIES.md](CAPABILITIES.md) and [COMPATIBILITY.md](COMPATIBILITY.md): the capability registry and the compatibility rules.
 * [EXTENSIONS.md](EXTENSIONS.md): how an extension is proposed and accepted.
 * [ISO_PROFILE.md](ISO_PROFILE.md): the ISO 10303-42 constructs PVec is aligned to, and the ones it does not support.

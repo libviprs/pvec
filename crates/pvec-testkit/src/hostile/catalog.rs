@@ -906,7 +906,7 @@ fn tags(b: &mut Builder, d: &At, line: &At, s: &At, st: &At) {
         Requires::Negotiation,
         "unknown_optional_block_kind_is_skipped",
         "streams",
-        vec![Op::u16(comp.entry + entry_field("kind"), 9)],
+        vec![Op::u16(comp.entry + entry_field("kind"), 99)],
         Expect::Accept,
     );
     b.refuse(F, "unknown_hot_kind", "drawing", vec![Op::u16(d.hot_field(LINE, "kind"), 9)], &["HOT-04"]);
@@ -1007,7 +1007,7 @@ fn negotiation(b: &mut Builder, line: &At, st: &At) {
         Requires::Negotiation,
         "unknown_optional_block_kind_with_a_declared_capability_is_skipped",
         "streams",
-        vec![Op::u16(entry("kind"), 9), Op::u16(entry("capability"), 14)],
+        vec![Op::u16(entry("kind"), 99), Op::u16(entry("capability"), 14)],
         Expect::Accept,
     );
     // so is an optional block whose codec is one nobody has heard of
@@ -1025,7 +1025,7 @@ fn negotiation(b: &mut Builder, line: &At, st: &At) {
         Requires::Negotiation,
         "optional_block_names_an_undeclared_capability",
         "streams",
-        vec![Op::u16(entry("kind"), 9), Op::u16(entry("capability"), 77)],
+        vec![Op::u16(entry("kind"), 99), Op::u16(entry("capability"), 77)],
         Expect::Refuse(vec!["NEGOTIATE-05"]),
     );
     // the last declared capability of the line fixture, as an entry of the manifest's capability table

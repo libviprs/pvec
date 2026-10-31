@@ -28,7 +28,7 @@ use crate::manifest::{Bounds, ByteRange, DirectoryPointer, LengthUnit, Manifest,
 use crate::spec::{cap, dir};
 use core::cmp::Ordering;
 use core::fmt;
-use pvec_capabilities::{CapabilityId, Declared, Registry, Version};
+use pvec_capabilities::{CapabilityId, Declared, Registry, Requirement, Version};
 use pvec_components::{Stream, StreamError, encode_streams};
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
@@ -946,7 +946,11 @@ impl ContainerWriter {
     }
 
     /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
-    fn declarations(&self) -> Result<(Vec<Declared>, Version), WriteError> {
+    ///
+    /// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
+    /// skippable by definition, and raising the version for it would make an older reader refuse the file at
+    /// `NEGOTIATE-03` before it ever reached the skip path.
+    fn declarations(&self, registry: &Registry) -> Result<(Vec<Declared>, Version), WriteError> {
         let mut wanted: Vec<CapabilityId> = Vec::new();
         for id in
             self.config.capabilities.iter().copied().chain(self.streams.iter().map(|(_, s)| s.capability))
@@ -958,12 +962,13 @@ impl ContainerWriter {
         if self.sorts(SortKey::CapabilityId) {
             wanted.sort_unstable();
         }
-        let registry = Registry::v1();
         let mut min_reader = Version::new(1, 0, 0);
         let mut out = Vec::with_capacity(wanted.len());
         for id in wanted {
             let c = registry.get(id).ok_or(WriteError::UnknownCapability { id: id.get() })?;
-            min_reader = min_reader.max(c.min_reader);
+            if c.requirement == Requirement::Required {
+                min_reader = min_reader.max(c.min_reader);
+            }
             out.push(Declared { id, requirement: c.requirement, version: c.version });
         }
         Ok((out, min_reader))
@@ -1168,7 +1173,7 @@ impl ContainerWriter {
         if let Some(w) = ids.windows(2).find(|w| w[0] == w[1]) {
             return Err(WriteError::DuplicateId { id: w[0] });
         }
-        let (capabilities, min_reader) = self.declarations()?;
+        let (capabilities, min_reader) = self.declarations(&Registry::v1())?;
         let source_bounds = match self.config.bounds {
             Some(b) => checked_bounds(b).ok_or(WriteError::BadBounds { id: None })?,
             None => self
@@ -1296,4 +1301,55 @@ fn shifted(rot: f64, start: f64, sweep: f64) -> (f64, f64) {
         s = 0.0;
     }
     (s, sweep)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pvec_capabilities::Capability;
+
+    /// The v1 registry with the line capability's `min_reader` raised and its requirement set, so the hoist
+    /// can be seen on a required and on an optional capability at a higher version.
+    fn registry_with(line: Requirement, min_reader: Version) -> Registry {
+        let v1 = Registry::v1();
+        let entries: Vec<Capability> = v1
+            .entries()
+            .iter()
+            .cloned()
+            .map(|mut c| {
+                if c.id == pvec_capabilities::ids::LINE {
+                    c.requirement = line;
+                    c.min_reader = min_reader;
+                }
+                c
+            })
+            .collect();
+        Registry::new(entries, v1.retired().to_vec()).expect("a valid registry")
+    }
+
+    fn declared_min_reader(registry: &Registry) -> Version {
+        let config = WriterConfig {
+            unit: LengthUnit::Millimetre,
+            metadata: Metadata {
+                producer_id: "test".to_string(),
+                producer_version: "0".to_string(),
+                corpus_revision: None,
+            },
+            bounds: None,
+            capabilities: vec![pvec_capabilities::ids::LINE],
+        };
+        ContainerWriter::new(config).declarations(registry).expect("declares").1
+    }
+
+    #[test]
+    fn a_required_capability_at_a_higher_version_raises_the_minimum_reader() {
+        let r = registry_with(Requirement::Required, Version::new(1, 1, 0));
+        assert_eq!(declared_min_reader(&r), Version::new(1, 1, 0));
+    }
+
+    #[test]
+    fn an_optional_capability_at_a_higher_version_leaves_the_minimum_reader_at_1_0_0() {
+        let r = registry_with(Requirement::Optional, Version::new(1, 1, 0));
+        assert_eq!(declared_min_reader(&r), Version::new(1, 0, 0));
+    }
 }

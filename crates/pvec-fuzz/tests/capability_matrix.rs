@@ -46,7 +46,7 @@ fn list(text: Option<&String>) -> Vec<String> {
 
 /// The three readers of the matrix.
 fn readers() -> Vec<(&'static str, ReaderCapabilities)> {
-    let mut old = (14..=20).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
+    let mut old = (14..=21).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
     old.version = Version::new(1, 0, 0);
     let mut new = ReaderCapabilities::v1().with(CapabilityId::new(99), 3, 1);
     new.version = Version::new(1, 1, 0);
