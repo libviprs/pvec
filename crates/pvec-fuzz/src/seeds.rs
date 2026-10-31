@@ -211,6 +211,9 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
     if target == "fuzz_raster_headers" {
         return raster_header_inputs();
     }
+    if target == "fuzz_raster_archive" {
+        return raster_archive_inputs();
+    }
     if target == "fuzz_raster_index" {
         // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
         return raster_index_inputs();
@@ -532,4 +535,67 @@ fn raster_plan_frames() -> Vec<Vec<u8>> {
             })
         })
         .collect()
+}
+
+/// Archives for `fuzz_raster_archive` (pvec#222): sparse pyramids of each tile type, with and without the
+/// `vnd.pvec` placement and the attribution, and for each the archive cut short and with single bytes of the
+/// header and of the first directory flipped, so the mutants reach the parts behind the header checks.
+fn raster_archive_inputs() -> Vec<Vec<u8>> {
+    use pvec_components::{Band, PixelFormat, Placement, TileCodec};
+    use pvec_interchange::pmtiles::{
+        RasterArchive, RasterTile, RasterTileType, placement_json, write_raster_archive,
+    };
+    let placement = |codec| Placement {
+        pixel_to_source: [0.5, 0.25, 0.125, -0.5, 100.0, 50.0],
+        width: 1000,
+        height: 600,
+        visible_box: [0, 0, 1000, 600],
+        tile_edge: 256,
+        levels: 3,
+        tile_codec: codec,
+        pixel_format: PixelFormat::Rgb,
+        bit_depth: 8,
+        opacity: 255,
+        band: Band::Underlay,
+        layer_index: None,
+        source_digest: None,
+        attribution: "survey".into(),
+    };
+    let tile = |z: u8, x: u32, y: u32, png: &[u8]| RasterTile { z, x, y, bytes: png.to_vec() };
+    let png = pvec_testkit::tilegen::png(256, 3, 8, &pvec_testkit::tilegen::payload(40, 3));
+    let jpeg = pvec_testkit::tilegen::jpeg(256, 3, false, &pvec_testkit::tilegen::payload(40, 3));
+    let webp = pvec_testkit::tilegen::webp_vp8(256, 256, &pvec_testkit::tilegen::payload(40, 3));
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    for (ty, codec, bytes) in [
+        (RasterTileType::Png, TileCodec::Png, &png),
+        (RasterTileType::Jpeg, TileCodec::Jpeg, &jpeg),
+        (RasterTileType::Webp, TileCodec::Webp, &webp),
+    ] {
+        let tiles = vec![
+            tile(0, 0, 0, bytes),
+            tile(1, 0, 0, bytes),
+            tile(1, 1, 1, bytes),
+            tile(2, 0, 0, bytes),
+            tile(2, 3, 2, bytes),
+        ];
+        for (pvec, attribution) in [
+            (Some(placement_json(&placement(codec))), Some("survey".to_string())),
+            (None, None),
+            (Some("{\"raster\":{}}".to_string()), None),
+        ] {
+            let archive = RasterArchive { tile_type: ty, tiles: tiles.clone(), pvec, attribution };
+            let Ok(a) = write_raster_archive(&archive) else { continue };
+            for cut in [0, 7, 126, 127, a.len() / 2, a.len() - 1] {
+                out.push(a[..cut.min(a.len())].to_vec());
+            }
+            for at in (0..127).step_by(3).chain(127..a.len().min(200)) {
+                let mut m = a.clone();
+                m[at] ^= 0xA5;
+                out.push(m);
+            }
+            out.push(a);
+        }
+    }
+    out.push(Vec::new());
+    one_of(out, |v| v.as_slice())
 }
