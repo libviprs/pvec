@@ -17,7 +17,7 @@
 //!   the first chunk, `VP8`, `VP8L` or `VP8X` (an animation flag is refused). The header has no channel count, so
 //!   none is checked.
 //!
-//! Every sniffer looks through a [`Look`], which counts the bytes it examines and refuses to go past
+//! Every sniffer looks through a `Look`, which counts the bytes it examines and refuses to go past
 //! [`MAX_EXAMINED`] (the 64 KiB of the JPEG walk), so the work per tile is a constant and not the tile's length.
 //!
 //! A tile that passes is the whole of one image. One that does not is refused by name, so that a producer

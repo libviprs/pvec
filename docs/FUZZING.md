@@ -85,6 +85,27 @@ Every run ended with no crash, no out-of-memory and no timeout. The peak RSS of 
 
 The same targets also run on stable Rust without libFuzzer, so the pull request gate does not need a nightly toolchain: `PVEC_FUZZ_EXECUTIONS=3000000 cargo test --release -p pvec-fuzz --test smoke -- --nocapture` ran three seeds of 3,000,000 executions per target (54 million in about 40 seconds on the MacBook), with the allocator counted per execution against the same budget. That driver is not coverage guided and is the weaker evidence; it is the one a test can run every time.
 
+## The raster targets (issues #218 and #219)
+
+The smoke budget of a pull request for the raster work is 300 seconds a target, run on MARS (native x86_64, one container, two cpus) with `tools/fuzz.sh --host mars --seconds 300 fuzz_raster_index fuzz_raster_headers fuzz_directory_traversal`. `fuzz_directory_traversal` has the kind 9 and kind 10 seed entries of issue #216 in its corpus, which is where the traversal changed. No run produced a crash, an out-of-memory or a timeout.
+
+| target | host | platform | time | executions | exec/s | edges | features | corpus | peak RSS |
+|---|---|---|---|---|---|---|---|---|---|
+| `fuzz_raster_index` | mars | native x86_64 | 301 s | 38,193,245 | 126,887 | 479 | 1,159 | 69 -> 102 | 457 MB |
+| `fuzz_directory_traversal` | mars | native x86_64 | 301 s | 7,927,434 | 26,336 | 4,251 | 9,976 | 257 -> 1,067 | 466 MB |
+| `fuzz_raster_headers` | mars | native x86_64 | 301 s | 80,509,768 | 267,474 | not kept | not kept | 147 -> 520 | 624 MB |
+
+The edge and feature counts of the headers run were not kept (the log keeps its last forty lines). The index target plateaus early (479 edges after 1.3 million executions): its parser is a short chain of checks, and the structure-aware mutator keeps the length so the counts keep adding up. The corpus of the run lives in a docker volume that `tools/fuzz.sh` removes at the end unless `--keep-corpus` is given; the seeds are rebuilt from the tiler by `seed-corpus`, so nothing is lost by that.
+
+The four hour nightly of the two raster targets (issue #219), `tools/fuzz.sh --host mars --seconds 14400 --keep-corpus`, one container each, started 2026-10-31 about 04:00 PDT: no crash, out-of-memory or timeout, and no file in any artifact directory.
+
+| target | host | platform | time | executions | exec/s | corpus | peak RSS |
+|---|---|---|---|---|---|---|---|
+| `fuzz_raster_index` | mars | native x86_64 | 4.0 h (14,400 s) | 2,245,200,601 | 155,905 | 69 -> 105 | 652 MB |
+| `fuzz_raster_headers` | mars | native x86_64 | 4.0 h (14,400 s) | 4,772,243,633 | 331,382 | 147 -> 615 | 713 MB |
+
+Both are far past 10^6 executions. The corpora are in the docker volumes `pvec-fuzz-corpus-r219n-index` and `pvec-fuzz-corpus-r219n-headers` on MARS.
+
 ## The long run (P7.8, issue #190)
 
 `--seconds` is per target and the targets of one invocation run one after the other, so six targets at 14,400 s on one host is 24 hours. To fit the window I ran separate `tools/fuzz.sh` invocations in parallel, one container each (`--cpus 1`, libFuzzer is single threaded), each with its own `RUN_ID` and its own corpus volume (`CORPUS_VOL`), after building the image once on every host so they did not race on the image tag. All of it started at 00:07 PDT on 2026-10-28 and ended by 04:12.
@@ -124,7 +145,7 @@ Crash reproducers come back to `.fuzz-out/<run>/<host>/<target>/`. Hosted CI is 
 
 ## What is not claimed
 
-* `fuzz_raster_index` (issue #218) and `fuzz_raster_headers` (issue #219) have not run for the nightly window: the long run above is of the first six targets and predates it. The nightly of the two raster targets on MARS (four hours each) is the last step of phase 1 (issue #219), and it is recorded here when it has run, with its counts and platform.
+* The nightly of the two raster targets ran 4.0 h each on MARS (see "The raster targets"); the other six targets were not rerun. It was one container each, one cpu, so the counts are one core's.
 * `fuzz_raster_plan` (pvec#220) has run 300 seconds on mars (native x86_64) and no other time: 12,390 executions with no crash, the row above. It has not run for the 4 hour budget of the others and has not run on arm64 at all. The throughput is 41 executions a second against thousands for the others, because one input can make the plan look at a window of a million cells at several levels, which is the bound that the plan keeps (`MAX_WINDOW_CELLS`) and not a stall; mars was also loaded by other jobs during the run (its load average was above 40).
 * Four of the six targets ran 1.94 hours, not 4 (see the long run above); only `fuzz_directory_traversal` and `fuzz_decompress_boundary` ran the full 4 hours, on x86_64 only. Neither architecture ran every target for 4 hours. All six passed 10^6 executions with no crash, so the open part is the extra two hours of coverage guided search on those four, and the claim P8.7 needs to freeze the security limits rests on that.
 * The x86_64 results are 120 seconds, not the stated 300. The arm64 ones are the stated budget.

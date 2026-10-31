@@ -4,7 +4,7 @@
 //! intact, and no refused tile can be fetched as an image.
 //!
 //! The container's writer refuses what the reader would, so a hostile tile cannot be written the ordinary way.
-//! [`file`] writes it with the writer's tile check switched off, which is the one use that switch has.
+//! [`file()`] writes it with the writer's tile check switched off, which is the one use that switch has.
 
 use crate::tilegen;
 use pvec_capabilities::Version;

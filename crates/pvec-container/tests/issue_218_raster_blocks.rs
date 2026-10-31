@@ -499,3 +499,37 @@ fn the_default_ceiling_admits_the_index_of_a_pyramid_and_refuses_one_over_it() {
     let e = open(&art).raster_index(0).expect_err("over the ceiling");
     assert_eq!(e.rule(), "LIMIT-14", "{e}");
 }
+
+#[test]
+fn raster_06_an_index_block_stored_with_a_codec_is_refused() {
+    let rasters = two();
+    let blocks = edit(rasters.iter().flat_map(blocks_of).collect(), |b| {
+        let i = b.iter().position(|x| x.kind == KIND_INDEX && x.cell == 1).unwrap();
+        b[i].codec = 1;
+    });
+    let art = with_blocks(&base(), Integrity::Full, blocks);
+    let e = refused_raster(&art, 1);
+    assert!(matches!(e, ReadError::Raster(IndexError::Block { raster: 1, subtype: 0 })), "{e:?}");
+}
+
+#[test]
+fn limit_14_holds_over_the_artifact_when_two_threads_read_two_rasters_at_once() {
+    // 17 tiles in raster 0 and 33 in raster 1: either fits a ceiling of 40, both do not
+    let art = file(Integrity::Full).0;
+    let config = ReaderConfig {
+        limits: pvec_container::Limits { max_raster_tiles: 40, ..pvec_container::Limits::DEFAULT },
+        ..ReaderConfig::default()
+    };
+    for _ in 0..40 {
+        let reader = ContainerReader::open(MemorySource::new(art.bytes.clone()), config.clone()).unwrap();
+        let (a, b) = std::thread::scope(|s| {
+            let a = s.spawn(|| reader.raster_index(0).map(|_| ()));
+            let b = s.spawn(|| reader.raster_index(1).map(|_| ()));
+            (a.join().unwrap(), b.join().unwrap())
+        });
+        assert!(a.is_ok() || b.is_ok(), "one of them fits: {a:?} {b:?}");
+        let refused = [a, b].into_iter().filter_map(Result::err).collect::<Vec<_>>();
+        assert_eq!(refused.len(), 1, "the second one to ask is over the ceiling: {refused:?}");
+        assert_eq!(refused[0].rule(), "LIMIT-14");
+    }
+}
