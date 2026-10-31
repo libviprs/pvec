@@ -507,7 +507,7 @@ fn issue_222_a_tile_id_past_zoom_31_or_not_in_ascending_order_is_refused() {
 
 #[test]
 fn issue_222_the_metadata_is_bounded_and_must_be_an_object_with_an_object_key() {
-    let lim = RasterReadLimits { max_metadata_bytes: 4, ..RasterReadLimits::default() };
+    let lim = RasterReadLimits { max_metadata_bytes: 1, ..RasterReadLimits::default() };
     assert!(matches!(
         read_raster_archive(&build(&simple_parts()), &lim),
         Err(RasterArchiveError::BadMetadata(_))

@@ -12,6 +12,7 @@ pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-entity = { path = "../pvec-entity" }
 pvec-geometry = { path = "../pvec-geometry" }
 pvec-numeric = { path = "../pvec-numeric" }
+miniz_oxide = "0.9"
 
 # The schema validation test runs a pinned validator in a hermetic container (pvec-hermetic); the STEP
 # digest test hashes the export with the corpus crate's SHA-256.
