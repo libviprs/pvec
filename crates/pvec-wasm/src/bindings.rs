@@ -9,8 +9,8 @@
 //! Version 2 adds the spatial directory and the Tier 0 stream (`directory_*`, `cells_*`, `tier0_*`), all
 //! of the same shape: a handle, then lengths, offsets and element types of the arrays behind it.
 //!
-//! The reader works on bytes in memory, so `open` takes the file whole. Range requests over HTTP are a
-//! feature of the facade that is not there yet (`http` is a marker), and with it the range callback.
+//! `open` takes the file whole. `open_ranged`, `provide_range`, `open_poll` and `needed_*` (issue #205) open
+//! it by byte ranges the host supplies, and a call that needs one that is missing returns -7.
 
 // SAFETY: the `#[wasm_bindgen]` expansion emits `unsafe` attributes and blocks of its own. Nothing in
 // this file writes `unsafe` itself.
@@ -284,4 +284,67 @@ pub fn tier0_buffer_ptr(result: u32, which: u32) -> u32 {
 #[wasm_bindgen]
 pub fn tier0_buffer_elem(result: u32, which: u32) -> i32 {
     RUNTIME.with(|r| code(r.borrow().tier0_view(result, which).map(elem)))
+}
+
+/// Starts opening a file of `len` bytes that the host serves by byte ranges, and returns a handle, or a
+/// negative code (-3 for a length that is not a whole number from 1 up). Nothing is read yet: call
+/// `open_poll` (still ABI version 2: a module that has this export has the range calls).
+#[wasm_bindgen]
+pub fn open_ranged(len: f64) -> i32 {
+    match whole(len) {
+        Some(len) => RUNTIME.with(|r| code(r.borrow_mut().open_ranged(len))),
+        None => AbiError::BadArgument.code(),
+    }
+}
+
+/// Hands the module the bytes at `offset` of a range-opened file (or of the handle `open_ranged` returned):
+/// 0, or a negative code (-3 when the range is not inside the file). It may be more than was asked for.
+#[wasm_bindgen]
+pub fn provide_range(handle: u32, offset: f64, bytes: &[u8]) -> i32 {
+    match whole(offset) {
+        Some(offset) => RUNTIME.with(|r| unit(r.borrow_mut().provide_range(handle, offset, bytes))),
+        None => AbiError::BadArgument.code(),
+    }
+}
+
+/// Tries to finish opening: the handle `open_ranged` returned, which is then the file's, -7 when ranges are
+/// missing (see `needed_count`), -4 when what was provided is not a PVec file.
+#[wasm_bindgen]
+pub fn open_poll(handle: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().open_poll(handle)))
+}
+
+/// How many ranges the last call on `handle` that returned -7 still needs, or a negative code.
+#[wasm_bindgen]
+pub fn needed_count(handle: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow().needed(handle).map(|n| n.len() as u32)))
+}
+
+/// The first byte of range `i` of the needed list, or NaN when there is none.
+#[wasm_bindgen]
+pub fn needed_offset(handle: u32, i: u32) -> f64 {
+    RUNTIME.with(|r| {
+        r.borrow()
+            .needed(handle)
+            .ok()
+            .and_then(|n| n.get(i as usize).map(|(o, _)| *o as f64))
+            .unwrap_or(f64::NAN)
+    })
+}
+
+/// The length of range `i` of the needed list, or a negative code.
+#[wasm_bindgen]
+pub fn needed_len(handle: u32, i: u32) -> i32 {
+    RUNTIME.with(|r| {
+        code(
+            r.borrow()
+                .needed(handle)
+                .and_then(|n| n.get(i as usize).map(|(_, l)| *l).ok_or(AbiError::BadArgument)),
+        )
+    })
+}
+
+/// `v` as a whole number of bytes (an `f64` holds one exactly up to 2^53), or `None`.
+fn whole(v: f64) -> Option<u64> {
+    (v.is_finite() && v >= 0.0 && v.fract() == 0.0 && v <= 9_007_199_254_740_992.0).then_some(v as u64)
 }

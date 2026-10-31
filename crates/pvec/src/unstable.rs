@@ -11,6 +11,7 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
 use std::collections::HashMap;
 
+pub use crate::reader::LoadedEntity;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
     InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry,
@@ -163,5 +164,50 @@ impl PvecReader {
             .entries()
             .get(first..first.saturating_add(blocks.count as usize))
             .map_or(0, |run| run.iter().map(|e| u64::from(e.stored_length)).sum())
+    }
+}
+
+impl PvecReader {
+    /// The byte ranges that reading the Tier 0 blocks of `cells` costs, as `(offset, length)`: blocks close
+    /// together in one range, the way the reader asks for them, and a block it already holds left out. Nothing
+    /// is read. A host that serves the file by ranges (`http`) fetches these before it makes the call.
+    pub fn tier0_ranges(&self, leaves: &Tier0Leaves, cells: &[CellId]) -> Result<Vec<(u64, u32)>, PvecError> {
+        let ids: Vec<_> = cells.iter().filter_map(|c| leaves.block(*c)).collect();
+        self.ranges_of(&ids)
+    }
+
+    /// The byte ranges that [`PvecReader::entities_in`] would read, as above.
+    pub fn entity_ranges(&self, cells: Option<&[u32]>, advanced: bool) -> Result<Vec<(u64, u32)>, PvecError> {
+        let mut ids: Vec<_> = (0..self.inner.entries().len() as u32)
+            .map(pvec_container::reader::BlockId)
+            .filter(|id| {
+                let e = &self.inner.entries()[id.0 as usize];
+                e.block_kind() == Some(pvec_container::directory::BlockKind::Hot)
+                    && e.cell < pvec_container::directory::STRADDLER_CELL_FIRST
+                    && cells.is_none_or(|c| c.contains(&e.cell))
+            })
+            .collect();
+        if advanced {
+            let chunks = self.inner.advanced_chunk_count().map_err(|e| PvecError::Read { rule: e.rule() })?;
+            let all: Vec<usize> = (0..chunks).collect();
+            ids.extend(
+                self.inner.advanced_chunk_blocks(&all).map_err(|e| PvecError::Read { rule: e.rule() })?,
+            );
+        }
+        self.ranges_of(&ids)
+    }
+
+    fn ranges_of(&self, ids: &[pvec_container::reader::BlockId]) -> Result<Vec<(u64, u32)>, PvecError> {
+        let missing: Vec<_> = ids.iter().copied().filter(|id| !self.inner.is_cached(*id)).collect();
+        let plan = self.inner.plan(&missing).map_err(|e| PvecError::Read { rule: e.rule() })?;
+        Ok(plan.into_iter().map(|r| (r.offset, r.len)).collect())
+    }
+
+    /// The entities of the hot blocks of `cells` (all of them when `None`) and, when `advanced`, of the
+    /// advanced curves, each with the cell it was read from (`None` for an advanced curve) and its style
+    /// reference, in ascending entity id order. It reads only those blocks, which is what makes a
+    /// viewport cost its own leaves when the file is behind ranges.
+    pub fn entities_in(&self, cells: Option<&[u32]>, advanced: bool) -> Result<Vec<LoadedEntity>, PvecError> {
+        self.scan(cells, advanced)
     }
 }

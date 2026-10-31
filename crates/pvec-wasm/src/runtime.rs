@@ -5,7 +5,10 @@ use crate::abi::{
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{Aabb, InfeasibleReason, PreviewForm, SpatialDirectory, Tier0Leaves};
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// One entity of an open file.
 struct Entity {
@@ -14,22 +17,133 @@ struct Entity {
     /// `None` for a curve that has no bounds (an unbounded line), which no viewport can cull.
     bounds: Option<Bounds2>,
     style: u32,
+    /// The leaf whose hot block it was read from, `None` for an advanced curve.
+    cell: Option<u32>,
 }
 
-/// The spatial directory and the Tier 0 blocks of a file that has them, with the reader that reads a leaf's
-/// block when a call asks for it (so the file's bytes stay in memory as long as the file is open).
+/// The spatial directory and the Tier 0 leaf table of a file that has them.
 struct Index {
-    reader: PvecReader,
     dir: SpatialDirectory,
     leaves: Tier0Leaves,
 }
 
-/// What an open file keeps: the entities, in ascending id order, and its index. A batch shares it, so
-/// releasing the file does not pull the curves out from under a batch. A directory the reader refused is
-/// kept as the error, so that only the calls that need it fail.
+/// The bytes a host has provided for a range-opened file, and the ranges the last call that could not
+/// finish still needs. The reader's read callback and the runtime share it, so it is behind a lock
+/// (contract: the callback has to be `Send + Sync`).
+struct Ranges {
+    len: u64,
+    state: Mutex<RangeState>,
+}
+
+#[derive(Default)]
+struct RangeState {
+    /// Disjoint, ascending, never adjacent: provided ranges are merged.
+    have: Vec<(u64, Vec<u8>)>,
+    needed: Vec<(u64, u32)>,
+}
+
+impl Ranges {
+    fn new(len: u64) -> Arc<Ranges> {
+        Arc::new(Ranges { len, state: Mutex::new(RangeState::default()) })
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, RangeState> {
+        self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Keeps `bytes` as the content of `offset..`, merging with whatever it overlaps or touches.
+    fn provide(&self, offset: u64, bytes: &[u8]) {
+        if bytes.is_empty() {
+            return;
+        }
+        let end = offset + bytes.len() as u64;
+        let mut st = self.lock();
+        let (mut start, mut stop) = (offset, end);
+        let mut merged: Vec<(u64, Vec<u8>)> = Vec::new();
+        let mut absorbed: Vec<(u64, Vec<u8>)> = Vec::new();
+        for (o, b) in st.have.drain(..) {
+            if o <= end && o + b.len() as u64 >= offset {
+                start = start.min(o);
+                stop = stop.max(o + b.len() as u64);
+                absorbed.push((o, b));
+            } else {
+                merged.push((o, b));
+            }
+        }
+        let mut whole = vec![0u8; (stop - start) as usize];
+        // older bytes first, so that what was just provided wins where they overlap
+        for (o, b) in &absorbed {
+            whole[(o - start) as usize..(o - start) as usize + b.len()].copy_from_slice(b);
+        }
+        whole[(offset - start) as usize..(offset - start) as usize + bytes.len()].copy_from_slice(bytes);
+        merged.push((start, whole));
+        merged.sort_by_key(|(o, _)| *o);
+        st.have = merged;
+    }
+
+    fn covers(have: &[(u64, Vec<u8>)], offset: u64, len: u32) -> bool {
+        have.iter().any(|(o, b)| *o <= offset && offset + u64::from(len) <= *o + b.len() as u64)
+    }
+
+    /// The bytes of `offset..offset + len` when they were provided. When they were not, the range is
+    /// noted as needed and the read fails, which is how the reader finds out it has to stop.
+    fn read(&self, offset: u64, len: u32) -> Result<Vec<u8>, String> {
+        let mut st = self.lock();
+        if let Some((o, b)) =
+            st.have.iter().find(|(o, b)| *o <= offset && offset + u64::from(len) <= *o + b.len() as u64)
+        {
+            let at = (offset - o) as usize;
+            return Ok(b[at..at + len as usize].to_vec());
+        }
+        if !st.needed.contains(&(offset, len)) {
+            st.needed.push((offset, len));
+        }
+        Err("range not provided".to_string())
+    }
+
+    fn clear_needed(&self) {
+        self.lock().needed.clear();
+    }
+
+    fn needed(&self) -> Vec<(u64, u32)> {
+        self.lock().needed.clone()
+    }
+
+    /// Notes the part of `wanted` that was not provided as needed. True when something is.
+    fn need_all(&self, wanted: Vec<(u64, u32)>) -> bool {
+        let mut st = self.lock();
+        let missing: Vec<(u64, u32)> =
+            wanted.into_iter().filter(|(o, l)| !Ranges::covers(&st.have, *o, *l)).collect();
+        st.needed = missing;
+        !st.needed.is_empty()
+    }
+}
+
+/// What a range-opened file has read so far: which leaves' hot blocks, and whether the advanced curves, are
+/// in `File::entities`.
+#[derive(Default)]
+struct Loaded {
+    cells: HashSet<u32>,
+    advanced: bool,
+    everything: bool,
+}
+
+/// What a file opened by ranges keeps besides its reader.
+struct Ranged {
+    ranges: Arc<Ranges>,
+    loaded: RefCell<Loaded>,
+}
+
+/// What an open file keeps: the entities, keyed by id, and its index. A file opened from whole bytes has
+/// every entity from the start; one opened by ranges has the entities of the leaves its calls have read.
+/// A batch shares the entities it holds, so releasing the file does not pull the curves out from under it.
+/// A directory the reader refused is kept as the error, so that only the calls that need it fail. The
+/// reader is kept when a call can still read through it: the file has an index, or it is behind ranges.
 struct File {
-    entities: Vec<Entity>,
+    reader: Option<PvecReader>,
+    entities: RefCell<BTreeMap<u32, Rc<Entity>>>,
     index: Result<Option<Index>, AbiError>,
+    ranged: Option<Ranged>,
 }
 
 /// What the spatial directory of a file says about itself.
@@ -100,6 +214,22 @@ fn meets(b: &Bounds2, q: &Bounds2) -> bool {
     b.min[0] <= q.max[0] && b.max[0] >= q.min[0] && b.min[1] <= q.max[1] && b.max[1] >= q.min[1]
 }
 
+fn entity(cell: Option<u32>, id: EntityId, curve: Curve, style: u32) -> (u32, Rc<Entity>) {
+    (id.index(), Rc::new(Entity { id, bounds: curve.bounds().ok(), curve, style, cell }))
+}
+
+/// The spatial directory and Tier 0 leaf table of an opened reader, `Ok(None)` for a file with no directory.
+fn index_of(reader: &PvecReader) -> Result<Option<Index>, AbiError> {
+    match reader.spatial_directory() {
+        Ok(Some(dir)) => match reader.tier0_leaves(&dir) {
+            Ok(leaves) => Ok(Some(Index { dir, leaves })),
+            Err(_) => Err(AbiError::Read),
+        },
+        Ok(None) => Ok(None),
+        Err(_) => Err(AbiError::Read),
+    }
+}
+
 enum Vertices {
     F64(Vec<f64>),
     F32(Vec<f32>),
@@ -117,7 +247,12 @@ struct Packed {
 
 enum Item {
     File(Rc<File>),
-    Batch { file: Rc<File>, picked: Vec<usize>, truncated: bool },
+    Batch {
+        picked: Vec<Rc<Entity>>,
+        truncated: bool,
+    },
+    /// A file opened by ranges that has not finished opening: it holds the ranges provided so far.
+    Opening(Arc<Ranges>),
     Tessellation(Packed),
     Cells(CellList),
     Tier0(Tier0Stream),
@@ -184,46 +319,170 @@ impl Runtime {
 
     /// Opens a PVec file held in memory and returns its handle.
     pub fn open(&mut self, bytes: Vec<u8>) -> Result<u32, AbiError> {
-        let read = |e: PvecError| {
-            let _ = e;
-            AbiError::Read
-        };
+        let read = |_: PvecError| AbiError::Read;
         let reader = PvecReader::open(bytes).map_err(read)?;
-        let styles = reader.styles().map_err(read)?;
-        let entities = reader
-            .entities()
-            .map_err(read)?
-            .into_iter()
-            .zip(styles)
-            .map(|((id, curve), (_, style))| Entity { id, bounds: curve.bounds().ok(), curve, style })
-            .collect();
-        let index = match reader.spatial_directory() {
-            Ok(Some(dir)) => match reader.tier0_leaves(&dir) {
-                Ok(leaves) => Ok(Some(Index { reader, dir, leaves })),
-                Err(_) => Err(AbiError::Read),
-            },
-            Ok(None) => Ok(None),
-            Err(_) => Err(AbiError::Read),
+        let loaded = reader.entities_in(None, true).map_err(read)?;
+        let entities =
+            loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
+        let index = index_of(&reader);
+        let reader = if matches!(index, Ok(None)) { None } else { Some(reader) };
+        Ok(self.insert(Item::File(Rc::new(File {
+            reader,
+            entities: RefCell::new(entities),
+            index,
+            ranged: None,
+        }))))
+    }
+
+    /// Starts opening a file of `len` bytes that the host serves by byte ranges, and returns a handle that
+    /// becomes the file's when [`Runtime::open_poll`] succeeds. Nothing is read yet.
+    pub fn open_ranged(&mut self, len: u64) -> Result<u32, AbiError> {
+        if len == 0 {
+            return Err(AbiError::BadArgument);
+        }
+        Ok(self.insert(Item::Opening(Ranges::new(len))))
+    }
+
+    fn ranges_of(&self, handle: u32) -> Result<Arc<Ranges>, AbiError> {
+        match self.get(handle)? {
+            Item::Opening(r) => Ok(Arc::clone(r)),
+            Item::File(f) => f.ranged.as_ref().map(|r| Arc::clone(&r.ranges)).ok_or(AbiError::WrongKind),
+            _ => Err(AbiError::WrongKind),
+        }
+    }
+
+    /// Hands the module the bytes at `offset` of a range-opened file. It may be more than was asked for,
+    /// and a later call is served from what was provided without asking again.
+    pub fn provide_range(&mut self, handle: u32, offset: u64, bytes: &[u8]) -> Result<(), AbiError> {
+        let ranges = self.ranges_of(handle)?;
+        match offset.checked_add(bytes.len() as u64) {
+            Some(end) if end <= ranges.len => {
+                ranges.provide(offset, bytes);
+                Ok(())
+            }
+            _ => Err(AbiError::BadArgument),
+        }
+    }
+
+    /// The ranges the last call on `handle` that returned [`AbiError::NeedRange`] needs, in the order the
+    /// reader would ask for them. The list is empty after a call that finished.
+    pub fn needed(&self, handle: u32) -> Result<Vec<(u64, u32)>, AbiError> {
+        Ok(self.ranges_of(handle)?.needed())
+    }
+
+    /// Tries to finish opening: it reads the header, the manifest, the block directory and the spatial
+    /// directory from what was provided, and no entity. It returns the handle (now a file) or
+    /// [`AbiError::NeedRange`], and may be called again after the ranges in [`Runtime::needed`] are provided.
+    pub fn open_poll(&mut self, handle: u32) -> Result<u32, AbiError> {
+        let ranges = match self.get(handle)? {
+            Item::Opening(r) => Arc::clone(r),
+            Item::File(f) if f.ranged.is_some() => return Ok(handle),
+            _ => return Err(AbiError::WrongKind),
         };
-        Ok(self.insert(Item::File(Rc::new(File { entities, index }))))
+        ranges.clear_needed();
+        let source = Arc::clone(&ranges);
+        let opened = PvecReader::open_ranges(ranges.len, move |offset, len| source.read(offset, len));
+        let reader = match opened {
+            Ok(r) => r,
+            Err(_) => {
+                return Err(if ranges.needed().is_empty() { AbiError::Read } else { AbiError::NeedRange });
+            }
+        };
+        let index = index_of(&reader);
+        if index.is_err() && !ranges.needed().is_empty() {
+            return Err(AbiError::NeedRange);
+        }
+        let file = File {
+            reader: Some(reader),
+            entities: RefCell::new(BTreeMap::new()),
+            index,
+            ranged: Some(Ranged { ranges, loaded: RefCell::new(Loaded::default()) }),
+        };
+        let at = (handle & ((1 << INDEX_BITS) - 1)) as usize;
+        self.slots[at].item = Some(Item::File(Rc::new(file)));
+        Ok(handle)
+    }
+
+    /// Reads the entities a window needs into a range-opened file: the hot blocks of the leaves it touches
+    /// and, when their bounds can meet it, the advanced curves. Every range that is missing is named at
+    /// once ([`AbiError::NeedRange`]). A file opened from whole bytes has all of them already.
+    fn load(&self, file: &File, window: &Bounds2) -> Result<(), AbiError> {
+        let Some(ranged) = &file.ranged else { return Ok(()) };
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+        let (cells, advanced) = match file.index.as_ref().map_err(|e| *e)? {
+            Some(index) => {
+                let q = Aabb::new(window.min, window.max).map_err(|_| AbiError::BadArgument)?;
+                let cells: Vec<u32> = index.dir.query(&q).map(|c| c.id.get()).collect();
+                (Some(cells), index.dir.advanced_bounds().is_none_or(|a| a.intersects(&q)))
+            }
+            None => (None, true),
+        };
+        self.load_cells(file, ranged, reader, cells.as_deref(), advanced)
+    }
+
+    fn load_cells(
+        &self,
+        file: &File,
+        ranged: &Ranged,
+        reader: &PvecReader,
+        cells: Option<&[u32]>,
+        advanced: bool,
+    ) -> Result<(), AbiError> {
+        let (want_cells, want_advanced) = {
+            let have = ranged.loaded.borrow();
+            if have.everything {
+                return Ok(());
+            }
+            let missing =
+                cells.map(|c| c.iter().copied().filter(|c| !have.cells.contains(c)).collect::<Vec<_>>());
+            (missing, advanced && !have.advanced)
+        };
+        if want_cells.as_ref().is_some_and(Vec::is_empty) && !want_advanced {
+            return Ok(());
+        }
+        ranged.ranges.clear_needed();
+        let wanted =
+            reader.entity_ranges(want_cells.as_deref(), want_advanced).map_err(|_| AbiError::Read)?;
+        if ranged.ranges.need_all(wanted) {
+            return Err(AbiError::NeedRange);
+        }
+        let read = reader.entities_in(want_cells.as_deref(), want_advanced);
+        let read = read.map_err(|_| {
+            if ranged.ranges.needed().is_empty() { AbiError::Read } else { AbiError::NeedRange }
+        })?;
+        let mut entities = file.entities.borrow_mut();
+        for (cell, id, curve, style) in read {
+            let (key, e) = entity(cell, id, curve, style);
+            entities.insert(key, e);
+        }
+        let mut have = ranged.loaded.borrow_mut();
+        match want_cells {
+            Some(c) => have.cells.extend(c),
+            None => have.everything = true,
+        }
+        have.advanced |= want_advanced;
+        Ok(())
     }
 
     /// The entities of `file` whose bounds meet `bounds`, at most `budget` of them in ascending id
-    /// order, as a batch handle.
+    /// order, as a batch handle. On a file opened by ranges it reads the leaves the window touches first,
+    /// and returns [`AbiError::NeedRange`] until the host has provided them.
     pub fn query_viewport(&mut self, file: u32, bounds: Bounds2, budget: u32) -> Result<u32, AbiError> {
-        let file = match self.get(file)? {
-            Item::File(f) => Rc::clone(f),
-            _ => return Err(AbiError::WrongKind),
-        };
+        let file = self.file(file)?;
         if bounds.min.iter().chain(&bounds.max).any(|v| v.is_nan()) {
             return Err(AbiError::BadArgument);
         }
-        let mut picked: Vec<usize> = (0..file.entities.len())
-            .filter(|i| file.entities[*i].bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
+        self.load(&file, &bounds)?;
+        let mut picked: Vec<Rc<Entity>> = file
+            .entities
+            .borrow()
+            .values()
+            .filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
+            .cloned()
             .collect();
         let truncated = picked.len() > budget as usize;
         picked.truncate(budget as usize);
-        Ok(self.insert(Item::Batch { file, picked, truncated }))
+        Ok(self.insert(Item::Batch { picked, truncated }))
     }
 
     fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {
@@ -254,6 +513,7 @@ impl Runtime {
     pub fn directory_query(&mut self, file: u32, bounds: Bounds2) -> Result<u32, AbiError> {
         let file = self.file(file)?;
         let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
         let q = Aabb::new(bounds.min, bounds.max).map_err(|_| AbiError::BadArgument)?;
         let mut list = CellList {
             ids: Vec::new(),
@@ -266,7 +526,7 @@ impl Runtime {
             list.ids.push(cell.id.get());
             list.entities.push(cell.entities);
             list.has_tier0.push(u32::from(index.leaves.block(cell.id).is_some()));
-            list.stored_bytes.push(index.reader.stored_bytes(cell.blocks) as f64);
+            list.stored_bytes.push(reader.stored_bytes(cell.blocks) as f64);
             list.bounds.extend([
                 cell.bounds.min()[0],
                 cell.bounds.min()[1],
@@ -305,11 +565,50 @@ impl Runtime {
     pub fn tier0_viewport(&mut self, file: u32, bounds: Bounds2) -> Result<u32, AbiError> {
         let file = self.file(file)?;
         let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
         let q = Aabb::new(bounds.min, bounds.max).map_err(|_| AbiError::BadArgument)?;
+        let touched: Vec<_> = index.dir.query(&q).collect();
+        let inside = |c: &pvec::unstable::Cell| {
+            c.bounds.min()[0] >= q.min()[0]
+                && c.bounds.min()[1] >= q.min()[1]
+                && c.bounds.max()[0] <= q.max()[0]
+                && c.bounds.max()[1] <= q.max()[1]
+        };
+        if let Some(ranged) = &file.ranged {
+            // The Tier 0 blocks of the leaves the window touches, and the hot blocks of the leaves it only
+            // cuts: a leaf inside the window has all its entities in it, so its count is known without them.
+            let with_block: Vec<_> =
+                touched.iter().map(|c| c.id).filter(|id| index.leaves.block(*id).is_some()).collect();
+            let cut: Vec<u32> = touched.iter().filter(|c| !inside(c)).map(|c| c.id.get()).collect();
+            let advanced = index.dir.advanced_bounds().is_none_or(|a| a.intersects(&q));
+            ranged.ranges.clear_needed();
+            let mut wanted = reader.tier0_ranges(&index.leaves, &with_block).map_err(|_| AbiError::Read)?;
+            let have = ranged.loaded.borrow();
+            let cut_missing: Vec<u32> =
+                cut.iter().copied().filter(|c| !have.cells.contains(c) && !have.everything).collect();
+            let adv_missing = advanced && !have.advanced && !have.everything;
+            drop(have);
+            if !cut_missing.is_empty() || adv_missing {
+                wanted.extend(
+                    reader.entity_ranges(Some(&cut_missing), adv_missing).map_err(|_| AbiError::Read)?,
+                );
+            }
+            if ranged.ranges.need_all(wanted) {
+                return Err(AbiError::NeedRange);
+            }
+            self.load_cells(&file, ranged, reader, Some(&cut), advanced)?;
+        }
+        let ranged_counts = file.ranged.as_ref().map(|_| {
+            touched
+                .iter()
+                .filter(|c| inside(c))
+                .map(|c| (c.id.get(), c.entities))
+                .collect::<BTreeMap<u32, u32>>()
+        });
         let mut rows: Vec<(u32, u32, f64, Vec<[f64; 2]>)> = Vec::new();
         let (mut leaves_read, mut leaves_without_block) = (0, 0);
         for cell in index.dir.query(&q) {
-            let plan = index.reader.tier0_plan(&index.leaves, cell.id).map_err(|_| AbiError::Read)?;
+            let plan = reader.tier0_plan(&index.leaves, cell.id).map_err(|_| AbiError::Read)?;
             let Some(plan) = plan else {
                 leaves_without_block += 1;
                 continue;
@@ -333,16 +632,26 @@ impl Runtime {
                 (i.id.index(), code, f64::NAN, Vec::new())
             }));
         }
-        let in_window = |id: u32| {
-            file.entities
-                .binary_search_by_key(&id, |e| e.id.index())
-                .ok()
-                .is_some_and(|at| file.entities[at].bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
+        let entities = file.entities.borrow();
+        // A leaf inside the window is not loaded on a file opened by ranges, and all of its entities are in the window.
+        let in_window = |id: u32| match entities.get(&id) {
+            Some(e) => e.bounds.as_ref().is_none_or(|b| meets(b, &bounds)),
+            None => ranged_counts.is_some(),
         };
         rows.retain(|r| in_window(r.0));
         rows.sort_unstable_by_key(|r| r.0);
-        let wanted =
-            file.entities.iter().filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds))).count();
+        let wanted = match &ranged_counts {
+            None => entities.values().filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds))).count(),
+            Some(inside) => {
+                let whole: usize = inside.values().map(|n| *n as usize).sum();
+                let cut = entities
+                    .values()
+                    .filter(|e| e.cell.is_none_or(|c| !inside.contains_key(&c)))
+                    .filter(|e| e.bounds.as_ref().is_none_or(|b| meets(b, &bounds)))
+                    .count();
+                whole + cut
+            }
+        };
         let mut s = Tier0Stream {
             ids: Vec::with_capacity(rows.len()),
             codes: Vec::with_capacity(rows.len()),
@@ -352,7 +661,7 @@ impl Runtime {
             exact: 0,
             previews: 0,
             infeasible: 0,
-            uncovered: (wanted - rows.len()) as u32,
+            uncovered: wanted.saturating_sub(rows.len()) as u32,
             leaves_read,
             leaves_without_block,
             advanced_in_view: u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q))),
@@ -436,8 +745,8 @@ impl Runtime {
         ctx: &TessellationContext,
         precision: Precision,
     ) -> Result<u32, AbiError> {
-        let (file, picked) = match self.get(batch)? {
-            Item::Batch { file, picked, .. } => (Rc::clone(file), picked),
+        let picked = match self.get(batch)? {
+            Item::Batch { picked, .. } => picked,
             _ => return Err(AbiError::WrongKind),
         };
         let mut flat: Vec<f64> = Vec::new();
@@ -445,8 +754,7 @@ impl Runtime {
         let (mut ids, mut styles) = (Vec::with_capacity(picked.len()), Vec::with_capacity(picked.len()));
         let mut failed = 0;
         offsets.push(0u32);
-        for i in picked {
-            let e = &file.entities[*i];
+        for e in picked {
             match e.curve.tessellate(ctx) {
                 Ok(t) => flat.extend(t.vertices.iter().flatten()),
                 Err(PvecError::BadContext { .. }) => return Err(AbiError::BadArgument),

@@ -65,8 +65,10 @@ greps both snapshots for those names.
 ## Features
 
 `std` (default), `alloc`, `mmap`, `http` and `wasm`. The exported type list is the same under each,
-and `tests/feature_matrix.rs` is built under every one. Today the I/O features are markers: the
-reader works over bytes in memory.
+and `tests/feature_matrix.rs` is built under every one. `http` is real since #205: it adds
+`PvecReader::open_ranges(len, read)`, which reads the file through `read(offset, len)` (an HTTP range
+request, a cache) instead of from bytes in memory, and adds no type. The other I/O features are still
+markers: the reader works over bytes in memory.
 
 ## Consuming it from libviprs
 
