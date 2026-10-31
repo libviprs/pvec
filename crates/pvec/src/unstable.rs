@@ -7,7 +7,6 @@
 use crate::writer::refused;
 use crate::{Bounds2, CapabilityId, Curve, EntityId, PvecError, PvecReader, PvecWriter};
 use pvec_container::Bounds;
-use pvec_container::reader::ReaderConfig;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
@@ -15,6 +14,7 @@ use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
+pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
     InfeasibleReason, PREVIEW_BUDGET_PX, Preview, PreviewForm, ReadPlan, Scene, SpatialDirectory, Tier0Entry,
@@ -216,15 +216,12 @@ impl PvecReader {
 }
 
 impl PvecReader {
-    /// Opens a file as a reader that implements exactly `capabilities` does, which is how a host checks what an
-    /// older build would show. A capability the reader lacks is skipped and not refused when the file declares
-    /// it optional (see [`PvecReader::skipped_effects`]).
-    pub fn open_with_capabilities(
-        bytes: Vec<u8>,
-        capabilities: ReaderCapabilities,
-    ) -> Result<PvecReader, PvecError> {
-        let source = crate::reader::Source::Memory(MemorySource::new(bytes));
-        PvecReader::from_source(source, ReaderConfig { capabilities, ..ReaderConfig::default() })
+    /// Opens a file with `config`: the capabilities the reader implements, the limits it holds the file to
+    /// and the rest of the container's reader configuration. This is how a host checks what an older build
+    /// would show (a capability the reader lacks is skipped and not refused when the file declares it
+    /// optional, see [`PvecReader::skipped_effects`]) and how it applies the browser limits.
+    pub fn open_with_config(bytes: Vec<u8>, config: ReaderConfig) -> Result<PvecReader, PvecError> {
+        PvecReader::from_source(crate::reader::Source::Memory(MemorySource::new(bytes)), config)
     }
 
     /// What the open left undone, one entry per skipped capability in ascending id order, or nothing when

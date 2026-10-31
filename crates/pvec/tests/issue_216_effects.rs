@@ -2,7 +2,7 @@
 //! say "this file has an image your reader cannot show", and the geometry is bit-identical either way.
 #![cfg(feature = "unstable-stream")]
 
-use pvec::unstable::{Effect, ReaderCapabilities};
+use pvec::unstable::{Effect, ReaderCapabilities, ReaderConfig as Config};
 use pvec::{Bounds2, CapabilityId, Curve, CurveEval, EntityId, Manifest, PvecReader, PvecWriter};
 use pvec_capabilities::{Declared, Requirement, Version};
 use pvec_container::integrity::Integrity;
@@ -77,6 +77,10 @@ fn raster(bytes: &[u8]) -> Vec<u8> {
     assemble(manifest, &blocks, Integrity::Full).unwrap()
 }
 
+fn open(bytes: Vec<u8>, capabilities: ReaderCapabilities) -> PvecReader {
+    PvecReader::open_with_config(bytes, Config { capabilities, ..Config::default() }).unwrap()
+}
+
 fn without_21() -> ReaderCapabilities {
     ReaderCapabilities::v1().without(CapabilityId::new(21))
 }
@@ -84,22 +88,18 @@ fn without_21() -> ReaderCapabilities {
 #[test]
 fn the_degraded_file_reports_unrastered_and_a_plain_file_reports_nothing() {
     let base = plain();
-    let degraded = PvecReader::open_with_capabilities(raster(&base), without_21()).unwrap();
+    let degraded = open(raster(&base), without_21());
     assert_eq!(degraded.skipped_effects(), vec![(CapabilityId::new(21), Effect::Unrastered)]);
-    let clean = PvecReader::open_with_capabilities(base.clone(), without_21()).unwrap();
+    let clean = open(base.clone(), without_21());
     assert_eq!(clean.skipped_effects(), vec![]);
-    let handed = PvecReader::open_with_capabilities(
-        raster(&base),
-        ReaderCapabilities::v1().with(CapabilityId::new(21), 1, 0),
-    )
-    .unwrap();
+    let handed = open(raster(&base), ReaderCapabilities::v1().with(CapabilityId::new(21), 1, 0));
     assert_eq!(handed.skipped_effects(), vec![], "a reader that implements 21 is handed the entries");
 }
 
 #[test]
 fn the_geometry_is_bit_identical_with_and_without_the_raster_entries() {
     let base = plain();
-    let with = PvecReader::open_with_capabilities(raster(&base), without_21()).unwrap();
+    let with = open(raster(&base), without_21());
     let without = PvecReader::open(base).unwrap();
     let (a, b) = (with.entities().unwrap(), without.entities().unwrap());
     assert_eq!(a.len(), b.len());
