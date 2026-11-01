@@ -314,4 +314,39 @@ mod tests {
         // on the way down (a binary tree with n leaves has 2n - 1 spans, n - 1 of them split)
         assert_eq!(used, 2 + 7 + 4 * (2 * n - 2), "evaluations for {n} segments");
     }
+
+    /// A clamped cubic through `controls` zigzagging points, evaluated with the count of `tessellate_with`'s evaluations.
+    /// Returns (segments, evaluations).
+    fn evaluations_for_zigzag(controls: usize) -> (usize, usize) {
+        let p = |x: f64, y: f64| Point2 { x, y };
+        let points: Vec<Point2> =
+            (0..controls).map(|i| p(i as f64 * 3.0, if i % 2 == 0 { 0.0 } else { 40.0 })).collect();
+        let spans = controls - 3;
+        let mut knots = vec![0.0; 4];
+        knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+        knots.extend([1.0; 4]);
+        let curve = Curve::BSpline(BSpline::new(3, points, knots).unwrap());
+        let ctx = TessellationContext { max_segments: 1 << 20, max_screen_error_px: 1.0, ..context() };
+        let evals = std::cell::Cell::new(0);
+        let t = tessellate_with(&curve, &ctx, true, &evals).unwrap();
+        (t.vertices.len() - 1, evals.get())
+    }
+
+    /// Issue 245: a curve of 10^4 control points costs 11 to 14 ms in one call, with about eight evaluations for each
+    /// segment it returns. Deciding that a span is flat from the control polygon of its knot span needs about one.
+    /// The bound is two evaluations for each segment, plus the end points and a small constant.
+    #[test]
+    fn issue_245_a_large_spline_costs_at_most_two_evaluations_for_each_segment() {
+        let (n, used) = evaluations_for_zigzag(10_000);
+        assert!(n >= 5_000, "the fixture has to be as heavy as the pathological one, got {n} segments");
+        assert!(used <= 2 * n + 16, "{used} evaluations for {n} segments");
+    }
+
+    /// The same bound for a small curve, so it is a property of the tessellator and not of one big fixture.
+    #[test]
+    fn issue_245_a_small_spline_costs_at_most_two_evaluations_for_each_segment() {
+        let (n, used) = evaluations_for_zigzag(40);
+        assert!(n >= 16, "the fixture has to need real subdivision, got {n} segments");
+        assert!(used <= 2 * n + 16, "{used} evaluations for {n} segments");
+    }
 }
