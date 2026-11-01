@@ -60,3 +60,39 @@ fn issue_120_an_instance_record_that_still_asserts_the_structure_in_the_artifact
         other => panic!("{other:?}"),
     }
 }
+
+fn doc(name: &str) -> String {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs").join(name);
+    std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {e}", p.display()))
+}
+
+#[test]
+fn issue_200_the_refusal_of_translation_001_cites_the_decision_that_makes_it_final() {
+    let outcomes = generate_all(&bundle()).unwrap();
+    let o = outcomes.iter().find(|o| o.fixture == "translation-001").unwrap();
+    let text = o.result.as_ref().expect_err("refused").to_string();
+    assert!(text.contains("ADR 0017"), "the message points at the recorded decision: {text}");
+}
+
+#[test]
+fn issue_200_exactly_two_of_the_thirty_registered_fixtures_are_refused_and_both_are_by_design() {
+    let outcomes = generate_all(&bundle()).unwrap();
+    let registered: Vec<_> = outcomes.iter().filter(|o| !matches!(&o.result, Err(r) if r.cause == Cause::Quarantined)).collect();
+    assert_eq!(registered.len(), 30);
+    let refused: Vec<&str> = registered.iter().filter(|o| o.result.is_err()).map(|o| o.fixture.as_str()).collect();
+    assert_eq!(refused, ["near-singular-001", "translation-001"]);
+    assert_eq!(registered.len() - refused.len(), 28);
+}
+
+#[test]
+fn issue_200_the_two_refusals_by_design_are_recorded_in_adr_0017_and_in_the_corpus_chapter() {
+    let adr = doc("adr/0017-instance-and-transform-storage.md");
+    assert!(adr.contains("## Amendment 2026-10-31: translation-001 is refused by design"), "ADR 0017 records the decision");
+    assert!(adr.contains("ISO_PROFILE.md"), "the decision rests on the profile's no-promotion rule");
+    let corpus = doc("CORPUS.md");
+    assert!(corpus.contains("## Refusals by design"), "CORPUS.md has the section");
+    let section = corpus.split("## Refusals by design").nth(1).unwrap();
+    for needle in ["28 of 30", "near-singular-001", "translation-001", "maplibre-pvec"] {
+        assert!(section.contains(needle), "the section names {needle}");
+    }
+}

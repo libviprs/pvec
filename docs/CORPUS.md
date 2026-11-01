@@ -110,6 +110,17 @@ Two things the corpus and the profile do not line up on, which matter to the tas
   the loader does.
 - The affine fixtures name `affine_transform_2d`, but their records carry a 4x4 matrix.
 
+## Refusals by design
+
+The generator emits 28 of 30 registered fixtures (`generate_all` reports 33 outcomes, the other three are the
+quarantined probes, which have no record). Two refusals are on purpose, and the gate that counts the corpus
+(`maplibre-pvec`, `release/v1-gate.json`) takes them as expected: 28 with bytes, 2 not emitted.
+
+| fixture | why it is not emitted | decided in |
+|---|---|---|
+| `near-singular-001` | the manifest says no curve may be emitted for it | the corpus manifest (`must_not_emit_curve`) |
+| `translation-001` | its world-space line is at z = 2, and the profile is 2D with no implicit promotion | ADR 0017, amendment 2026-10-31 (#200) |
+
 ## Comparison
 
 `compare(Mode, expected, actual, scale)` is the P1.2 rule and calls `pvec_numeric::Policy::V1`:

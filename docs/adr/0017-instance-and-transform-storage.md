@@ -62,6 +62,22 @@ nothing. Pixels have no such flattening: resampling them into source space is lo
 authored-bits rule points the other way: keep the bytes and carry the 2x3 map. The other two reasons for refusing a transform still hold:
 tiles stay out of the spatial index, and a viewer applies one affine per raster, never a tree of instances.
 
+## Amendment 2026-10-31: translation-001 is refused by design
+
+Rom delegated the call on `translation-001` and I decided it from the spec: it stays refused, and the corpus
+count is **28 of 30**. Its record translates a line by (3.5, -1.25, 2), so the world-space line sits at z = 2.
+`ISO_PROFILE.md` says everything is two-dimensional and that there is no implicit `z = 0` promotion (and lists any 3D
+coordinate list as out of the profile), NP-18 and ADR 0001 say the same. The only way to emit the fixture would be to
+drop z, which is a silent approximation (#37) and would make the artifact disagree with the record's own
+`WORLD_SPACE_RESULT`. The gold fixture is a 3D probe of the source mapping (`SOURCE_MAPPING`), and that check belongs
+to libviprs, not to the container. This is a different gap from the instance storage this ADR decides, and I did not
+close it by widening the profile.
+
+The two refusals in the 30 registered fixtures are therefore both by design: `near-singular-001` (the manifest says no
+curve may be emitted) and `translation-001` (off the drawing plane). A consumer gate counts 28 emitted of 30, with
+those two named, and the three quarantined probes outside the 30. If the profile ever gains a third coordinate, or the
+fixture is re-authored in plane, this reopens; Rom can overrule it now by saying which of the two to change.
+
 ## Reversal threshold
 
 Reopen this if a measured drawing is much larger flattened than as blocks (say more than 3x on the same
