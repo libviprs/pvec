@@ -360,7 +360,7 @@ A `tessellate_batch` result holds at most 16,777,216 vertices (2^24, 256 MiB as 
 form is made beside it). Each curve is tessellated with `max_segments` held to what is left of that bound. A curve the
 bound stops, and not the caller's own `max_segments`, makes the call return -11 with no partial result, and the module
 stays usable: ask again with a looser `max_world_error` or `max_screen_error_px`, or with fewer entities. An entity the
-caller's own `max_segments` stops is still counted by `tessellation_failed`. Before this, an absolute error of 1e-6 over a
+caller's own `max_segments` stops is still counted by `tessellation_failed`. Before this, an absolute error of a millionth of a unit over a
 drawing about 130,000 units wide grew one vector past what wasm32 can address and the module panicked with a capacity
 overflow. The code is an addition, `wasm_abi_version()` stays 2.
 
