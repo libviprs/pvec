@@ -1,4 +1,35 @@
 use std::fmt;
+use std::sync::Arc;
+
+/// An input or output failure of the streaming writer, kept as the `std::io::Error` it was so that
+/// `PvecError::source` can hand it back. The error is shared, which is what lets `PvecError` stay `Clone`,
+/// and two failures are equal when their kind and message are.
+#[derive(Clone, Debug)]
+pub struct IoFailure(Arc<std::io::Error>);
+
+impl IoFailure {
+    /// The error as the file system or the sink raised it.
+    pub fn error(&self) -> &std::io::Error {
+        &self.0
+    }
+
+    /// The kind of the error.
+    pub fn kind(&self) -> std::io::ErrorKind {
+        self.0.kind()
+    }
+}
+
+impl PartialEq for IoFailure {
+    fn eq(&self, other: &IoFailure) -> bool {
+        self.0.kind() == other.0.kind() && self.0.to_string() == other.0.to_string()
+    }
+}
+
+impl From<std::io::Error> for IoFailure {
+    fn from(e: std::io::Error) -> IoFailure {
+        IoFailure(Arc::new(e))
+    }
+}
 
 /// Everything the facade can refuse. The variants carry the rule that was broken, as text, so no
 /// container or codec type is reachable through them.
@@ -37,6 +68,14 @@ pub enum PvecError {
         /// What was wrong with it.
         reason: String,
     },
+    /// The streaming writer could not read or write a file: a spill file under the caller's root, or the
+    /// sink `finish_to` writes the artifact to. Nothing of the build is left behind.
+    Io {
+        /// Where it failed: `"spill"` for the files under the caller's root, `"output"` for the sink.
+        stage: &'static str,
+        /// The failure, which `std::error::Error::source` returns.
+        error: IoFailure,
+    },
     /// The error budget cannot be met within `max_segments`.
     ErrorBudgetUnmet {
         /// The deviation the best tessellation within the segment limit reaches, in the unit of the
@@ -58,6 +97,7 @@ impl fmt::Display for PvecError {
                 write!(f, "no length unit is {metres_per_unit} metres")
             }
             PvecError::Geometry { rule } => write!(f, "curve refused: {rule}"),
+            PvecError::Io { stage, error } => write!(f, "{stage} failed: {}", error.error()),
             PvecError::BadContext { reason } => write!(f, "tessellation context refused: {reason}"),
             PvecError::ErrorBudgetUnmet { achieved, requested } => {
                 write!(f, "error budget {requested} not met within the segment limit, reached {achieved}")
@@ -66,7 +106,14 @@ impl fmt::Display for PvecError {
     }
 }
 
-impl std::error::Error for PvecError {}
+impl std::error::Error for PvecError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            PvecError::Io { error, .. } => Some(error.error()),
+            _ => None,
+        }
+    }
+}
 
 /// The facade's refusal for one of the curve model's, kept as its rule so no geometry error type is
 /// reachable (conversion layer).

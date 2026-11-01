@@ -352,3 +352,18 @@ impl PvecReader {
             .map(|_| pvec_stream::tile_slots(&self.inner, raster, &index)(level, col, row)))
     }
 }
+
+impl PvecWriter {
+    /// Not bounded yet: this keeps the signature that the tests of pvec#235 are written against.
+    pub fn with_spill(self, root: &std::path::Path, budget: u64) -> Result<PvecWriter, PvecError> {
+        let _ = (root, budget);
+        Ok(self)
+    }
+
+    /// Not streamed yet: `finish`, then one write.
+    pub fn finish_to(self, out: &mut impl std::io::Write) -> Result<u64, PvecError> {
+        let bytes = self.finish()?;
+        out.write_all(&bytes).map_err(|e| PvecError::Io { stage: "output", error: e.into() })?;
+        Ok(bytes.len() as u64)
+    }
+}
