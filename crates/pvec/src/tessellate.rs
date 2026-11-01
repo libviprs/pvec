@@ -455,4 +455,59 @@ mod tests {
         );
         assert!(t.vertices.len() < 400, "{} vertices for a quarter circle at 0.05 px", t.vertices.len());
     }
+
+    /// Issue 248: a spline that is flat on screen at every knot costs one evaluation for each knot and little else.
+    /// A 10^4 control point spline took 4 to 5 ms in the wasm module, several times what its evaluations cost, so the
+    /// bound is a ratio (best of seven, so a busy host does not decide it) and not a number of milliseconds.
+    #[test]
+    fn issue_248_a_flat_spline_costs_little_more_than_its_evaluations() {
+        let controls = 10_000;
+        let mut seed = 12345u64;
+        let mut step = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((seed >> 33) as f64 / (1u64 << 31) as f64) * 2.0 - 1.0
+        };
+        let (mut x, mut y) = (0.0, 0.0);
+        let points: Vec<Point2> = (0..controls)
+            .map(|_| {
+                x += step();
+                y += step();
+                Point2 { x, y }
+            })
+            .collect();
+        let spans = controls - 3;
+        let mut knots = vec![0.0; 4];
+        knots.extend((1..spans).map(|i| i as f64 / spans as f64));
+        knots.extend([1.0; 4]);
+        let curve = Curve::BSpline(BSpline::new(3, points, knots).unwrap());
+        let ctx = TessellationContext {
+            map_to_screen: Transform2::scale(1.0 / 52.0, 1.0 / 52.0).unwrap(),
+            max_segments: 1 << 20,
+            max_screen_error_px: 1.0,
+            ..context()
+        };
+        let best = |f: &dyn Fn()| {
+            (0..7)
+                .map(|_| {
+                    let t = std::time::Instant::now();
+                    f();
+                    t.elapsed()
+                })
+                .min()
+                .unwrap()
+        };
+        let n = tessellate_with(&curve, &ctx, true, &Default::default()).unwrap().vertices.len() - 1;
+        assert!(n >= 9_000, "the fixture has to keep a segment for each knot, got {n}");
+        let whole = best(&|| {
+            std::hint::black_box(tessellate_with(&curve, &ctx, true, &Default::default()).unwrap());
+        });
+        let evals = best(&|| {
+            for i in 0..=n {
+                std::hint::black_box(curve.point_at(i as f64 / n as f64).unwrap());
+            }
+        });
+        let ratio = whole.as_secs_f64() / evals.as_secs_f64();
+        eprintln!("ratio {ratio:.2} ({whole:?} over {evals:?})");
+        assert!(ratio < 4.0, "tessellating took {ratio:.1} times what its {n} evaluations took ({whole:?} over {evals:?})");
+    }
 }
