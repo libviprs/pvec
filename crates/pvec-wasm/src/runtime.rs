@@ -256,6 +256,68 @@ pub struct Tier0Stream {
     pub advanced_in_view: u32,
 }
 
+/// One row of a Tier 0 stream before it is packed: entity id, `TIER0_*` code, declared error, preview points.
+type Tier0Row = (u32, u32, f64, Vec<[f64; 2]>);
+
+/// The rows of one leaf's plan: its exact entities, its previews and the entities declared infeasible.
+fn plan_rows(plan: &pvec::unstable::Tier0Plan) -> Vec<Tier0Row> {
+    let mut rows: Vec<Tier0Row> = plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())).collect();
+    rows.extend(plan.previews().iter().map(|p| {
+        let code = match p.form() {
+            PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
+            PreviewForm::ChordPolyline => TIER0_CHORD_POLYLINE,
+        };
+        (p.replaces().index(), code, p.error_bound(), p.points())
+    }));
+    rows.extend(plan.infeasible().iter().map(|i| {
+        let code = match i.reason {
+            InfeasibleReason::EvaluatorRefused => TIER0_EVALUATOR_REFUSED,
+            InfeasibleReason::VertexCap => TIER0_VERTEX_CAP,
+            InfeasibleReason::BoundNotMet => TIER0_BOUND_NOT_MET,
+            _ => TIER0_INFEASIBLE_OTHER,
+        };
+        (i.id.index(), code, f64::NAN, Vec::new())
+    }));
+    rows
+}
+
+/// Packs rows, ascending by entity id, into the parallel arrays of a [`Tier0Stream`].
+fn tier0_stream(
+    rows: Vec<Tier0Row>,
+    uncovered: u32,
+    leaves_read: u32,
+    leaves_without_block: u32,
+    advanced_in_view: u32,
+) -> Tier0Stream {
+    let mut s = Tier0Stream {
+        ids: Vec::with_capacity(rows.len()),
+        codes: Vec::with_capacity(rows.len()),
+        error_bounds: Vec::with_capacity(rows.len()),
+        offsets: vec![0],
+        vertices: Vec::new(),
+        exact: 0,
+        previews: 0,
+        infeasible: 0,
+        uncovered,
+        leaves_read,
+        leaves_without_block,
+        advanced_in_view,
+    };
+    for (id, code, error, points) in rows {
+        match code {
+            TIER0_EXACT => s.exact += 1,
+            TIER0_CONTROL_POLYGON | TIER0_CHORD_POLYLINE => s.previews += 1,
+            _ => s.infeasible += 1,
+        }
+        s.ids.push(id);
+        s.codes.push(code);
+        s.error_bounds.push(error);
+        s.vertices.extend(points.iter().flatten());
+        s.offsets.push((s.vertices.len() / 2) as u32);
+    }
+    s
+}
+
 fn meets(b: &Bounds2, q: &Bounds2) -> bool {
     b.min[0] <= q.max[0] && b.max[0] >= q.min[0] && b.min[1] <= q.max[1] && b.max[1] >= q.min[1]
 }
@@ -706,23 +768,7 @@ impl Runtime {
                 continue;
             };
             leaves_read += 1;
-            rows.extend(plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())));
-            rows.extend(plan.previews().iter().map(|p| {
-                let code = match p.form() {
-                    PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
-                    PreviewForm::ChordPolyline => TIER0_CHORD_POLYLINE,
-                };
-                (p.replaces().index(), code, p.error_bound(), p.points())
-            }));
-            rows.extend(plan.infeasible().iter().map(|i| {
-                let code = match i.reason {
-                    InfeasibleReason::EvaluatorRefused => TIER0_EVALUATOR_REFUSED,
-                    InfeasibleReason::VertexCap => TIER0_VERTEX_CAP,
-                    InfeasibleReason::BoundNotMet => TIER0_BOUND_NOT_MET,
-                    _ => TIER0_INFEASIBLE_OTHER,
-                };
-                (i.id.index(), code, f64::NAN, Vec::new())
-            }));
+            rows.extend(plan_rows(&plan));
         }
         let entities = file.entities.borrow();
         // A leaf inside the window is not loaded on a file opened by ranges, and all of its entities are in the window.
@@ -744,33 +790,40 @@ impl Runtime {
                 whole + cut
             }
         };
-        let mut s = Tier0Stream {
-            ids: Vec::with_capacity(rows.len()),
-            codes: Vec::with_capacity(rows.len()),
-            error_bounds: Vec::with_capacity(rows.len()),
-            offsets: vec![0],
-            vertices: Vec::new(),
-            exact: 0,
-            previews: 0,
-            infeasible: 0,
-            uncovered: wanted.saturating_sub(rows.len()) as u32,
-            leaves_read,
-            leaves_without_block,
-            advanced_in_view: u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q))),
-        };
-        for (id, code, error, points) in rows {
-            match code {
-                TIER0_EXACT => s.exact += 1,
-                TIER0_CONTROL_POLYGON | TIER0_CHORD_POLYLINE => s.previews += 1,
-                _ => s.infeasible += 1,
-            }
-            s.ids.push(id);
-            s.codes.push(code);
-            s.error_bounds.push(error);
-            s.vertices.extend(points.iter().flatten());
-            s.offsets.push((s.vertices.len() / 2) as u32);
-        }
+        let advanced_in_view = u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q)));
+        let uncovered = wanted.saturating_sub(rows.len()) as u32;
+        let s = tier0_stream(rows, uncovered, leaves_read, leaves_without_block, advanced_in_view);
         Ok(self.insert(Item::Tier0(s)))
+    }
+
+    /// The Tier 0 stream of one leaf: its own entries, ascending by entity id, with no window to cull by and no
+    /// count over the file (issue #238). `uncovered` is the leaf's entities less its entries, so all of them when
+    /// the leaf has no block. A file opened by ranges needs only that leaf's Tier 0 block.
+    pub fn tier0_leaf(&mut self, file: u32, cell: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+        let everything = index.dir.bounds();
+        let leaf = index.dir.query(&everything).find(|c| c.id.get() == cell).ok_or(AbiError::BadArgument)?;
+        let has_block = index.leaves.block(leaf.id).is_some();
+        if let Some(ranged) = &file.ranged {
+            ranged.ranges.clear_needed();
+            let wanted = if has_block {
+                reader.tier0_ranges(&index.leaves, &[leaf.id]).map_err(|_| AbiError::Read)?
+            } else {
+                Vec::new()
+            };
+            if ranged.ranges.need_all(wanted) {
+                return Err(AbiError::NeedRange);
+            }
+        }
+        let Some(plan) = reader.tier0_plan(&index.leaves, leaf.id).map_err(|_| AbiError::Read)? else {
+            return Ok(self.insert(Item::Tier0(tier0_stream(Vec::new(), leaf.entities, 0, 1, 0))));
+        };
+        let mut rows = plan_rows(&plan);
+        rows.sort_unstable_by_key(|r| r.0);
+        let uncovered = leaf.entities.saturating_sub(rows.len() as u32);
+        Ok(self.insert(Item::Tier0(tier0_stream(rows, uncovered, 1, 0, 0))))
     }
 
     /// The Tier 0 stream of a `tier0_viewport` result.

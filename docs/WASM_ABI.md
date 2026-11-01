@@ -43,6 +43,7 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `directory_query` | file, `min_x, min_y, max_x, max_y` | a cells handle (version 2) |
 | `cells_len`, `cells_ptr`, `cells_elem` | cells handle, array number | length, byte offset, element type (version 2) |
 | `tier0_viewport` | file, `min_x, min_y, max_x, max_y` | a Tier 0 handle (version 2) |
+| `tier0_leaf` | file, cell id | a Tier 0 handle for one leaf (version 2, issue #238) |
 | `tier0_stat` | Tier 0 handle, number | one count (version 2) |
 | `tier0_buffer_len`, `tier0_buffer_ptr`, `tier0_buffer_elem` | Tier 0 handle, array number | length, byte offset, element type (version 2) |
 | `open_ranged` | the file's length in bytes | an opening handle (issue #205) |
@@ -172,6 +173,17 @@ reason this version does not know. For a preview the declared error is the bound
 stored: every point of the curve is within it of the preview polyline, and the vertices are the stored `f32`
 offsets added back to their `f64` origin. An infeasible entry has NaN as its declared error and no vertices.
 A preview is display fidelity, never exact.
+
+`tier0_leaf(file, cell)` returns the Tier 0 stream of one leaf (issue #238): the same result handle, the same five arrays
+and the same `tier0_stat`, with no window. It has the entries of the leaf's own hot entities and no others, so the
+streams of the leaves of `directory_query` together are `tier0_viewport` over everything and no entity is in two,
+where the overlapping boxes of neighbouring leaves make `tier0_viewport` over one leaf's box return the neighbours' entities
+as well. The cost is the leaf's, not the file's: nothing is culled and nothing is counted over the whole file.
+`uncovered` is the leaf's entity count less its entries, so all of it for a leaf with no Tier 0 block (which counts 1 in
+`leaves_without_block` and 0 in `leaves_read`). The advanced curves are in no leaf, so `advanced_in_view` is 0. A cell id the
+file does not have, 0 included, is -3. A file with no directory is -6, a damaged block -4. A file opened by ranges needs
+that leaf's Tier 0 block and no hot block (-7 until it is provided). The ABI version stays 2: it is an addition, found by
+testing that the module exports `tier0_leaf`.
 
 `tier0_stat(result, n)`: 0 entries, 1 exact, 2 previews, 3 infeasible, 4 uncovered, 5 leaves read, 6 leaves of
 the window with no Tier 0 block, 7 whether the bounds of the advanced curves meet the window. Uncovered is

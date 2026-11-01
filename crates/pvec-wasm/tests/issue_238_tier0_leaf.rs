@@ -2,7 +2,7 @@
 //! whole file. `docs/WASM_ABI.md` is the contract; every test name carries the issue number.
 #![allow(missing_docs)]
 
-use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter, Transform2};
+use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter};
 use pvec_container::directory::BlockKind;
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
@@ -13,9 +13,6 @@ use std::path::Path;
 
 const MAX_ERROR: f64 = 0.05;
 const SHORT: u32 = 100;
-/// 100 short segments, the wave (100), the ellipse (101), two splines (102, 103).
-const HOT: u32 = 102;
-
 fn p(x: f64, y: f64) -> Point2 {
     Point2 { x, y }
 }
@@ -122,7 +119,10 @@ fn issue_238_a_leaf_has_the_entries_of_its_own_entities_and_the_previews_are_the
         assert_eq!(s.ids.len() as u32, count, "cell {cell}: one entry for each hot entity of the leaf");
         for (k, id) in s.ids.iter().enumerate() {
             let at = all.ids.binary_search(id).unwrap();
-            let (a, b) = (s.offsets[k] as usize * 2..s.offsets[k + 1] as usize * 2, all.offsets[at] as usize * 2..all.offsets[at + 1] as usize * 2);
+            let (a, b) = (
+                s.offsets[k] as usize * 2..s.offsets[k + 1] as usize * 2,
+                all.offsets[at] as usize * 2..all.offsets[at + 1] as usize * 2,
+            );
             assert_eq!(s.vertices[a], all.vertices[b], "entity {id}: the same preview vertices");
         }
     }
@@ -229,7 +229,9 @@ fn issue_238_a_range_opened_file_reads_only_that_leafs_tier0_block_and_no_hot_bl
     let asked = &host.served[opened..];
     assert!(!asked.is_empty() && asked.len() <= 1, "one block, one range: {asked:?}");
     for e in reader.entries().iter().filter(|e| e.block_kind() == Some(BlockKind::Hot)) {
-        let hit = asked.iter().any(|(o, l)| *o < e.offset + u64::from(e.stored_length) && e.offset < o + u64::from(*l));
+        let hit = asked
+            .iter()
+            .any(|(o, l)| *o < e.offset + u64::from(e.stored_length) && e.offset < o + u64::from(*l));
         assert!(!hit, "the hot block of cell {} was requested for a Tier 0 leaf", e.cell);
     }
     let before = host.served.len();

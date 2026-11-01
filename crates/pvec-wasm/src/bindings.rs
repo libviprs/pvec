@@ -261,6 +261,14 @@ pub fn tier0_viewport(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64)
     RUNTIME.with(|r| code(r.borrow_mut().tier0_viewport(file, window(min_x, min_y, max_x, max_y))))
 }
 
+/// The Tier 0 stream of one leaf of the spatial directory (`cell` is an id `directory_query` returns): the same result
+/// handle as `tier0_viewport`, with no window to cull by. -3 for a cell the file does not have, -6 when the file has
+/// no directory, -4 when the block is damaged, -7 on a range-opened file that still needs the block.
+#[wasm_bindgen]
+pub fn tier0_leaf(file: u32, cell: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().tier0_leaf(file, cell)))
+}
+
 /// One number about a Tier 0 result, or a negative code: 0 entries, 1 exact, 2 previews, 3 infeasible,
 /// 4 entities of the box no entry covers, 5 leaves read, 6 leaves with no Tier 0 block, 7 whether the
 /// advanced curves meet the box.
