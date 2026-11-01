@@ -45,7 +45,7 @@ fn tight() -> pvec::TessellationContext {
         map_to_screen: Transform2::IDENTITY,
         pixel_ratio: 1.0,
         max_screen_error_px: f64::INFINITY,
-        max_world_error: 1e-6,
+        max_world_error: 1.0 / 1_000_000.0,
         max_segments: u32::MAX as usize,
     }
 }
