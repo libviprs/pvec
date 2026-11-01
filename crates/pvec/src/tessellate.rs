@@ -156,7 +156,7 @@ pub(crate) fn tessellate_with(
     let bezier = |a: f64, b: f64| -> Option<Vec<[f64; 3]>> {
         let (d, cps, knots, ws) = spline?;
         let i = knots.partition_point(|&k| k <= a).checked_sub(1)?;
-        if i < d || i >= cps.len() || !(b <= knots[i + 1]) {
+        if i < d || i >= cps.len() || b > knots[i + 1] {
             return None;
         }
         Some(
@@ -185,7 +185,8 @@ pub(crate) fn tessellate_with(
     // map units, each times the sampling margin. A spline span is held to the farthest of its Bezier control points
     // instead (a bound, and nothing is evaluated), and a sampled span also returns its seven sample points,
     // so a split can hand them on instead of evaluating them again.
-    let measure = |s: &Span| -> Result<(f64, f64, Option<[[f64; 2]; 7]>), PvecError> {
+    type Measured = (f64, f64, Option<[[f64; 2]; 7]>);
+    let measure = |s: &Span| -> Result<Measured, PvecError> {
         let (wa, wb) = (to_world(s.pa), to_world(s.pb));
         let (da, db) = (to_device(wa), to_device(wb));
         let (mut px, mut world) = (0.0f64, 0.0f64);
@@ -228,7 +229,14 @@ pub(crate) fn tessellate_with(
     let spans: Vec<Span> = cuts
         .windows(2)
         .zip(points.windows(2))
-        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1], known: [None; 7], ctrl: bezier(t[0], t[1]) })
+        .map(|(t, p)| Span {
+            a: t[0],
+            b: t[1],
+            pa: p[0],
+            pb: p[1],
+            known: [None; 7],
+            ctrl: bezier(t[0], t[1]),
+        })
         .collect();
     if spans.len() > ctx.max_segments {
         // Not even the breaks fit. What the same limit gives with the spans spread evenly says how far off.
@@ -278,7 +286,8 @@ pub(crate) fn tessellate_with(
                 let (mut row, mut l, mut r) = (c.clone(), vec![c[0]], vec![c[c.len() - 1]]);
                 for _ in 1..c.len() {
                     row = row.windows(2).map(|w| [0, 1, 2].map(|m| 0.5 * (w[0][m] + w[1][m]))).collect();
-                    (l.push(row[0]), r.push(row[row.len() - 1]));
+                    l.push(row[0]);
+                    r.push(row[row.len() - 1]);
                 }
                 r.reverse();
                 (at(mid)?, [None; 7], [None; 7], Some(l), Some(r))
@@ -362,7 +371,8 @@ mod tests {
         let p = |x: f64, y: f64| Point2 { x, y };
         // a Bezier curve is sampled (a spline is held to its control polygon, see issue 245)
         let curve = Curve::Bezier(
-            pvec_geometry::Bezier::new(vec![p(0.0, 0.0), p(900.0, 1200.0), p(-300.0, 1200.0), p(600.0, 0.0)]).unwrap(),
+            pvec_geometry::Bezier::new(vec![p(0.0, 0.0), p(900.0, 1200.0), p(-300.0, 1200.0), p(600.0, 0.0)])
+                .unwrap(),
         );
         let ctx = TessellationContext { max_segments: 4096, ..context() };
         let evals = std::cell::Cell::new(0);
@@ -438,7 +448,11 @@ mod tests {
                 .fold(f64::INFINITY, f64::min)
         };
         let worst = (0..=4000).map(|i| dist(curve.point_at(i as f64 / 4000.0).unwrap())).fold(0.0, f64::max);
-        assert!(worst <= t.achieved_screen_error_px, "true deviation {worst} over the reported {}", t.achieved_screen_error_px);
+        assert!(
+            worst <= t.achieved_screen_error_px,
+            "true deviation {worst} over the reported {}",
+            t.achieved_screen_error_px
+        );
         assert!(t.vertices.len() < 400, "{} vertices for a quarter circle at 0.05 px", t.vertices.len());
     }
 }
