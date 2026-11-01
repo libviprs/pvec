@@ -310,7 +310,8 @@ impl Aabb {
             && other.max[1] <= self.max[1]
     }
 
-    pub(crate) fn union(&self, other: &Aabb) -> Aabb {
+    /// The smallest box that holds both.
+    pub fn union(&self, other: &Aabb) -> Aabb {
         Aabb {
             min: [self.min[0].min(other.min[0]), self.min[1].min(other.min[1])],
             max: [self.max[0].max(other.max[0]), self.max[1].max(other.max[1])],
@@ -435,81 +436,147 @@ pub fn build_directory(entities: &[EntityBox], cell_capacity: u32) -> Result<Bui
         return Err(build("an entity id is used twice"));
     }
     let world = entities.iter().fold(first.bounds, |w, e| w.union(&e.bounds));
+    let mut order: Vec<(u32, u32, usize)> =
+        entities.iter().enumerate().map(|(i, e)| (entity_key(&world, &e.bounds), e.id.index(), i)).collect();
+    order.sort_unstable();
+
+    let mut cells = vec![CellId::new(1).ok_or(build("no cell"))?; entities.len()];
+    let mut leaves = DirectoryBuilder::new(cell_capacity)?;
+    for (_, _, i) in order {
+        cells[i] = leaves.push(&entities[i].bounds)?;
+    }
+    let streamed = leaves.finish()?;
+    Ok(BuiltDirectory { bytes: streamed.bytes, nodes: streamed.nodes, bounds: streamed.bounds, cells })
+}
+
+/// The key an entity is ordered by when the directory is built: the Hilbert distance of the centre of its
+/// bounds on a 65,536 by 65,536 grid laid over `world`, the box of every entity. Entities are cut into cells
+/// in the order of this key and then of their ids.
+pub fn entity_key(world: &Aabb, bounds: &Aabb) -> u32 {
     let (wx, wy) = (world.max[0] - world.min[0], world.max[1] - world.min[1]);
     let grid = |v: f64, lo: f64, w: f64| -> u32 {
         if w > 0.0 { (((v - lo) / w * 65535.0).floor().clamp(0.0, 65535.0)) as u32 } else { 0 }
     };
-    let mut order: Vec<(u32, u32, usize)> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            let cx = e.bounds.min[0] + (e.bounds.max[0] - e.bounds.min[0]) / 2.0;
-            let cy = e.bounds.min[1] + (e.bounds.max[1] - e.bounds.min[1]) / 2.0;
-            (hilbert(grid(cx, world.min[0], wx), grid(cy, world.min[1], wy)), e.id.index(), i)
-        })
-        .collect();
-    order.sort_unstable();
+    let cx = bounds.min[0] + (bounds.max[0] - bounds.min[0]) / 2.0;
+    let cy = bounds.min[1] + (bounds.max[1] - bounds.min[1]) / 2.0;
+    hilbert(grid(cx, world.min[0], wx), grid(cy, world.min[1], wy))
+}
 
-    let mut cells = vec![CellId::new(1).ok_or(build("no cell"))?; entities.len()];
-    let mut nodes: Vec<Node> = Vec::new();
-    for (leaf, chunk) in order.chunks(cell_capacity as usize).enumerate() {
+/// A directory built from entities that arrive already in the order of [`entity_key`] and then of their
+/// ids, which is how an external sort hands them over. It holds one node per cell and nothing per entity, and
+/// it makes the bytes [`build_directory`] makes (that function is this builder over a sorted copy).
+#[derive(Debug)]
+pub struct DirectoryBuilder {
+    capacity: u32,
+    leaves: Vec<Node>,
+    entities: usize,
+}
+
+/// The directory a [`DirectoryBuilder`] made.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StreamedDirectory {
+    /// The block, as the container stores it.
+    pub bytes: Vec<u8>,
+    /// Its node count, which is the block directory entry's count.
+    pub nodes: u32,
+    /// The box of the whole tree.
+    pub bounds: Aabb,
+}
+
+impl DirectoryBuilder {
+    /// A builder for cells of `cell_capacity` entities. A capacity of 0 is refused.
+    pub fn new(cell_capacity: u32) -> Result<DirectoryBuilder, DirectoryError> {
+        if cell_capacity == 0 {
+            return Err(DirectoryError::Build { reason: "a leaf holds no entity" });
+        }
+        Ok(DirectoryBuilder { capacity: cell_capacity, leaves: Vec::new(), entities: 0 })
+    }
+
+    /// Takes the next entity, by its bounds, and returns the cell it is in.
+    pub fn push(&mut self, bounds: &Aabb) -> Result<CellId, DirectoryError> {
+        let build = |reason| DirectoryError::Build { reason };
+        if self.entities >= MAX_ENTITIES {
+            return Err(build("more entities than NP-18 allows"));
+        }
+        let leaf = self.entities / self.capacity as usize;
         let cell = CellId::new(leaf as u32 + 1).ok_or(build("no cell"))?;
-        let mut bounds = entities[chunk[0].2].bounds;
-        for (_, _, i) in chunk {
-            bounds = bounds.union(&entities[*i].bounds);
-            cells[*i] = cell;
-        }
-        nodes.push(Node { bounds, first: cell.get(), count: 0, entities: chunk.len() as u32, level: 0 });
-    }
-    let leaf_count = nodes.len();
-    let mut level_start = 0usize;
-    let mut level = 0u16;
-    while nodes.len() - level_start > 1 {
-        let end = nodes.len();
-        level += 1;
-        let mut at = level_start;
-        while at < end {
-            let to = (at + FANOUT as usize).min(end);
-            let mut bounds = nodes[at].bounds;
-            let mut total = 0u32;
-            for n in &nodes[at..to] {
-                bounds = bounds.union(&n.bounds);
-                total += n.entities;
+        match self.leaves.get_mut(leaf) {
+            Some(n) => {
+                n.bounds = n.bounds.union(bounds);
+                n.entities += 1;
             }
-            nodes.push(Node { bounds, first: at as u32, count: (to - at) as u32, entities: total, level });
-            at = to;
+            None => {
+                self.leaves.push(Node { bounds: *bounds, first: cell.get(), count: 0, entities: 1, level: 0 })
+            }
         }
-        level_start = end;
+        self.entities += 1;
+        Ok(cell)
     }
-    let root = nodes.last().ok_or(build("no node"))?;
-    let bounds = root.bounds;
-    let mut bytes = Vec::with_capacity(HEADER_LEN + NODE_LEN * nodes.len());
-    bytes.extend_from_slice(&MAGIC);
-    bytes.extend_from_slice(&VERSION.to_le_bytes());
-    bytes.extend_from_slice(&0u16.to_le_bytes());
-    for v in [
-        nodes.len() as u32,
-        leaf_count as u32,
-        u32::from(level) + 1,
-        FANOUT,
-        cell_capacity,
-        entities.len() as u32,
-    ] {
-        bytes.extend_from_slice(&v.to_le_bytes());
-    }
-    bytes.resize(HEADER_LEN, 0);
-    for n in &nodes {
-        for v in [n.bounds.min[0], n.bounds.min[1], n.bounds.max[0], n.bounds.max[1]] {
-            // negative zero is written as zero, like every other bound of the format
-            bytes.extend_from_slice(&(if v == 0.0 { 0.0 } else { v }).to_le_bytes());
+
+    /// The directory over the entities pushed. There must be one.
+    pub fn finish(self) -> Result<StreamedDirectory, DirectoryError> {
+        let build = |reason| DirectoryError::Build { reason };
+        let (cell_capacity, entities) = (self.capacity, self.entities);
+        let mut nodes = self.leaves;
+        if nodes.is_empty() {
+            return Err(build("there is no entity"));
         }
-        for v in [n.first, n.count, n.entities] {
+        let leaf_count = nodes.len();
+        let mut level_start = 0usize;
+        let mut level = 0u16;
+        while nodes.len() - level_start > 1 {
+            let end = nodes.len();
+            level += 1;
+            let mut at = level_start;
+            while at < end {
+                let to = (at + FANOUT as usize).min(end);
+                let mut bounds = nodes[at].bounds;
+                let mut total = 0u32;
+                for n in &nodes[at..to] {
+                    bounds = bounds.union(&n.bounds);
+                    total += n.entities;
+                }
+                nodes.push(Node {
+                    bounds,
+                    first: at as u32,
+                    count: (to - at) as u32,
+                    entities: total,
+                    level,
+                });
+                at = to;
+            }
+            level_start = end;
+        }
+        let root = nodes.last().ok_or(build("no node"))?;
+        let bounds = root.bounds;
+        let mut bytes = Vec::with_capacity(HEADER_LEN + NODE_LEN * nodes.len());
+        bytes.extend_from_slice(&MAGIC);
+        bytes.extend_from_slice(&VERSION.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        for v in [
+            nodes.len() as u32,
+            leaf_count as u32,
+            u32::from(level) + 1,
+            FANOUT,
+            cell_capacity,
+            entities as u32,
+        ] {
             bytes.extend_from_slice(&v.to_le_bytes());
         }
-        bytes.extend_from_slice(&n.level.to_le_bytes());
-        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.resize(HEADER_LEN, 0);
+        for n in &nodes {
+            for v in [n.bounds.min[0], n.bounds.min[1], n.bounds.max[0], n.bounds.max[1]] {
+                // negative zero is written as zero, like every other bound of the format
+                bytes.extend_from_slice(&(if v == 0.0 { 0.0 } else { v }).to_le_bytes());
+            }
+            for v in [n.first, n.count, n.entities] {
+                bytes.extend_from_slice(&v.to_le_bytes());
+            }
+            bytes.extend_from_slice(&n.level.to_le_bytes());
+            bytes.extend_from_slice(&0u16.to_le_bytes());
+        }
+        Ok(StreamedDirectory { bytes, nodes: nodes.len() as u32, bounds })
     }
-    Ok(BuiltDirectory { bytes, nodes: nodes.len() as u32, bounds, cells })
 }
 
 #[derive(Clone, Copy, Debug)]

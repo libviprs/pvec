@@ -646,14 +646,80 @@ pub fn build(
     chunk_bytes: u32,
     max_tiles: u64,
 ) -> Result<Built, IndexError> {
+    let metas: Vec<TileMeta> = tiles
+        .iter()
+        .map(|t| TileMeta { level: t.level, col: t.col, row: t.row, len: t.bytes.len() as u64 })
+        .collect();
+    let mut bytes: Vec<Vec<u8>> = tiles.into_iter().map(|t| t.bytes).collect();
+    let mut chunks = Vec::new();
+    let index = build_with(
+        grid,
+        &metas,
+        &mut |i| Ok::<_, core::convert::Infallible>(std::mem::take(&mut bytes[i])),
+        &mut |c| {
+            chunks.push(c);
+            Ok(())
+        },
+        inline_levels,
+        chunk_bytes,
+        max_tiles,
+    )
+    .map_err(|f| match f {
+        BuildFailure::Index(e) => e,
+        BuildFailure::Source(never) => match never {},
+    })?;
+    Ok(Built { index, chunks })
+}
+
+/// Where a tile is and how long it is, without its bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TileMeta {
+    /// The level, 0 being the coarsest.
+    pub level: u32,
+    /// The column in the level.
+    pub col: u32,
+    /// The row in the level.
+    pub row: u32,
+    /// The bytes of the encoded tile; 0 is a tile that is not stored.
+    pub len: u64,
+}
+
+/// Why [`build_with`] stopped: the container cannot store the tiles, or the caller's source or sink failed.
+#[derive(Debug, PartialEq, Eq)]
+pub enum BuildFailure<E> {
+    /// The tiles are refused.
+    Index(IndexError),
+    /// The closure that loads a tile, or the one that takes a chunk, failed.
+    Source(E),
+}
+
+impl<E> From<IndexError> for BuildFailure<E> {
+    fn from(e: IndexError) -> BuildFailure<E> {
+        BuildFailure::Index(e)
+    }
+}
+
+/// [`build`] over tiles that are not in memory: `metas` says where each is, `load(i)` returns the bytes of
+/// `metas[i]` when the build reaches it, and `sink` takes each chunk as soon as it is full, so no more than one
+/// chunk and one tile are held at a time. The chunks come out in the order [`Built::chunks`] has them, and the
+/// index is the one `build` returns for the same tiles.
+pub fn build_with<E>(
+    grid: &[(u32, u32)],
+    metas: &[TileMeta],
+    load: &mut dyn FnMut(usize) -> Result<Vec<u8>, E>,
+    sink: &mut dyn FnMut(ChunkOut) -> Result<(), E>,
+    inline_levels: u32,
+    chunk_bytes: u32,
+    max_tiles: u64,
+) -> Result<RasterIndex, BuildFailure<E>> {
     let n_levels = grid.len() as u32;
     if n_levels == 0 || n_levels > MAX_LEVELS {
-        return Err(IndexError::Levels { found: n_levels });
+        return Err(IndexError::Levels { found: n_levels }.into());
     }
     let mut total = 0u64;
     for (l, &(cols, rows)) in grid.iter().enumerate() {
         if !(1..=MAX_SIDE).contains(&cols) || !(1..=MAX_SIDE).contains(&rows) {
-            return Err(IndexError::Level { level: l as u32 });
+            return Err(IndexError::Level { level: l as u32 }.into());
         }
         total += u64::from(cols) * u64::from(rows);
     }
@@ -661,26 +727,27 @@ pub fn build(
         return Err(IndexError::TooManyTiles {
             declared: total,
             ceiling: max_tiles.min(u64::from(u32::MAX)),
-        });
+        }
+        .into());
     }
     // the tiles in the order of the table, so that the table can be walked once
-    let mut given: Vec<(u32, u64, TileIn)> = Vec::with_capacity(tiles.len());
-    for t in tiles {
+    let mut given: Vec<(u32, u64, usize)> = Vec::with_capacity(metas.len());
+    for (i, t) in metas.iter().enumerate() {
         let &(cols, rows) = grid
             .get(t.level as usize)
             .filter(|(c, r)| t.col < *c && t.row < *r)
             .ok_or(IndexError::Tile { level: t.level, col: t.col, row: t.row })?;
-        given.push((t.level, hilbert_key(side_of(cols, rows), t.col, t.row), t));
+        given.push((t.level, hilbert_key(side_of(cols, rows), t.col, t.row), i));
     }
-    given.sort_unstable_by_key(|(level, key, _)| (*level, *key));
+    given.sort_unstable_by_key(|(level, key, i)| (*level, *key, *i));
     if let Some(w) = given.windows(2).find(|w| (w[0].0, w[0].1) == (w[1].0, w[1].1)) {
-        return Err(IndexError::Tile { level: w[1].2.level, col: w[1].2.col, row: w[1].2.row });
+        let t = metas[w[1].2];
+        return Err(IndexError::Tile { level: t.level, col: t.col, row: t.row }.into());
     }
     let mut given = given.into_iter().peekable();
 
     let mut levels: Vec<Level> = Vec::with_capacity(grid.len());
     let mut table: Vec<Tile> = Vec::with_capacity(total as usize);
-    let mut chunks: Vec<ChunkOut> = Vec::new();
     let mut inline: Vec<u8> = Vec::new();
     let mut stored = 0u32;
     let inline_at = (HEADER_LEN + LEVEL_LEN * grid.len() + TILE_LEN * total as usize) as u64;
@@ -700,8 +767,11 @@ pub fn build(
         let mut current: Option<ChunkOut> = None;
         for (key, col, row) in cells {
             let mut bytes = Vec::new();
-            if given.peek().is_some_and(|(gl, gk, _)| (*gl, *gk) == (l, key)) {
-                bytes = given.next().map(|(_, _, t)| t.bytes).unwrap_or_default();
+            if let Some((_, _, i)) = given.next_if(|(gl, gk, _)| (*gl, *gk) == (l, key)) {
+                // a tile with no bytes is not stored, and a source need not be asked for it
+                if metas[i].len != 0 {
+                    bytes = load(i).map_err(BuildFailure::Source)?;
+                }
             }
             if bytes.is_empty() {
                 table.push(Tile { xxh3: 0, col, row, offset: 0, length: 0, chunk: 0 });
@@ -715,14 +785,14 @@ pub fn build(
                 let end = offset + u64::from(length);
                 let offset = u32::try_from(offset).map_err(|_| IndexError::TooLarge { level: l })?;
                 if u32::try_from(end).is_err() {
-                    return Err(IndexError::TooLarge { level: l });
+                    return Err(IndexError::TooLarge { level: l }.into());
                 }
                 inline.extend_from_slice(&bytes);
                 table.push(Tile { xxh3, col, row, offset, length, chunk: INLINE });
                 continue;
             }
             if length > chunk_bytes {
-                return Err(IndexError::TooLarge { level: l });
+                return Err(IndexError::TooLarge { level: l }.into());
             }
             // a chunk takes the next tile unless that would pass the limit, and it is never empty
             if current
@@ -730,7 +800,7 @@ pub fn build(
                 .is_some_and(|c| c.bytes.len() as u64 + u64::from(length) > u64::from(chunk_bytes))
                 && let Some(done) = current.take()
             {
-                chunks.push(done);
+                sink(done).map_err(BuildFailure::Source)?;
             }
             let c = current.get_or_insert_with(|| {
                 let c = ChunkOut {
@@ -745,7 +815,7 @@ pub fn build(
                 c
             });
             if c.chunk >= CHUNKS_PER_LEVEL {
-                return Err(IndexError::TooLarge { level: l });
+                return Err(IndexError::TooLarge { level: l }.into());
             }
             table.push(Tile { xxh3, col, row, offset: c.bytes.len() as u32, length, chunk: c.chunk });
             c.bytes.extend_from_slice(&bytes);
@@ -753,8 +823,10 @@ pub fn build(
             c.cols = [c.cols[0].min(col), c.cols[1].max(col)];
             c.rows = [c.rows[0].min(row), c.rows[1].max(row)];
         }
-        chunks.extend(current.take());
+        if let Some(done) = current.take() {
+            sink(done).map_err(BuildFailure::Source)?;
+        }
         levels.push(Level { cols, rows, chunks: level_chunks, first });
     }
-    Ok(Built { index: RasterIndex { levels, tiles: table, stored, inline }, chunks })
+    Ok(RasterIndex { levels, tiles: table, stored, inline })
 }

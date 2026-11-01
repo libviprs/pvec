@@ -9,6 +9,8 @@ mod layout;
 pub mod mutate;
 pub mod seeds;
 pub mod smoke;
+mod spill;
 mod targets;
 
+pub use spill::fuzz_spill_writer;
 pub use targets::*;

@@ -25,3 +25,6 @@ unstable.rs: PvecReader::rasters(&self) -> Vec<u32>
 unstable.rs: PvecReader::raster_load(&self, raster: u32) -> Result<(), PvecError>
 unstable.rs: PvecReader::raster_plan(&self, raster: u32, placement: &Placement, query: &ViewportQuery, max_decoded: Option<u64>) -> Result<RasterPlan, PvecError>
 unstable.rs: PvecReader::raster_tile_slot(&self, raster: u32, level: u32, col: u32, row: u32) -> Result<Option<TileSlot>, PvecError>
+unstable.rs: impl<W: std::io::Write> ByteSink for IoSink<'_, W>
+unstable.rs: PvecWriter::with_spill(mut self, root: &std::path::Path, budget: u64) -> Result<PvecWriter, PvecError>
+unstable.rs: PvecWriter::finish_to(self, out: &mut impl std::io::Write) -> Result<u64, PvecError>

@@ -16,6 +16,8 @@ mod hit;
 mod manifest;
 mod pick;
 mod reader;
+#[cfg(feature = "unstable-stream")]
+mod spill_fs;
 mod tessellate;
 mod writer;
 
@@ -24,7 +26,7 @@ pub mod components;
 pub mod unstable;
 
 pub use bounds::{Bounds2, CurveRef};
-pub use error::PvecError;
+pub use error::{IoFailure, PvecError};
 pub use eval::CurveEval;
 pub use manifest::Manifest;
 pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode};

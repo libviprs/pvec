@@ -4,6 +4,11 @@ bounds.rs: Bounds2.max: [f64; 2]
 bounds.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct CurveRef
 bounds.rs: CurveRef.entity: EntityId
 components.rs: pub use pvec_components::{ Fill, HatchStream, LayerStream, LineStyleStream, ProvenanceStream, SemanticClassStream, Skipped, Stream, TextStream, }
+error.rs: #[derive(Clone, Debug)] pub struct IoFailure(Arc<std::io::Error>)
+error.rs: IoFailure::error(&self) -> &std::io::Error
+error.rs: IoFailure::kind(&self) -> std::io::ErrorKind
+error.rs: impl PartialEq for IoFailure
+error.rs: impl From<std::io::Error> for IoFailure
 error.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum PvecError
 error.rs: PvecError::Read { rule: String }
 error.rs: PvecError::Write { rule: String }
@@ -11,9 +16,10 @@ error.rs: PvecError::UnknownUnit { metres_per_unit: f64 }
 error.rs: PvecError::Query { rule: String }
 error.rs: PvecError::Geometry { rule: String }
 error.rs: PvecError::BadContext { reason: String }
+error.rs: PvecError::Io { stage: &'static str, error: IoFailure }
 error.rs: PvecError::ErrorBudgetUnmet { achieved: f64, requested: f64 }
 error.rs: impl fmt::Display for PvecError
-error.rs: impl std::error::Error for PvecError {}
+error.rs: impl std::error::Error for PvecError
 eval.rs: pub trait CurveEval
 eval.rs: CurveEval::domain(&self) -> Domain
 eval.rs: CurveEval::point_at(&self, t: f64) -> Result<[f64; 2], PvecError>
@@ -28,7 +34,7 @@ hit.rs: pub fn curve_meets_box(curve: &Curve, min: [f64; 2], max: [f64; 2]) -> b
 lib.rs: pub mod components
 lib.rs: pub mod unstable
 lib.rs: pub use bounds::{Bounds2, CurveRef}
-lib.rs: pub use error::PvecError
+lib.rs: pub use error::{IoFailure, PvecError}
 lib.rs: pub use eval::CurveEval
 lib.rs: pub use manifest::Manifest
 lib.rs: pub use pick::{EntityIdBatch, Pick, PickIndex, PickTolerance, RectMode}
@@ -79,6 +85,8 @@ reader.rs: PvecReader::manifest(&self) -> &Manifest
 reader.rs: PvecReader::entity_count(&self) -> Result<u64, PvecError>
 reader.rs: PvecReader::entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError>
 reader.rs: PvecReader::styles(&self) -> Result<Vec<(EntityId, u32)>, PvecError>
+spill_fs.rs: impl SpillStore for FsStore
+spill_fs.rs: impl Drop for FsStore
 tessellate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Conformance
 tessellate.rs: Conformance::DisplayFidelity
 tessellate.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct TessellationContext

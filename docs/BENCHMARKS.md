@@ -106,3 +106,29 @@ What I take from them. The Tier 0 cap of 256 KB (`RASTER_TIER0_CAP`) is kept: at
 
 * The 4 hour nightly fuzz run of the hardening task (P7.8, pvec#190) is not measured here: the shorter runs are in [FUZZING.md](FUZZING.md), and the ones at the final tuning configuration are in `bench/TUNING.md`.
 * `bench/PROGRESSIVE.md` (P8.5) and `bench/TUNING.md` (P8.6) are copied above (the P8.5 rows) and linked; the freeze decision about every red row is P8.7 (pvec#66), and it is not measured or made on this page.
+
+## Writer memory
+
+Peak resident set of the facade writer against the entity count (issue #235). `memory` is
+`PvecWriter::finish`, `spill` is `with_spill` (64 MiB budget, a spill root on local disk) and `finish_to` into
+a sink that only hashes. Two-point polylines, ids from 0, release build, one configuration to a process
+(`crates/pvec/examples/writer_memory.rs`), MARS native x86_64, `rust:1.99.1`, load average about 8 on 24
+cores. The artifact is byte-identical between the two modes (same SHA-256 in every row pair).
+
+| entities | writer | mode | peak RSS | artifact |
+|---|---|---|---|---|
+| 1,000,000 | plain | memory | 305 MiB | 2.86 MB |
+| 1,000,000 | plain | spill | 166 MiB | 2.86 MB |
+| 1,000,000 | indexed, Tier 0 | memory | 561 MiB | 3.06 MB |
+| 1,000,000 | indexed, Tier 0 | spill | **85 MiB** | 3.06 MB |
+| 4,000,000 | plain | memory | 1,210 MiB | 11.4 MB |
+| 4,000,000 | plain | spill | 597 MiB | 11.4 MB |
+| 4,000,000 | indexed, Tier 0 | memory | 2,160 MiB | 12.5 MB |
+| 4,000,000 | indexed, Tier 0 | spill | **83 MiB** | 12.5 MB |
+
+The indexed writer is the bounded one: 85 MiB at one million entities and 83 MiB at four million, against
+2,160 MiB in memory, so doubling the entities twice moves the peak by less than 10 percent. The plain
+writer without cells keeps every entity of one geometry type in one block, which is the whole drawing, so
+its spill peak still grows with the count (597 MiB at four million, about half of the in-memory writer). A
+writer that has to stay bounded is the indexed one (`docs/CONTAINER.md`, 4.8). Time: the spill path
+finishes 4,000,000 indexed entities in 9.1 s against 3.8 s in memory.

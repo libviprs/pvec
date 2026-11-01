@@ -34,5 +34,9 @@ pvec-stream = { path = "../pvec-stream" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-testkit = { path = "../pvec-testkit" }
 
+[[example]]
+name = "writer_memory"
+required-features = ["unstable-stream"]
+
 [lints]
 workspace = true

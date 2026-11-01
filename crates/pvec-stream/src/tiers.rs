@@ -434,15 +434,10 @@ impl Tier0Builder {
     /// Classifies a curve: cheap geometry is exact, anything else gets a measured preview, or is
     /// declared infeasible.
     pub fn add_curve(&mut self, id: EntityId, curve: &Curve) -> Result<(), Tier0Error> {
-        if is_cheap_exact(curve) {
-            return match curve.bounds() {
-                Ok(_) => self.add_exact(id),
-                Err(_) => self.declare(id, InfeasibleReason::EvaluatorRefused),
-            };
-        }
-        match build_preview(id, curve, &self.params)? {
-            Ok(preview) => self.add_preview(preview),
-            Err(reason) => self.declare(id, reason),
+        match tier0_outcome(id, curve, &self.params)? {
+            Tier0Outcome::Exact => self.add_exact(id),
+            Tier0Outcome::Preview(preview) => self.add_preview(preview),
+            Tier0Outcome::Infeasible(reason) => self.declare(id, reason),
         }
     }
     fn declare(&mut self, id: EntityId, reason: InfeasibleReason) -> Result<(), Tier0Error> {
@@ -480,6 +475,90 @@ impl Tier0Builder {
             infeasible: self.infeasible,
             partial: false,
         })
+    }
+}
+
+/// What Tier 0 says about one entity, decided from its curve alone.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Tier0Outcome {
+    /// Cheap geometry, emitted in full in its hot block.
+    Exact,
+    /// A bounded-error preview.
+    Preview(Preview),
+    /// No bounded preview could be made.
+    Infeasible(InfeasibleReason),
+}
+
+/// Classifies one curve for Tier 0, which is all [`Tier0Builder::add_curve`] does before it records the result.
+/// It depends on the curve and the parameters and on nothing else, so a writer can ask it when the curve is
+/// pushed and keep the answer. A preview whose measured bound is over the parameters' is `BadBound`.
+pub fn tier0_outcome(id: EntityId, curve: &Curve, params: &Tier0Params) -> Result<Tier0Outcome, Tier0Error> {
+    params.check()?;
+    if is_cheap_exact(curve) {
+        return Ok(match curve.bounds() {
+            Ok(_) => Tier0Outcome::Exact,
+            Err(_) => Tier0Outcome::Infeasible(InfeasibleReason::EvaluatorRefused),
+        });
+    }
+    match build_preview(id, curve, params)? {
+        Ok(preview) if preview.error_bound() > params.max_error => Err(Tier0Error::BadBound),
+        Ok(preview) => Ok(Tier0Outcome::Preview(preview)),
+        Err(reason) => Ok(Tier0Outcome::Infeasible(reason)),
+    }
+}
+
+impl Tier0Outcome {
+    /// The outcome as bytes, for a writer that keeps it beside the entity.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Tier0Outcome::Exact => vec![0],
+            Tier0Outcome::Infeasible(reason) => vec![1, reason.code()],
+            Tier0Outcome::Preview(p) => {
+                let mut out = vec![2, p.form.code()];
+                out.extend_from_slice(&p.error_bound.to_le_bytes());
+                for c in p.origin {
+                    out.extend_from_slice(&c.to_le_bytes());
+                }
+                out.extend_from_slice(&(p.vertices.len() as u16).to_le_bytes());
+                for v in &p.vertices {
+                    out.extend_from_slice(&v[0].to_le_bytes());
+                    out.extend_from_slice(&v[1].to_le_bytes());
+                }
+                out
+            }
+        }
+    }
+
+    /// The outcome of entity `id` from the bytes [`Tier0Outcome::to_bytes`] made.
+    pub fn from_bytes(id: EntityId, bytes: &[u8]) -> Result<Tier0Outcome, Tier0Error> {
+        let mut r = Reader { bytes, at: 0 };
+        let out = match r.take(1)?[0] {
+            0 => Tier0Outcome::Exact,
+            1 => Tier0Outcome::Infeasible(
+                InfeasibleReason::from_code(r.take(1)?[0]).ok_or(fmt_err("an unknown infeasible reason"))?,
+            ),
+            2 => {
+                let form = PreviewForm::from_code(r.take(1)?[0]).ok_or(fmt_err("an unknown preview form"))?;
+                let bound = f32::from_le_bytes(r.array()?);
+                let mut origin = [0.0f64; 2];
+                for c in &mut origin {
+                    *c = f64::from_le_bytes(r.array()?);
+                }
+                let n = u16::from_le_bytes(r.array()?) as usize;
+                let mut vertices = Vec::with_capacity(n.min(MAX_PREVIEW_VERTICES));
+                for _ in 0..n {
+                    let x = f32::from_le_bytes(r.array()?);
+                    let y = f32::from_le_bytes(r.array()?);
+                    vertices.push([x, y]);
+                }
+                Tier0Outcome::Preview(Preview::new(id, form, bound, origin, vertices)?)
+            }
+            _ => return Err(fmt_err("an unknown Tier 0 outcome")),
+        };
+        if r.remaining() != 0 {
+            return Err(fmt_err("bytes left over after a Tier 0 outcome"));
+        }
+        Ok(out)
     }
 }
 
@@ -880,6 +959,33 @@ impl Tier0Plan {
             }
         }
         Ok(cut)
+    }
+    /// The plan of one leaf from the outcome of each of its entities, which is what [`Tier0Plan::cut`] gives
+    /// for a whole-artifact plan that holds the same outcomes: `entities` is the size of the artifact, not of
+    /// the leaf. An id twice is `Duplicate`.
+    pub fn leaf(entities: u32, mut outcomes: Vec<(EntityId, Tier0Outcome)>) -> Result<Tier0Plan, Tier0Error> {
+        outcomes.sort_by_key(|(id, _)| *id);
+        if let Some(w) = outcomes.windows(2).find(|w| w[0].0 == w[1].0) {
+            return Err(Tier0Error::Duplicate(w[0].0));
+        }
+        let mut plan = Tier0Plan {
+            entities,
+            runs: Vec::new(),
+            previews: Vec::new(),
+            infeasible: Vec::new(),
+            partial: true,
+        };
+        for (id, outcome) in outcomes {
+            match outcome {
+                Tier0Outcome::Exact => match plan.runs.last_mut() {
+                    Some((start, len)) if *start + *len == id.index() => *len += 1,
+                    _ => plan.runs.push((id.index(), 1)),
+                },
+                Tier0Outcome::Preview(p) => plan.previews.push(p),
+                Tier0Outcome::Infeasible(reason) => plan.infeasible.push(Infeasible { id, reason }),
+            }
+        }
+        Ok(plan)
     }
     /// How many entities go out exact.
     pub fn exact_count(&self) -> usize {

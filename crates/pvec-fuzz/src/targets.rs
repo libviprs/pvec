@@ -28,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 10] = [
+pub const TARGETS: [(&str, Target); 11] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -39,6 +39,7 @@ pub const TARGETS: [(&str, Target); 10] = [
     ("fuzz_raster_headers", fuzz_raster_headers),
     ("fuzz_raster_plan", fuzz_raster_plan),
     ("fuzz_raster_archive", fuzz_raster_archive),
+    ("fuzz_spill_writer", crate::spill::fuzz_spill_writer),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
