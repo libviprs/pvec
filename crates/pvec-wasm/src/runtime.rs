@@ -5,7 +5,7 @@ use crate::abi::{
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
     Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, RasterId, ReaderConfig,
-    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, footprint,
+    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, curve_distance, curve_meets_box, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::{Cell, RefCell};
@@ -264,7 +264,8 @@ type Tier0Row = (u32, u32, f64, Vec<[f64; 2]>);
 
 /// The rows of one leaf's plan: its exact entities, its previews and the entities declared infeasible.
 fn plan_rows(plan: &pvec::unstable::Tier0Plan) -> Vec<Tier0Row> {
-    let mut rows: Vec<Tier0Row> = plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())).collect();
+    let mut rows: Vec<Tier0Row> =
+        plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())).collect();
     rows.extend(plan.previews().iter().map(|p| {
         let code = match p.form() {
             PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
@@ -689,6 +690,35 @@ impl Runtime {
         Ok(self.insert(Item::Batch { picked, truncated: end < all.len() }))
     }
 
+    /// The exact distance in source units from `(x, y)` to the geometry of entity `entity` (issue #252), computed on
+    /// the curve itself with no tessellation. Refused: a handle that is not live ([`AbiError::Released`]) or not a file
+    /// ([`AbiError::WrongKind`]), a non-finite coordinate, an entity the file does not hold (on a range-opened file,
+    /// one no call has read yet) and a curve with no exact distance such as an unbounded line
+    /// ([`AbiError::BadArgument`]). Every entity this runtime holds is exact geometry, so there is no preview to fall
+    /// back to.
+    pub fn entity_distance(&self, file: u32, entity: u32, x: f64, y: f64) -> Result<f64, AbiError> {
+        let file = self.file(file)?;
+        if !(x.is_finite() && y.is_finite()) {
+            return Err(AbiError::BadArgument);
+        }
+        let entities = file.entities.borrow();
+        let e = entities.get(&entity).ok_or(AbiError::BadArgument)?;
+        curve_distance(&e.curve, x, y).ok_or(AbiError::BadArgument)
+    }
+
+    /// Whether the geometry of entity `entity` meets `bounds`, touching included (issue #252). The refusals are those
+    /// of [`Runtime::entity_distance`], with a box that is not finite or is inverted in place of the coordinates.
+    pub fn entity_touches_box(&self, file: u32, entity: u32, bounds: Bounds2) -> Result<bool, AbiError> {
+        let file = self.file(file)?;
+        let ordered = bounds.min[0] <= bounds.max[0] && bounds.min[1] <= bounds.max[1];
+        if !(bounds.min.iter().chain(&bounds.max).all(|v| v.is_finite()) && ordered) {
+            return Err(AbiError::BadArgument);
+        }
+        let entities = file.entities.borrow();
+        let e = entities.get(&entity).ok_or(AbiError::BadArgument)?;
+        Ok(curve_meets_box(&e.curve, bounds.min, bounds.max))
+    }
+
     fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {
         match self.get(handle)? {
             Item::File(f) => Ok(Rc::clone(f)),
@@ -947,8 +977,9 @@ impl Runtime {
     fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, (u32, u32)>, AbiError> {
         let mut out = file.skipped.borrow().clone();
         match self.placements(file) {
-            Ok(p) => out
-                .extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, (4, 0)))),
+            Ok(p) => out.extend(
+                p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, (4, 0))),
+            ),
             Err(AbiError::NoRaster) => {}
             Err(e) => return Err(e),
         }

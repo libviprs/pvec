@@ -9,7 +9,10 @@ trap 'rm -rf "$T"' EXIT
 # the raster group of issue 221: a module names these exports or is not a release
 RASTER_EXPORTS="raster_stat raster_skipped raster_placement raster_plan raster_tile raster_buffer_len raster_buffer_ptr raster_buffer_elem"
 RASTER_JSON=$(printf '%s\n' $RASTER_EXPORTS | jq -R . | jq -sc .)
-FAKE="not really wasm wasm_abi_version $RASTER_EXPORTS"
+# the exact distance exports of issue 252
+DISTANCE_EXPORTS="entity_distance entity_touches_box"
+DISTANCE_JSON=$(printf '%s\n' $DISTANCE_EXPORTS | jq -R . | jq -sc .)
+FAKE="not really wasm wasm_abi_version $RASTER_EXPORTS $DISTANCE_EXPORTS"
 printf '%s' "$FAKE" > "$T/pvec_wasm_bg.wasm"
 sha=$(shasum -a 256 "$T/pvec_wasm_bg.wasm" | cut -d' ' -f1)
 size=$(wc -c < "$T/pvec_wasm_bg.wasm" | tr -d ' ')
@@ -21,6 +24,7 @@ cat > "$T/pvec-wasm-manifest.json" <<JSON
   "dirty": false,
   "abiVersion": 2,
   "rasterExports": $RASTER_JSON,
+  "distanceExports": $DISTANCE_JSON,
   "wasmBindgen": "0.2.129",
   "rustc": "rustc 1.99.1",
   "image": "rust:1.99.1-bookworm",
@@ -53,6 +57,23 @@ printf '%s' "$FAKE" > "$T/pvec_wasm_bg.wasm"; rm -f "$T/m.json" "$T/manifest.kee
 jq 'del(.rasterExports)' "$T/pvec-wasm-manifest.json" > "$T/m.json"; cp "$T/pvec-wasm-manifest.json" "$T/manifest.keep"; cp "$T/m.json" "$T/pvec-wasm-manifest.json"
 (cd "$T" && shasum -a 256 pvec_wasm_bg.wasm pvec-wasm-manifest.json > SHA256SUMS)
 if "$HERE/wasm-release.sh" --verify "$T" >/dev/null 2>&1; then fail "a manifest that lists no raster exports verified"; fi
+cp "$T/manifest.keep" "$T/pvec-wasm-manifest.json"; rm -f "$T/m.json" "$T/manifest.keep"
+(cd "$T" && shasum -a 256 pvec_wasm_bg.wasm pvec-wasm-manifest.json > SHA256SUMS)
+
+# the same for a module without the distance exports, and for a manifest that does not list them
+for gone in entity_distance entity_touches_box; do
+  printf '%s' "${FAKE/$gone/}" > "$T/pvec_wasm_bg.wasm"
+  g=$(shasum -a 256 "$T/pvec_wasm_bg.wasm" | cut -d' ' -f1); n=$(wc -c < "$T/pvec_wasm_bg.wasm" | tr -d ' ')
+  cp "$T/pvec-wasm-manifest.json" "$T/manifest.keep"
+  jq --arg g "$g" --argjson n "$n" '.wasm.sha256 = $g | .wasm.bytes = $n' "$T/manifest.keep" > "$T/pvec-wasm-manifest.json"
+  (cd "$T" && shasum -a 256 pvec_wasm_bg.wasm pvec-wasm-manifest.json > SHA256SUMS)
+  if "$HERE/wasm-release.sh" --verify "$T" >/dev/null 2>&1; then fail "a module without $gone verified"; fi
+  cp "$T/manifest.keep" "$T/pvec-wasm-manifest.json"
+done
+printf '%s' "$FAKE" > "$T/pvec_wasm_bg.wasm"; rm -f "$T/manifest.keep"
+jq 'del(.distanceExports)' "$T/pvec-wasm-manifest.json" > "$T/m.json"; cp "$T/pvec-wasm-manifest.json" "$T/manifest.keep"; cp "$T/m.json" "$T/pvec-wasm-manifest.json"
+(cd "$T" && shasum -a 256 pvec_wasm_bg.wasm pvec-wasm-manifest.json > SHA256SUMS)
+if "$HERE/wasm-release.sh" --verify "$T" >/dev/null 2>&1; then fail "a manifest that lists no distance exports verified"; fi
 cp "$T/manifest.keep" "$T/pvec-wasm-manifest.json"; rm -f "$T/m.json" "$T/manifest.keep"
 (cd "$T" && shasum -a 256 pvec_wasm_bg.wasm pvec-wasm-manifest.json > SHA256SUMS)
 

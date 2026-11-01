@@ -14,6 +14,7 @@ use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
 use std::collections::HashMap;
 
+pub use crate::hit::{curve_distance, curve_meets_box};
 pub use crate::reader::LoadedEntity;
 pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
 pub use pvec_container::blocks::raster::TileIn;
