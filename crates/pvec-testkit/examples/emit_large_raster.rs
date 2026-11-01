@@ -42,6 +42,8 @@ fn main() {
 }
 
 fn usage(why: &str) -> ! {
-    eprintln!("{why}\nusage: emit_large_raster <out> [--seed S] [--width W] [--height H] [--tile-edge E] [--bit-depth 1|8] [--lines N] [--curves N]");
+    eprintln!(
+        "{why}\nusage: emit_large_raster <out> [--seed S] [--width W] [--height H] [--tile-edge E] [--bit-depth 1|8] [--lines N] [--curves N]"
+    );
     std::process::exit(2)
 }

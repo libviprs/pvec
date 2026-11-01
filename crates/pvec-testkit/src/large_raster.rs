@@ -47,11 +47,18 @@ pub fn large_raster(seed: u64, shape: Shape, lines: u32, curves: u32) -> Vec<u8>
         capabilities: Vec::new(),
     });
     let boxed = |p: &[[f64; 2]]| Bounds {
-        min: [p.iter().map(|q| q[0]).fold(f64::MAX, f64::min), p.iter().map(|q| q[1]).fold(f64::MAX, f64::min)],
-        max: [p.iter().map(|q| q[0]).fold(f64::MIN, f64::max), p.iter().map(|q| q[1]).fold(f64::MIN, f64::max)],
+        min: [
+            p.iter().map(|q| q[0]).fold(f64::MAX, f64::min),
+            p.iter().map(|q| q[1]).fold(f64::MAX, f64::min),
+        ],
+        max: [
+            p.iter().map(|q| q[0]).fold(f64::MIN, f64::max),
+            p.iter().map(|q| q[1]).fold(f64::MIN, f64::max),
+        ],
     };
     for id in 0..lines + curves {
-        let meta = |bounds| EntityMeta { id: EntityId::new(id).expect("an id"), style: id % 4, cell: 0, bounds };
+        let meta =
+            |bounds| EntityMeta { id: EntityId::new(id).expect("an id"), style: id % 4, cell: 0, bounds };
         if id < lines {
             let p = [[next(w), next(h)], [next(w), next(h)]];
             writer.push_line(meta(boxed(&p)), p[0], p[1]).expect("a line");
