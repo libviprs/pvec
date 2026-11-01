@@ -15,8 +15,10 @@
 //! (`raster_blocks_of`); what differs is where the pushes are kept and how the bytes reach the sink. A test
 //! holds the two to each other on the whole corpus.
 //!
-//! An artifact whose build fails writes nothing to the sink: every block is built and every rule is checked
-//! before the first byte is written, and the files are removed whether the build succeeded, failed or was
+//! An artifact whose build is refused writes nothing to the sink: every block is built and every rule is
+//! checked before the first byte is written. Once the bytes are flowing, a spill file that cannot be read
+//! back or a sink that fails ends the write with a typed error and leaves the sink holding a prefix of the
+//! artifact, which the caller discards; the files are removed whether the build succeeded, failed or was
 //! dropped.
 
 use crate::blocks::advanced::SplineSpec;

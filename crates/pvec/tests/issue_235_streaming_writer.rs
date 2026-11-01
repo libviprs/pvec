@@ -111,7 +111,7 @@ fn push_drawing(w: &mut PvecWriter, n: u32, mix: Mix, seed: u64) {
         let curve = match (mix, k % 9) {
             (Mix::Everything, _) if n >= 3 && i == n - 3 => joined(0.0),
             (Mix::Everything, _) if n >= 3 && i == n - 2 => joined(60.0),
-            (Mix::Short, _) | (_, 0 | 1 | 2) => {
+            (Mix::Short, _) | (_, 0..=2) => {
                 Curve::Polyline(Polyline::new(vec![p(x, y), p(x + 4.0, y + 3.0)]).unwrap())
             }
             (Mix::Everything, 3) => {
@@ -485,7 +485,7 @@ fn issue_235_the_refusals_are_the_ones_finish_gives() {
 #[test]
 fn issue_235_random_drawings_tiny_budgets_and_truncated_sinks_never_panic_or_leak() {
     let tmp = root("fuzz");
-    let mut rng = Rng(0x5eed_235);
+    let mut rng = Rng(0x05ee_d235);
     for case in 0..40u32 {
         let indexed = match rng.below(4) {
             0 => None,

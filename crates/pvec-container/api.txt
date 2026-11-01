@@ -323,6 +323,16 @@ blocks/raster.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Built
 blocks/raster.rs: Built.index: RasterIndex
 blocks/raster.rs: Built.chunks: Vec<ChunkOut>
 blocks/raster.rs: pub fn build(grid: &[(u32, u32)], tiles: Vec<TileIn>, inline_levels: u32, chunk_bytes: u32, max_tiles: u64) -> Result<Built, IndexError>
+blocks/raster.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct TileMeta
+blocks/raster.rs: TileMeta.level: u32
+blocks/raster.rs: TileMeta.col: u32
+blocks/raster.rs: TileMeta.row: u32
+blocks/raster.rs: TileMeta.len: u64
+blocks/raster.rs: #[derive(Debug, PartialEq, Eq)] pub enum BuildFailure<E>
+blocks/raster.rs: BuildFailure::Index(IndexError)
+blocks/raster.rs: BuildFailure::Source(E)
+blocks/raster.rs: impl<E> From<IndexError> for BuildFailure<E>
+blocks/raster.rs: pub fn build_with<E>(grid: &[(u32, u32)], metas: &[TileMeta], load: &mut dyn FnMut(usize) -> Result<Vec<u8>, E>, sink: &mut dyn FnMut(ChunkOut) -> Result<(), E>, inline_levels: u32, chunk_bytes: u32, max_tiles: u64) -> Result<RasterIndex, BuildFailure<E>>
 blocks/sniff.rs: pub const PNG: u8
 blocks/sniff.rs: pub const JPEG: u8
 blocks/sniff.rs: pub const WEBP: u8
@@ -547,6 +557,8 @@ lib.rs: pub mod negotiate
 lib.rs: pub mod reader
 lib.rs: pub mod source
 lib.rs: pub mod spec
+lib.rs: pub mod spill
+lib.rs: pub mod spill_writer
 lib.rs: pub mod writer
 lib.rs: pub use error::ContainerError
 lib.rs: pub use header::{ChecksumAlgorithm, Header}
@@ -952,6 +964,86 @@ spec.rs: pub const MANIFEST_FIELDS: &[FieldSpec]
 spec.rs: pub const CAPABILITY_ENTRY_FIELDS: &[FieldSpec]
 spec.rs: pub const DIRECTORY_ENTRY_FIELDS: &[FieldSpec]
 spec.rs: pub fn render_markdown() -> String
+spill.rs: #[derive(Debug)] pub struct SpillError(Box<dyn Error + Send + Sync>)
+spill.rs: SpillError::new(e: impl Error + Send + Sync + 'static) -> SpillError
+spill.rs: SpillError::corrupt(what: &'static str) -> SpillError
+spill.rs: SpillError::into_source(self) -> Box<dyn Error + Send + Sync>
+spill.rs: SpillError::source_ref(&self) -> &(dyn Error + Send + Sync + 'static)
+spill.rs: impl fmt::Display for SpillError
+spill.rs: impl Error for SpillError
+spill.rs: pub type SpillResult<T> = Result<T, SpillError>
+spill.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)] pub struct FileId(pub u32)
+spill.rs: pub trait SpillStore: fmt::Debug + Send + Sync
+spill.rs: SpillStore::create(&self) -> SpillResult<FileId>
+spill.rs: SpillStore::append(&self, file: FileId, bytes: &[u8]) -> SpillResult<()>
+spill.rs: SpillStore::read_at(&self, file: FileId, offset: u64, buf: &mut [u8]) -> SpillResult<usize>
+spill.rs: SpillStore::remove(&self, file: FileId) -> SpillResult<()>
+spill.rs: pub type Store = Arc<dyn SpillStore>
+spill.rs: #[derive(Debug)] pub struct Log
+spill.rs: Log::create(store: &Store) -> SpillResult<Log>
+spill.rs: Log::append(&mut self, bytes: &[u8]) -> SpillResult<u64>
+spill.rs: Log::count(&self) -> u64
+spill.rs: Log::read_at(&mut self, offset: u64) -> SpillResult<Vec<u8>>
+spill.rs: Log::records(&mut self) -> SpillResult<LogRecords>
+spill.rs: #[derive(Debug)] pub struct LogRecords
+spill.rs: impl Iterator for LogRecords
+spill.rs: #[derive(Debug)] pub struct ExternalSorter
+spill.rs: ExternalSorter::new(store: &Store, budget: usize) -> ExternalSorter
+spill.rs: ExternalSorter::push(&mut self, key: u128, payload: Vec<u8>) -> SpillResult<()>
+spill.rs: ExternalSorter::len(&self) -> u64
+spill.rs: ExternalSorter::is_empty(&self) -> bool
+spill.rs: ExternalSorter::finish(mut self) -> SpillResult<Sorted>
+spill.rs: impl Iterator for Merge
+spill.rs: #[derive(Debug)] pub struct Sorted(Inner)
+spill.rs: impl Iterator for Sorted
+spill_writer.rs: #[derive(Debug)] #[non_exhaustive] pub enum FinishError
+spill_writer.rs: FinishError::Write(WriteError)
+spill_writer.rs: FinishError::Spill(SpillError)
+spill_writer.rs: FinishError::Output(SpillError)
+spill_writer.rs: impl fmt::Display for FinishError
+spill_writer.rs: impl std::error::Error for FinishError
+spill_writer.rs: impl From<WriteError> for FinishError
+spill_writer.rs: impl From<SpillError> for FinishError
+spill_writer.rs: pub trait ByteSink
+spill_writer.rs: ByteSink::put(&mut self, bytes: &[u8]) -> Result<(), SpillError>
+spill_writer.rs: #[derive(Clone, Debug)] pub struct HotRecord
+spill_writer.rs: HotRecord.tag: Vec<u8>
+spill_writer.rs: HotRecord::meta(&self) -> &EntityMeta
+spill_writer.rs: HotRecord::in_cell(mut self, cell: u32) -> HotRecord
+spill_writer.rs: HotRecord::encode(&self) -> Vec<u8>
+spill_writer.rs: HotRecord::decode(bytes: &[u8]) -> SpillResult<HotRecord>
+spill_writer.rs: impl Out for Hash
+spill_writer.rs: impl Out for Sink<'_>
+spill_writer.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct IdSummary
+spill_writer.rs: IdSummary.count: u64
+spill_writer.rs: IdSummary.max: Option<u32>
+spill_writer.rs: IdSummary.first_gap: Option<u32>
+spill_writer.rs: IdSummary.duplicate: Option<u32>
+spill_writer.rs: #[derive(Debug)] pub struct SpillWriter
+spill_writer.rs: SpillWriter::new(config: WriterConfig, store: Store, budget: usize) -> SpillResult<SpillWriter>
+spill_writer.rs: SpillWriter::with_options(config: WriterConfig, options: WriterOptions, store: Store, budget: usize) -> SpillResult<SpillWriter>
+spill_writer.rs: SpillWriter::store(&self) -> Store
+spill_writer.rs: SpillWriter::budget(&self) -> usize
+spill_writer.rs: SpillWriter::hot_count(&self) -> u64
+spill_writer.rs: SpillWriter::skip_tile_checks(&mut self)
+spill_writer.rs: SpillWriter::advanced_chunk_bytes(&mut self, bytes: u32)
+spill_writer.rs: SpillWriter::raster_chunk_bytes(&mut self, bytes: u32)
+spill_writer.rs: SpillWriter::raster_inline_bytes(&mut self, bytes: u64)
+spill_writer.rs: SpillWriter::push_line(&mut self, meta: EntityMeta, a: [f64; 2], b: [f64; 2]) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_circle_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radius: f64, start_sweep: [f64; 2]) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_ellipse_arc(&mut self, meta: EntityMeta, centre: [f64; 2], radii: [f64; 2], angles: [f64; 3]) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_spline(&mut self, meta: EntityMeta, spec: SplineSpec<'_>) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_composite(&mut self, meta: EntityMeta, segments: &[EntityId], trims: Option<&[[f64; 2]]>, closed: bool) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_curve(&mut self, id: EntityId, style: u32, cell: u32, curve: &Curve, tag: &mut dyn FnMut() -> Vec<u8>) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_stream(&mut self, stream: &Stream) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError>
+spill_writer.rs: SpillWriter::push_tier0_leaf(&mut self, cell: u32, count: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::hot_records(&mut self) -> SpillResult<impl Iterator<Item = SpillResult<HotRecord>> + use<>>
+spill_writer.rs: SpillWriter::emit_hot_cell(&mut self, cell: u32, records: Vec<HotRecord>) -> Result<(), FinishError>
+spill_writer.rs: SpillWriter::id_summary(&mut self) -> Result<IdSummary, FinishError>
+spill_writer.rs: SpillWriter::finish_to(mut self, sink: &mut dyn ByteSink) -> Result<u64, FinishError>
 writer.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum SortKey
 writer.rs: SortKey::BlockKind
 writer.rs: SortKey::SpatialCell
@@ -979,7 +1071,7 @@ writer.rs: RawBlock.codec: u8
 writer.rs: RawBlock.capability: u16
 writer.rs: RawBlock.uncompressed_length: u32
 writer.rs: RawBlock.stored: Vec<u8>
-writer.rs: pub fn assemble(mut manifest: Manifest, blocks: &[RawBlock], integrity: Integrity) -> Result<Vec<u8>, WriteError>
+writer.rs: pub fn assemble(manifest: Manifest, blocks: &[RawBlock], integrity: Integrity) -> Result<Vec<u8>, WriteError>
 writer.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct EntityMeta
 writer.rs: EntityMeta.id: EntityId
 writer.rs: EntityMeta.style: u32
@@ -1043,3 +1135,4 @@ writer.rs: ContainerWriter::raster_inline_bytes(&mut self, bytes: u64)
 writer.rs: ContainerWriter::skip_tile_checks(&mut self)
 writer.rs: ContainerWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>
+writer.rs: impl<E> From<WriteError> for RasterFail<E>

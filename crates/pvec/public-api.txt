@@ -85,6 +85,8 @@ reader.rs: PvecReader::manifest(&self) -> &Manifest
 reader.rs: PvecReader::entity_count(&self) -> Result<u64, PvecError>
 reader.rs: PvecReader::entities(&self) -> Result<Vec<(EntityId, Curve)>, PvecError>
 reader.rs: PvecReader::styles(&self) -> Result<Vec<(EntityId, u32)>, PvecError>
+spill_fs.rs: impl SpillStore for FsStore
+spill_fs.rs: impl Drop for FsStore
 tessellate.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Conformance
 tessellate.rs: Conformance::DisplayFidelity
 tessellate.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct TessellationContext

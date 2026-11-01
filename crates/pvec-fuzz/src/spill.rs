@@ -219,7 +219,13 @@ pub fn fuzz_spill_writer(data: &[u8]) -> String {
             a.rule().to_string()
         }
         (_, Err(FinishError::Spill(_))) => {
-            assert!(sink.bytes.is_empty(), "the sink got bytes of a build that could not read its files");
+            // a spill file that fails while the bytes flow leaves a prefix of the artifact, never other bytes
+            if let Ok(a) = &expect {
+                assert!(
+                    a.starts_with(&sink.bytes),
+                    "the sink got bytes that are not a prefix of the artifact"
+                );
+            }
             "spill".to_string()
         }
         (Ok(_), Err(FinishError::Output(_))) => "output".to_string(),

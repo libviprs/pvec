@@ -33,6 +33,7 @@ directory.rs: Aabb::min(&self) -> [f64; 2]
 directory.rs: Aabb::max(&self) -> [f64; 2]
 directory.rs: Aabb::intersects(&self, other: &Aabb) -> bool
 directory.rs: Aabb::contains(&self, other: &Aabb) -> bool
+directory.rs: Aabb::union(&self, other: &Aabb) -> Aabb
 directory.rs: impl From<Aabb> for Bounds
 directory.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct CellId(NonZeroU32)
 directory.rs: CellId::new(id: u32) -> Option<CellId>
@@ -54,6 +55,15 @@ directory.rs: BuiltDirectory.nodes: u32
 directory.rs: BuiltDirectory.bounds: Aabb
 directory.rs: BuiltDirectory.cells: Vec<CellId>
 directory.rs: pub fn build_directory(entities: &[EntityBox], cell_capacity: u32) -> Result<BuiltDirectory, DirectoryError>
+directory.rs: pub fn entity_key(world: &Aabb, bounds: &Aabb) -> u32
+directory.rs: #[derive(Debug)] pub struct DirectoryBuilder
+directory.rs: #[derive(Clone, Debug, PartialEq)] pub struct StreamedDirectory
+directory.rs: StreamedDirectory.bytes: Vec<u8>
+directory.rs: StreamedDirectory.nodes: u32
+directory.rs: StreamedDirectory.bounds: Aabb
+directory.rs: DirectoryBuilder::new(cell_capacity: u32) -> Result<DirectoryBuilder, DirectoryError>
+directory.rs: DirectoryBuilder::push(&mut self, bounds: &Aabb) -> Result<CellId, DirectoryError>
+directory.rs: DirectoryBuilder::finish(self) -> Result<StreamedDirectory, DirectoryError>
 directory.rs: #[derive(Debug)] pub struct SpatialDirectory
 directory.rs: SpatialDirectory::find(entries: &[BlockEntry]) -> Result<Option<BlockId>, DirectoryError>
 directory.rs: SpatialDirectory::parse(bytes: &[u8], entries: &[BlockEntry], limits: &Limits) -> Result<SpatialDirectory, DirectoryError>
@@ -452,6 +462,13 @@ tiers.rs: Tier0Builder::add_exact(&mut self, id: EntityId) -> Result<(), Tier0Er
 tiers.rs: Tier0Builder::add_preview(&mut self, preview: Preview) -> Result<(), Tier0Error>
 tiers.rs: Tier0Builder::add_curve(&mut self, id: EntityId, curve: &Curve) -> Result<(), Tier0Error>
 tiers.rs: Tier0Builder::finish(mut self) -> Result<Tier0Plan, Tier0Error>
+tiers.rs: #[derive(Clone, Debug, PartialEq)] pub enum Tier0Outcome
+tiers.rs: Tier0Outcome::Exact
+tiers.rs: Tier0Outcome::Preview(Preview)
+tiers.rs: Tier0Outcome::Infeasible(InfeasibleReason)
+tiers.rs: pub fn tier0_outcome(id: EntityId, curve: &Curve, params: &Tier0Params) -> Result<Tier0Outcome, Tier0Error>
+tiers.rs: Tier0Outcome::to_bytes(&self) -> Vec<u8>
+tiers.rs: Tier0Outcome::from_bytes(id: EntityId, bytes: &[u8]) -> Result<Tier0Outcome, Tier0Error>
 tiers.rs: pub fn is_cheap_exact(curve: &Curve) -> bool
 tiers.rs: pub fn measure_deviation(curve: &Curve, preview: &Preview) -> Result<f64, Tier0Error>
 tiers.rs: pub fn build_preview(id: EntityId, curve: &Curve, params: &Tier0Params) -> Result<Result<Preview, InfeasibleReason>, Tier0Error>
@@ -462,6 +479,7 @@ tiers.rs: Tier0Plan::check_coverage(&self, artifact: &[EntityId]) -> Result<(), 
 tiers.rs: Tier0Plan::covered(&self) -> usize
 tiers.rs: Tier0Plan::check_covers(&self, ids: &[EntityId]) -> Result<(), Tier0Error>
 tiers.rs: Tier0Plan::cut(&self, ids: &[EntityId]) -> Result<Tier0Plan, Tier0Error>
+tiers.rs: Tier0Plan::leaf(entities: u32, mut outcomes: Vec<(EntityId, Tier0Outcome)>) -> Result<Tier0Plan, Tier0Error>
 tiers.rs: Tier0Plan::exact_count(&self) -> usize
 tiers.rs: Tier0Plan::exact_ids(&self) -> impl Iterator<Item = EntityId> + '_
 tiers.rs: Tier0Plan::previews(&self) -> &[Preview]
