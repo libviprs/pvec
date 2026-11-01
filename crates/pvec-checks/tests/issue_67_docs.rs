@@ -3,7 +3,7 @@
 //! formal ISO 10303-42 conformance, and `docs/BENCHMARKS.md` carries every phase 8 verdict.
 #![allow(missing_docs)]
 
-use pvec_checks::{forbidden_claims, repo_root};
+use pvec_checks::{forbidden_claims, has_exponent_number, repo_root};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -109,13 +109,7 @@ fn only_the_numeric_policy_defines_a_tolerance_and_every_other_mention_cites_it(
         }
         for (n, line) in fs::read_to_string(&file).unwrap().lines().enumerate() {
             // a tolerance-shaped number: an exponent-form literal such as 1e-9, or the word epsilon with a value
-            let b: Vec<char> = line.chars().collect();
-            let exp = (1..b.len().saturating_sub(2)).any(|i| {
-                (b[i] == 'e' || b[i] == 'E')
-                    && b[i - 1].is_ascii_digit()
-                    && b[i + 1] == '-'
-                    && b[i + 2].is_ascii_digit()
-            });
+            let exp = has_exponent_number(line);
             let tolerance_like =
                 exp || (line.to_lowercase().contains("epsilon") && line.chars().any(|c| c.is_ascii_digit()));
             let cited = line.contains("NUMERIC_POLICY") || line.contains("NP-") || line.contains("P1.2");

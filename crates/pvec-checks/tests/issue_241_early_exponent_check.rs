@@ -2,7 +2,7 @@
 //! literal like `1e-9` fails before the build and tag steps, not at the end of the full workspace tests.
 #![allow(missing_docs)]
 
-use pvec_checks::repo_root;
+use pvec_checks::{has_exponent_number, repo_root};
 use std::fs;
 
 fn read(rel: &str) -> String {
@@ -32,4 +32,11 @@ fn the_pre_push_gate_runs_it_before_fmt_clippy_and_tests() {
 #[test]
 fn the_release_script_runs_it_before_the_wasm_build() {
     position_of_check_before("tools/wasm-release.sh", "cargo build --release");
+}
+
+#[test]
+fn an_exponent_literal_in_a_doc_line_is_caught() {
+    assert!(has_exponent_number("the cap is 1e-9 of the span"));
+    assert!(has_exponent_number("measures 5.274E-6 over 5000 points"));
+    assert!(!has_exponent_number("a plain 0.000001 and the word extent-3"));
 }
