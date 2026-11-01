@@ -8,6 +8,7 @@
 pub use pvec_numeric::detmath;
 pub mod generate;
 pub mod hostile;
+pub mod large_raster;
 pub mod raster_hostile;
 pub mod raster_file;
 pub mod records;
