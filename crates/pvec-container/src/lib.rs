@@ -21,6 +21,8 @@ pub mod negotiate;
 pub mod reader;
 pub mod source;
 pub mod spec;
+pub mod spill;
+pub mod spill_writer;
 pub mod writer;
 mod writer_doc;
 

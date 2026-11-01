@@ -4,6 +4,7 @@
 use pvec_capabilities::{CapabilityId, Version};
 use pvec_components::Stream;
 use pvec_container::blocks::advanced::SplineSpec;
+use pvec_container::spill_writer::{FinishError, SpillWriter};
 use pvec_container::writer::{ContainerWriter, EntityMeta, SortKey, WriteError, WriterConfig, WriterOptions};
 use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_entity::EntityId;
@@ -189,6 +190,55 @@ impl Ent {
     }
 }
 
+impl Ent {
+    /// The same push, onto the writer that keeps its pushes in files.
+    pub fn push_spill(&self, w: &mut SpillWriter) -> Result<(), FinishError> {
+        let b = self.bounds();
+        match self {
+            Ent::Model { id, style, cell, curve } => w.push_curve(eid(*id), *style, *cell, curve, &[]),
+            Ent::Line { id, style, cell, a, b: e } => {
+                w.push_line(EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b }, *a, *e)
+            }
+            Ent::Poly { id, style, cell, pts } => {
+                w.push_polyline(EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b }, pts)
+            }
+            Ent::Arc { id, style, cell, centre, radius, ss } => w.push_circle_arc(
+                EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b },
+                *centre,
+                *radius,
+                *ss,
+            ),
+            Ent::Ellipse { id, style, cell, centre, radii, angles } => w.push_ellipse_arc(
+                EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b },
+                *centre,
+                *radii,
+                *angles,
+            ),
+            Ent::Spline { id, style, degree, knots, x, y, weights } => w.push_spline(
+                EntityMeta { id: eid(*id), style: *style, cell: 0, bounds: b },
+                SplineSpec {
+                    degree: *degree,
+                    knots,
+                    x,
+                    y,
+                    weights: weights.as_deref(),
+                    closed: false,
+                    periodic: false,
+                },
+            ),
+            Ent::Composite { id, style, segments, trims, closed } => {
+                let segs: Vec<EntityId> = segments.iter().map(|s| eid(*s)).collect();
+                w.push_composite(
+                    EntityMeta { id: eid(*id), style: *style, cell: 0, bounds: b },
+                    &segs,
+                    trims.as_deref(),
+                    *closed,
+                )
+            }
+        }
+    }
+}
+
 /// Everything a writer is given.
 #[derive(Clone, Debug)]
 pub struct Input {
@@ -229,6 +279,36 @@ impl Input {
             }
         }
         Ok(w)
+    }
+
+    /// Pushes everything in the order held onto a writer that keeps its pushes in files under `root`.
+    pub fn load_spill(
+        &self,
+        root: &std::path::Path,
+        budget: usize,
+        options: WriterOptions,
+    ) -> Result<SpillWriter, FinishError> {
+        let mut w = SpillWriter::with_options(self.config.clone(), options, root, budget)?;
+        for item in &self.items {
+            match item {
+                Item::Ent(e) => e.push_spill(&mut w)?,
+                Item::Stream(s) => w.push_stream(s)?,
+            }
+        }
+        Ok(w)
+    }
+
+    /// The artifact, streamed through a spill writer into memory.
+    pub fn write_spilled(
+        &self,
+        root: &std::path::Path,
+        budget: usize,
+        options: WriterOptions,
+    ) -> Result<Vec<u8>, FinishError> {
+        let mut out = Vec::new();
+        let n = self.load_spill(root, budget, options)?.finish_to(&mut out)?;
+        assert_eq!(n as usize, out.len());
+        Ok(out)
     }
 
     pub fn write(&self) -> Result<Vec<u8>, WriteError> {

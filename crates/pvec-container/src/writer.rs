@@ -127,10 +127,93 @@ pub struct RawBlock {
 /// needs a file no writer would make) builds one: it checks the lengths fit and nothing else about the
 /// blocks.
 pub fn assemble(
-    mut manifest: Manifest,
+    manifest: Manifest,
     blocks: &[RawBlock],
     integrity: Integrity,
 ) -> Result<Vec<u8>, WriteError> {
+    let metas = blocks.iter().map(BlockMeta::of).collect::<Result<Vec<_>, _>>()?;
+    let lay = plan_layout(manifest, &metas, integrity)?;
+    let total = usize::try_from(lay.total).map_err(|_| WriteError::TooLarge)?;
+    let mut out: Vec<u8> = Vec::with_capacity(total);
+    out.extend_from_slice(&lay.header.encode());
+    out.extend_from_slice(&lay.manifest_bytes);
+    for (b, e) in blocks.iter().zip(&lay.entries) {
+        out.resize(e.offset as usize, 0);
+        out.extend_from_slice(&b.stored);
+    }
+    if lay.sealed {
+        out.resize(lay.table_offset as usize, 0);
+        for b in blocks {
+            out.extend_from_slice(&block_checksum(&b.stored).to_le_bytes());
+        }
+    }
+    out.resize(lay.directory_offset as usize, 0);
+    for e in &lay.entries {
+        out.extend_from_slice(&e.encode());
+    }
+    debug_assert_eq!(out.len(), total);
+    if integrity == Integrity::Full {
+        // the digest covers everything with its own 32 bytes read as zero, so it is computed over the file
+        // as it stands (they are zero now) and written into the place it was left out of
+        let at = Header::LEN + crate::spec::m::ARTIFACT_DIGEST;
+        let digest = artifact_digest(&out, at);
+        out[at..at + 32].copy_from_slice(&digest);
+    }
+    Ok(out)
+}
+
+/// A block as the layout sees it: everything but its bytes, and the length of those.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BlockMeta {
+    pub(crate) kind: u16,
+    pub(crate) subtype: u16,
+    pub(crate) cell: u32,
+    pub(crate) count: u32,
+    pub(crate) bounds: Option<Bounds>,
+    pub(crate) flags: u8,
+    pub(crate) codec: u8,
+    pub(crate) capability: u16,
+    pub(crate) uncompressed_length: u32,
+    pub(crate) stored_length: u32,
+}
+
+impl BlockMeta {
+    pub(crate) fn of(b: &RawBlock) -> Result<BlockMeta, WriteError> {
+        Ok(BlockMeta {
+            kind: b.kind,
+            subtype: b.subtype,
+            cell: b.cell,
+            count: b.count,
+            bounds: b.bounds,
+            flags: b.flags,
+            codec: b.codec,
+            capability: b.capability,
+            uncompressed_length: b.uncompressed_length,
+            stored_length: u32::try_from(b.stored.len()).map_err(|_| WriteError::TooLarge)?,
+        })
+    }
+}
+
+/// Where everything of an artifact goes: the header and manifest as they will be written (the manifest with
+/// a zero digest when the artifact is sealed with one), the block directory entries, and the offsets of the
+/// checksum table and the directory.
+pub(crate) struct Layout {
+    pub(crate) header: Header,
+    pub(crate) manifest_bytes: Vec<u8>,
+    pub(crate) entries: Vec<BlockEntry>,
+    pub(crate) sealed: bool,
+    pub(crate) table_offset: u64,
+    pub(crate) directory_offset: u64,
+    pub(crate) total: u64,
+}
+
+/// The layout of an artifact from its manifest and the shape of its blocks, which is all that [`assemble`]
+/// and the writer that streams its output need to agree on.
+pub(crate) fn plan_layout(
+    mut manifest: Manifest,
+    blocks: &[BlockMeta],
+    integrity: Integrity,
+) -> Result<Layout, WriteError> {
     let sealed = integrity != Integrity::None;
     manifest.directories =
         vec![DirectoryPointer { kind: DirectoryPointer::KIND_BLOCK, offset: 0, length: 0 }];
@@ -141,11 +224,10 @@ pub fn assemble(
     let mut at = Header::LEN as u64 + manifest_len;
     let mut entries: Vec<BlockEntry> = Vec::with_capacity(blocks.len());
     for b in blocks {
-        let stored_length = u32::try_from(b.stored.len()).map_err(|_| WriteError::TooLarge)?;
         at = align8(at);
         entries.push(BlockEntry {
             offset: at,
-            stored_length,
+            stored_length: b.stored_length,
             uncompressed_length: b.uncompressed_length,
             count: b.count,
             cell: b.cell,
@@ -156,14 +238,14 @@ pub fn assemble(
             codec: b.codec,
             capability: b.capability,
         });
-        at += u64::from(stored_length);
+        at += u64::from(b.stored_length);
     }
     let table_offset = align8(at);
     let table_length = if sealed { 8 * blocks.len() as u64 } else { 0 };
     let directory_offset = align8(if sealed { table_offset + table_length } else { at });
     let directory_length = (entries.len() * ENTRY_LEN) as u64;
     let total = directory_offset.checked_add(directory_length).ok_or(WriteError::TooLarge)?;
-    let total = usize::try_from(total).map_err(|_| WriteError::TooLarge)?;
+    usize::try_from(total).map_err(|_| WriteError::TooLarge)?;
     manifest.directories[0] = DirectoryPointer {
         kind: DirectoryPointer::KIND_BLOCK,
         offset: directory_offset,
@@ -186,33 +268,7 @@ pub fn assemble(
             + (cap::SIZE * manifest.capabilities.len()) as u64,
         directory_table_length: dir::SIZE as u64,
     };
-
-    let mut out: Vec<u8> = Vec::with_capacity(total);
-    out.extend_from_slice(&header.encode());
-    out.extend_from_slice(&manifest_bytes);
-    for (b, e) in blocks.iter().zip(&entries) {
-        out.resize(e.offset as usize, 0);
-        out.extend_from_slice(&b.stored);
-    }
-    if sealed {
-        out.resize(table_offset as usize, 0);
-        for b in blocks {
-            out.extend_from_slice(&block_checksum(&b.stored).to_le_bytes());
-        }
-    }
-    out.resize(directory_offset as usize, 0);
-    for e in &entries {
-        out.extend_from_slice(&e.encode());
-    }
-    debug_assert_eq!(out.len(), total);
-    if integrity == Integrity::Full {
-        // the digest covers everything with its own 32 bytes read as zero, so it is computed over the file
-        // as it stands (they are zero now) and written into the place it was left out of
-        let at = Header::LEN + crate::spec::m::ARTIFACT_DIGEST;
-        let digest = artifact_digest(&out, at);
-        out[at..at + 32].copy_from_slice(&digest);
-    }
-    Ok(out)
+    Ok(Layout { header, manifest_bytes, entries, sealed, table_offset, directory_offset, total })
 }
 
 /// What every entity carries.
@@ -425,7 +481,7 @@ impl From<GeometryError> for WriteError {
 
 /// The geometry of a hot entity, as it was pushed.
 #[derive(Clone, Debug)]
-enum HotShape {
+pub(crate) enum HotShape {
     Line([f64; 2], [f64; 2]),
     Polyline(Vec<[f64; 2]>),
     CircleArc { centre: [f64; 2], radius: f64, start_sweep: [f64; 2] },
@@ -433,7 +489,7 @@ enum HotShape {
 }
 
 impl HotShape {
-    fn kind(&self) -> HotKind {
+    pub(crate) fn kind(&self) -> HotKind {
         match self {
             HotShape::Line(..) => HotKind::Line,
             HotShape::Polyline(_) => HotKind::Polyline,
@@ -444,14 +500,14 @@ impl HotShape {
 }
 
 #[derive(Clone, Debug)]
-struct HotItem {
-    seq: usize,
-    meta: EntityMeta,
-    shape: HotShape,
+pub(crate) struct HotItem {
+    pub(crate) seq: usize,
+    pub(crate) meta: EntityMeta,
+    pub(crate) shape: HotShape,
 }
 
 #[derive(Clone, Debug)]
-enum AdvancedShape {
+pub(crate) enum AdvancedShape {
     Spline {
         degree: usize,
         knots: Vec<f64>,
@@ -468,10 +524,10 @@ enum AdvancedShape {
 }
 
 #[derive(Clone, Debug)]
-struct AdvancedItem {
-    seq: usize,
-    meta: EntityMeta,
-    shape: AdvancedShape,
+pub(crate) struct AdvancedItem {
+    pub(crate) seq: usize,
+    pub(crate) meta: EntityMeta,
+    pub(crate) shape: AdvancedShape,
 }
 
 /// The default size of one chunk of the advanced curves, in bytes of records and arena data
@@ -489,14 +545,15 @@ pub const RASTER_CHUNK_BYTES: u32 = 1 << 26;
 pub const RASTER_INLINE_BYTES: u64 = 256 * 1024;
 
 /// A block ready to be placed.
-struct Planned {
-    first_seen: usize,
-    kind: BlockKind,
-    cell: u32,
-    subtype: u16,
-    count: u32,
-    bounds: Option<Bounds>,
-    bytes: Vec<u8>,
+#[derive(Debug)]
+pub(crate) struct Planned {
+    pub(crate) first_seen: usize,
+    pub(crate) kind: BlockKind,
+    pub(crate) cell: u32,
+    pub(crate) subtype: u16,
+    pub(crate) count: u32,
+    pub(crate) bounds: Option<Bounds>,
+    pub(crate) bytes: Vec<u8>,
 }
 
 /// The writer.
@@ -566,11 +623,11 @@ struct RefsItem {
     bytes: Vec<u8>,
 }
 
-fn normal(v: f64) -> f64 {
+pub(crate) fn normal(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 
-fn union(a: Bounds, b: Bounds) -> Bounds {
+pub(crate) fn union(a: Bounds, b: Bounds) -> Bounds {
     Bounds {
         min: [normal(a.min[0].min(b.min[0])), normal(a.min[1].min(b.min[1]))],
         max: [normal(a.max[0].max(b.max[0])), normal(a.max[1].max(b.max[1]))],
@@ -578,7 +635,7 @@ fn union(a: Bounds, b: Bounds) -> Bounds {
 }
 
 /// `bounds` if every value is finite and in range under the numeric policy and the box is ordered.
-fn checked_bounds(bounds: Bounds) -> Option<Bounds> {
+pub(crate) fn checked_bounds(bounds: Bounds) -> Option<Bounds> {
     let mut v = [0.0f64; 4];
     for (slot, x) in v.iter_mut().zip([bounds.min[0], bounds.min[1], bounds.max[0], bounds.max[1]]) {
         *slot = check_value(x).ok()?;
@@ -609,7 +666,7 @@ fn xy(p: Point2) -> [f64; 2] {
     [p.x, p.y]
 }
 
-fn align8(n: u64) -> u64 {
+pub(crate) fn align8(n: u64) -> u64 {
     n.div_ceil(BLOCK_ALIGN) * BLOCK_ALIGN
 }
 
@@ -662,7 +719,7 @@ impl ContainerWriter {
         self.seq
     }
 
-    fn checked_meta(meta: EntityMeta) -> Result<EntityMeta, WriteError> {
+    pub(crate) fn checked_meta(meta: EntityMeta) -> Result<EntityMeta, WriteError> {
         match checked_bounds(meta.bounds) {
             Some(bounds) => Ok(EntityMeta { bounds, ..meta }),
             None => Err(WriteError::BadBounds { id: Some(meta.id.index()) }),
@@ -781,106 +838,9 @@ impl ContainerWriter {
         cell: u32,
         curve: &Curve,
     ) -> Result<(), WriteError> {
-        let unsupported = |what| Err(WriteError::Unsupported { what });
-        let meta = |bounds| EntityMeta { id, style, cell, bounds };
-        match curve {
-            Curve::Line(_) => unsupported("unbounded line"),
-            Curve::Composite(_) => unsupported("composite curve"),
-            Curve::Polyline(p) => {
-                let points: Vec<[f64; 2]> = p.vertices().iter().map(|v| xy(*v)).collect();
-                self.push_polyline(meta(boxed(&points)), &points)
-            }
-            Curve::BSpline(b) => {
-                let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
-                let spec = SplineSpec {
-                    degree: b.degree(),
-                    knots: b.knots(),
-                    x: &x,
-                    y: &y,
-                    weights: None,
-                    closed: b.is_declared_closed(),
-                    periodic: false,
-                };
-                self.push_spline(meta(hull(&x, &y)), spec)
-            }
-            Curve::RationalBSpline(b) => {
-                let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
-                let spec = SplineSpec {
-                    degree: b.degree(),
-                    knots: b.knots(),
-                    x: &x,
-                    y: &y,
-                    weights: Some(b.weights()),
-                    closed: b.is_declared_closed(),
-                    periodic: false,
-                };
-                self.push_spline(meta(hull(&x, &y)), spec)
-            }
-            Curve::Bezier(b) => {
-                let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
-                let degree = b.degree();
-                let mut knots = vec![0.0; degree + 1];
-                knots.extend(std::iter::repeat_n(1.0, degree + 1));
-                let spec = SplineSpec {
-                    degree,
-                    knots: &knots,
-                    x: &x,
-                    y: &y,
-                    weights: None,
-                    closed: b.is_declared_closed(),
-                    periodic: false,
-                };
-                self.push_spline(meta(hull(&x, &y)), spec)
-            }
-            Curve::Circle(c) => {
-                let (o, rot) = self.frame(id, c.placement())?;
-                let (start, sweep) = shifted(rot, 0.0, core::f64::consts::TAU);
-                self.push_circle_arc(meta(around(o, c.radius(), c.radius())), o, c.radius(), [start, sweep])
-            }
-            Curve::Ellipse(e) => {
-                let (o, rot) = self.frame(id, e.placement())?;
-                let radii = [e.semi_axis_1(), e.semi_axis_2()];
-                let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
-                self.push_ellipse_arc(
-                    meta(around(o, r[0], r[1])),
-                    o,
-                    radii,
-                    [rot, 0.0, core::f64::consts::TAU],
-                )
-            }
-            Curve::Trimmed(t) => {
-                let trim = t.trim();
-                let (start, sweep) = if trim.reversed {
-                    (trim.start + trim.span, -trim.span)
-                } else {
-                    (trim.start, trim.span)
-                };
-                match t.basis() {
-                    Curve::Line(_) => {
-                        let d = curve.domain();
-                        let (a, b) = (xy(curve.eval(d.lo())?), xy(curve.eval(d.hi())?));
-                        self.push_line(meta(boxed(&[a, b])), a, b)
-                    }
-                    Curve::Circle(c) => {
-                        let (o, rot) = self.frame(id, c.placement())?;
-                        let (start, sweep) = shifted(rot, start, sweep);
-                        self.push_circle_arc(
-                            meta(around(o, c.radius(), c.radius())),
-                            o,
-                            c.radius(),
-                            [start, sweep],
-                        )
-                    }
-                    Curve::Ellipse(e) => {
-                        let (o, rot) = self.frame(id, e.placement())?;
-                        let radii = [e.semi_axis_1(), e.semi_axis_2()];
-                        let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
-                        self.push_ellipse_arc(meta(around(o, r[0], r[1])), o, radii, [rot, start, sweep])
-                    }
-                    _ => unsupported("trimmed spline"),
-                }
-            }
-            _ => unsupported("curve of a kind this writer does not know"),
+        match plan_curve(id, style, cell, curve, &mut self.derived)? {
+            Item::Hot(meta, shape) => self.push_hot(meta, shape),
+            Item::Advanced(meta, shape) => self.push_advanced(meta, shape),
         }
     }
 
@@ -888,24 +848,6 @@ impl ContainerWriter {
     /// order the curves were pushed. A frame along x derives nothing.
     pub fn derived(&self) -> &[Derived] {
         &self.derived
-    }
-
-    /// The origin and the rotation of a frame. The rotation of a frame along x is exactly zero; any
-    /// other is the angle of its axis by `detmath::atan2` (within one ulp), and is recorded.
-    fn frame(&mut self, id: EntityId, p: &pvec_geometry::Placement2) -> Result<([f64; 2], f64), WriteError> {
-        let x = p.x_axis();
-        let rot = if x.x == 1.0 && x.y == 0.0 {
-            0.0
-        } else {
-            let r = pvec_numeric::detmath::atan2(x.y, x.x);
-            self.derived.push(Derived {
-                entity: id,
-                what: "the rotation of the frame: the angle of its x axis, by the deterministic arctangent (within one ulp)",
-                bound: UNIT * 2.0 * r.abs(),
-            });
-            r
-        };
-        Ok((xy(p.origin()), rot))
     }
 
     /// The box this writer derived for each hot entity pushed so far (a segment, a polyline, a circle or
@@ -1040,27 +982,12 @@ impl ContainerWriter {
     /// skippable by definition, and raising the version for it would make an older reader refuse the file at
     /// `NEGOTIATE-03` before it ever reached the skip path.
     fn declarations(&self, registry: &Registry) -> Result<(Vec<Declared>, Version), WriteError> {
-        let mut wanted: Vec<CapabilityId> = Vec::new();
-        for id in
-            self.config.capabilities.iter().copied().chain(self.streams.iter().map(|(_, s)| s.capability))
-        {
-            if !wanted.contains(&id) {
-                wanted.push(id);
-            }
-        }
-        if self.sorts(SortKey::CapabilityId) {
-            wanted.sort_unstable();
-        }
-        let mut min_reader = Version::new(1, 0, 0);
-        let mut out = Vec::with_capacity(wanted.len());
-        for id in wanted {
-            let c = registry.get(id).ok_or(WriteError::UnknownCapability { id: id.get() })?;
-            if c.requirement == Requirement::Required {
-                min_reader = min_reader.max(c.min_reader);
-            }
-            out.push(Declared { id, requirement: c.requirement, version: c.version });
-        }
-        Ok((out, min_reader))
+        declare(
+            &self.config.capabilities,
+            self.streams.iter().map(|(_, s)| s.capability),
+            self.sorts(SortKey::CapabilityId),
+            registry,
+        )
     }
 
     fn hot_blocks(&self) -> Result<Vec<Planned>, WriteError> {
@@ -1079,37 +1006,11 @@ impl ContainerWriter {
             groups[at].2.push(item);
         }
         let mut out = Vec::with_capacity(groups.len());
-        for (kind, cell, mut items) in groups {
+        for (kind, cell, items) in groups {
             let first_seen = items.first().map_or(0, |i| i.seq);
-            if self.sorts(SortKey::EntityId) {
-                items.sort_by_key(|i| i.meta.id);
-            }
-            let mut builder = HotBlockBuilder::new(kind);
-            for i in &items {
-                let (id, style) = (i.meta.id, i.meta.style);
-                match &i.shape {
-                    HotShape::Line(a, b) => builder.push_line(id, style, *a, *b)?,
-                    HotShape::Polyline(points) => builder.push_polyline(id, style, points)?,
-                    HotShape::CircleArc { centre, radius, start_sweep } => {
-                        builder.push_circle_arc(id, style, *centre, *radius, *start_sweep)?
-                    }
-                    HotShape::EllipseArc { centre, radii, angles } => {
-                        builder.push_ellipse_arc(id, style, *centre, *radii, *angles)?
-                    }
-                }
-            }
-            let block =
-                if self.sorts(SortKey::EntityId) { builder.finish()? } else { builder.finish_unsorted()? };
-            let bounds = items.iter().map(|i| i.meta.bounds).reduce(union);
-            out.push(Planned {
-                first_seen,
-                kind: BlockKind::Hot,
-                cell,
-                subtype: kind.id(),
-                count: u32::try_from(items.len()).map_err(|_| WriteError::TooLarge)?,
-                bounds,
-                bytes: block.as_bytes().to_vec(),
-            });
+            let mut planned = hot_block(kind, cell, items, self.sorts(SortKey::EntityId))?;
+            planned.first_seen = first_seen;
+            out.push(planned);
         }
         Ok(out)
     }
@@ -1123,125 +1024,24 @@ impl ContainerWriter {
         }
         let mut items: Vec<&AdvancedItem> = self.advanced.iter().collect();
         items.sort_by_key(|i| i.meta.id);
-        let at = |id: EntityId| items.binary_search_by_key(&id, |i| i.meta.id).ok();
-        // union-find over the sorted items; the root of a component is its lowest index
-        let mut parent: Vec<usize> = (0..items.len()).collect();
-        fn root(parent: &mut [usize], mut i: usize) -> usize {
-            while parent[i] != i {
-                parent[i] = parent[parent[i]];
-                i = parent[i];
-            }
-            i
-        }
-        for (i, item) in items.iter().enumerate() {
-            if let AdvancedShape::Composite { segments, .. } = &item.shape {
-                for s in segments.iter().filter_map(|s| at(*s)) {
-                    let (a, b) = (root(&mut parent, i), root(&mut parent, s));
-                    parent[a.max(b)] = a.min(b);
-                }
-            }
-        }
-        let mut members: Vec<Vec<usize>> = vec![Vec::new(); items.len()];
-        for i in 0..items.len() {
-            let r = root(&mut parent, i);
-            members[r].push(i);
-        }
-        let size = |i: usize| -> u64 {
-            32 + match &items[i].shape {
-                AdvancedShape::Spline { knots, x, weights, .. } => {
-                    8 * (knots.len() + weights.as_ref().map_or(0, Vec::len)) as u64 + 16 * x.len() as u64
-                }
-                AdvancedShape::Composite { segments, trims, .. } => {
-                    4 * segments.len() as u64 + 16 * trims.as_ref().map_or(0, Vec::len) as u64
-                }
-            }
-        };
-        let mut chunks: Vec<Vec<usize>> = Vec::new();
-        let mut filled = 0u64;
-        for component in members.iter().filter(|m| !m.is_empty()) {
-            let bytes: u64 = component.iter().map(|i| size(*i)).sum();
-            match chunks.last_mut() {
-                Some(last) if filled + bytes <= u64::from(self.advanced_chunk) => {
-                    last.extend(component);
-                    filled += bytes;
-                }
-                _ => {
-                    chunks.push(component.clone());
-                    filled = bytes;
-                }
-            }
-        }
+        let links: Vec<(EntityId, u64, &[EntityId])> = items
+            .iter()
+            .map(|i| match &i.shape {
+                AdvancedShape::Composite { segments, .. } => (i.meta.id, advanced_size(&i.shape), segments.as_slice()),
+                AdvancedShape::Spline { .. } => (i.meta.id, advanced_size(&i.shape), &[][..]),
+            })
+            .collect();
+        let chunks = plan_chunks(&links, self.advanced_chunk);
         let mut out = Vec::with_capacity(6 * chunks.len());
-        for (k, mut chunk) in chunks.into_iter().enumerate() {
-            chunk.sort_unstable();
-            let cell = u32::try_from(k).map_err(|_| WriteError::TooLarge)?;
-            let mut builder = AdvancedBuilder::new();
-            for i in &chunk {
-                let (id, style) = (items[*i].meta.id, items[*i].meta.style);
-                match &items[*i].shape {
-                    AdvancedShape::Spline { degree, knots, x, y, weights, closed } => builder.push_spline(
-                        id,
-                        style,
-                        SplineSpec {
-                            degree: *degree,
-                            knots,
-                            x,
-                            y,
-                            weights: weights.as_deref(),
-                            closed: *closed,
-                            periodic: false,
-                        },
-                    )?,
-                    AdvancedShape::Composite { segments, trims, closed } => {
-                        builder.push_composite(id, style, segments, trims.as_deref(), *closed)?
-                    }
-                }
-            }
-            let blocks = builder.finish()?;
-            let s = blocks.slices();
-            let bounds = chunk.iter().map(|i| items[*i].meta.bounds).reduce(union);
-            let first_seen = chunk.iter().map(|i| items[*i].seq).min().unwrap_or(0);
-            let parts: [(BlockKind, u16, &[u8], Option<Bounds>); 6] = [
-                (BlockKind::Records, 0, s.records, bounds),
-                (BlockKind::Arena, PayloadKind::Knots.id(), s.knots, None),
-                (BlockKind::Arena, PayloadKind::Weights.id(), s.weights, None),
-                (BlockKind::Arena, PayloadKind::ControlPoints.id(), s.control_points, None),
-                (BlockKind::Arena, PayloadKind::Segments.id(), s.segments, None),
-                (BlockKind::Arena, PayloadKind::Trims.id(), s.trims, None),
-            ];
-            for (kind, subtype, bytes, bounds) in parts {
-                // every block of the six starts with its magic, version and kind, then the entry count
-                let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-                out.push(Planned { first_seen, kind, cell, subtype, count, bounds, bytes: bytes.to_vec() });
-            }
+        for (k, chunk) in chunks.iter().enumerate() {
+            let members: Vec<&AdvancedItem> = chunk.iter().map(|i| items[*i]).collect();
+            out.extend(advanced_chunk(&members, k)?);
         }
         Ok(out)
     }
 
     fn stream_block(&self) -> Result<Option<Planned>, WriteError> {
-        let Some((first_seen, _)) = self.streams.first() else {
-            return Ok(None);
-        };
-        let mut seen: Vec<u32> = self.streams.iter().map(|(_, s)| s.capability.get()).collect();
-        seen.sort_unstable();
-        if let Some(w) = seen.windows(2).find(|w| w[0] == w[1]) {
-            return Err(WriteError::DuplicateStream { capability: w[0] });
-        }
-        let mut streams: Vec<Stream> = self.streams.iter().map(|(_, s)| s.clone()).collect();
-        if self.sorts(SortKey::StreamId) {
-            streams.sort_by_key(|s| s.capability);
-        }
-        let bytes = encode_streams(&streams)?;
-        let count = u32::try_from(streams.len()).map_err(|_| WriteError::TooLarge)?;
-        Ok(Some(Planned {
-            first_seen: *first_seen,
-            kind: BlockKind::Components,
-            cell: 0,
-            subtype: 0,
-            count,
-            bounds: None,
-            bytes,
-        }))
+        stream_block_of(&self.streams, self.sorts(SortKey::StreamId))
     }
 
     /// The kind 9 and kind 10 blocks of the rasters pushed, in the canonical order: every index by raster, then
@@ -1249,90 +1049,39 @@ impl ContainerWriter {
     /// footprint of the visible box (index) or of the tiles of the chunk (chunk) in source space.
     fn raster_blocks(&mut self) -> Result<Vec<RawBlock>, WriteError> {
         let rasters = std::mem::take(&mut self.rasters);
-        let Some(&first) = rasters.keys().next() else { return Ok(Vec::new()) };
-        let stream = self
-            .streams
-            .iter()
-            .map(|(_, s)| s)
-            .find(|s| s.capability == RASTER_CAPABILITY)
-            .ok_or(WriteError::Raster(IndexError::NoIndex { raster: first }))?;
-        let placements = decode_rasters(&stream.payload).map_err(WriteError::Placement)?;
-        // (raster, its placement, the grid of its levels)
-        type Plan<'a> = (u32, &'a Placement, Vec<(u32, u32)>);
-        let mut plans: Vec<Plan<'_>> = Vec::with_capacity(rasters.len());
-        for &id in rasters.keys() {
-            let p =
-                placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;
-            let n = u32::from(p.levels);
-            let grid =
-                (0..n).map(|l| raster::grid_of(p.width, p.height, u32::from(p.tile_edge), n, l)).collect();
-            plans.push((id, p, grid));
+        let mut metas: BTreeMap<u32, Vec<raster::TileMeta>> = BTreeMap::new();
+        let mut bytes: BTreeMap<u32, Vec<Vec<u8>>> = BTreeMap::new();
+        for (id, tiles) in rasters {
+            metas.insert(
+                id,
+                tiles
+                    .iter()
+                    .map(|t| raster::TileMeta { level: t.level, col: t.col, row: t.row, len: t.bytes.len() as u64 })
+                    .collect(),
+            );
+            bytes.insert(id, tiles.into_iter().map(|t| t.bytes).collect());
         }
-        // LIMIT-14 over the artifact, at the default ceiling: the entries of every tile table
-        let mut left = u64::from(Limits::DEFAULT.max_raster_tiles);
-        // which levels are inline: the coarsest first across the rasters, each raster's in order, while they fit
-        let mut inline: BTreeMap<u32, u32> = plans.iter().map(|(id, _, _)| (*id, 0)).collect();
-        let mut candidates: Vec<(u32, u32, u64)> = Vec::new();
-        for (id, _, grid) in &plans {
-            let mut bytes = vec![0u64; grid.len()];
-            for t in rasters.get(id).into_iter().flatten() {
-                if let Some(b) = bytes.get_mut(t.level as usize) {
-                    *b += t.bytes.len() as u64;
-                }
-            }
-            candidates.extend(bytes.into_iter().enumerate().map(|(l, b)| (l as u32, *id, b)));
-        }
-        candidates.sort_unstable();
-        let (mut budget, mut closed) = (self.raster_inline, Vec::<u32>::new());
-        for (level, id, bytes) in candidates {
-            if closed.contains(&id) || inline.get(&id) != Some(&level) {
-                continue;
-            }
-            if bytes <= budget {
-                budget -= bytes;
-                inline.insert(id, level + 1);
-            } else {
-                closed.push(id);
-            }
-        }
-        let mut indexes = Vec::new();
-        let mut chunks = Vec::new();
-        let mut rasters = rasters;
-        for (id, p, grid) in plans {
-            let tiles = rasters.remove(&id).unwrap_or_default();
-            if self.sniff_tiles {
-                for t in tiles.iter().filter(|t| !t.bytes.is_empty()) {
-                    sniff_tile(p, Limits::DEFAULT.max_tile_bytes, &t.bytes).map_err(|refusal| {
-                        WriteError::Tile { raster: id, level: t.level, col: t.col, row: t.row, refusal }
-                    })?;
-                }
-            }
-            let total: u64 = grid.iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
-            let built =
-                raster::build(&grid, tiles, inline.get(&id).copied().unwrap_or(0), self.raster_chunk, left)
-                    .map_err(WriteError::Raster)?;
-            left -= total;
-            let footprint = pixel_box(p, p.visible_box.map(u64::from))?;
-            let encoded = built.index.encode();
-            indexes.push(raster_block(raster::KIND_INDEX, id, 0, built.index.stored(), footprint, encoded)?);
-            for c in built.chunks {
-                // a chunk's tiles are cells of its level, each `tile_edge` pixels of the level wide, and a pixel of
-                // the level is `2^(levels - 1 - level)` pixels of the image
-                let scale = 1u64 << (u32::from(p.levels) - 1 - c.level);
-                let edge = u64::from(p.tile_edge) * scale;
-                let area = [
-                    u64::from(c.cols[0]) * edge,
-                    u64::from(c.rows[0]) * edge,
-                    ((u64::from(c.cols[1]) + 1) * edge).min(u64::from(p.width)),
-                    ((u64::from(c.rows[1]) + 1) * edge).min(u64::from(p.height)),
-                ];
-                let st = raster::subtype(c.level, c.chunk).ok_or(WriteError::TooLarge)?;
-                chunks.push(raster_block(raster::KIND_TILES, id, st, c.count, pixel_box(p, area)?, c.bytes)?);
-            }
-        }
-        indexes.extend(chunks);
-        indexes.sort_by_key(|b| (b.kind, b.cell, b.subtype));
-        Ok(indexes)
+        let placements = self.streams.iter().map(|(_, s)| s).find(|s| s.capability == RASTER_CAPABILITY);
+        let mut out = Vec::new();
+        raster_blocks_of(
+            &metas,
+            placements,
+            RasterRules { inline_bytes: self.raster_inline, chunk_bytes: self.raster_chunk, sniff: self.sniff_tiles },
+            &mut |raster, i, last| {
+                let tile = &mut bytes.get_mut(&raster).expect("a raster that has tiles")[i];
+                Ok::<_, core::convert::Infallible>(if last { std::mem::take(tile) } else { tile.clone() })
+            },
+            &mut |block| {
+                out.push(block);
+                Ok(())
+            },
+        )
+        .map_err(|f| match f {
+            RasterFail::Write(e) => e,
+            RasterFail::Source(never) => match never {},
+        })?;
+        out.sort_by_key(|b| (b.kind, b.cell, b.subtype));
+        Ok(out)
     }
 
     /// The artifact.
@@ -1425,36 +1174,7 @@ impl ContainerWriter {
         let policy = self.options.codecs;
         let mut raw: Vec<RawBlock> = Vec::with_capacity(blocks.len());
         for b in blocks {
-            let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
-            // a block is stored compressed only if that is smaller, and an uncompressed block is legal
-            let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
-            let mut flags = if matches!(
-                b.kind,
-                BlockKind::Components
-                    | BlockKind::SpatialDirectory
-                    | BlockKind::CellRefs
-                    | BlockKind::Straddlers
-                    | BlockKind::Tier0
-            ) {
-                0
-            } else {
-                FLAG_MUST_UNDERSTAND
-            };
-            if b.bounds.is_some() {
-                flags |= FLAG_HAS_BOUNDS;
-            }
-            raw.push(RawBlock {
-                kind: b.kind.id(),
-                subtype: b.subtype,
-                cell: b.cell,
-                count: b.count,
-                bounds: b.bounds,
-                flags,
-                codec: codec.id(),
-                capability: 0,
-                uncompressed_length,
-                stored,
-            });
+            raw.push(pack_planned(policy, b)?);
         }
         // kinds 9 and 10 sort after every kind the format defines, so they close the directory in their own order
         raw.extend(self.raster_blocks()?);
@@ -1472,9 +1192,492 @@ impl ContainerWriter {
     }
 }
 
+/// The hot block of the entities of one geometry type in one cell: ascending by id when `sorted`, which is
+/// what the format asks for, and in the order given when a test has switched that sort off.
+pub(crate) fn hot_block(
+    kind: HotKind,
+    cell: u32,
+    mut items: Vec<&HotItem>,
+    sorted: bool,
+) -> Result<Planned, WriteError> {
+    if sorted {
+        items.sort_by_key(|i| i.meta.id);
+    }
+    let mut builder = HotBlockBuilder::new(kind);
+    for i in &items {
+        let (id, style) = (i.meta.id, i.meta.style);
+        match &i.shape {
+            HotShape::Line(a, b) => builder.push_line(id, style, *a, *b)?,
+            HotShape::Polyline(points) => builder.push_polyline(id, style, points)?,
+            HotShape::CircleArc { centre, radius, start_sweep } => {
+                builder.push_circle_arc(id, style, *centre, *radius, *start_sweep)?
+            }
+            HotShape::EllipseArc { centre, radii, angles } => {
+                builder.push_ellipse_arc(id, style, *centre, *radii, *angles)?
+            }
+        }
+    }
+    let block = if sorted { builder.finish()? } else { builder.finish_unsorted()? };
+    let bounds = items.iter().map(|i| i.meta.bounds).reduce(union);
+    Ok(Planned {
+        first_seen: 0,
+        kind: BlockKind::Hot,
+        cell,
+        subtype: kind.id(),
+        count: u32::try_from(items.len()).map_err(|_| WriteError::TooLarge)?,
+        bounds,
+        bytes: block.as_bytes().to_vec(),
+    })
+}
+
+/// The bytes of records and arena data an advanced curve takes, which is how chunks are filled.
+pub(crate) fn advanced_size(shape: &AdvancedShape) -> u64 {
+    32 + match shape {
+        AdvancedShape::Spline { knots, x, weights, .. } => {
+            8 * (knots.len() + weights.as_ref().map_or(0, Vec::len)) as u64 + 16 * x.len() as u64
+        }
+        AdvancedShape::Composite { segments, trims, .. } => {
+            4 * segments.len() as u64 + 16 * trims.as_ref().map_or(0, Vec::len) as u64
+        }
+    }
+}
+
+/// Which advanced curves share a chunk. `curves` is every curve, ascending by id, with its size and the
+/// ids it names; a composite and every curve it names, through any number of composites, are one component.
+/// Components are ordered by their lowest id and packed into a chunk until it holds `limit` bytes. Each
+/// chunk is the indexes into `curves` of its members, ascending.
+pub(crate) fn plan_chunks(curves: &[(EntityId, u64, &[EntityId])], limit: u32) -> Vec<Vec<usize>> {
+    let at = |id: EntityId| curves.binary_search_by_key(&id, |c| c.0).ok();
+    // union-find over the sorted curves; the root of a component is its lowest index
+    let mut parent: Vec<usize> = (0..curves.len()).collect();
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    for (i, (_, _, segments)) in curves.iter().enumerate() {
+        for s in segments.iter().filter_map(|s| at(*s)) {
+            let (a, b) = (root(&mut parent, i), root(&mut parent, s));
+            parent[a.max(b)] = a.min(b);
+        }
+    }
+    let mut members: Vec<Vec<usize>> = vec![Vec::new(); curves.len()];
+    for i in 0..curves.len() {
+        let r = root(&mut parent, i);
+        members[r].push(i);
+    }
+    let mut chunks: Vec<Vec<usize>> = Vec::new();
+    let mut filled = 0u64;
+    for component in members.iter().filter(|m| !m.is_empty()) {
+        let bytes: u64 = component.iter().map(|i| curves[*i].1).sum();
+        match chunks.last_mut() {
+            Some(last) if filled + bytes <= u64::from(limit) => {
+                last.extend(component);
+                filled += bytes;
+            }
+            _ => {
+                chunks.push(component.clone());
+                filled = bytes;
+            }
+        }
+    }
+    for chunk in &mut chunks {
+        chunk.sort_unstable();
+    }
+    chunks
+}
+
+/// The six blocks of chunk `k` of the advanced curves: a record block and five arenas, in cell `k`, for the
+/// `members`, ascending by id.
+pub(crate) fn advanced_chunk(members: &[&AdvancedItem], k: usize) -> Result<Vec<Planned>, WriteError> {
+    let cell = u32::try_from(k).map_err(|_| WriteError::TooLarge)?;
+    let mut builder = AdvancedBuilder::new();
+    for item in members {
+        let (id, style) = (item.meta.id, item.meta.style);
+        match &item.shape {
+            AdvancedShape::Spline { degree, knots, x, y, weights, closed } => builder.push_spline(
+                id,
+                style,
+                SplineSpec {
+                    degree: *degree,
+                    knots,
+                    x,
+                    y,
+                    weights: weights.as_deref(),
+                    closed: *closed,
+                    periodic: false,
+                },
+            )?,
+            AdvancedShape::Composite { segments, trims, closed } => {
+                builder.push_composite(id, style, segments, trims.as_deref(), *closed)?
+            }
+        }
+    }
+    let blocks = builder.finish()?;
+    let s = blocks.slices();
+    let bounds = members.iter().map(|i| i.meta.bounds).reduce(union);
+    let first_seen = members.iter().map(|i| i.seq).min().unwrap_or(0);
+    let parts: [(BlockKind, u16, &[u8], Option<Bounds>); 6] = [
+        (BlockKind::Records, 0, s.records, bounds),
+        (BlockKind::Arena, PayloadKind::Knots.id(), s.knots, None),
+        (BlockKind::Arena, PayloadKind::Weights.id(), s.weights, None),
+        (BlockKind::Arena, PayloadKind::ControlPoints.id(), s.control_points, None),
+        (BlockKind::Arena, PayloadKind::Segments.id(), s.segments, None),
+        (BlockKind::Arena, PayloadKind::Trims.id(), s.trims, None),
+    ];
+    let mut out = Vec::with_capacity(6);
+    for (kind, subtype, bytes, bounds) in parts {
+        // every block of the six starts with its magic, version and kind, then the entry count
+        let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+        out.push(Planned { first_seen, kind, cell, subtype, count, bounds, bytes: bytes.to_vec() });
+    }
+    Ok(out)
+}
+
+/// The component stream set block for streams pushed in the order given, each with the sequence number it
+/// arrived at: `None` when there is none, `DuplicateStream` when two share a capability.
+pub(crate) fn stream_block_of(streams: &[(usize, Stream)], sorted: bool) -> Result<Option<Planned>, WriteError> {
+    let Some((first_seen, _)) = streams.first() else {
+        return Ok(None);
+    };
+    let mut seen: Vec<u32> = streams.iter().map(|(_, s)| s.capability.get()).collect();
+    seen.sort_unstable();
+    if let Some(w) = seen.windows(2).find(|w| w[0] == w[1]) {
+        return Err(WriteError::DuplicateStream { capability: w[0] });
+    }
+    let mut streams: Vec<Stream> = streams.iter().map(|(_, s)| s.clone()).collect();
+    if sorted {
+        streams.sort_by_key(|s| s.capability);
+    }
+    let bytes = encode_streams(&streams)?;
+    let count = u32::try_from(streams.len()).map_err(|_| WriteError::TooLarge)?;
+    Ok(Some(Planned {
+        first_seen: *first_seen,
+        kind: BlockKind::Components,
+        cell: 0,
+        subtype: 0,
+        count,
+        bounds: None,
+        bytes,
+    }))
+}
+
+/// A planned block as the container stores it: compressed only if that is smaller, with the flags its kind
+/// carries.
+pub(crate) fn pack_planned(policy: CodecPolicy, b: Planned) -> Result<RawBlock, WriteError> {
+    let uncompressed_length = u32::try_from(b.bytes.len()).map_err(|_| WriteError::TooLarge)?;
+    // a block is stored compressed only if that is smaller, and an uncompressed block is legal
+    let (codec, stored) = pack(policy.for_kind(b.kind), b.bytes);
+    let mut flags = if matches!(
+        b.kind,
+        BlockKind::Components
+            | BlockKind::SpatialDirectory
+            | BlockKind::CellRefs
+            | BlockKind::Straddlers
+            | BlockKind::Tier0
+    ) {
+        0
+    } else {
+        FLAG_MUST_UNDERSTAND
+    };
+    if b.bounds.is_some() {
+        flags |= FLAG_HAS_BOUNDS;
+    }
+    Ok(RawBlock {
+        kind: b.kind.id(),
+        subtype: b.subtype,
+        cell: b.cell,
+        count: b.count,
+        bounds: b.bounds,
+        flags,
+        codec: codec.id(),
+        capability: 0,
+        uncompressed_length,
+        stored,
+    })
+}
+
+/// What decides how the rasters are cut.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RasterRules {
+    /// Bytes of the coarsest levels the index blocks hold inline, over every raster.
+    pub(crate) inline_bytes: u64,
+    /// Bytes a chunk of tiles holds at most.
+    pub(crate) chunk_bytes: u32,
+    /// Whether the headers of the tiles are checked.
+    pub(crate) sniff: bool,
+}
+
+/// Why the raster blocks could not be made: the container refuses them, or the caller's source or sink failed.
+#[derive(Debug)]
+pub(crate) enum RasterFail<E> {
+    Write(WriteError),
+    Source(E),
+}
+
+impl<E> From<WriteError> for RasterFail<E> {
+    fn from(e: WriteError) -> RasterFail<E> {
+        RasterFail::Write(e)
+    }
+}
+
+/// The kind 9 and kind 10 blocks of the rasters, whose tiles are `metas` (by raster, in the order pushed) and
+/// whose bytes `load(raster, i, last)` returns when they are needed (`last` says the build will not ask for that tile again). Each block goes to `sink` as it is made, so
+/// no more than a chunk of tiles is held at once. The placements are the raster stream `placements`.
+pub(crate) fn raster_blocks_of<E>(
+    metas: &BTreeMap<u32, Vec<raster::TileMeta>>,
+    placements: Option<&Stream>,
+    rules: RasterRules,
+    load: &mut dyn FnMut(u32, usize, bool) -> Result<Vec<u8>, E>,
+    sink: &mut dyn FnMut(RawBlock) -> Result<(), E>,
+) -> Result<(), RasterFail<E>> {
+    let Some(&first) = metas.keys().next() else { return Ok(()) };
+    let stream = placements.ok_or(WriteError::Raster(IndexError::NoIndex { raster: first }))?;
+    let placements = decode_rasters(&stream.payload).map_err(WriteError::Placement)?;
+    // (raster, its placement, the grid of its levels)
+    type Plan<'a> = (u32, &'a Placement, Vec<(u32, u32)>);
+    let mut plans: Vec<Plan<'_>> = Vec::with_capacity(metas.len());
+    for &id in metas.keys() {
+        let p = placements.get(id as usize).ok_or(WriteError::Raster(IndexError::NoIndex { raster: id }))?;
+        let n = u32::from(p.levels);
+        let grid = (0..n).map(|l| raster::grid_of(p.width, p.height, u32::from(p.tile_edge), n, l)).collect();
+        plans.push((id, p, grid));
+    }
+    // LIMIT-14 over the artifact, at the default ceiling: the entries of every tile table
+    let mut left = u64::from(Limits::DEFAULT.max_raster_tiles);
+    // which levels are inline: the coarsest first across the rasters, each raster's in order, while they fit
+    let mut inline: BTreeMap<u32, u32> = plans.iter().map(|(id, _, _)| (*id, 0)).collect();
+    let mut candidates: Vec<(u32, u32, u64)> = Vec::new();
+    for (id, _, grid) in &plans {
+        let mut bytes = vec![0u64; grid.len()];
+        for t in metas.get(id).into_iter().flatten() {
+            if let Some(b) = bytes.get_mut(t.level as usize) {
+                *b += t.len;
+            }
+        }
+        candidates.extend(bytes.into_iter().enumerate().map(|(l, b)| (l as u32, *id, b)));
+    }
+    candidates.sort_unstable();
+    let (mut budget, mut closed) = (rules.inline_bytes, Vec::<u32>::new());
+    for (level, id, bytes) in candidates {
+        if closed.contains(&id) || inline.get(&id) != Some(&level) {
+            continue;
+        }
+        if bytes <= budget {
+            budget -= bytes;
+            inline.insert(id, level + 1);
+        } else {
+            closed.push(id);
+        }
+    }
+    for (id, p, grid) in plans {
+        let tiles = metas.get(&id).map(Vec::as_slice).unwrap_or_default();
+        if rules.sniff {
+            for (i, t) in tiles.iter().enumerate().filter(|(_, t)| t.len != 0) {
+                let bytes = load(id, i, false).map_err(RasterFail::Source)?;
+                sniff_tile(p, Limits::DEFAULT.max_tile_bytes, &bytes).map_err(|refusal| {
+                    WriteError::Tile { raster: id, level: t.level, col: t.col, row: t.row, refusal }
+                })?;
+            }
+        }
+        let total: u64 = grid.iter().map(|(c, r)| u64::from(*c) * u64::from(*r)).sum();
+        let index = raster::build_with(
+            &grid,
+            tiles,
+            &mut |i| load(id, i, true).map_err(RasterFail::Source),
+            &mut |c| {
+                // a chunk's tiles are cells of its level, each `tile_edge` pixels of the level wide, and a pixel
+                // of the level is `2^(levels - 1 - level)` pixels of the image
+                let scale = 1u64 << (u32::from(p.levels) - 1 - c.level);
+                let edge = u64::from(p.tile_edge) * scale;
+                let area = [
+                    u64::from(c.cols[0]) * edge,
+                    u64::from(c.rows[0]) * edge,
+                    ((u64::from(c.cols[1]) + 1) * edge).min(u64::from(p.width)),
+                    ((u64::from(c.rows[1]) + 1) * edge).min(u64::from(p.height)),
+                ];
+                let st = raster::subtype(c.level, c.chunk).ok_or(WriteError::TooLarge)?;
+                let block = raster_block(raster::KIND_TILES, id, st, c.count, pixel_box(p, area)?, c.bytes)?;
+                sink(block).map_err(RasterFail::Source)
+            },
+            inline.get(&id).copied().unwrap_or(0),
+            rules.chunk_bytes,
+            left,
+        )
+        .map_err(|f| match f {
+            raster::BuildFailure::Index(e) => RasterFail::Write(WriteError::Raster(e)),
+            raster::BuildFailure::Source(e) => e,
+        })?;
+        left -= total;
+        let footprint = pixel_box(p, p.visible_box.map(u64::from))?;
+        let encoded = index.encode();
+        sink(raster_block(raster::KIND_INDEX, id, 0, index.stored(), footprint, encoded)?)
+            .map_err(RasterFail::Source)?;
+    }
+    Ok(())
+}
+
+/// The capabilities to declare: the caller's and those of the streams, each once, in id order.
+///
+/// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
+/// skippable by definition, and raising the version for it would make an older reader refuse the file at
+/// `NEGOTIATE-03` before it ever reached the skip path.
+pub(crate) fn declare(
+    caller: &[CapabilityId],
+    streams: impl Iterator<Item = CapabilityId>,
+    sorted: bool,
+    registry: &Registry,
+) -> Result<(Vec<Declared>, Version), WriteError> {
+    let mut wanted: Vec<CapabilityId> = Vec::new();
+    for id in caller.iter().copied().chain(streams) {
+        if !wanted.contains(&id) {
+            wanted.push(id);
+        }
+    }
+    if sorted {
+        wanted.sort_unstable();
+    }
+    let mut min_reader = Version::new(1, 0, 0);
+    let mut out = Vec::with_capacity(wanted.len());
+    for id in wanted {
+        let c = registry.get(id).ok_or(WriteError::UnknownCapability { id: id.get() })?;
+        if c.requirement == Requirement::Required {
+            min_reader = min_reader.max(c.min_reader);
+        }
+        out.push(Declared { id, requirement: c.requirement, version: c.version });
+    }
+    Ok((out, min_reader))
+}
+
+/// A curve of the semantic model, turned into what the writer stores.
+pub(crate) enum Item {
+    Hot(EntityMeta, HotShape),
+    Advanced(EntityMeta, AdvancedShape),
+}
+
+/// What [`ContainerWriter::push_curve`] decides about a curve, without storing it, so that the writer that
+/// keeps its pushes in memory and the one that keeps them in files store the same thing.
+pub(crate) fn plan_curve(
+    id: EntityId,
+    style: u32,
+    cell: u32,
+    curve: &Curve,
+    derived: &mut Vec<Derived>,
+) -> Result<Item, WriteError> {
+    let unsupported = |what| Err(WriteError::Unsupported { what });
+    let meta = |bounds| EntityMeta { id, style, cell, bounds };
+    let spline = |meta, degree, knots: &[f64], x: Vec<f64>, y: Vec<f64>, weights: Option<&[f64]>, closed| {
+        Ok(Item::Advanced(
+            meta,
+            AdvancedShape::Spline { degree, knots: knots.to_vec(), x, y, weights: weights.map(<[f64]>::to_vec), closed },
+        ))
+    };
+    match curve {
+        Curve::Line(_) => unsupported("unbounded line"),
+        Curve::Composite(_) => unsupported("composite curve"),
+        Curve::Polyline(p) => {
+            let points: Vec<[f64; 2]> = p.vertices().iter().map(|v| xy(*v)).collect();
+            Ok(Item::Hot(meta(boxed(&points)), HotShape::Polyline(points)))
+        }
+        Curve::BSpline(b) => {
+            let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
+            let m = meta(hull(&x, &y));
+            spline(m, b.degree(), b.knots(), x, y, None, b.is_declared_closed())
+        }
+        Curve::RationalBSpline(b) => {
+            let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
+            let m = meta(hull(&x, &y));
+            spline(m, b.degree(), b.knots(), x, y, Some(b.weights()), b.is_declared_closed())
+        }
+        Curve::Bezier(b) => {
+            let (x, y): (Vec<f64>, Vec<f64>) = b.control_points().iter().map(|p| (p.x, p.y)).unzip();
+            let degree = b.degree();
+            let mut knots = vec![0.0; degree + 1];
+            knots.extend(std::iter::repeat_n(1.0, degree + 1));
+            let m = meta(hull(&x, &y));
+            spline(m, degree, &knots, x, y, None, b.is_declared_closed())
+        }
+        Curve::Circle(c) => {
+            let (o, rot) = frame(derived, id, c.placement())?;
+            let (start, sweep) = shifted(rot, 0.0, core::f64::consts::TAU);
+            Ok(Item::Hot(
+                meta(around(o, c.radius(), c.radius())),
+                HotShape::CircleArc { centre: o, radius: c.radius(), start_sweep: [start, sweep] },
+            ))
+        }
+        Curve::Ellipse(e) => {
+            let (o, rot) = frame(derived, id, e.placement())?;
+            let radii = [e.semi_axis_1(), e.semi_axis_2()];
+            let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
+            Ok(Item::Hot(
+                meta(around(o, r[0], r[1])),
+                HotShape::EllipseArc { centre: o, radii, angles: [rot, 0.0, core::f64::consts::TAU] },
+            ))
+        }
+        Curve::Trimmed(t) => {
+            let trim = t.trim();
+            let (start, sweep) = if trim.reversed {
+                (trim.start + trim.span, -trim.span)
+            } else {
+                (trim.start, trim.span)
+            };
+            match t.basis() {
+                Curve::Line(_) => {
+                    let d = curve.domain();
+                    let (a, b) = (xy(curve.eval(d.lo())?), xy(curve.eval(d.hi())?));
+                    Ok(Item::Hot(meta(boxed(&[a, b])), HotShape::Line(a, b)))
+                }
+                Curve::Circle(c) => {
+                    let (o, rot) = frame(derived, id, c.placement())?;
+                    let (start, sweep) = shifted(rot, start, sweep);
+                    Ok(Item::Hot(
+                        meta(around(o, c.radius(), c.radius())),
+                        HotShape::CircleArc { centre: o, radius: c.radius(), start_sweep: [start, sweep] },
+                    ))
+                }
+                Curve::Ellipse(e) => {
+                    let (o, rot) = frame(derived, id, e.placement())?;
+                    let radii = [e.semi_axis_1(), e.semi_axis_2()];
+                    let r = if rot == 0.0 { radii } else { [radii[0].max(radii[1]); 2] };
+                    Ok(Item::Hot(
+                        meta(around(o, r[0], r[1])),
+                        HotShape::EllipseArc { centre: o, radii, angles: [rot, start, sweep] },
+                    ))
+                }
+                _ => unsupported("trimmed spline"),
+            }
+        }
+        _ => unsupported("curve of a kind this writer does not know"),
+    }
+}
+
+/// The origin and the rotation of a frame. The rotation of a frame along x is exactly zero; any other is
+/// the angle of its axis by `detmath::atan2` (within one ulp), and is recorded.
+fn frame(
+    derived: &mut Vec<Derived>,
+    id: EntityId,
+    p: &pvec_geometry::Placement2,
+) -> Result<([f64; 2], f64), WriteError> {
+    let x = p.x_axis();
+    let rot = if x.x == 1.0 && x.y == 0.0 {
+        0.0
+    } else {
+        let r = pvec_numeric::detmath::atan2(x.y, x.x);
+        derived.push(Derived {
+            entity: id,
+            what: "the rotation of the frame: the angle of its x axis, by the deterministic arctangent (within one ulp)",
+            bound: UNIT * 2.0 * r.abs(),
+        });
+        r
+    };
+    Ok((xy(p.origin()), rot))
+}
+
 /// The box in source space of a rectangle of pixels `[x0 y0 x1 y1]` of a raster, from its four corners through the
 /// placement's map.
-fn pixel_box(p: &Placement, rect: [u64; 4]) -> Result<Bounds, WriteError> {
+pub(crate) fn pixel_box(p: &Placement, rect: [u64; 4]) -> Result<Bounds, WriteError> {
     let [a, b, c, d, tx, ty] = p.pixel_to_source;
     let corners = [(rect[0], rect[1]), (rect[2], rect[1]), (rect[2], rect[3]), (rect[0], rect[3])];
     let points: Vec<[f64; 2]> = corners
@@ -1488,7 +1691,7 @@ fn pixel_box(p: &Placement, rect: [u64; 4]) -> Result<Bounds, WriteError> {
 }
 
 /// One raster block: optional, optional-codec-free (codec 0), owned by capability 21, with its footprint.
-fn raster_block(
+pub(crate) fn raster_block(
     kind: u16,
     raster: u32,
     subtype: u16,
