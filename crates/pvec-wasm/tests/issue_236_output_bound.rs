@@ -45,13 +45,13 @@ fn tight() -> pvec::TessellationContext {
         map_to_screen: Transform2::IDENTITY,
         pixel_ratio: 1.0,
         max_screen_error_px: f64::INFINITY,
-        max_world_error: 1e-6,
+        max_world_error: 1.0 / 1_000_000.0,
         max_segments: u32::MAX as usize,
     }
 }
 
 fn all() -> Bounds2 {
-    Bounds2 { min: [-1e9, -1e9], max: [1e9, 1e9] }
+    Bounds2 { min: [-1_000_000_000.0, -1_000_000_000.0], max: [1_000_000_000.0, 1_000_000_000.0] }
 }
 
 fn batch(rt: &mut Runtime, n: u32) -> u32 {
@@ -117,7 +117,7 @@ fn issue_236_the_abi_stays_2_and_the_document_names_the_code_and_the_bound() {
 
 #[test]
 fn issue_236_one_curve_that_alone_needs_more_than_the_bound_is_refused_too() {
-    // a radius of 1e9 at 1e-6 wants billions of segments; before the bound this one call tried to allocate them
+    // a radius of 1_000_000_000.0 at 1e-6 wants billions of segments; before the bound this one call tried to allocate them
     let mut w = ContainerWriter::new(WriterConfig {
         unit: LengthUnit::Metre,
         metadata: Metadata {
@@ -132,9 +132,9 @@ fn issue_236_one_curve_that_alone_needs_more_than_the_bound_is_refused_too() {
         id: EntityId::new(1).unwrap(),
         style: 0,
         cell: 0,
-        bounds: Bounds { min: [-1e9, -1e9], max: [1e9, 1e9] },
+        bounds: Bounds { min: [-1_000_000_000.0, -1_000_000_000.0], max: [1_000_000_000.0, 1_000_000_000.0] },
     };
-    w.push_circle_arc(meta, [0.0, 0.0], 1e9, [0.0, std::f64::consts::TAU]).unwrap();
+    w.push_circle_arc(meta, [0.0, 0.0], 1_000_000_000.0, [0.0, std::f64::consts::TAU]).unwrap();
     let mut rt = Runtime::new();
     let file = rt.open(w.finish().unwrap()).unwrap();
     let b = rt.query_viewport(file, all(), u32::MAX).unwrap();

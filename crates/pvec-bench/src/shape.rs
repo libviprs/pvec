@@ -190,7 +190,9 @@ pub fn artifact_with_rasters(
     }
 }
 
-fn artifact_at(
+/// [`artifact`] at a chosen leaf capacity, without the loop that halves it for a block over the ceiling: a consumer that
+/// wants a mid-sized file cut into small leaves (libviprs/maplibre-pvec#125) writes it with this.
+pub fn artifact_at(
     shapes: &[Shape],
     unit: LengthUnit,
     producer: &str,
