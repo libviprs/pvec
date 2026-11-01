@@ -181,6 +181,9 @@ type Placements = Result<Option<Rc<Vec<Placement>>>, AbiError>;
 struct File {
     reader: Option<PvecReader>,
     entities: RefCell<BTreeMap<u32, Rc<Entity>>>,
+    /// The entities read so far by the leaf they came from (0 for the advanced curves), each list ascending by id, so a page of
+    /// one leaf costs the page (issue #238).
+    by_cell: RefCell<BTreeMap<u32, Vec<Rc<Entity>>>>,
     index: Result<Option<Index>, AbiError>,
     ranged: Option<Ranged>,
     /// The raster placements once read (`None` until then): the error of a damaged stream, no stream, or the placements.
@@ -333,6 +336,24 @@ fn browser() -> ReaderConfig {
     ReaderConfig { limits: Limits::BROWSER, ..ReaderConfig::default() }
 }
 
+/// Adds entities to the per-leaf index, keeping each leaf's list ascending by entity id.
+fn index_by_cell<'a>(
+    by_cell: &mut BTreeMap<u32, Vec<Rc<Entity>>>,
+    read: impl Iterator<Item = &'a Rc<Entity>>,
+) {
+    let mut touched = std::collections::BTreeSet::new();
+    for e in read {
+        let cell = e.cell.unwrap_or(0);
+        by_cell.entry(cell).or_default().push(Rc::clone(e));
+        touched.insert(cell);
+    }
+    for cell in touched {
+        if let Some(list) = by_cell.get_mut(&cell) {
+            list.sort_unstable_by_key(|e| e.id.index());
+        }
+    }
+}
+
 fn index_of(reader: &PvecReader) -> Result<Option<Index>, AbiError> {
     match reader.spatial_directory() {
         Ok(Some(dir)) => match reader.tier0_leaves(&dir) {
@@ -463,8 +484,10 @@ impl Runtime {
         let read = |_: PvecError| AbiError::Read;
         let reader = PvecReader::open_with_config(bytes, browser()).map_err(read)?;
         let loaded = reader.entities_in(None, true).map_err(read)?;
-        let entities =
+        let entities: BTreeMap<u32, Rc<Entity>> =
             loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
+        let by_cell = RefCell::new(BTreeMap::new());
+        index_by_cell(&mut by_cell.borrow_mut(), entities.values());
         let index = index_of(&reader);
         // a reader is kept when a call can still read through it: an index, or rasters
         let rasters = reader.raster_placements().map(|p| (!p.is_empty()).then_some(p));
@@ -473,6 +496,7 @@ impl Runtime {
         Ok(self.insert(Item::File(Rc::new(File {
             reader,
             entities: RefCell::new(entities),
+            by_cell,
             index,
             ranged: None,
             stream_rule: Cell::new(rasters.as_ref().err().and_then(rule_number)),
@@ -546,6 +570,7 @@ impl Runtime {
         let file = File {
             reader: Some(reader),
             entities: RefCell::new(BTreeMap::new()),
+            by_cell: RefCell::default(),
             index,
             ranged: Some(Ranged { ranges, loaded: RefCell::new(Loaded::default()) }),
             rasters: RefCell::default(),
@@ -605,10 +630,13 @@ impl Runtime {
             if ranged.ranges.needed().is_empty() { AbiError::Read } else { AbiError::NeedRange }
         })?;
         let mut entities = file.entities.borrow_mut();
+        let mut fresh = Vec::new();
         for (cell, id, curve, style) in read {
             let (key, e) = entity(cell, id, curve, style);
+            fresh.push(Rc::clone(&e));
             entities.insert(key, e);
         }
+        index_by_cell(&mut file.by_cell.borrow_mut(), fresh.iter());
         let mut have = ranged.loaded.borrow_mut();
         match want_cells {
             Some(c) => have.cells.extend(c),
@@ -637,6 +665,28 @@ impl Runtime {
         let truncated = picked.len() > budget as usize;
         picked.truncate(budget as usize);
         Ok(self.insert(Item::Batch { picked, truncated }))
+    }
+
+    /// A page of one leaf's entities (issue #238): `count` of them from the `first`th, ascending by entity id, as a batch.
+    /// Cell 0 is the advanced curves, which no leaf holds. The batch is truncated when more of the leaf remain. A page
+    /// past the end is an empty batch. A file opened by ranges reads that leaf's hot blocks (or the advanced chunks) first.
+    pub fn query_leaf(&mut self, file: u32, cell: u32, first: u32, count: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        if cell != 0 && !index.dir.query(&index.dir.bounds()).any(|c| c.id.get() == cell) {
+            return Err(AbiError::BadArgument);
+        }
+        if let Some(ranged) = &file.ranged {
+            let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+            let leaf = [cell];
+            self.load_cells(&file, ranged, reader, Some(if cell == 0 { &[] } else { &leaf }), cell == 0)?;
+        }
+        let by_cell = file.by_cell.borrow();
+        let all = by_cell.get(&cell).map_or(&[][..], Vec::as_slice);
+        let start = (first as usize).min(all.len());
+        let end = start.saturating_add(count as usize).min(all.len());
+        let picked = all[start..end].to_vec();
+        Ok(self.insert(Item::Batch { picked, truncated: end < all.len() }))
     }
 
     fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {

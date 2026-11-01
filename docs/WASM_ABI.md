@@ -43,6 +43,7 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `directory_query` | file, `min_x, min_y, max_x, max_y` | a cells handle (version 2) |
 | `cells_len`, `cells_ptr`, `cells_elem` | cells handle, array number | length, byte offset, element type (version 2) |
 | `tier0_viewport` | file, `min_x, min_y, max_x, max_y` | a Tier 0 handle (version 2) |
+| `query_leaf` | file, cell id (0 for the advanced curves), `first`, `count` | a batch handle (version 2, issue #238) |
 | `tier0_leaf` | file, cell id | a Tier 0 handle for one leaf (version 2, issue #238) |
 | `tier0_stat` | Tier 0 handle, number | one count (version 2) |
 | `tier0_buffer_len`, `tier0_buffer_ptr`, `tier0_buffer_elem` | Tier 0 handle, array number | length, byte offset, element type (version 2) |
@@ -184,6 +185,14 @@ as well. The cost is the leaf's, not the file's: nothing is culled and nothing i
 file does not have, 0 included, is -3. A file with no directory is -6, a damaged block -4. A file opened by ranges needs
 that leaf's Tier 0 block and no hot block (-7 until it is provided). The ABI version stays 2: it is an addition, found by
 testing that the module exports `tier0_leaf`.
+
+`query_leaf(file, cell, first, count)` returns a page of one leaf's entities as a batch (issue #238): `count` of the leaf's
+hot entities from the `first`th, ascending by entity id, for `tessellate_batch` and `batch_len`. `batch_truncated` is 1 when
+more of the leaf remain, and a page past the end is an empty batch. Cell 0 is the advanced curves, which are in no leaf, so
+the leaves of `directory_query` and cell 0 together are every entity once, where `query_viewport` over a leaf's box returns
+the entities of every box that meets it. A page costs the page: the module keeps the entities it has read by leaf, so a
+call does not walk the file. The errors and the range-open rules are those of `tier0_leaf`; the page needs that leaf's hot
+blocks (cell 0: the advanced chunks) and no other. The ABI version stays 2.
 
 `tier0_stat(result, n)`: 0 entries, 1 exact, 2 previews, 3 infeasible, 4 uncovered, 5 leaves read, 6 leaves of
 the window with no Tier 0 block, 7 whether the bounds of the advanced curves meet the window. Uncovered is

@@ -261,6 +261,15 @@ pub fn tier0_viewport(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64)
     RUNTIME.with(|r| code(r.borrow_mut().tier0_viewport(file, window(min_x, min_y, max_x, max_y))))
 }
 
+/// A page of the entities of one leaf (`cell` is an id `directory_query` returns, 0 the advanced curves): `count` of them
+/// from the `first`th in ascending entity id, as a batch handle for `tessellate_batch`. `batch_truncated` says more remain.
+/// -3 for a cell the file does not have, -6 when the file has no directory, -7 on a range-opened file that still needs
+/// the leaf's blocks.
+#[wasm_bindgen]
+pub fn query_leaf(file: u32, cell: u32, first: u32, count: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().query_leaf(file, cell, first, count)))
+}
+
 /// The Tier 0 stream of one leaf of the spatial directory (`cell` is an id `directory_query` returns): the same result
 /// handle as `tier0_viewport`, with no window to cull by. -3 for a cell the file does not have, -6 when the file has
 /// no directory, -4 when the block is damaged, -7 on a range-opened file that still needs the block.

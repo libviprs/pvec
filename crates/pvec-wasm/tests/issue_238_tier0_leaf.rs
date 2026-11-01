@@ -289,7 +289,11 @@ fn issue_238_pages_of_a_leaf_are_its_entities_in_ascending_id_and_the_flag_says_
         assert_eq!(got.len() as u32, count, "cell {cell}");
         assert!(got.windows(2).all(|w| w[0] < w[1]), "cell {cell}: ascending");
         let t = rt.tier0_leaf(f, cell).unwrap();
-        assert_eq!(&got, &rt.tier0(t).unwrap().ids, "cell {cell}: the entities the leaf's Tier 0 stream is about");
+        assert_eq!(
+            &got,
+            &rt.tier0(t).unwrap().ids,
+            "cell {cell}: the entities the leaf's Tier 0 stream is about"
+        );
     }
 }
 
@@ -324,13 +328,20 @@ fn issue_238_a_page_tessellates_to_what_the_viewport_batch_gives_for_those_entit
     let f = rt.open(indexed()).unwrap();
     let all = rt.query_viewport(f, everything(), u32::MAX).unwrap();
     let all = rt.tessellate_batch(all, &ctx(), Precision::F64).unwrap();
-    let (all_ids, all_off, all_v) =
-        (rt.entity_ids(all).unwrap().to_vec(), rt.offsets(all).unwrap().to_vec(), rt.vertices_f64(all).unwrap().to_vec());
+    let (all_ids, all_off, all_v) = (
+        rt.entity_ids(all).unwrap().to_vec(),
+        rt.offsets(all).unwrap().to_vec(),
+        rt.vertices_f64(all).unwrap().to_vec(),
+    );
     let (cells, _) = cells(&mut rt, f);
     for cell in cells.into_iter().chain([0]) {
         let b = rt.query_leaf(f, cell, 0, u32::MAX).unwrap();
         let t = rt.tessellate_batch(b, &ctx(), Precision::F64).unwrap();
-        let (ids, off, v) = (rt.entity_ids(t).unwrap().to_vec(), rt.offsets(t).unwrap().to_vec(), rt.vertices_f64(t).unwrap().to_vec());
+        let (ids, off, v) = (
+            rt.entity_ids(t).unwrap().to_vec(),
+            rt.offsets(t).unwrap().to_vec(),
+            rt.vertices_f64(t).unwrap().to_vec(),
+        );
         for (k, id) in ids.iter().enumerate() {
             let at = all_ids.binary_search(id).unwrap();
             assert_eq!(
@@ -362,7 +373,8 @@ fn issue_238_query_leaf_misuse_is_refused_and_never_panics() {
 }
 
 #[test]
-fn issue_238_a_range_opened_file_reads_the_hot_blocks_of_that_leaf_only_and_cell_0_reads_the_advanced_chunks() {
+fn issue_238_a_range_opened_file_reads_the_hot_blocks_of_that_leaf_only_and_cell_0_reads_the_advanced_chunks()
+{
     let bytes = indexed();
     let reader = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
     let mut host = Host { bytes: bytes.clone(), served: Vec::new() };
