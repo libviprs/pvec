@@ -16,6 +16,8 @@ mod hit;
 mod manifest;
 mod pick;
 mod reader;
+#[cfg(feature = "unstable-stream")]
+mod spill_fs;
 mod tessellate;
 mod writer;
 

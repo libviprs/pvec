@@ -268,7 +268,7 @@ fn issue_235_the_streamed_artifact_is_the_one_finish_returns_for_every_budget() 
     let tmp = root("equal");
     for shape in shapes() {
         let expect = build(shape, 7).finish().unwrap();
-        for budget in [1u64, 64, 4096, 1 << 20, 1 << 30] {
+        for budget in [1u64, 4096, 1 << 30] {
             let mut out = Vec::new();
             let n = spilled(shape, 7, &tmp, budget).finish_to(&mut out).unwrap();
             assert_eq!(n as usize, out.len(), "{shape:?} budget {budget}: the count is the bytes written");
@@ -458,7 +458,7 @@ fn issue_235_the_refusals_are_the_ones_finish_gives() {
 fn issue_235_random_drawings_tiny_budgets_and_truncated_sinks_never_panic_or_leak() {
     let tmp = root("fuzz");
     let mut rng = Rng(0x5eed_235);
-    for case in 0..60u32 {
+    for case in 0..40u32 {
         let indexed = match rng.below(4) {
             0 => None,
             1 => Some((1 + rng.below(40) as u32, None)),

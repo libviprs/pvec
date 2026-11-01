@@ -1203,31 +1203,59 @@ pub(crate) fn hot_block(
     if sorted {
         items.sort_by_key(|i| i.meta.id);
     }
-    let mut builder = HotBlockBuilder::new(kind);
-    for i in &items {
+    let mut group = HotGroup::new(kind, cell);
+    for i in items {
+        group.push(i)?;
+    }
+    group.finish(sorted)
+}
+
+/// The entities of one geometry type in one cell, taken one at a time and never held as a list, which is what
+/// lets a block be built from a stream when the block is the whole drawing.
+pub(crate) struct HotGroup {
+    kind: HotKind,
+    cell: u32,
+    builder: HotBlockBuilder,
+    bounds: Option<Bounds>,
+}
+
+impl HotGroup {
+    pub(crate) fn new(kind: HotKind, cell: u32) -> HotGroup {
+        HotGroup { kind, cell, builder: HotBlockBuilder::new(kind), bounds: None }
+    }
+
+    pub(crate) fn push(&mut self, i: &HotItem) -> Result<(), WriteError> {
         let (id, style) = (i.meta.id, i.meta.style);
         match &i.shape {
-            HotShape::Line(a, b) => builder.push_line(id, style, *a, *b)?,
-            HotShape::Polyline(points) => builder.push_polyline(id, style, points)?,
+            HotShape::Line(a, b) => self.builder.push_line(id, style, *a, *b)?,
+            HotShape::Polyline(points) => self.builder.push_polyline(id, style, points)?,
             HotShape::CircleArc { centre, radius, start_sweep } => {
-                builder.push_circle_arc(id, style, *centre, *radius, *start_sweep)?
+                self.builder.push_circle_arc(id, style, *centre, *radius, *start_sweep)?
             }
             HotShape::EllipseArc { centre, radii, angles } => {
-                builder.push_ellipse_arc(id, style, *centre, *radii, *angles)?
+                self.builder.push_ellipse_arc(id, style, *centre, *radii, *angles)?
             }
         }
+        self.bounds = Some(match self.bounds {
+            Some(b) => union(b, i.meta.bounds),
+            None => i.meta.bounds,
+        });
+        Ok(())
     }
-    let block = if sorted { builder.finish()? } else { builder.finish_unsorted()? };
-    let bounds = items.iter().map(|i| i.meta.bounds).reduce(union);
-    Ok(Planned {
-        first_seen: 0,
-        kind: BlockKind::Hot,
-        cell,
-        subtype: kind.id(),
-        count: u32::try_from(items.len()).map_err(|_| WriteError::TooLarge)?,
-        bounds,
-        bytes: block.as_bytes().to_vec(),
-    })
+
+    pub(crate) fn finish(self, sorted: bool) -> Result<Planned, WriteError> {
+        let count = u32::try_from(self.builder.len()).map_err(|_| WriteError::TooLarge)?;
+        let block = if sorted { self.builder.finish()? } else { self.builder.finish_unsorted()? };
+        Ok(Planned {
+            first_seen: 0,
+            kind: BlockKind::Hot,
+            cell: self.cell,
+            subtype: self.kind.id(),
+            count,
+            bounds: self.bounds,
+            bytes: block.as_bytes().to_vec(),
+        })
+    }
 }
 
 /// The bytes of records and arena data an advanced curve takes, which is how chunks are filled.

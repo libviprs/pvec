@@ -218,6 +218,10 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
         return raster_index_inputs();
     }
+    if target == "fuzz_spill_writer" {
+        // not made of artifacts either: scripts of pushes, a budget, a store that fails and a sink that fills
+        return spill_inputs();
+    }
     /// A stream set with one valid raster placement in it (issue 217): the test vector of `docs/RASTER.md`.
     fn raster_seed() -> Option<Vec<u8>> {
         use pvec_components::{
@@ -598,4 +602,45 @@ fn raster_archive_inputs() -> Vec<Vec<u8>> {
     }
     out.push(Vec::new());
     one_of(out, |v| v.as_slice())
+}
+
+/// The scripts of `fuzz_spill_writer`: a budget, the call at which the store fails, the room of the sink, and
+/// pushes of seven bytes each (kind, id, cell, x, y, size, style; a composite adds the id it names). Most have
+/// distinct ids and a store that never fails, so they are accepted; the rest fail the store at a call, fill the
+/// sink, repeat an id, or give a spline a cell, so each refusal and each failure is reached.
+fn spill_inputs() -> Vec<Vec<u8>> {
+    let mut x = 0x2354_5eed_u64;
+    let mut next = move || {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        x
+    };
+    let mut out: Vec<Vec<u8>> = Vec::new();
+    for case in 0..60u64 {
+        let pushes = 1 + (next() % 20) as usize;
+        let (budget, fail, room) = match case % 6 {
+            0 => (case as u8 % 6, 0xFF, 255),
+            1 => (1, 0xFF, 255),
+            2 => (0, (next() % 80) as u8, 255),
+            3 => (1, 0xFF, (next() % 200) as u8),
+            4 => (2, 0xFF, 255),
+            _ => (5, 0xFF, 255),
+        };
+        let mut v = vec![budget, fail, room];
+        for i in 0..pushes {
+            let kind = (next() % 6) as u8;
+            let id = if case % 10 == 9 && i == pushes - 1 { 0 } else { i as u8 };
+            // a spline with a cell is a refusal at the push
+            let cell = if case % 10 == 8 && i == 0 { 1 } else { (next() % 3) as u8 };
+            let cell = if matches!(kind, 4 | 5) && case % 10 != 8 { 0 } else { cell };
+            v.extend_from_slice(&[kind, id, cell, (next() % 50) as u8, (next() % 50) as u8, (next() % 9) as u8, (next() % 4) as u8]);
+            if kind == 5 {
+                v.push(((i + 1) % 40) as u8);
+            }
+        }
+        out.push(v);
+    }
+    out.push(Vec::new());
+    out
 }

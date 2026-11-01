@@ -11,7 +11,13 @@ use pvec_components::{RASTER_CAPABILITY, encode_rasters};
 use pvec_container::Bounds;
 use pvec_container::source::MemorySource;
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
-use pvec_stream::{EntityBox, Tier0Builder, Tier0Params, build_directory, tier0_blocks};
+use crate::spill_fs::FsStore;
+use pvec_container::spill::{ExternalSorter, SpillError};
+use pvec_container::spill_writer::{ByteSink, FinishError, HotRecord, SpillWriter};
+use pvec_stream::{
+    DirectoryBuilder, DirectoryError, EntityBox, Tier0Builder, Tier0Error, Tier0Outcome, Tier0Params,
+    build_directory, entity_key, tier0_blocks, tier0_outcome,
+};
 use std::collections::HashMap;
 
 pub use crate::reader::LoadedEntity;
@@ -136,7 +142,7 @@ impl PvecWriter {
     /// budget of the benchmarks). Entities pushed afterwards are placed when [`PvecWriter::finish`] runs, so
     /// an error that only the index can raise (a capacity of 0, a Tier 0 bound that is not finite and above
     /// zero) shows there. Splines and composites are the advanced curves: they stay in no leaf. The
-    /// writer keeps every push until `finish`, which is the cost of placing them. The result is
+    /// writer keeps every push until `finish`, which is the cost of placing them (use [`PvecWriter::with_spill`] to keep them in files instead). A Tier 0 bound needs the entity ids to be dense, 0 to n-1 with none missing or repeated, or `finish` refuses with the Tier 0 coverage rule (`TIER0-01`). The result is
     /// deterministic, like the plain writer's.
     pub fn new_indexed(
         manifest: crate::Manifest,
@@ -269,6 +275,10 @@ impl PvecWriter {
     /// any number of calls and any order, and the file does not depend on either. What the container cannot
     /// store is refused by `finish`, with the rule of the refusal.
     pub fn raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
+        self.touched = true;
+        if let Some(spill) = &mut self.spill {
+            return spill.push_raster_tiles(raster, tiles);
+        }
         if let Some(index) = &mut self.index {
             index.log.push(Op::Raster(raster, tiles.clone()));
         }
@@ -353,17 +363,262 @@ impl PvecReader {
     }
 }
 
+// ------------------------------------------------------------------------------------ bounded memory
+
+fn io_error(stage: &'static str, e: std::io::Error) -> PvecError {
+    PvecError::Io { stage, error: e.into() }
+}
+
+/// A failure of the store or the sink: the `std::io::Error` the file system raised, or, for a file that does not hold
+/// what the writer put there, one of kind `InvalidData`.
+fn spill_error(stage: &'static str, e: SpillError) -> PvecError {
+    let source = e.into_source();
+    io_error(
+        stage,
+        match source.downcast::<std::io::Error>() {
+            Ok(e) => *e,
+            Err(other) => std::io::Error::new(std::io::ErrorKind::InvalidData, other),
+        },
+    )
+}
+
+fn finish_error(e: FinishError) -> PvecError {
+    match e {
+        FinishError::Write(w) => refused(w),
+        FinishError::Spill(e) => spill_error("spill", e),
+        FinishError::Output(e) => spill_error("output", e),
+        other => PvecError::Write { rule: other.to_string() },
+    }
+}
+
+/// An `io::Write` as the sink the container writes the artifact to.
+struct IoSink<'a, W: std::io::Write>(&'a mut W);
+
+impl<W: std::io::Write> ByteSink for IoSink<'_, W> {
+    fn put(&mut self, bytes: &[u8]) -> Result<(), SpillError> {
+        self.0.write_all(bytes).map_err(SpillError::new)
+    }
+}
+
+fn tier0_error(e: Tier0Error) -> PvecError {
+    write_error(e.rule())
+}
+
+fn directory_error(e: DirectoryError) -> PvecError {
+    write_error(e.rule())
+}
+
+/// What a writer that keeps its pushes in files holds besides the files.
+#[derive(Debug)]
+pub(crate) struct Spill {
+    writer: SpillWriter,
+    /// The bound the previews of Tier 0 are held to, when the writer is indexed and was asked for Tier 0.
+    tier0: Option<Tier0Params>,
+    /// The first error that classifying a pushed curve for Tier 0 gave, which `finish_to` reports where the
+    /// in-memory writer reports it.
+    classify: Option<Tier0Error>,
+}
+
+impl Spill {
+    pub(crate) fn push(&mut self, id: EntityId, curve: &Curve) -> Result<(), PvecError> {
+        let Spill { writer, tier0, classify } = self;
+        let mut tag = || match tier0 {
+            Some(params) => match tier0_outcome(id, curve, params) {
+                Ok(outcome) => outcome.to_bytes(),
+                Err(e) => {
+                    classify.get_or_insert(e);
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
+        writer.push_curve(id, 0, 0, curve, &mut tag).map_err(finish_error)
+    }
+
+    pub(crate) fn push_composite(
+        &mut self,
+        meta: EntityMeta,
+        segments: &[EntityId],
+        closed: bool,
+    ) -> Result<(), PvecError> {
+        self.writer.push_composite(meta, segments, None, closed).map_err(finish_error)
+    }
+
+    pub(crate) fn push_stream(&mut self, stream: &crate::components::Stream) -> Result<(), PvecError> {
+        self.writer.push_stream(stream).map_err(finish_error)
+    }
+
+    pub(crate) fn push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
+        self.writer.push_raster_tiles(raster, tiles).map_err(finish_error)
+    }
+}
+
 impl PvecWriter {
-    /// Not bounded yet: this keeps the signature that the tests of pvec#235 are written against.
-    pub fn with_spill(self, root: &std::path::Path, budget: u64) -> Result<PvecWriter, PvecError> {
-        let _ = (root, budget);
+    /// Makes the writer keep its pushes in files under `root` and build the file from them, inside about
+    /// `budget` bytes of memory, plus the entities of the biggest block it has to build (a leaf of an indexed
+    /// writer, or every entity of one geometry type when the writer is not indexed: use
+    /// [`PvecWriter::new_indexed`] for a bound that does not grow with the drawing).
+    ///
+    /// `root` must be a directory that exists. The writer makes one directory in it for its files, and removes
+    /// it when it finishes, fails or is dropped; nothing is written next to the output or anywhere else. It has to
+    /// be called before the first push (`Write` error `SPILL-01` after), and an error making the directory is an
+    /// [`PvecError::Io`] with stage `"spill"`. [`PvecWriter::finish_to`] is where the file is built; the file is
+    /// the one the writer would have returned without this call, byte for byte, whatever the budget.
+    pub fn with_spill(mut self, root: &std::path::Path, budget: u64) -> Result<PvecWriter, PvecError> {
+        if self.touched || self.spill.is_some() {
+            return Err(write_error("SPILL-01"));
+        }
+        let budget = usize::try_from(budget).unwrap_or(usize::MAX);
+        let store = FsStore::create(root).map_err(|e| io_error("spill", e))?;
+        let writer = SpillWriter::new(self.config.clone(), std::sync::Arc::new(store), budget)
+            .map_err(|e| spill_error("spill", e))?;
+        let tier0 = self.index.as_ref().and_then(|i| i.tier0_max_error).map(|max_error| Tier0Params { max_error });
+        self.spill = Some(Box::new(Spill { writer, tier0, classify: None }));
         Ok(self)
     }
 
-    /// Not streamed yet: `finish`, then one write.
+    /// Seals the file and writes it to `out`, returning the number of bytes written. `out` needs no `Seek`, and
+    /// receives nothing unless the whole file was built: an error from the build (a rule, or a spill file that
+    /// cannot be read or written) leaves it untouched, and an error from `out` itself comes back as
+    /// [`PvecError::Io`] with stage `"output"` and the `std::io::Error` as its source.
+    ///
+    /// On a writer made with [`PvecWriter::with_spill`] the build stays inside its budget. On any other it is
+    /// [`PvecWriter::finish`] and one write.
     pub fn finish_to(self, out: &mut impl std::io::Write) -> Result<u64, PvecError> {
-        let bytes = self.finish()?;
-        out.write_all(&bytes).map_err(|e| PvecError::Io { stage: "output", error: e.into() })?;
-        Ok(bytes.len() as u64)
+        if self.spill.is_none() {
+            let bytes = self.finish()?;
+            out.write_all(&bytes).map_err(|e| io_error("output", e))?;
+            out.flush().map_err(|e| io_error("output", e))?;
+            return Ok(bytes.len() as u64);
+        }
+        let Some(spill) = self.spill else { unreachable!("checked above") };
+        let Spill { writer, tier0, classify } = *spill;
+        let mut sink = IoSink(out);
+        let written = match self.index {
+            None => writer.finish_to(&mut sink).map_err(finish_error),
+            Some(index) => index.lay_out_spilled(writer, tier0, classify, &mut sink),
+        }?;
+        out.flush().map_err(|e| io_error("output", e))?;
+        Ok(written)
     }
+}
+
+impl Indexing {
+    /// [`Indexing::lay_out`] over a writer whose pushes are in files: the same directory, the same cells, the
+    /// same Tier 0 blocks, built from an external sort of the hot entities by the key the directory orders by.
+    fn lay_out_spilled(
+        self,
+        mut w: SpillWriter,
+        tier0: Option<Tier0Params>,
+        classify: Option<Tier0Error>,
+        out: &mut dyn ByteSink,
+    ) -> Result<u64, PvecError> {
+        if w.hot_count() == 0 {
+            return w.finish_to(out).map_err(finish_error);
+        }
+        let build = |reason| directory_error(DirectoryError::Build { reason });
+        let spill = |e| spill_error("spill", e);
+        if self.capacity == 0 {
+            return Err(build("a leaf holds no entity"));
+        }
+        let (store, budget) = (w.store(), w.budget());
+        // the first pass: the box of the drawing, and whether a hot id is used twice
+        let mut world: Option<Aabb> = None;
+        let mut ids = ExternalSorter::new(&store, budget / 4);
+        let mut hot = 0usize;
+        for rec in w.hot_records().map_err(spill)? {
+            let rec = rec.map_err(spill)?;
+            let m = rec.meta();
+            let b = Aabb::new(m.bounds.min, m.bounds.max).map_err(|e| write_error(e.rule()))?;
+            world = Some(world.map_or(b, |x| x.union(&b)));
+            ids.push(u128::from(m.id.index()), Vec::new()).map_err(spill)?;
+            hot += 1;
+        }
+        if hot > pvec_numeric::MAX_ENTITIES {
+            return Err(build("more entities than NP-18 allows"));
+        }
+        let mut previous = None;
+        for rec in ids.finish().map_err(spill)? {
+            let (id, _) = rec.map_err(spill)?;
+            if previous == Some(id) {
+                return Err(build("an entity id is used twice"));
+            }
+            previous = Some(id);
+        }
+        let Some(world) = world else { return w.finish_to(out).map_err(finish_error) };
+        // Tier 0 covers every id, so the ids must be dense; its refusals come before anything is built
+        let summary = w.id_summary().map_err(finish_error)?;
+        let count = summary.max.map_or(0, |m| m + 1);
+        if let Some(params) = tier0 {
+            Tier0Builder::new(count, params).map_err(tier0_error)?;
+            if let Some(e) = classify {
+                return Err(tier0_error(e));
+            }
+            let entity = |i: u32| EntityId::new(i).map_err(|_| tier0_error(Tier0Error::Limit));
+            if let Some(i) = summary.duplicate {
+                return Err(tier0_error(Tier0Error::Duplicate(entity(i)?)));
+            }
+            if let Some(i) = summary.first_gap {
+                return Err(tier0_error(Tier0Error::Gap(entity(i)?)));
+            }
+        }
+        // the second pass: the hot entities in the order the directory cuts them into cells
+        let mut sorter = ExternalSorter::new(&store, budget);
+        for rec in w.hot_records().map_err(spill)? {
+            let rec = rec.map_err(spill)?;
+            let m = rec.meta();
+            let b = Aabb::new(m.bounds.min, m.bounds.max).map_err(|e| write_error(e.rule()))?;
+            let key = u128::from(entity_key(&world, &b)) << 32 | u128::from(m.id.index());
+            sorter.push(key, rec.encode()).map_err(spill)?;
+        }
+        let mut cells = DirectoryBuilder::new(self.capacity).map_err(directory_error)?;
+        let mut group = Vec::new();
+        let mut open: Option<(u32, Aabb)> = None;
+        for item in sorter.finish().map_err(spill)? {
+            let (_, bytes) = item.map_err(spill)?;
+            let rec = HotRecord::decode(&bytes).map_err(spill)?;
+            let m = rec.meta();
+            let b = Aabb::new(m.bounds.min, m.bounds.max).map_err(|e| write_error(e.rule()))?;
+            let cell = cells.push(&b).map_err(directory_error)?.get();
+            match &mut open {
+                Some((c, bounds)) if *c == cell => *bounds = bounds.union(&b),
+                _ => {
+                    if let Some((c, bounds)) = open.take() {
+                        place_cell(&mut w, c, bounds, std::mem::take(&mut group), tier0.is_some(), count)?;
+                    }
+                    open = Some((cell, b));
+                }
+            }
+            group.push(rec);
+        }
+        if let Some((c, bounds)) = open.take() {
+            place_cell(&mut w, c, bounds, group, tier0.is_some(), count)?;
+        }
+        let built = cells.finish().map_err(directory_error)?;
+        let bounds = Bounds { min: built.bounds.min(), max: built.bounds.max() };
+        w.set_spatial_directory(built.nodes, bounds, built.bytes).map_err(refused)?;
+        w.finish_to(out).map_err(finish_error)
+    }
+}
+
+/// Puts the entities of one cell in their blocks and, when Tier 0 was asked for, writes the cell's Tier 0 block.
+fn place_cell(
+    w: &mut SpillWriter,
+    cell: u32,
+    bounds: Aabb,
+    records: Vec<HotRecord>,
+    tier0: bool,
+    count: u32,
+) -> Result<(), PvecError> {
+    if tier0 {
+        let mut outcomes = Vec::with_capacity(records.len());
+        for r in &records {
+            let id = r.meta().id;
+            outcomes.push((id, Tier0Outcome::from_bytes(id, &r.tag).map_err(tier0_error)?));
+        }
+        let bytes = Tier0Plan::leaf(count, outcomes).map_err(tier0_error)?.encode();
+        let to = Bounds { min: bounds.min(), max: bounds.max() };
+        w.push_tier0_leaf(cell, records.len() as u32, to, bytes).map_err(finish_error)?;
+    }
+    w.emit_hot_cell(cell, records).map_err(finish_error)
 }

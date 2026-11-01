@@ -93,3 +93,10 @@ path = "fuzz_targets/fuzz_raster_archive.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_spill_writer"
+path = "fuzz_targets/fuzz_spill_writer.rs"
+test = false
+doc = false
+bench = false

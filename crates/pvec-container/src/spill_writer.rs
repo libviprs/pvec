@@ -2,7 +2,7 @@
 //!
 //! [`SpillWriter`] takes the same pushes as `writer::ContainerWriter` and writes the same artifact, but it
 //! never holds more than a budget of them: hot entities, advanced curves, component streams and raster tiles
-//! go to files under a [`SpillDir`] the moment they are pushed, the hot entities are put in their blocks by an
+//! go to files in a [`Store`] the moment they are pushed, the hot entities are put in their blocks by an
 //! external sort, every finished block goes to a block spool, and [`SpillWriter::finish_to`] lays the artifact
 //! out from the spool onto any `Write`, with no `Seek`. What stays in memory is the bookkeeping that cannot be
 //! avoided: a small record for each advanced curve (their chunks are planned from the whole set), a
@@ -26,9 +26,9 @@ use crate::compress::CodecPolicy;
 use crate::directory::BlockKind;
 use crate::integrity::{DigestStream, Integrity, block_checksum};
 use crate::manifest::{Bounds, Manifest};
-use crate::spill::{ExternalSorter, Log, SpillDir};
+use crate::spill::{Appender, ExternalSorter, Log, SpillError, SpillResult, Store};
 use crate::writer::{
-    AdvancedItem, AdvancedShape, BlockMeta, Derived, EntityMeta, HotItem, HotShape, Item, Planned, RasterFail,
+    AdvancedItem, AdvancedShape, BlockMeta, Derived, EntityMeta, HotGroup, HotItem, HotShape, Item, Planned, RasterFail,
     RasterRules, RawBlock, WriteError, WriterConfig, WriterOptions, advanced_chunk, advanced_size,
     checked_bounds, declare, hot_block, pack_planned, plan_chunks, plan_curve, plan_layout, raster_blocks_of,
     stream_block_of, union,
@@ -41,9 +41,6 @@ use pvec_entity::EntityId;
 use pvec_geometry::Curve;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Why a push or the finish failed.
@@ -53,9 +50,9 @@ pub enum FinishError {
     /// The container refuses the input (the rule is the writer's, as for the in-memory writer).
     Write(WriteError),
     /// A spill file could not be written or read.
-    Spill(io::Error),
+    Spill(SpillError),
     /// The sink the artifact is written to failed.
-    Output(io::Error),
+    Output(SpillError),
 }
 
 impl fmt::Display for FinishError {
@@ -83,18 +80,24 @@ impl From<WriteError> for FinishError {
     }
 }
 
-impl From<io::Error> for FinishError {
-    /// Every `io::Error` that reaches a `?` inside the writer is a spill file's; the sink's are tagged where
+impl From<SpillError> for FinishError {
+    /// Every store error that reaches a `?` inside the writer is a spill file's; the sink's are tagged where
     /// they are raised.
-    fn from(e: io::Error) -> FinishError {
+    fn from(e: SpillError) -> FinishError {
         FinishError::Spill(e)
     }
 }
 
+/// Where the artifact is written: a sink that takes bytes in order and needs no seek.
+pub trait ByteSink {
+    /// Takes the next bytes of the artifact.
+    fn put(&mut self, bytes: &[u8]) -> Result<(), SpillError>;
+}
+
 // ----------------------------------------------------------------------------------- records in files
 
-fn corrupt(what: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, what)
+fn corrupt(what: &'static str) -> SpillError {
+    SpillError::corrupt(what)
 }
 
 /// A reader over the bytes of one record, which refuses a record that ends early.
@@ -104,24 +107,24 @@ struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
-    fn take(&mut self, n: usize) -> io::Result<&'a [u8]> {
+    fn take(&mut self, n: usize) -> SpillResult<&'a [u8]> {
         let end = self.at.checked_add(n).filter(|e| *e <= self.bytes.len()).ok_or_else(|| corrupt("a record ends early"))?;
         let out = &self.bytes[self.at..end];
         self.at = end;
         Ok(out)
     }
-    fn u8(&mut self) -> io::Result<u8> {
+    fn u8(&mut self) -> SpillResult<u8> {
         Ok(self.take(1)?[0])
     }
-    fn u32(&mut self) -> io::Result<u32> {
+    fn u32(&mut self) -> SpillResult<u32> {
         let b = self.take(4)?;
         Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     }
-    fn f64(&mut self) -> io::Result<f64> {
+    fn f64(&mut self) -> SpillResult<f64> {
         let b = self.take(8)?;
         Ok(f64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
     }
-    fn f64s<const N: usize>(&mut self) -> io::Result<[f64; N]> {
+    fn f64s<const N: usize>(&mut self) -> SpillResult<[f64; N]> {
         let mut out = [0.0; N];
         for v in &mut out {
             *v = self.f64()?;
@@ -129,17 +132,17 @@ impl<'a> Cursor<'a> {
         Ok(out)
     }
     /// A count that the rest of the record can hold at `each` bytes apiece.
-    fn count(&mut self, each: usize) -> io::Result<usize> {
+    fn count(&mut self, each: usize) -> SpillResult<usize> {
         let n = self.u32()? as usize;
         if n.checked_mul(each).is_none_or(|b| b > self.bytes.len() - self.at) {
             return Err(corrupt("a count is longer than its record"));
         }
         Ok(n)
     }
-    fn f64_vec(&mut self, n: usize) -> io::Result<Vec<f64>> {
+    fn f64_vec(&mut self, n: usize) -> SpillResult<Vec<f64>> {
         (0..n).map(|_| self.f64()).collect()
     }
-    fn done(&self) -> io::Result<()> {
+    fn done(&self) -> SpillResult<()> {
         if self.at == self.bytes.len() { Ok(()) } else { Err(corrupt("a record has bytes left over")) }
     }
 }
@@ -157,7 +160,7 @@ fn put_meta(out: &mut Vec<u8>, m: &EntityMeta) {
     put_f64s(out, &[m.bounds.min[0], m.bounds.min[1], m.bounds.max[0], m.bounds.max[1]]);
 }
 
-fn get_meta(c: &mut Cursor<'_>) -> io::Result<EntityMeta> {
+fn get_meta(c: &mut Cursor<'_>) -> SpillResult<EntityMeta> {
     let id = EntityId::new(c.u32()?).map_err(|_| corrupt("an entity id out of range"))?;
     let (style, cell) = (c.u32()?, c.u32()?);
     let b = c.f64s::<4>()?;
@@ -216,7 +219,7 @@ impl HotRecord {
     }
 
     /// A record from its bytes; an `InvalidData` error for bytes `encode` could not have made.
-    pub fn decode(bytes: &[u8]) -> io::Result<HotRecord> {
+    pub fn decode(bytes: &[u8]) -> SpillResult<HotRecord> {
         let mut c = Cursor { bytes, at: 0 };
         let meta = get_meta(&mut c)?;
         let shape = match c.u8()? {
@@ -292,7 +295,7 @@ fn encode_advanced(item: &AdvancedItem) -> Vec<u8> {
     out
 }
 
-fn decode_advanced(bytes: &[u8]) -> io::Result<AdvancedItem> {
+fn decode_advanced(bytes: &[u8]) -> SpillResult<AdvancedItem> {
     let mut c = Cursor { bytes, at: 0 };
     let meta = get_meta(&mut c)?;
     let shape = match c.u8()? {
@@ -342,7 +345,7 @@ fn encode_stream(s: &Stream) -> Vec<u8> {
     out
 }
 
-fn decode_stream(bytes: &[u8]) -> io::Result<Stream> {
+fn decode_stream(bytes: &[u8]) -> SpillResult<Stream> {
     let mut c = Cursor { bytes, at: 0 };
     let capability = CapabilityId::new(c.u32()?);
     let mut v = [0u16; 3];
@@ -369,25 +372,22 @@ struct Spooled {
 /// The finished blocks, as stored, in a file, with what the layout needs to know about each.
 #[derive(Debug)]
 struct BlockSpool {
-    path: PathBuf,
-    file: BufWriter<File>,
-    end: u64,
+    store: Store,
+    out: Appender,
     blocks: Vec<Spooled>,
 }
 
 impl BlockSpool {
-    fn create(dir: &SpillDir) -> io::Result<BlockSpool> {
-        let path = dir.next_path();
-        let file = OpenOptions::new().write(true).create_new(true).open(&path)?;
-        Ok(BlockSpool { path, file: BufWriter::with_capacity(64 * 1024, file), end: 0, blocks: Vec::new() })
+    fn create(store: &Store) -> SpillResult<BlockSpool> {
+        Ok(BlockSpool { store: Arc::clone(store), out: Appender::create(store)?, blocks: Vec::new() })
     }
 
     fn push(&mut self, raw: RawBlock) -> Result<(), FinishError> {
         let meta = BlockMeta::of(&raw)?;
         let order = (BlockKind::group(raw.kind), raw.cell, raw.kind, raw.subtype);
-        self.file.write_all(&raw.stored)?;
-        self.blocks.push(Spooled { order, meta, offset: self.end, checksum: block_checksum(&raw.stored) });
-        self.end += raw.stored.len() as u64;
+        let offset = self.out.end();
+        self.out.write(&raw.stored)?;
+        self.blocks.push(Spooled { order, meta, offset, checksum: block_checksum(&raw.stored) });
         Ok(())
     }
 
@@ -411,11 +411,11 @@ impl Out for Hash {
     }
 }
 
-struct Sink<'a>(&'a mut dyn Write);
+struct Sink<'a>(&'a mut dyn ByteSink);
 
 impl Out for Sink<'_> {
     fn put(&mut self, bytes: &[u8]) -> Result<(), FinishError> {
-        self.0.write_all(bytes).map_err(FinishError::Output)
+        self.0.put(bytes).map_err(FinishError::Output)
     }
 }
 
@@ -436,9 +436,9 @@ impl BlockSpool {
         &mut self,
         manifest: Manifest,
         integrity: Integrity,
-        sink: &mut dyn Write,
+        sink: &mut dyn ByteSink,
     ) -> Result<u64, FinishError> {
-        self.file.flush()?;
+        self.out.flush()?;
         // the canonical order; ties cannot happen (a cell holds one block of a kind and subtype), and the
         // sort is stable anyway
         self.blocks.sort_by_key(|b| b.order);
@@ -453,9 +453,7 @@ impl BlockSpool {
             let at = ARTIFACT_DIGEST;
             manifest_bytes[at..at + 32].copy_from_slice(&digest);
         }
-        let written = self.emit(&lay, &manifest_bytes, &mut Sink(sink))?;
-        sink.flush().map_err(FinishError::Output)?;
-        Ok(written)
+        self.emit(&lay, &manifest_bytes, &mut Sink(sink))
     }
 
     fn emit(&self, lay: &crate::writer::Layout, manifest_bytes: &[u8], out: &mut dyn Out) -> Result<u64, FinishError> {
@@ -463,17 +461,19 @@ impl BlockSpool {
         out.put(&lay.header.encode())?;
         out.put(manifest_bytes)?;
         at += Header::LEN as u64 + manifest_bytes.len() as u64;
-        let mut file = File::open(&self.path)?;
         let mut buffer = vec![0u8; 64 * 1024];
         for (b, e) in self.blocks.iter().zip(&lay.entries) {
             zeros(out, e.offset - at)?;
-            file.seek(SeekFrom::Start(b.offset))?;
-            let mut left = u64::from(b.meta.stored_length);
+            let (mut from, mut left) = (b.offset, u64::from(b.meta.stored_length));
             while left > 0 {
-                let k = left.min(buffer.len() as u64) as usize;
-                file.read_exact(&mut buffer[..k])?;
-                out.put(&buffer[..k])?;
-                left -= k as u64;
+                let want = left.min(buffer.len() as u64) as usize;
+                let n = self.store.read_at(self.out.file(), from, &mut buffer[..want])?;
+                if n == 0 {
+                    return Err(SpillError::corrupt("the block spool ends early").into());
+                }
+                out.put(&buffer[..n])?;
+                from += n as u64;
+                left -= n as u64;
             }
             at = e.offset + u64::from(b.meta.stored_length);
         }
@@ -530,7 +530,7 @@ struct TileNote {
 pub struct SpillWriter {
     config: WriterConfig,
     options: WriterOptions,
-    dir: Arc<SpillDir>,
+    store: Store,
     budget: usize,
     hot: Log,
     hot_count: u64,
@@ -556,62 +556,55 @@ pub struct SpillWriter {
 }
 
 impl SpillWriter {
-    /// A writer that keeps its files in a fresh directory under `root` (which must exist) and sorts with at
-    /// most about `budget` bytes of records in memory.
-    pub fn new(config: WriterConfig, root: &std::path::Path, budget: usize) -> io::Result<SpillWriter> {
-        SpillWriter::with_options(config, WriterOptions::default(), root, budget)
+    /// A writer that keeps its files in `store` and sorts with at most about `budget` bytes of records in memory.
+    pub fn new(config: WriterConfig, store: Store, budget: usize) -> SpillResult<SpillWriter> {
+        SpillWriter::with_options(config, WriterOptions::default(), store, budget)
     }
 
     /// A writer that compresses and seals as `options` say.
     pub fn with_options(
         config: WriterConfig,
         options: WriterOptions,
-        root: &std::path::Path,
+        store: Store,
         budget: usize,
-    ) -> io::Result<SpillWriter> {
-        let dir = SpillDir::create(root)?;
+    ) -> SpillResult<SpillWriter> {
         Ok(SpillWriter {
             config,
             options,
-            hot: Log::create(&dir)?,
+            hot: Log::create(&store)?,
             hot_count: 0,
             hot_emitted: false,
-            advanced: Log::create(&dir)?,
+            advanced: Log::create(&store)?,
             notes: Vec::new(),
             advanced_chunk: crate::writer::ADVANCED_CHUNK_BYTES,
-            streams: Log::create(&dir)?,
-            ids: Some(ExternalSorter::new(Arc::clone(&dir), budget / 4)),
+            streams: Log::create(&store)?,
+            ids: Some(ExternalSorter::new(&store, budget / 4)),
             summary: None,
             extent: None,
             spatial: None,
             cell_refs: None,
             straddlers: None,
             tier0_cells: BTreeSet::new(),
-            spool: BlockSpool::create(&dir)?,
-            tiles: Log::create(&dir)?,
+            spool: BlockSpool::create(&store)?,
+            tiles: Log::create(&store)?,
             rasters: BTreeMap::new(),
             raster_chunk: crate::writer::RASTER_CHUNK_BYTES,
             raster_inline: crate::writer::RASTER_INLINE_BYTES,
             sniff_tiles: true,
             derived: Vec::new(),
-            dir,
+            store,
             budget,
         })
     }
 
-    /// The directory the files are in.
-    pub fn spill_dir(&self) -> &std::path::Path {
-        self.dir.path()
+    /// The store, for a sorter of the caller's that should share its files.
+    pub fn store(&self) -> Store {
+        Arc::clone(&self.store)
     }
 
     /// The budget, in bytes of records held for sorting.
     pub fn budget(&self) -> usize {
         self.budget
-    }
-
-    /// A handle on the spill directory, for a sorter of the caller's that should share its lifetime.
-    pub fn dir(&self) -> Arc<SpillDir> {
-        Arc::clone(&self.dir)
     }
 
     /// Hot entities pushed so far.
@@ -652,20 +645,32 @@ impl SpillWriter {
         Ok(())
     }
 
-    fn push_hot(&mut self, meta: EntityMeta, shape: HotShape, tag: &[u8]) -> Result<(), FinishError> {
+    fn push_hot(
+        &mut self,
+        meta: EntityMeta,
+        shape: HotShape,
+        tag: &mut dyn FnMut() -> Vec<u8>,
+    ) -> Result<(), FinishError> {
         let meta = crate::writer::ContainerWriter::checked_meta(meta)?;
         self.note(&meta)?;
-        let record = HotRecord { item: HotItem { seq: 0, meta, shape }, tag: tag.to_vec() };
+        let record = HotRecord { item: HotItem { seq: 0, meta, shape }, tag: tag() };
         self.hot.append(&record.encode())?;
         self.hot_count += 1;
         Ok(())
     }
 
-    fn push_advanced(&mut self, meta: EntityMeta, shape: AdvancedShape) -> Result<(), FinishError> {
+    fn push_advanced(
+        &mut self,
+        meta: EntityMeta,
+        shape: AdvancedShape,
+        tag: &mut dyn FnMut() -> Vec<u8>,
+    ) -> Result<(), FinishError> {
         let meta = crate::writer::ContainerWriter::checked_meta(meta)?;
         if meta.cell != 0 {
             return Err(WriteError::CellOnAdvanced { id: meta.id.index() }.into());
         }
+        // an advanced curve is in no leaf, so its tag is not kept, but the caller still looks at the curve
+        tag();
         self.note(&meta)?;
         let item = AdvancedItem { seq: 0, meta, shape };
         let offset = self.advanced.append(&encode_advanced(&item))?;
@@ -679,12 +684,12 @@ impl SpillWriter {
 
     /// Adds a line segment from `a` to `b`.
     pub fn push_line(&mut self, meta: EntityMeta, a: [f64; 2], b: [f64; 2]) -> Result<(), FinishError> {
-        self.push_hot(meta, HotShape::Line(a, b), &[])
+        self.push_hot(meta, HotShape::Line(a, b), &mut Vec::new)
     }
 
     /// Adds a polyline of 2 to 2^20 vertices.
     pub fn push_polyline(&mut self, meta: EntityMeta, points: &[[f64; 2]]) -> Result<(), FinishError> {
-        self.push_hot(meta, HotShape::Polyline(points.to_vec()), &[])
+        self.push_hot(meta, HotShape::Polyline(points.to_vec()), &mut Vec::new)
     }
 
     /// Adds a circle or circular arc.
@@ -695,7 +700,7 @@ impl SpillWriter {
         radius: f64,
         start_sweep: [f64; 2],
     ) -> Result<(), FinishError> {
-        self.push_hot(meta, HotShape::CircleArc { centre, radius, start_sweep }, &[])
+        self.push_hot(meta, HotShape::CircleArc { centre, radius, start_sweep }, &mut Vec::new)
     }
 
     /// Adds an ellipse or elliptical arc.
@@ -706,7 +711,7 @@ impl SpillWriter {
         radii: [f64; 2],
         angles: [f64; 3],
     ) -> Result<(), FinishError> {
-        self.push_hot(meta, HotShape::EllipseArc { centre, radii, angles }, &[])
+        self.push_hot(meta, HotShape::EllipseArc { centre, radii, angles }, &mut Vec::new)
     }
 
     /// Adds a B-spline. Its cell must be 0.
@@ -722,7 +727,7 @@ impl SpillWriter {
             weights: spec.weights.map(<[f64]>::to_vec),
             closed: spec.closed,
         };
-        self.push_advanced(meta, shape)
+        self.push_advanced(meta, shape, &mut Vec::new)
     }
 
     /// Adds a composite curve naming other advanced curves by id. Its cell must be 0.
@@ -738,25 +743,27 @@ impl SpillWriter {
             trims: trims.map(<[[f64; 2]]>::to_vec),
             closed,
         };
-        self.push_advanced(meta, shape)
+        self.push_advanced(meta, shape, &mut Vec::new)
     }
 
-    /// Adds a curve of the semantic model, as [`crate::writer::ContainerWriter::push_curve`] does, with `tag`
-    /// kept beside it when it is stored as a hot entity.
+    /// Adds a curve of the semantic model, as [`crate::writer::ContainerWriter::push_curve`] does. Once the
+    /// curve is accepted `tag` is called, and the bytes it returns are kept beside the entity when it is stored
+    /// as a hot one (and come back with [`SpillWriter::hot_records`]); a curve the container refuses never
+    /// reaches it.
     pub fn push_curve(
         &mut self,
         id: EntityId,
         style: u32,
         cell: u32,
         curve: &Curve,
-        tag: &[u8],
+        tag: &mut dyn FnMut() -> Vec<u8>,
     ) -> Result<(), FinishError> {
         // the rotations the writer derives are listed by the in-memory writer for a test to read; here they would
         // be one more thing that grows with the drawing, so they are dropped after each curve
         self.derived.clear();
         match plan_curve(id, style, cell, curve, &mut self.derived)? {
             Item::Hot(meta, shape) => self.push_hot(meta, shape, tag),
-            Item::Advanced(meta, shape) => self.push_advanced(meta, shape),
+            Item::Advanced(meta, shape) => self.push_advanced(meta, shape, tag),
         }
     }
 
@@ -823,7 +830,7 @@ impl SpillWriter {
     }
 
     /// The hot entities in the order they were pushed, with their tags.
-    pub fn hot_records(&mut self) -> io::Result<impl Iterator<Item = io::Result<HotRecord>> + use<>> {
+    pub fn hot_records(&mut self) -> SpillResult<impl Iterator<Item = SpillResult<HotRecord>> + use<>> {
         Ok(self.hot.records()?.map(|r| r.and_then(|bytes| HotRecord::decode(&bytes))))
     }
 
@@ -878,7 +885,7 @@ impl SpillWriter {
     /// The artifact, written to `sink` with no seek, and its length.
     ///
     /// Everything is built and checked before the first byte reaches `sink`, so a refusal writes nothing.
-    pub fn finish_to(mut self, sink: &mut dyn Write) -> Result<u64, FinishError> {
+    pub fn finish_to(mut self, sink: &mut dyn ByteSink) -> Result<u64, FinishError> {
         if self.hot_count == 0 && self.notes.is_empty() {
             return Err(WriteError::Empty.into());
         }
@@ -886,7 +893,7 @@ impl SpillWriter {
         if let Some(id) = summary.duplicate {
             return Err(WriteError::DuplicateId { id }.into());
         }
-        let streams: Vec<Stream> = self.streams.records()?.map(|r| r.and_then(|b| decode_stream(&b))).collect::<io::Result<_>>()?;
+        let streams: Vec<Stream> = self.streams.records()?.map(|r| r.and_then(|b| decode_stream(&b))).collect::<SpillResult<_>>()?;
         let (capabilities, min_reader) =
             declare(&self.config.capabilities, streams.iter().map(|s| s.capability), true, &Registry::v1())?;
         let source_bounds = match self.config.bounds {
@@ -922,8 +929,7 @@ impl SpillWriter {
 
     /// The hot entities, by cell and geometry type and then by id, one block at a time.
     fn emit_hot_by_cell(&mut self) -> Result<(), FinishError> {
-        let dir = Arc::clone(&self.dir);
-        let mut sorter = ExternalSorter::new(dir, self.budget);
+        let mut sorter = ExternalSorter::new(&self.store, self.budget);
         for rec in self.hot.records()? {
             let bytes = rec?;
             let r = HotRecord::decode(&bytes)?;
@@ -931,30 +937,24 @@ impl SpillWriter {
             let key = u128::from(m.cell) << 64 | u128::from(r.item.shape.kind().id()) << 32 | u128::from(m.id.index());
             sorter.push(key, bytes)?;
         }
-        // records of one cell and geometry type are adjacent; a block is built when the next one starts
-        let mut group: Vec<HotRecord> = Vec::new();
-        let mut current: Option<(u32, u16)> = None;
+        // records of one cell and geometry type are adjacent; each goes into its block as it arrives, and the
+        // block is finished when the next one starts
+        let mut open: Option<((u32, u16), HotGroup)> = None;
         for rec in sorter.finish()? {
             let (_, bytes) = rec?;
             let r = HotRecord::decode(&bytes)?;
             let at = (r.meta().cell, r.item.shape.kind().id());
-            if current.is_some_and(|c| c != at) {
-                self.emit_group(&mut group)?;
+            if open.as_ref().is_some_and(|(k, _)| *k != at) {
+                if let Some((_, group)) = open.take() {
+                    self.spool.push_planned(self.options.codecs, group.finish(true)?)?;
+                }
             }
-            current = Some(at);
-            group.push(r);
+            let (_, group) = open.get_or_insert_with(|| (at, HotGroup::new(r.item.shape.kind(), at.0)));
+            group.push(&r.item)?;
         }
-        self.emit_group(&mut group)?;
-        Ok(())
-    }
-
-    fn emit_group(&mut self, group: &mut Vec<HotRecord>) -> Result<(), FinishError> {
-        let Some(first) = group.first() else { return Ok(()) };
-        let (cell, kind) = (first.meta().cell, first.item.shape.kind());
-        let items: Vec<&HotItem> = group.iter().map(|r| &r.item).collect();
-        let planned = hot_block(kind, cell, items, true)?;
-        self.spool.push_planned(self.options.codecs, planned)?;
-        group.clear();
+        if let Some((_, group)) = open.take() {
+            self.spool.push_planned(self.options.codecs, group.finish(true)?)?;
+        }
         Ok(())
     }
 

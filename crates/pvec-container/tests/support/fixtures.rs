@@ -195,7 +195,7 @@ impl Ent {
     pub fn push_spill(&self, w: &mut SpillWriter) -> Result<(), FinishError> {
         let b = self.bounds();
         match self {
-            Ent::Model { id, style, cell, curve } => w.push_curve(eid(*id), *style, *cell, curve, &[]),
+            Ent::Model { id, style, cell, curve } => w.push_curve(eid(*id), *style, *cell, curve, &mut Vec::new),
             Ent::Line { id, style, cell, a, b: e } => {
                 w.push_line(EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b }, *a, *e)
             }
@@ -288,7 +288,7 @@ impl Input {
         budget: usize,
         options: WriterOptions,
     ) -> Result<SpillWriter, FinishError> {
-        let mut w = SpillWriter::with_options(self.config.clone(), options, root, budget)?;
+        let mut w = SpillWriter::with_options(self.config.clone(), options, super::store(root), budget)?;
         for item in &self.items {
             match item {
                 Item::Ent(e) => e.push_spill(&mut w)?,
@@ -305,10 +305,10 @@ impl Input {
         budget: usize,
         options: WriterOptions,
     ) -> Result<Vec<u8>, FinishError> {
-        let mut out = Vec::new();
+        let mut out = super::VecSink::default();
         let n = self.load_spill(root, budget, options)?.finish_to(&mut out)?;
-        assert_eq!(n as usize, out.len());
-        Ok(out)
+        assert_eq!(n as usize, out.0.len());
+        Ok(out.0)
     }
 
     pub fn write(&self) -> Result<Vec<u8>, WriteError> {

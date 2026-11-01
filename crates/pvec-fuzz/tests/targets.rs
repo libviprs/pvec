@@ -10,7 +10,7 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 10] = [
+const NAMES: [&str; 11] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
@@ -21,6 +21,7 @@ const NAMES: [&str; 10] = [
     "fuzz_raster_headers",
     "fuzz_raster_plan",
     "fuzz_raster_archive",
+    "fuzz_spill_writer",
 ];
 
 #[test]
