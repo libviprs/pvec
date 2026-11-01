@@ -1,3 +1,4 @@
+unstable.rs: pub use crate::hit::{curve_distance, curve_meets_box}
 unstable.rs: pub use crate::reader::LoadedEntity
 unstable.rs: pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec}
 unstable.rs: pub use pvec_container::blocks::raster::TileIn

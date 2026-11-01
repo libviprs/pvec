@@ -5,7 +5,7 @@ use crate::abi::{
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
     Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, RasterId, ReaderConfig,
-    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, footprint,
+    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, curve_distance, curve_meets_box, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::{Cell, RefCell};
@@ -181,6 +181,9 @@ type Placements = Result<Option<Rc<Vec<Placement>>>, AbiError>;
 struct File {
     reader: Option<PvecReader>,
     entities: RefCell<BTreeMap<u32, Rc<Entity>>>,
+    /// The entities read so far by the leaf they came from (0 for the advanced curves), each list ascending by id, so a page of
+    /// one leaf costs the page (issue #238).
+    by_cell: RefCell<BTreeMap<u32, Vec<Rc<Entity>>>>,
     index: Result<Option<Index>, AbiError>,
     ranged: Option<Ranged>,
     /// The raster placements once read (`None` until then): the error of a damaged stream, no stream, or the placements.
@@ -256,6 +259,69 @@ pub struct Tier0Stream {
     pub advanced_in_view: u32,
 }
 
+/// One row of a Tier 0 stream before it is packed: entity id, `TIER0_*` code, declared error, preview points.
+type Tier0Row = (u32, u32, f64, Vec<[f64; 2]>);
+
+/// The rows of one leaf's plan: its exact entities, its previews and the entities declared infeasible.
+fn plan_rows(plan: &pvec::unstable::Tier0Plan) -> Vec<Tier0Row> {
+    let mut rows: Vec<Tier0Row> =
+        plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())).collect();
+    rows.extend(plan.previews().iter().map(|p| {
+        let code = match p.form() {
+            PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
+            PreviewForm::ChordPolyline => TIER0_CHORD_POLYLINE,
+        };
+        (p.replaces().index(), code, p.error_bound(), p.points())
+    }));
+    rows.extend(plan.infeasible().iter().map(|i| {
+        let code = match i.reason {
+            InfeasibleReason::EvaluatorRefused => TIER0_EVALUATOR_REFUSED,
+            InfeasibleReason::VertexCap => TIER0_VERTEX_CAP,
+            InfeasibleReason::BoundNotMet => TIER0_BOUND_NOT_MET,
+            _ => TIER0_INFEASIBLE_OTHER,
+        };
+        (i.id.index(), code, f64::NAN, Vec::new())
+    }));
+    rows
+}
+
+/// Packs rows, ascending by entity id, into the parallel arrays of a [`Tier0Stream`].
+fn tier0_stream(
+    rows: Vec<Tier0Row>,
+    uncovered: u32,
+    leaves_read: u32,
+    leaves_without_block: u32,
+    advanced_in_view: u32,
+) -> Tier0Stream {
+    let mut s = Tier0Stream {
+        ids: Vec::with_capacity(rows.len()),
+        codes: Vec::with_capacity(rows.len()),
+        error_bounds: Vec::with_capacity(rows.len()),
+        offsets: vec![0],
+        vertices: Vec::new(),
+        exact: 0,
+        previews: 0,
+        infeasible: 0,
+        uncovered,
+        leaves_read,
+        leaves_without_block,
+        advanced_in_view,
+    };
+    for (id, code, error, points) in rows {
+        match code {
+            TIER0_EXACT => s.exact += 1,
+            TIER0_CONTROL_POLYGON | TIER0_CHORD_POLYLINE => s.previews += 1,
+            _ => s.infeasible += 1,
+        }
+        s.ids.push(id);
+        s.codes.push(code);
+        s.error_bounds.push(error);
+        s.vertices.extend(points.iter().flatten());
+        s.offsets.push((s.vertices.len() / 2) as u32);
+    }
+    s
+}
+
 fn meets(b: &Bounds2, q: &Bounds2) -> bool {
     b.min[0] <= q.max[0] && b.max[0] >= q.min[0] && b.min[1] <= q.max[1] && b.max[1] >= q.min[1]
 }
@@ -269,6 +335,24 @@ fn entity(cell: Option<u32>, id: EntityId, curve: Curve, style: u32) -> (u32, Rc
 /// hostile file is a tab that stops responding. (Until issue 217 the module opened with `Limits::DEFAULT`.)
 fn browser() -> ReaderConfig {
     ReaderConfig { limits: Limits::BROWSER, ..ReaderConfig::default() }
+}
+
+/// Adds entities to the per-leaf index, keeping each leaf's list ascending by entity id.
+fn index_by_cell<'a>(
+    by_cell: &mut BTreeMap<u32, Vec<Rc<Entity>>>,
+    read: impl Iterator<Item = &'a Rc<Entity>>,
+) {
+    let mut touched = std::collections::BTreeSet::new();
+    for e in read {
+        let cell = e.cell.unwrap_or(0);
+        by_cell.entry(cell).or_default().push(Rc::clone(e));
+        touched.insert(cell);
+    }
+    for cell in touched {
+        if let Some(list) = by_cell.get_mut(&cell) {
+            list.sort_unstable_by_key(|e| e.id.index());
+        }
+    }
 }
 
 fn index_of(reader: &PvecReader) -> Result<Option<Index>, AbiError> {
@@ -401,8 +485,10 @@ impl Runtime {
         let read = |_: PvecError| AbiError::Read;
         let reader = PvecReader::open_with_config(bytes, browser()).map_err(read)?;
         let loaded = reader.entities_in(None, true).map_err(read)?;
-        let entities =
+        let entities: BTreeMap<u32, Rc<Entity>> =
             loaded.into_iter().map(|(cell, id, curve, style)| entity(cell, id, curve, style)).collect();
+        let by_cell = RefCell::new(BTreeMap::new());
+        index_by_cell(&mut by_cell.borrow_mut(), entities.values());
         let index = index_of(&reader);
         // a reader is kept when a call can still read through it: an index, or rasters
         let rasters = reader.raster_placements().map(|p| (!p.is_empty()).then_some(p));
@@ -411,6 +497,7 @@ impl Runtime {
         Ok(self.insert(Item::File(Rc::new(File {
             reader,
             entities: RefCell::new(entities),
+            by_cell,
             index,
             ranged: None,
             stream_rule: Cell::new(rasters.as_ref().err().and_then(rule_number)),
@@ -484,6 +571,7 @@ impl Runtime {
         let file = File {
             reader: Some(reader),
             entities: RefCell::new(BTreeMap::new()),
+            by_cell: RefCell::default(),
             index,
             ranged: Some(Ranged { ranges, loaded: RefCell::new(Loaded::default()) }),
             rasters: RefCell::default(),
@@ -543,10 +631,13 @@ impl Runtime {
             if ranged.ranges.needed().is_empty() { AbiError::Read } else { AbiError::NeedRange }
         })?;
         let mut entities = file.entities.borrow_mut();
+        let mut fresh = Vec::new();
         for (cell, id, curve, style) in read {
             let (key, e) = entity(cell, id, curve, style);
+            fresh.push(Rc::clone(&e));
             entities.insert(key, e);
         }
+        index_by_cell(&mut file.by_cell.borrow_mut(), fresh.iter());
         let mut have = ranged.loaded.borrow_mut();
         match want_cells {
             Some(c) => have.cells.extend(c),
@@ -575,6 +666,57 @@ impl Runtime {
         let truncated = picked.len() > budget as usize;
         picked.truncate(budget as usize);
         Ok(self.insert(Item::Batch { picked, truncated }))
+    }
+
+    /// A page of one leaf's entities (issue #238): `count` of them from the `first`th, ascending by entity id, as a batch.
+    /// Cell 0 is the advanced curves, which no leaf holds. The batch is truncated when more of the leaf remain. A page
+    /// past the end is an empty batch. A file opened by ranges reads that leaf's hot blocks (or the advanced chunks) first.
+    pub fn query_leaf(&mut self, file: u32, cell: u32, first: u32, count: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        if cell != 0 && !index.dir.query(&index.dir.bounds()).any(|c| c.id.get() == cell) {
+            return Err(AbiError::BadArgument);
+        }
+        if let Some(ranged) = &file.ranged {
+            let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+            let leaf = [cell];
+            self.load_cells(&file, ranged, reader, Some(if cell == 0 { &[] } else { &leaf }), cell == 0)?;
+        }
+        let by_cell = file.by_cell.borrow();
+        let all = by_cell.get(&cell).map_or(&[][..], Vec::as_slice);
+        let start = (first as usize).min(all.len());
+        let end = start.saturating_add(count as usize).min(all.len());
+        let picked = all[start..end].to_vec();
+        Ok(self.insert(Item::Batch { picked, truncated: end < all.len() }))
+    }
+
+    /// The exact distance in source units from `(x, y)` to the geometry of entity `entity` (issue #252), computed on
+    /// the curve itself with no tessellation. Refused: a handle that is not live ([`AbiError::Released`]) or not a file
+    /// ([`AbiError::WrongKind`]), a non-finite coordinate, an entity the file does not hold (on a range-opened file,
+    /// one no call has read yet) and a curve with no exact distance such as an unbounded line
+    /// ([`AbiError::BadArgument`]). Every entity this runtime holds is exact geometry, so there is no preview to fall
+    /// back to.
+    pub fn entity_distance(&self, file: u32, entity: u32, x: f64, y: f64) -> Result<f64, AbiError> {
+        let file = self.file(file)?;
+        if !(x.is_finite() && y.is_finite()) {
+            return Err(AbiError::BadArgument);
+        }
+        let entities = file.entities.borrow();
+        let e = entities.get(&entity).ok_or(AbiError::BadArgument)?;
+        curve_distance(&e.curve, x, y).ok_or(AbiError::BadArgument)
+    }
+
+    /// Whether the geometry of entity `entity` meets `bounds`, touching included (issue #252). The refusals are those
+    /// of [`Runtime::entity_distance`], with a box that is not finite or is inverted in place of the coordinates.
+    pub fn entity_touches_box(&self, file: u32, entity: u32, bounds: Bounds2) -> Result<bool, AbiError> {
+        let file = self.file(file)?;
+        let ordered = bounds.min[0] <= bounds.max[0] && bounds.min[1] <= bounds.max[1];
+        if !(bounds.min.iter().chain(&bounds.max).all(|v| v.is_finite()) && ordered) {
+            return Err(AbiError::BadArgument);
+        }
+        let entities = file.entities.borrow();
+        let e = entities.get(&entity).ok_or(AbiError::BadArgument)?;
+        Ok(curve_meets_box(&e.curve, bounds.min, bounds.max))
     }
 
     fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {
@@ -706,23 +848,7 @@ impl Runtime {
                 continue;
             };
             leaves_read += 1;
-            rows.extend(plan.exact_ids().map(|id| (id.index(), TIER0_EXACT, 0.0, Vec::new())));
-            rows.extend(plan.previews().iter().map(|p| {
-                let code = match p.form() {
-                    PreviewForm::ControlPolygon => TIER0_CONTROL_POLYGON,
-                    PreviewForm::ChordPolyline => TIER0_CHORD_POLYLINE,
-                };
-                (p.replaces().index(), code, p.error_bound(), p.points())
-            }));
-            rows.extend(plan.infeasible().iter().map(|i| {
-                let code = match i.reason {
-                    InfeasibleReason::EvaluatorRefused => TIER0_EVALUATOR_REFUSED,
-                    InfeasibleReason::VertexCap => TIER0_VERTEX_CAP,
-                    InfeasibleReason::BoundNotMet => TIER0_BOUND_NOT_MET,
-                    _ => TIER0_INFEASIBLE_OTHER,
-                };
-                (i.id.index(), code, f64::NAN, Vec::new())
-            }));
+            rows.extend(plan_rows(&plan));
         }
         let entities = file.entities.borrow();
         // A leaf inside the window is not loaded on a file opened by ranges, and all of its entities are in the window.
@@ -744,33 +870,40 @@ impl Runtime {
                 whole + cut
             }
         };
-        let mut s = Tier0Stream {
-            ids: Vec::with_capacity(rows.len()),
-            codes: Vec::with_capacity(rows.len()),
-            error_bounds: Vec::with_capacity(rows.len()),
-            offsets: vec![0],
-            vertices: Vec::new(),
-            exact: 0,
-            previews: 0,
-            infeasible: 0,
-            uncovered: wanted.saturating_sub(rows.len()) as u32,
-            leaves_read,
-            leaves_without_block,
-            advanced_in_view: u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q))),
-        };
-        for (id, code, error, points) in rows {
-            match code {
-                TIER0_EXACT => s.exact += 1,
-                TIER0_CONTROL_POLYGON | TIER0_CHORD_POLYLINE => s.previews += 1,
-                _ => s.infeasible += 1,
-            }
-            s.ids.push(id);
-            s.codes.push(code);
-            s.error_bounds.push(error);
-            s.vertices.extend(points.iter().flatten());
-            s.offsets.push((s.vertices.len() / 2) as u32);
-        }
+        let advanced_in_view = u32::from(index.dir.advanced_bounds().is_some_and(|a| a.intersects(&q)));
+        let uncovered = wanted.saturating_sub(rows.len()) as u32;
+        let s = tier0_stream(rows, uncovered, leaves_read, leaves_without_block, advanced_in_view);
         Ok(self.insert(Item::Tier0(s)))
+    }
+
+    /// The Tier 0 stream of one leaf: its own entries, ascending by entity id, with no window to cull by and no
+    /// count over the file (issue #238). `uncovered` is the leaf's entities less its entries, so all of them when
+    /// the leaf has no block. A file opened by ranges needs only that leaf's Tier 0 block.
+    pub fn tier0_leaf(&mut self, file: u32, cell: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let index = file.index.as_ref().map_err(|e| *e)?.as_ref().ok_or(AbiError::NoIndex)?;
+        let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+        let everything = index.dir.bounds();
+        let leaf = index.dir.query(&everything).find(|c| c.id.get() == cell).ok_or(AbiError::BadArgument)?;
+        let has_block = index.leaves.block(leaf.id).is_some();
+        if let Some(ranged) = &file.ranged {
+            ranged.ranges.clear_needed();
+            let wanted = if has_block {
+                reader.tier0_ranges(&index.leaves, &[leaf.id]).map_err(|_| AbiError::Read)?
+            } else {
+                Vec::new()
+            };
+            if ranged.ranges.need_all(wanted) {
+                return Err(AbiError::NeedRange);
+            }
+        }
+        let Some(plan) = reader.tier0_plan(&index.leaves, leaf.id).map_err(|_| AbiError::Read)? else {
+            return Ok(self.insert(Item::Tier0(tier0_stream(Vec::new(), leaf.entities, 0, 1, 0))));
+        };
+        let mut rows = plan_rows(&plan);
+        rows.sort_unstable_by_key(|r| r.0);
+        let uncovered = leaf.entities.saturating_sub(rows.len() as u32);
+        Ok(self.insert(Item::Tier0(tier0_stream(rows, uncovered, 1, 0, 0))))
     }
 
     /// The Tier 0 stream of a `tier0_viewport` result.
@@ -844,8 +977,9 @@ impl Runtime {
     fn skip_list(&self, file: &File) -> Result<BTreeMap<u32, (u32, u32)>, AbiError> {
         let mut out = file.skipped.borrow().clone();
         match self.placements(file) {
-            Ok(p) => out
-                .extend(p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, (4, 0)))),
+            Ok(p) => out.extend(
+                p.iter().enumerate().filter(|(_, p)| p.skip().is_some()).map(|(i, _)| (i as u32, (4, 0))),
+            ),
             Err(AbiError::NoRaster) => {}
             Err(e) => return Err(e),
         }
@@ -1144,15 +1278,27 @@ impl Runtime {
             Item::Batch { picked, .. } => picked,
             _ => return Err(AbiError::WrongKind),
         };
+        // 2^24 vertices: 256 MiB as f64, and the f32 form is made beside it. A batch that needs more is refused
+        // instead of growing a vector past what wasm32 can address (issue #236).
+        const MAX_VERTICES: usize = 1 << 24;
         let mut flat: Vec<f64> = Vec::new();
         let mut offsets = Vec::with_capacity(picked.len() + 1);
         let (mut ids, mut styles) = (Vec::with_capacity(picked.len()), Vec::with_capacity(picked.len()));
         let mut failed = 0;
         offsets.push(0u32);
         for e in picked {
-            match e.curve.tessellate(ctx) {
+            let room = MAX_VERTICES - flat.len() / 2;
+            if room < 2 {
+                return Err(AbiError::OutputTooLarge);
+            }
+            let clamped = TessellationContext { max_segments: ctx.max_segments.min(room - 1), ..*ctx };
+            match e.curve.tessellate(&clamped) {
                 Ok(t) => flat.extend(t.vertices.iter().flatten()),
                 Err(PvecError::BadContext { .. }) => return Err(AbiError::BadArgument),
+                // stopped by the bound and not by the caller's own limit
+                Err(PvecError::ErrorBudgetUnmet { .. }) if clamped.max_segments < ctx.max_segments => {
+                    return Err(AbiError::OutputTooLarge);
+                }
                 Err(_) => failed += 1,
             }
             offsets.push((flat.len() / 2) as u32);

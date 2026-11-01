@@ -17,6 +17,9 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # the exports of the raster group (issue 221, docs/WASM_ABI.md): a staged module has all of them or is refused
 RASTER_EXPORTS="raster_stat raster_skipped raster_placement raster_plan raster_tile raster_buffer_len raster_buffer_ptr raster_buffer_elem"
 RASTER_EXPORTS_JSON=$(printf '%s\n' $RASTER_EXPORTS | jq -R . | jq -sc .)
+# the exact distance exports (issue 252), additive at ABI 2: a staged module has both or is refused
+DISTANCE_EXPORTS="entity_distance entity_touches_box"
+DISTANCE_EXPORTS_JSON=$(printf '%s\n' $DISTANCE_EXPORTS | jq -R . | jq -sc .)
 
 if [ "${1:-}" = "--verify" ]; then
   d=${2:?usage: wasm-release.sh --verify DIR}
@@ -31,6 +34,10 @@ if [ "${1:-}" = "--verify" ]; then
   [ "$(jq -c .rasterExports "$m")" = "$RASTER_EXPORTS_JSON" ] || { echo "the manifest does not list the raster exports" >&2; exit 1; }
   for e in $RASTER_EXPORTS; do
     grep -aq "$e" "$d/$file" || { echo "the module does not export $e (a module built without the raster group)" >&2; exit 1; }
+  done
+  [ "$(jq -c .distanceExports "$m")" = "$DISTANCE_EXPORTS_JSON" ] || { echo "the manifest does not list the distance exports" >&2; exit 1; }
+  for e in $DISTANCE_EXPORTS; do
+    grep -aq "$e" "$d/$file" || { echo "the module does not export $e (a module built before issue 252)" >&2; exit 1; }
   done
   grep -q "pvec-wasm-manifest.json" "$d/SHA256SUMS" || { echo "SHA256SUMS does not cover the manifest" >&2; exit 1; }
   echo "ok $file $have abi $(jq -r .abiVersion "$m") commit $(jq -r .commit "$m")"
@@ -62,6 +69,7 @@ trap '"$NAS_SH" clean "$NAME" >/dev/null 2>&1 || true' EXIT
 "$NAS_SH" run "$NAME" "$IMAGE" "
 set -e
 export CARGO_TARGET_DIR=/tmp/target CARGO_HOME=/tmp/cargo
+tools/exponent-check.sh
 rustup target add wasm32-unknown-unknown >/dev/null 2>&1
 wb=\$(awk '/^name = \"wasm-bindgen\"\$/{getline; gsub(/[^0-9.]/,\"\"); print; exit}' Cargo.lock)
 abi=\$(sed -n 's/^pub const WASM_ABI_VERSION: u32 = \([0-9]*\);.*/\1/p' crates/pvec-wasm/src/abi.rs)
@@ -72,6 +80,7 @@ cargo install wasm-bindgen-cli --version \"\$wb\" --locked >/dev/null 2>&1
 w=/tmp/bg/pvec_wasm_bg.wasm
 grep -q wasm_abi_version \$w || { echo 'the processed module does not export wasm_abi_version' >&2; exit 1; }
 for e in $RASTER_EXPORTS; do grep -aq \$e \$w || { echo \"the processed module does not export \$e\" >&2; exit 1; }; done
+for e in $DISTANCE_EXPORTS; do grep -aq \$e \$w || { echo \"the processed module does not export \$e\" >&2; exit 1; }; done
 mkdir -p /work/out && cp \$w /work/out/pvec_wasm_bg.wasm
 sha=\$(sha256sum \$w | cut -d' ' -f1); bytes=\$(wc -c < \$w | tr -d ' ')
 cat > /work/out/pvec-wasm-manifest.json <<JSON
@@ -82,6 +91,7 @@ cat > /work/out/pvec-wasm-manifest.json <<JSON
   \"dirty\": $IS_DIRTY,
   \"abiVersion\": \$abi,
   \"rasterExports\": $RASTER_EXPORTS_JSON,
+  \"distanceExports\": $DISTANCE_EXPORTS_JSON,
   \"wasmBindgen\": \"\$wb\",
   \"rustc\": \"\$(rustc --version)\",
   \"image\": \"$IMAGE\",

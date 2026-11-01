@@ -254,11 +254,45 @@ pub fn cells_elem(result: u32, which: u32) -> i32 {
     RUNTIME.with(|r| code(r.borrow().cells_view(result, which).map(elem)))
 }
 
+/// The exact distance in source units from the point to the geometry of the entity (issue #252), or NaN when there is
+/// no answer: a handle that was released or is not a file, an unknown entity, a non-finite argument.
+#[wasm_bindgen]
+pub fn entity_distance(file: u32, entity_id: u32, x: f64, y: f64) -> f64 {
+    RUNTIME.with(|r| r.borrow().entity_distance(file, entity_id, x, y).unwrap_or(f64::NAN))
+}
+
+/// 1 when the geometry of the entity meets the box (touching counts), 0 when it does not, or a negative code (issue #252).
+#[wasm_bindgen]
+pub fn entity_touches_box(file: u32, entity_id: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> i32 {
+    RUNTIME.with(|r| {
+        r.borrow()
+            .entity_touches_box(file, entity_id, window(min_x, min_y, max_x, max_y))
+            .map_or_else(|e| e.code(), i32::from)
+    })
+}
+
 /// The Tier 0 stream of the box: a result handle of five arrays, or a negative code (-6 when the file
 /// has no directory, -4 when the directory or a Tier 0 block is damaged).
 #[wasm_bindgen]
 pub fn tier0_viewport(file: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> i32 {
     RUNTIME.with(|r| code(r.borrow_mut().tier0_viewport(file, window(min_x, min_y, max_x, max_y))))
+}
+
+/// A page of the entities of one leaf (`cell` is an id `directory_query` returns, 0 the advanced curves): `count` of them
+/// from the `first`th in ascending entity id, as a batch handle for `tessellate_batch`. `batch_truncated` says more remain.
+/// -3 for a cell the file does not have, -6 when the file has no directory, -7 on a range-opened file that still needs
+/// the leaf's blocks.
+#[wasm_bindgen]
+pub fn query_leaf(file: u32, cell: u32, first: u32, count: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().query_leaf(file, cell, first, count)))
+}
+
+/// The Tier 0 stream of one leaf of the spatial directory (`cell` is an id `directory_query` returns): the same result
+/// handle as `tier0_viewport`, with no window to cull by. -3 for a cell the file does not have, -6 when the file has
+/// no directory, -4 when the block is damaged, -7 on a range-opened file that still needs the block.
+#[wasm_bindgen]
+pub fn tier0_leaf(file: u32, cell: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().tier0_leaf(file, cell)))
 }
 
 /// One number about a Tier 0 result, or a negative code: 0 entries, 1 exact, 2 previews, 3 infeasible,

@@ -29,6 +29,8 @@ eval.rs: CurveEval::bounds(&self) -> Result<Bounds2, PvecError>
 eval.rs: CurveEval::is_closed(&self) -> bool
 eval.rs: CurveEval::transformed(&self, m: &Transform2) -> Result<Curve, PvecError>
 eval.rs: impl CurveEval for Curve
+hit.rs: pub fn curve_distance(curve: &Curve, x: f64, y: f64) -> Option<f64>
+hit.rs: pub fn curve_meets_box(curve: &Curve, min: [f64; 2], max: [f64; 2]) -> bool
 lib.rs: pub mod components
 lib.rs: pub mod unstable
 lib.rs: pub use bounds::{Bounds2, CurveRef}

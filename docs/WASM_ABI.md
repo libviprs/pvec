@@ -43,12 +43,16 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `directory_query` | file, `min_x, min_y, max_x, max_y` | a cells handle (version 2) |
 | `cells_len`, `cells_ptr`, `cells_elem` | cells handle, array number | length, byte offset, element type (version 2) |
 | `tier0_viewport` | file, `min_x, min_y, max_x, max_y` | a Tier 0 handle (version 2) |
+| `query_leaf` | file, cell id (0 for the advanced curves), `first`, `count` | a batch handle (version 2, issue #238) |
+| `tier0_leaf` | file, cell id | a Tier 0 handle for one leaf (version 2, issue #238) |
 | `tier0_stat` | Tier 0 handle, number | one count (version 2) |
 | `tier0_buffer_len`, `tier0_buffer_ptr`, `tier0_buffer_elem` | Tier 0 handle, array number | length, byte offset, element type (version 2) |
 | `open_ranged` | the file's length in bytes | an opening handle (issue #205) |
 | `provide_range` | handle, `offset`, bytes | 0 (issue #205) |
 | `open_poll` | the opening handle | the same handle, now a file, or -7 (issue #205) |
 | `needed_count`, `needed_offset`, `needed_len` | handle, range number | how many ranges a -7 left to provide, and where and how long each is (issue #205) |
+| `entity_distance` | file, entity id, `x`, `y` | the exact distance in source units, or NaN (issue #252) |
+| `entity_touches_box` | file, entity id, `min_x, min_y, max_x, max_y` | 1 when the geometry meets the box, 0 when not, or a negative code (issue #252) |
 
 `open` takes the file whole. A file can instead be opened by byte ranges the host supplies (issue #205), which
 is the next section.
@@ -173,6 +177,25 @@ stored: every point of the curve is within it of the preview polyline, and the v
 offsets added back to their `f64` origin. An infeasible entry has NaN as its declared error and no vertices.
 A preview is display fidelity, never exact.
 
+`tier0_leaf(file, cell)` returns the Tier 0 stream of one leaf (issue #238): the same result handle, the same five arrays
+and the same `tier0_stat`, with no window. It has the entries of the leaf's own hot entities and no others, so the
+streams of the leaves of `directory_query` together are `tier0_viewport` over everything and no entity is in two,
+where the overlapping boxes of neighbouring leaves make `tier0_viewport` over one leaf's box return the neighbours' entities
+as well. The cost is the leaf's, not the file's: nothing is culled and nothing is counted over the whole file.
+`uncovered` is the leaf's entity count less its entries, so all of it for a leaf with no Tier 0 block (which counts 1 in
+`leaves_without_block` and 0 in `leaves_read`). The advanced curves are in no leaf, so `advanced_in_view` is 0. A cell id the
+file does not have, 0 included, is -3. A file with no directory is -6, a damaged block -4. A file opened by ranges needs
+that leaf's Tier 0 block and no hot block (-7 until it is provided). The ABI version stays 2: it is an addition, found by
+testing that the module exports `tier0_leaf`.
+
+`query_leaf(file, cell, first, count)` returns a page of one leaf's entities as a batch (issue #238): `count` of the leaf's
+hot entities from the `first`th, ascending by entity id, for `tessellate_batch` and `batch_len`. `batch_truncated` is 1 when
+more of the leaf remain, and a page past the end is an empty batch. Cell 0 is the advanced curves, which are in no leaf, so
+the leaves of `directory_query` and cell 0 together are every entity once, where `query_viewport` over a leaf's box returns
+the entities of every box that meets it. A page costs the page: the module keeps the entities it has read by leaf, so a
+call does not walk the file. The errors and the range-open rules are those of `tier0_leaf`; the page needs that leaf's hot
+blocks (cell 0: the advanced chunks) and no other. The ABI version stays 2.
+
 `tier0_stat(result, n)`: 0 entries, 1 exact, 2 previews, 3 infeasible, 4 uncovered, 5 leaves read, 6 leaves of
 the window with no Tier 0 block, 7 whether the bounds of the advanced curves meet the window. Uncovered is
 what `query_viewport` would return for the window less the entries: the advanced curves, and every hot entity
@@ -265,6 +288,26 @@ meaning a bad id, level, column or row, and -4 a failed checksum (the index's or
 The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
 (`raster_buffer_elem` and the other `*_elem` calls return it).
 
+## Exact distance (version 2, additive; issue #252)
+
+`entity_distance(file, entity_id, x, y)` returns the exact distance in source units from the point to the entity's
+geometry, measured on the curve itself (`crates/pvec/src/hit.rs`, no tessellation): lines, polylines, arcs, circles,
+ellipses, Bezier curves, B-splines, NURBS, trimmed and composite curves. It returns NaN, the way `directory_bound`
+says "no answer", for a handle that was released or is not a file, an entity the file does not hold, a non-finite `x`
+or `y`, and a curve with no exact distance (an unbounded line). The module holds every entity it returns as exact
+geometry, so there is no Tier 0 preview to fall back to. On a file opened by ranges the entity has to have been read
+by an earlier `query_viewport` or `query_leaf`, or the answer is NaN.
+
+`entity_touches_box(file, entity_id, min_x, min_y, max_x, max_y)` returns 1 when the geometry meets the box (touching
+counts, and so does a curve that lies wholly inside the box), 0 when it does not, and a negative code otherwise: -1
+for a released handle, -5 for a handle that is not a file, -3 for an unknown entity, a box that is not finite or is
+inverted. Segments are clipped exactly; a curved piece is refined until it either misses the box by proof or narrows
+below the numeric policy tolerance with the box still in reach, which counts as touching.
+
+Both are additive: the version stays 2 and the 50 exports before them are untouched, for 52 in all. A module without
+them is a version 2 module that predates issue #252; look for `entity_distance` before calling, the way `raster_stat`
+is looked for.
+
 ## Conformance
 
 Every result carries the tag `DisplayFidelity` (`tessellation_conformance` returns 1, and no result
@@ -331,6 +374,17 @@ holds a file the defaults admit and the browser preset refuses.
 | -8 | the file has no raster stream (issue #221, additive) |
 | -9 | the raster tile is not stored: the index says length 0, and it draws nothing (issue #221, additive) |
 | -10 | the raster is skipped by a `RASTER-NN` or `LIMIT-NN` rule, `raster_skipped` names it (issues #221 and #232, additive) |
+| -11 | `OutputTooLarge`: the batch needs more than 16,777,216 vertices, the most a `tessellate_batch` result holds (issue #236, additive) |
+
+## Tessellation bound (issue #236)
+
+A `tessellate_batch` result holds at most 16,777,216 vertices (2^24, 256 MiB as `Float64Array`, and the `Float32Array`
+form is made beside it). Each curve is tessellated with `max_segments` held to what is left of that bound. A curve the
+bound stops, and not the caller's own `max_segments`, makes the call return -11 with no partial result, and the module
+stays usable: ask again with a looser `max_world_error` or `max_screen_error_px`, or with fewer entities. An entity the
+caller's own `max_segments` stops is still counted by `tessellation_failed`. Before this, an absolute error of a millionth of a unit over a
+drawing about 130,000 units wide grew one vector past what wasm32 can address and the module panicked with a capacity
+overflow. The code is an addition, `wasm_abi_version()` stays 2.
 
 ## Size
 

@@ -20,6 +20,7 @@ use pvec_stream::{
 };
 use std::collections::HashMap;
 
+pub use crate::hit::{curve_distance, curve_meets_box};
 pub use crate::reader::LoadedEntity;
 pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
 pub use pvec_container::blocks::raster::TileIn;

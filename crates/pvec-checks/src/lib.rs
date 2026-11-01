@@ -14,6 +14,14 @@ pub use api::*;
 pub const APPROVED_CLAIM: &str =
     "PVec is aligned to named ISO 10303-42:2025 constructs and validated through STEP interchange.";
 
+/// Whether a line of prose carries an exponent-form number such as `1e-9` or `2.5E-12`.
+pub fn has_exponent_number(line: &str) -> bool {
+    let b: Vec<char> = line.chars().collect();
+    (1..b.len().saturating_sub(2)).any(|i| {
+        (b[i] == 'e' || b[i] == 'E') && b[i - 1].is_ascii_digit() && b[i + 1] == '-' && b[i + 2].is_ascii_digit()
+    })
+}
+
 /// Root of the repository, found from this crate's manifest directory.
 pub fn repo_root() -> PathBuf {
     let here = Path::new(env!("CARGO_MANIFEST_DIR"));
