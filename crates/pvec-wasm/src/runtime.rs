@@ -1144,15 +1144,27 @@ impl Runtime {
             Item::Batch { picked, .. } => picked,
             _ => return Err(AbiError::WrongKind),
         };
+        // 2^24 vertices: 256 MiB as f64, and the f32 form is made beside it. A batch that needs more is refused
+        // instead of growing a vector past what wasm32 can address (issue #236).
+        const MAX_VERTICES: usize = 1 << 24;
         let mut flat: Vec<f64> = Vec::new();
         let mut offsets = Vec::with_capacity(picked.len() + 1);
         let (mut ids, mut styles) = (Vec::with_capacity(picked.len()), Vec::with_capacity(picked.len()));
         let mut failed = 0;
         offsets.push(0u32);
         for e in picked {
-            match e.curve.tessellate(ctx) {
+            let room = MAX_VERTICES - flat.len() / 2;
+            if room < 2 {
+                return Err(AbiError::OutputTooLarge);
+            }
+            let clamped = TessellationContext { max_segments: ctx.max_segments.min(room - 1), ..*ctx };
+            match e.curve.tessellate(&clamped) {
                 Ok(t) => flat.extend(t.vertices.iter().flatten()),
                 Err(PvecError::BadContext { .. }) => return Err(AbiError::BadArgument),
+                // stopped by the bound and not by the caller's own limit
+                Err(PvecError::ErrorBudgetUnmet { .. }) if clamped.max_segments < ctx.max_segments => {
+                    return Err(AbiError::OutputTooLarge);
+                }
                 Err(_) => failed += 1,
             }
             offsets.push((flat.len() / 2) as u32);
