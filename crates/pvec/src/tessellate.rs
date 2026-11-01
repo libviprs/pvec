@@ -98,6 +98,9 @@ struct Span {
     /// The exact points at `a + (b - a) * j / 8` for `j` in 1 to 7 that are already known. A half of a split
     /// span shares three of these with its parent, and the parent's middle is the split point itself.
     known: [Option<[f64; 2]>; 7],
+    /// For a spline, the Bezier control points (homogeneous: `[w x, w y, w]`) of the curve over `a` to `b`, which lie
+    /// inside one knot interval. The curve is inside their hull, so a flat hull is a flat span, with no evaluation.
+    ctrl: Option<Vec<[f64; 3]>>,
 }
 
 pub(crate) fn tessellate_with(
@@ -141,13 +144,59 @@ pub(crate) fn tessellate_with(
         };
         (q[0] - a[0] - t * dx).hypot(q[1] - a[1] - t * dy)
     };
+    // A spline over a stretch inside one of its knot intervals, as Bezier control points found by blossoming: the
+    // point `j` of the Bezier form over `a` to `b` is the blossom at `d - j` copies of `a` and `j` copies of `b`.
+    let spline = match curve {
+        Curve::BSpline(b) if split_at_breaks => Some((b.degree(), b.control_points(), b.knots(), None)),
+        Curve::RationalBSpline(b) if split_at_breaks => {
+            Some((b.degree(), b.control_points(), b.knots(), Some(b.weights())))
+        }
+        _ => None,
+    };
+    let bezier = |a: f64, b: f64| -> Option<Vec<[f64; 3]>> {
+        let (d, cps, knots, ws) = spline?;
+        let i = knots.partition_point(|&k| k <= a).checked_sub(1)?;
+        if i < d || i >= cps.len() || !(b <= knots[i + 1]) {
+            return None;
+        }
+        Some(
+            (0..=d)
+                .map(|j| {
+                    let mut c: Vec<[f64; 3]> = (i - d..=i)
+                        .map(|k| {
+                            let w = ws.map_or(1.0, |w| w[k]);
+                            [w * cps[k].x, w * cps[k].y, w]
+                        })
+                        .collect();
+                    for r in 1..=d {
+                        let x = if r <= d - j { a } else { b };
+                        for k in (i - d + r..=i).rev() {
+                            let t = (x - knots[k]) / (knots[k + d + 1 - r] - knots[k]);
+                            let (p, q) = (c[k - 1 - (i - d)], c[k - (i - d)]);
+                            c[k - (i - d)] = [0, 1, 2].map(|m| (1.0 - t) * p[m] + t * q[m]);
+                        }
+                    }
+                    c[d]
+                })
+                .collect(),
+        )
+    };
     // The deviation of the chord of a span from the curve over it: on screen in device pixels, and in
-    // map units, each times the sampling margin.
-    // It also returns the seven sample points, so a split can hand them on instead of evaluating them again.
-    let measure = |s: &Span| -> Result<(f64, f64, [[f64; 2]; 7]), PvecError> {
+    // map units, each times the sampling margin. A spline span is held to the farthest of its Bezier control points
+    // instead (a bound, and nothing is evaluated), and a sampled span also returns its seven sample points,
+    // so a split can hand them on instead of evaluating them again.
+    let measure = |s: &Span| -> Result<(f64, f64, Option<[[f64; 2]; 7]>), PvecError> {
         let (wa, wb) = (to_world(s.pa), to_world(s.pb));
         let (da, db) = (to_device(wa), to_device(wb));
         let (mut px, mut world) = (0.0f64, 0.0f64);
+        if let Some(ctrl) = &s.ctrl {
+            for c in ctrl {
+                let q = to_world([c[0] / c[2], c[1] / c[2]]);
+                world = world.max(from_chord([q.x, q.y], [wa.x, wa.y], [wb.x, wb.y]));
+                px = px.max(from_chord(to_device(q), da, db));
+            }
+            return Ok((px, world, None));
+        }
         let mut samples = [[0.0f64; 2]; 7];
         for (i, slot) in samples.iter_mut().enumerate() {
             *slot = match s.known[i] {
@@ -158,7 +207,7 @@ pub(crate) fn tessellate_with(
             world = world.max(from_chord([q.x, q.y], [wa.x, wa.y], [wb.x, wb.y]));
             px = px.max(from_chord(to_device(q), da, db));
         }
-        Ok((px * MARGIN, world * MARGIN, samples))
+        Ok((px * MARGIN, world * MARGIN, Some(samples)))
     };
     let within = |(px, world): (f64, f64)| px <= ctx.max_screen_error_px && world <= ctx.max_world_error;
     let unmet = |(px, world): (f64, f64)| {
@@ -179,7 +228,7 @@ pub(crate) fn tessellate_with(
     let spans: Vec<Span> = cuts
         .windows(2)
         .zip(points.windows(2))
-        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1], known: [None; 7] })
+        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1], known: [None; 7], ctrl: bezier(t[0], t[1]) })
         .collect();
     if spans.len() > ctx.max_segments {
         // Not even the breaks fit. What the same limit gives with the spans spread evenly says how far off.
@@ -190,7 +239,7 @@ pub(crate) fn tessellate_with(
                     d.lo() + d.width() * i as f64 / n as f64,
                     d.lo() + d.width() * (i + 1) as f64 / n as f64,
                 );
-                Ok(Span { a, b, pa: at(a)?, pb: at(b)?, known: [None; 7] })
+                Ok(Span { a, b, pa: at(a)?, pb: at(b)?, known: [None; 7], ctrl: None })
             })
             .collect::<Result<Vec<_>, PvecError>>()?;
         let mut worst = (0.0f64, 0.0f64);
@@ -223,16 +272,31 @@ pub(crate) fn tessellate_with(
             }
             return Err(unmet(left));
         }
-        let pm = samples[3];
-        let half = |from: usize| {
-            let mut known = [None; 7];
-            for k in 0..3 {
-                known[2 * k + 1] = Some(samples[from + k]);
+        let (pm, known_l, known_r, ctrl_l, ctrl_r) = match (&span.ctrl, samples) {
+            (Some(c), _) => {
+                // de Casteljau at one half: the left and right edges of the triangle are the control points of the halves.
+                let (mut row, mut l, mut r) = (c.clone(), vec![c[0]], vec![c[c.len() - 1]]);
+                for _ in 1..c.len() {
+                    row = row.windows(2).map(|w| [0, 1, 2].map(|m| 0.5 * (w[0][m] + w[1][m]))).collect();
+                    (l.push(row[0]), r.push(row[row.len() - 1]));
+                }
+                r.reverse();
+                (at(mid)?, [None; 7], [None; 7], Some(l), Some(r))
             }
-            known
+            (None, Some(samples)) => {
+                let half = |from: usize| {
+                    let mut known = [None; 7];
+                    for k in 0..3 {
+                        known[2 * k + 1] = Some(samples[from + k]);
+                    }
+                    known
+                };
+                (samples[3], half(0), half(4), None, None)
+            }
+            (None, None) => unreachable!("a span measured by sampling returns its samples"),
         };
-        stack.push(Span { a: mid, b: span.b, pa: pm, pb: span.pb, known: half(4) });
-        stack.push(Span { a: span.a, b: mid, pa: span.pa, pb: pm, known: half(0) });
+        stack.push(Span { a: mid, b: span.b, pa: pm, pb: span.pb, known: known_r, ctrl: ctrl_r });
+        stack.push(Span { a: span.a, b: mid, pa: span.pa, pb: pm, known: known_l, ctrl: ctrl_l });
     }
     Ok(Tessellation {
         vertices,
@@ -296,13 +360,9 @@ mod tests {
     #[test]
     fn issue_240_a_split_reuses_the_samples_of_its_parent() {
         let p = |x: f64, y: f64| Point2 { x, y };
-        let curve = Curve::BSpline(
-            BSpline::new(
-                3,
-                vec![p(0.0, 0.0), p(900.0, 1200.0), p(-300.0, 1200.0), p(600.0, 0.0)],
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
-            )
-            .unwrap(),
+        // a Bezier curve is sampled (a spline is held to its control polygon, see issue 245)
+        let curve = Curve::Bezier(
+            pvec_geometry::Bezier::new(vec![p(0.0, 0.0), p(900.0, 1200.0), p(-300.0, 1200.0), p(600.0, 0.0)]).unwrap(),
         );
         let ctx = TessellationContext { max_segments: 4096, ..context() };
         let evals = std::cell::Cell::new(0);
@@ -348,5 +408,37 @@ mod tests {
         let (n, used) = evaluations_for_zigzag(40);
         assert!(n >= 16, "the fixture has to need real subdivision, got {n} segments");
         assert!(used <= 2 * n + 16, "{used} evaluations for {n} segments");
+    }
+
+    /// The control polygon bound is a bound: a rational quarter circle (weights and all) is held to its budget, the
+    /// error it reports is at least the true deviation at 4000 points of the curve, and it stays close to the radius.
+    #[test]
+    fn issue_245_the_reported_error_of_a_rational_spline_bounds_its_true_deviation() {
+        let p = |x: f64, y: f64| Point2 { x, y };
+        let r = pvec_geometry::RationalBSpline::new(
+            2,
+            vec![p(100.0, 0.0), p(100.0, 100.0), p(0.0, 100.0)],
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            vec![1.0, std::f64::consts::FRAC_1_SQRT_2, 1.0],
+        )
+        .unwrap();
+        let curve = Curve::RationalBSpline(r);
+        let ctx = TessellationContext { max_segments: 4096, max_screen_error_px: 0.05, ..context() };
+        let t = tessellate_with(&curve, &ctx, true, &Default::default()).unwrap();
+        assert!(t.achieved_screen_error_px <= 0.05);
+        let dist = |q: [f64; 2]| {
+            t.vertices
+                .windows(2)
+                .map(|w| {
+                    let (dx, dy) = (w[1][0] - w[0][0], w[1][1] - w[0][1]);
+                    let len2 = dx * dx + dy * dy;
+                    let u = (((q[0] - w[0][0]) * dx + (q[1] - w[0][1]) * dy) / len2).clamp(0.0, 1.0);
+                    (q[0] - w[0][0] - u * dx).hypot(q[1] - w[0][1] - u * dy)
+                })
+                .fold(f64::INFINITY, f64::min)
+        };
+        let worst = (0..=4000).map(|i| dist(curve.point_at(i as f64 / 4000.0).unwrap())).fold(0.0, f64::max);
+        assert!(worst <= t.achieved_screen_error_px, "true deviation {worst} over the reported {}", t.achieved_screen_error_px);
+        assert!(t.vertices.len() < 400, "{} vertices for a quarter circle at 0.05 px", t.vertices.len());
     }
 }
