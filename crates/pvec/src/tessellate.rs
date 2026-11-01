@@ -95,18 +95,16 @@ struct Span {
     b: f64,
     pa: [f64; 2],
     pb: [f64; 2],
-}
-
-/// Counts the evaluations of the curve in the unit tests, which bound the work.
-#[cfg(test)]
-thread_local! {
-    static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// The exact points at `a + (b - a) * j / 8` for `j` in 1 to 7 that are already known. A half of a split
+    /// span shares three of these with its parent, and the parent's middle is the split point itself.
+    known: [Option<[f64; 2]>; 7],
 }
 
 pub(crate) fn tessellate_with(
     curve: &Curve,
     ctx: &TessellationContext,
     split_at_breaks: bool,
+    evals: &std::cell::Cell<usize>,
 ) -> Result<Tessellation, PvecError> {
     let bad = |reason: &str| Err(PvecError::BadContext { reason: reason.to_string() });
     if ctx.max_screen_error_px.is_nan() || ctx.max_screen_error_px <= 0.0 {
@@ -125,8 +123,7 @@ pub(crate) fn tessellate_with(
         return Err(crate::error::geometry(GeometryError::Unbounded));
     }
     let at = |t: f64| {
-        #[cfg(test)]
-        EVALUATIONS.with(|c| c.set(c.get() + 1));
+        evals.set(evals.get() + 1);
         curve.point_at(t)
     };
     let to_world = |q: [f64; 2]| ctx.source_to_map.apply_point(Point2 { x: q[0], y: q[1] });
@@ -146,16 +143,22 @@ pub(crate) fn tessellate_with(
     };
     // The deviation of the chord of a span from the curve over it: on screen in device pixels, and in
     // map units, each times the sampling margin.
-    let measure = |s: &Span| -> Result<(f64, f64), PvecError> {
+    // It also returns the seven sample points, so a split can hand them on instead of evaluating them again.
+    let measure = |s: &Span| -> Result<(f64, f64, [[f64; 2]; 7]), PvecError> {
         let (wa, wb) = (to_world(s.pa), to_world(s.pb));
         let (da, db) = (to_device(wa), to_device(wb));
         let (mut px, mut world) = (0.0f64, 0.0f64);
-        for j in 1..8 {
-            let q = to_world(at(s.a + (s.b - s.a) * (j as f64 / 8.0))?);
+        let mut samples = [[0.0f64; 2]; 7];
+        for (i, slot) in samples.iter_mut().enumerate() {
+            *slot = match s.known[i] {
+                Some(p) => p,
+                None => at(s.a + (s.b - s.a) * ((i + 1) as f64 / 8.0))?,
+            };
+            let q = to_world(*slot);
             world = world.max(from_chord([q.x, q.y], [wa.x, wa.y], [wb.x, wb.y]));
             px = px.max(from_chord(to_device(q), da, db));
         }
-        Ok((px * MARGIN, world * MARGIN))
+        Ok((px * MARGIN, world * MARGIN, samples))
     };
     let within = |(px, world): (f64, f64)| px <= ctx.max_screen_error_px && world <= ctx.max_world_error;
     let unmet = |(px, world): (f64, f64)| {
@@ -176,7 +179,7 @@ pub(crate) fn tessellate_with(
     let spans: Vec<Span> = cuts
         .windows(2)
         .zip(points.windows(2))
-        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1] })
+        .map(|(t, p)| Span { a: t[0], b: t[1], pa: p[0], pb: p[1], known: [None; 7] })
         .collect();
     if spans.len() > ctx.max_segments {
         // Not even the breaks fit. What the same limit gives with the spans spread evenly says how far off.
@@ -187,12 +190,12 @@ pub(crate) fn tessellate_with(
                     d.lo() + d.width() * i as f64 / n as f64,
                     d.lo() + d.width() * (i + 1) as f64 / n as f64,
                 );
-                Ok(Span { a, b, pa: at(a)?, pb: at(b)? })
+                Ok(Span { a, b, pa: at(a)?, pb: at(b)?, known: [None; 7] })
             })
             .collect::<Result<Vec<_>, PvecError>>()?;
         let mut worst = (0.0f64, 0.0f64);
         for s in &even {
-            let m = measure(s)?;
+            let m = measure(s).map(|r| (r.0, r.1))?;
             worst = (worst.0.max(m.0), worst.1.max(m.1));
         }
         return Err(unmet(worst));
@@ -202,7 +205,8 @@ pub(crate) fn tessellate_with(
     let mut worst = (0.0f64, 0.0f64);
     let mut stack: Vec<Span> = spans.into_iter().rev().collect();
     while let Some(span) = stack.pop() {
-        let m = measure(&span)?;
+        let (px, world, samples) = measure(&span)?;
+        let m = (px, world);
         if within(m) {
             vertices.push(span.pb);
             worst = (worst.0.max(m.0), worst.1.max(m.1));
@@ -214,14 +218,21 @@ pub(crate) fn tessellate_with(
             // Nothing more can be split: the answer is the worst of what is left.
             let mut left = m;
             for s in &stack {
-                let o = measure(s)?;
+                let o = measure(s).map(|r| (r.0, r.1))?;
                 left = (left.0.max(o.0), left.1.max(o.1));
             }
             return Err(unmet(left));
         }
-        let pm = at(mid)?;
-        stack.push(Span { a: mid, b: span.b, pa: pm, pb: span.pb });
-        stack.push(Span { a: span.a, b: mid, pa: span.pa, pb: pm });
+        let pm = samples[3];
+        let half = |from: usize| {
+            let mut known = [None; 7];
+            for k in 0..3 {
+                known[2 * k + 1] = Some(samples[from + k]);
+            }
+            known
+        };
+        stack.push(Span { a: mid, b: span.b, pa: pm, pb: span.pb, known: half(4) });
+        stack.push(Span { a: span.a, b: mid, pa: span.pa, pb: pm, known: half(0) });
     }
     Ok(Tessellation {
         vertices,
@@ -233,13 +244,14 @@ pub(crate) fn tessellate_with(
 
 impl Tessellate for Curve {
     fn tessellate(&self, ctx: &TessellationContext) -> Result<Tessellation, PvecError> {
-        tessellate_with(self, ctx, true)
+        tessellate_with(self, ctx, true, &std::cell::Cell::new(0))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use pvec_geometry::{BSpline, Point2};
 
     /// A degree 1 B-spline with a corner at t = 0.3, which no bisection of [0, 1] lands on.
@@ -264,7 +276,7 @@ mod tests {
 
     #[test]
     fn issue_53_the_knot_break_is_a_vertex_and_two_segments_are_exact() {
-        let t = tessellate_with(&corner(), &context(), true).unwrap();
+        let t = tessellate_with(&corner(), &context(), true, &Default::default()).unwrap();
         assert_eq!(t.vertices.len(), 3);
         assert_eq!(t.vertices[1], [300.0, 400.0]);
     }
@@ -274,7 +286,7 @@ mod tests {
     #[test]
     fn issue_53_without_knot_break_insertion_the_c1_discontinuity_exceeds_its_budget() {
         assert!(matches!(
-            tessellate_with(&corner(), &context(), false),
+            tessellate_with(&corner(), &context(), false, &Default::default()),
             Err(PvecError::ErrorBudgetUnmet { .. })
         ));
     }
@@ -293,9 +305,9 @@ mod tests {
             .unwrap(),
         );
         let ctx = TessellationContext { max_segments: 4096, ..context() };
-        EVALUATIONS.with(|c| c.set(0));
-        let t = tessellate_with(&curve, &ctx, true).unwrap();
-        let used = EVALUATIONS.with(|c| c.get());
+        let evals = std::cell::Cell::new(0);
+        let t = tessellate_with(&curve, &ctx, true, &evals).unwrap();
+        let used = evals.get();
         let n = t.vertices.len() - 1;
         assert!(n >= 16, "the fixture has to need real subdivision, got {n} segments");
         // two end points, seven samples for the root, four new samples for each of the n - 1 other measured spans
