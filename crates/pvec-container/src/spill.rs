@@ -159,7 +159,11 @@ impl Reader {
                 self.used = 0;
                 self.at += n as u64;
                 if n == 0 {
-                    return if done == 0 { Ok(false) } else { Err(SpillError::corrupt("a record ends early")) };
+                    return if done == 0 {
+                        Ok(false)
+                    } else {
+                        Err(SpillError::corrupt("a record ends early"))
+                    };
                 }
             }
             let take = (self.buffer.len() - self.used).min(out.len() - done);
@@ -210,7 +214,8 @@ impl Log {
 
     /// Appends one record and returns its offset.
     pub fn append(&mut self, bytes: &[u8]) -> SpillResult<u64> {
-        let len = u32::try_from(bytes.len()).map_err(|_| SpillError::corrupt("a record is longer than 4 GiB"))?;
+        let len =
+            u32::try_from(bytes.len()).map_err(|_| SpillError::corrupt("a record is longer than 4 GiB"))?;
         let at = self.out.end();
         self.out.write(&len.to_le_bytes())?;
         self.out.write(bytes)?;
@@ -278,7 +283,14 @@ pub struct ExternalSorter {
 impl ExternalSorter {
     /// A sorter that holds at most about `budget` bytes of records.
     pub fn new(store: &Store, budget: usize) -> ExternalSorter {
-        ExternalSorter { store: Arc::clone(store), budget, buffer: Vec::new(), held: 0, runs: Vec::new(), count: 0 }
+        ExternalSorter {
+            store: Arc::clone(store),
+            budget,
+            buffer: Vec::new(),
+            held: 0,
+            runs: Vec::new(),
+            count: 0,
+        }
     }
 
     /// Adds a record.
@@ -344,7 +356,8 @@ impl ExternalSorter {
 }
 
 fn write_run_record(w: &mut Appender, key: u128, payload: &[u8]) -> SpillResult<()> {
-    let len = u32::try_from(payload.len()).map_err(|_| SpillError::corrupt("a record is longer than 4 GiB"))?;
+    let len =
+        u32::try_from(payload.len()).map_err(|_| SpillError::corrupt("a record is longer than 4 GiB"))?;
     w.write(&key.to_le_bytes())?;
     w.write(&len.to_le_bytes())?;
     w.write(payload)

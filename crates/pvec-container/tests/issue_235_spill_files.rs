@@ -23,7 +23,10 @@ fn lcg(seed: &mut u64) -> u64 {
 fn the_directory_is_made_in_an_existing_root_only_and_goes_with_its_last_holder() {
     let r = root("dir");
     let missing = r.join("nothing-here");
-    assert_eq!(support::spill_fs::FsStore::create(&missing).unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(
+        support::spill_fs::FsStore::create(&missing).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound
+    );
     assert!(!missing.exists());
     let store = support::spill_fs::FsStore::create(&r).unwrap();
     let path = store.path().to_path_buf();
@@ -129,10 +132,19 @@ fn a_store_that_fails_is_an_error_at_the_call_and_not_a_panic() {
         fn create(&self) -> pvec_container::spill::SpillResult<pvec_container::spill::FileId> {
             Ok(pvec_container::spill::FileId(0))
         }
-        fn append(&self, _: pvec_container::spill::FileId, _: &[u8]) -> pvec_container::spill::SpillResult<()> {
+        fn append(
+            &self,
+            _: pvec_container::spill::FileId,
+            _: &[u8],
+        ) -> pvec_container::spill::SpillResult<()> {
             Err(pvec_container::spill::SpillError::corrupt("the disk is full"))
         }
-        fn read_at(&self, _: pvec_container::spill::FileId, _: u64, _: &mut [u8]) -> pvec_container::spill::SpillResult<usize> {
+        fn read_at(
+            &self,
+            _: pvec_container::spill::FileId,
+            _: u64,
+            _: &mut [u8],
+        ) -> pvec_container::spill::SpillResult<usize> {
             Err(pvec_container::spill::SpillError::corrupt("the disk is gone"))
         }
         fn remove(&self, _: pvec_container::spill::FileId) -> pvec_container::spill::SpillResult<()> {

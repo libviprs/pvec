@@ -5,13 +5,13 @@
 
 mod support;
 
+use pvec_components::{RasterId, Stream};
+use pvec_container::Bounds;
 use pvec_container::blocks::raster::TileIn;
 use pvec_container::compress::{Codec, CodecPolicy};
 use pvec_container::integrity::Integrity;
 use pvec_container::spill_writer::{FinishError, SpillWriter};
 use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterOptions};
-use pvec_container::Bounds;
-use pvec_components::{RasterId, Stream};
 use std::io;
 use std::path::{Path, PathBuf};
 use support::raster::{placement, tiles, two_placements};
@@ -47,7 +47,11 @@ fn every_fixture_streams_to_the_bytes_the_in_memory_writer_writes_at_every_budge
                 let expect = input.write_with(opt).unwrap();
                 for budget in [1usize, 20_000, 1 << 30] {
                     let got = input.write_spilled(&tmp, budget, opt).unwrap();
-                    assert!(got == expect, "{} seed {seed} {opt:?} budget {budget}: the bytes differ", fx.name);
+                    assert!(
+                        got == expect,
+                        "{} seed {seed} {opt:?} budget {budget}: the bytes differ",
+                        fx.name
+                    );
                 }
             }
         }
@@ -64,8 +68,12 @@ fn a_sink_that_fails_at_any_byte_is_an_output_error_and_leaves_no_file() {
     let mut room = 0;
     while room < total {
         let mut sink = FullSink { room, taken: 0 };
-        let err = fx.load_spill(&tmp, 500, WriterOptions::default()).unwrap().finish_to(&mut sink).unwrap_err();
-        assert!(matches!(err, FinishError::Output(ref e) if e.source_ref().downcast_ref::<io::Error>().is_some_and(|e| e.kind() == io::ErrorKind::StorageFull)), "{err:?}");
+        let err =
+            fx.load_spill(&tmp, 500, WriterOptions::default()).unwrap().finish_to(&mut sink).unwrap_err();
+        assert!(
+            matches!(err, FinishError::Output(ref e) if e.source_ref().downcast_ref::<io::Error>().is_some_and(|e| e.kind() == io::ErrorKind::StorageFull)),
+            "{err:?}"
+        );
         assert_eq!(left(&tmp), 0);
         room += 1 + total / 37;
     }
@@ -88,7 +96,11 @@ fn a_build_that_refuses_writes_nothing_and_gives_the_rule_the_in_memory_writer_g
     bounds.config = config(&[], Some(Bounds { min: [f64::NAN, 0.0], max: [1.0, 1.0] }));
     cases.push(("bad source bounds", bounds));
     let mut streams = base.clone();
-    let s = Stream { capability: pvec_capabilities::ids::LAYER, version: pvec_capabilities::Version::new(1, 0, 0), payload: vec![0; 8] };
+    let s = Stream {
+        capability: pvec_capabilities::ids::LAYER,
+        version: pvec_capabilities::Version::new(1, 0, 0),
+        payload: vec![0; 8],
+    };
     streams.items.push(Item::Stream(s.clone()));
     streams.items.push(Item::Stream(s));
     cases.push(("two streams of one capability", streams));
@@ -96,7 +108,13 @@ fn a_build_that_refuses_writes_nothing_and_gives_the_rule_the_in_memory_writer_g
     empty.items.clear();
     cases.push(("nothing to write", empty));
     let mut onspline = base.clone();
-    onspline.items.push(Item::Ent(Ent::Composite { id: 9, style: 0, segments: vec![0], trims: None, closed: false }));
+    onspline.items.push(Item::Ent(Ent::Composite {
+        id: 9,
+        style: 0,
+        segments: vec![0],
+        trims: None,
+        closed: false,
+    }));
     cases.push(("a composite is fine", onspline));
     for (name, input) in cases {
         let expect = input.write();
@@ -161,7 +179,9 @@ fn rasters_stream_to_the_bytes_the_in_memory_writer_writes_whatever_the_chunking
         payload: pvec_components::encode_rasters(&ps).unwrap(),
     };
     let line = EntityMeta { id: eid(0), style: 0, cell: 0, bounds: Bounds { min: [0.0; 2], max: [10.0; 2] } };
-    for (chunk, inline) in [(1u32 << 26, 256u64 * 1024), (1500, 256 * 1024), (3000, 0), (700, 1000), (4096, 10_000_000)] {
+    for (chunk, inline) in
+        [(1u32 << 26, 256u64 * 1024), (1500, 256 * 1024), (3000, 0), (700, 1000), (4096, 10_000_000)]
+    {
         let batches: Vec<Vec<TileIn>> = vec![
             tiles(0, &ps[0], 700, |l, c, r| l == 2 && (c + r) % 2 == 1),
             tiles(1, &ps[1], 700, |_, _, _| false),
@@ -196,7 +216,11 @@ fn rasters_stream_to_the_bytes_the_in_memory_writer_writes_whatever_the_chunking
     let mut s = SpillWriter::new(config(&[], None), store(&tmp), 1024).unwrap();
     s.push_line(line, [0.0; 2], [10.0; 2]).unwrap();
     s.push_stream(&stream()).unwrap();
-    s.push_raster_tiles(RasterId::new(0).unwrap(), vec![TileIn { level: 0, col: 0, row: 0, bytes: vec![1, 2, 3] }]).unwrap();
+    s.push_raster_tiles(
+        RasterId::new(0).unwrap(),
+        vec![TileIn { level: 0, col: 0, row: 0, bytes: vec![1, 2, 3] }],
+    )
+    .unwrap();
     let mut sink = VecSink::default();
     let err = s.finish_to(&mut sink).unwrap_err();
     assert!(matches!(err, FinishError::Write(WriteError::Tile { .. })), "{err:?}");

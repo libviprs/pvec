@@ -646,8 +646,10 @@ pub fn build(
     chunk_bytes: u32,
     max_tiles: u64,
 ) -> Result<Built, IndexError> {
-    let metas: Vec<TileMeta> =
-        tiles.iter().map(|t| TileMeta { level: t.level, col: t.col, row: t.row, len: t.bytes.len() as u64 }).collect();
+    let metas: Vec<TileMeta> = tiles
+        .iter()
+        .map(|t| TileMeta { level: t.level, col: t.col, row: t.row, len: t.bytes.len() as u64 })
+        .collect();
     let mut bytes: Vec<Vec<u8>> = tiles.into_iter().map(|t| t.bytes).collect();
     let mut chunks = Vec::new();
     let index = build_with(
@@ -722,7 +724,11 @@ pub fn build_with<E>(
         total += u64::from(cols) * u64::from(rows);
     }
     if total > max_tiles || total > u64::from(u32::MAX) {
-        return Err(IndexError::TooManyTiles { declared: total, ceiling: max_tiles.min(u64::from(u32::MAX)) }.into());
+        return Err(IndexError::TooManyTiles {
+            declared: total,
+            ceiling: max_tiles.min(u64::from(u32::MAX)),
+        }
+        .into());
     }
     // the tiles in the order of the table, so that the table can be walked once
     let mut given: Vec<(u32, u64, usize)> = Vec::with_capacity(metas.len());

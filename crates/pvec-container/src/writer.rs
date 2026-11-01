@@ -1027,7 +1027,9 @@ impl ContainerWriter {
         let links: Vec<(EntityId, u64, &[EntityId])> = items
             .iter()
             .map(|i| match &i.shape {
-                AdvancedShape::Composite { segments, .. } => (i.meta.id, advanced_size(&i.shape), segments.as_slice()),
+                AdvancedShape::Composite { segments, .. } => {
+                    (i.meta.id, advanced_size(&i.shape), segments.as_slice())
+                }
                 AdvancedShape::Spline { .. } => (i.meta.id, advanced_size(&i.shape), &[][..]),
             })
             .collect();
@@ -1056,7 +1058,12 @@ impl ContainerWriter {
                 id,
                 tiles
                     .iter()
-                    .map(|t| raster::TileMeta { level: t.level, col: t.col, row: t.row, len: t.bytes.len() as u64 })
+                    .map(|t| raster::TileMeta {
+                        level: t.level,
+                        col: t.col,
+                        row: t.row,
+                        len: t.bytes.len() as u64,
+                    })
                     .collect(),
             );
             bytes.insert(id, tiles.into_iter().map(|t| t.bytes).collect());
@@ -1066,7 +1073,11 @@ impl ContainerWriter {
         raster_blocks_of(
             &metas,
             placements,
-            RasterRules { inline_bytes: self.raster_inline, chunk_bytes: self.raster_chunk, sniff: self.sniff_tiles },
+            RasterRules {
+                inline_bytes: self.raster_inline,
+                chunk_bytes: self.raster_chunk,
+                sniff: self.sniff_tiles,
+            },
             &mut |raster, i, last| {
                 let tile = &mut bytes.get_mut(&raster).expect("a raster that has tiles")[i];
                 Ok::<_, core::convert::Infallible>(if last { std::mem::take(tile) } else { tile.clone() })
@@ -1366,7 +1377,10 @@ pub(crate) fn advanced_chunk(members: &[&AdvancedItem], k: usize) -> Result<Vec<
 
 /// The component stream set block for streams pushed in the order given, each with the sequence number it
 /// arrived at: `None` when there is none, `DuplicateStream` when two share a capability.
-pub(crate) fn stream_block_of(streams: &[(usize, Stream)], sorted: bool) -> Result<Option<Planned>, WriteError> {
+pub(crate) fn stream_block_of(
+    streams: &[(usize, Stream)],
+    sorted: bool,
+) -> Result<Option<Planned>, WriteError> {
     let Some((first_seen, _)) = streams.first() else {
         return Ok(None);
     };
@@ -1599,7 +1613,14 @@ pub(crate) fn plan_curve(
     let spline = |meta, degree, knots: &[f64], x: Vec<f64>, y: Vec<f64>, weights: Option<&[f64]>, closed| {
         Ok(Item::Advanced(
             meta,
-            AdvancedShape::Spline { degree, knots: knots.to_vec(), x, y, weights: weights.map(<[f64]>::to_vec), closed },
+            AdvancedShape::Spline {
+                degree,
+                knots: knots.to_vec(),
+                x,
+                y,
+                weights: weights.map(<[f64]>::to_vec),
+                closed,
+            },
         ))
     };
     match curve {
@@ -1646,11 +1667,8 @@ pub(crate) fn plan_curve(
         }
         Curve::Trimmed(t) => {
             let trim = t.trim();
-            let (start, sweep) = if trim.reversed {
-                (trim.start + trim.span, -trim.span)
-            } else {
-                (trim.start, trim.span)
-            };
+            let (start, sweep) =
+                if trim.reversed { (trim.start + trim.span, -trim.span) } else { (trim.start, trim.span) };
             match t.basis() {
                 Curve::Line(_) => {
                     let d = curve.domain();

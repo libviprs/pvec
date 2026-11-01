@@ -505,7 +505,9 @@ impl DirectoryBuilder {
                 n.bounds = n.bounds.union(bounds);
                 n.entities += 1;
             }
-            None => self.leaves.push(Node { bounds: *bounds, first: cell.get(), count: 0, entities: 1, level: 0 }),
+            None => {
+                self.leaves.push(Node { bounds: *bounds, first: cell.get(), count: 0, entities: 1, level: 0 })
+            }
         }
         self.entities += 1;
         Ok(cell)
@@ -534,7 +536,13 @@ impl DirectoryBuilder {
                     bounds = bounds.union(&n.bounds);
                     total += n.entities;
                 }
-                nodes.push(Node { bounds, first: at as u32, count: (to - at) as u32, entities: total, level });
+                nodes.push(Node {
+                    bounds,
+                    first: at as u32,
+                    count: (to - at) as u32,
+                    entities: total,
+                    level,
+                });
                 at = to;
             }
             level_start = end;

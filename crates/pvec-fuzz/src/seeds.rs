@@ -634,7 +634,15 @@ fn spill_inputs() -> Vec<Vec<u8>> {
             // a spline with a cell is a refusal at the push
             let cell = if case % 10 == 8 && i == 0 { 1 } else { (next() % 3) as u8 };
             let cell = if matches!(kind, 4 | 5) && case % 10 != 8 { 0 } else { cell };
-            v.extend_from_slice(&[kind, id, cell, (next() % 50) as u8, (next() % 50) as u8, (next() % 9) as u8, (next() % 4) as u8]);
+            v.extend_from_slice(&[
+                kind,
+                id,
+                cell,
+                (next() % 50) as u8,
+                (next() % 50) as u8,
+                (next() % 9) as u8,
+                (next() % 4) as u8,
+            ]);
             if kind == 5 {
                 v.push(((i + 1) % 40) as u8);
             }

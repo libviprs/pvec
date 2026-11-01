@@ -4,16 +4,16 @@
 //! writer, which lays a spatial directory (P5.1) and one Tier 0 block per leaf (P5.4b) into the file, and
 //! the reader accessors that give them back.
 
+use crate::spill_fs::FsStore;
 use crate::writer::refused;
 use crate::{Bounds2, CapabilityId, Curve, EntityId, PvecError, PvecReader, PvecWriter};
 use pvec_capabilities::{Registry, Version};
 use pvec_components::{RASTER_CAPABILITY, encode_rasters};
 use pvec_container::Bounds;
 use pvec_container::source::MemorySource;
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
-use crate::spill_fs::FsStore;
 use pvec_container::spill::{ExternalSorter, SpillError};
 use pvec_container::spill_writer::{ByteSink, FinishError, HotRecord, SpillWriter};
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
 use pvec_stream::{
     DirectoryBuilder, DirectoryError, EntityBox, Tier0Builder, Tier0Error, Tier0Outcome, Tier0Params,
     build_directory, entity_key, tier0_blocks, tier0_outcome,
@@ -449,7 +449,11 @@ impl Spill {
         self.writer.push_stream(stream).map_err(finish_error)
     }
 
-    pub(crate) fn push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), PvecError> {
+    pub(crate) fn push_raster_tiles(
+        &mut self,
+        raster: RasterId,
+        tiles: Vec<TileIn>,
+    ) -> Result<(), PvecError> {
         self.writer.push_raster_tiles(raster, tiles).map_err(finish_error)
     }
 }
@@ -473,7 +477,8 @@ impl PvecWriter {
         let store = FsStore::create(root).map_err(|e| io_error("spill", e))?;
         let writer = SpillWriter::new(self.config.clone(), std::sync::Arc::new(store), budget)
             .map_err(|e| spill_error("spill", e))?;
-        let tier0 = self.index.as_ref().and_then(|i| i.tier0_max_error).map(|max_error| Tier0Params { max_error });
+        let tier0 =
+            self.index.as_ref().and_then(|i| i.tier0_max_error).map(|max_error| Tier0Params { max_error });
         self.spill = Some(Box::new(Spill { writer, tier0, classify: None }));
         Ok(self)
     }

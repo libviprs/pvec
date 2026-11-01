@@ -135,13 +135,27 @@ fn push(
     let meta = EntityMeta { id, style: u32::from(s.byte() % 4), cell, bounds: b };
     let knots = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
     let (px, py) = ([x, x + w, x + 2.0 * w], [y, y + 2.0 * w, y]);
-    let spec = || SplineSpec { degree: 2, knots: &knots, x: &px, y: &py, weights: None, closed: false, periodic: false };
+    let spec = || SplineSpec {
+        degree: 2,
+        knots: &knots,
+        x: &px,
+        y: &py,
+        weights: None,
+        closed: false,
+        periodic: false,
+    };
     let (a, c) = ([x, y], [x + w, y + w]);
     let (m, r): (Result<(), WriteError>, Result<(), FinishError>) = match kind {
         0 => (mem.push_line(meta, a, c), spill.push_line(meta, a, c)),
-        1 => (mem.push_polyline(meta, &[a, c, [c[0] + 1.0, c[1]]]), spill.push_polyline(meta, &[a, c, [c[0] + 1.0, c[1]]])),
+        1 => (
+            mem.push_polyline(meta, &[a, c, [c[0] + 1.0, c[1]]]),
+            spill.push_polyline(meta, &[a, c, [c[0] + 1.0, c[1]]]),
+        ),
         2 => (mem.push_circle_arc(meta, a, w, [0.0, 1.5]), spill.push_circle_arc(meta, a, w, [0.0, 1.5])),
-        3 => (mem.push_ellipse_arc(meta, a, [w + 1.0, w], [0.0, 0.0, 3.0]), spill.push_ellipse_arc(meta, a, [w + 1.0, w], [0.0, 0.0, 3.0])),
+        3 => (
+            mem.push_ellipse_arc(meta, a, [w + 1.0, w], [0.0, 0.0, 3.0]),
+            spill.push_ellipse_arc(meta, a, [w + 1.0, w], [0.0, 0.0, 3.0]),
+        ),
         4 => (mem.push_spline(meta, spec()), spill.push_spline(meta, spec())),
         _ => {
             let seg = [EntityId::new(u32::from(s.byte() % 40)).expect("small")];
@@ -172,7 +186,8 @@ pub fn fuzz_spill_writer(data: &[u8]) -> String {
         255 => usize::MAX,
         b => usize::from(b) * 40,
     };
-    let store = std::sync::Arc::new(MemStore { files: Mutex::new(Vec::new()), calls: AtomicUsize::new(0), fail_at });
+    let store =
+        std::sync::Arc::new(MemStore { files: Mutex::new(Vec::new()), calls: AtomicUsize::new(0), fail_at });
     let mut mem = ContainerWriter::new(cfg());
     let Ok(mut spill) = SpillWriter::new(cfg(), store.clone(), budget) else { return "spill".to_string() };
     let mut refused = None;

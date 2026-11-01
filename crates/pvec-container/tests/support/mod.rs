@@ -4,9 +4,9 @@
 pub mod art;
 pub mod fixtures;
 pub mod raster;
+pub mod sha256;
 #[path = "../../../pvec/src/spill_fs.rs"]
 pub mod spill_fs;
-pub mod sha256;
 pub mod verify;
 
 #[allow(unused_imports)]

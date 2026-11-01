@@ -24,17 +24,17 @@ use crate::blocks::hot::HotKind;
 use crate::blocks::raster::{TileIn, TileMeta};
 use crate::compress::CodecPolicy;
 use crate::directory::BlockKind;
+use crate::header::Header;
 use crate::integrity::{DigestStream, Integrity, block_checksum};
 use crate::manifest::{Bounds, Manifest};
+use crate::spec::m::ARTIFACT_DIGEST;
 use crate::spill::{Appender, ExternalSorter, Log, SpillError, SpillResult, Store};
 use crate::writer::{
-    AdvancedItem, AdvancedShape, BlockMeta, Derived, EntityMeta, HotGroup, HotItem, HotShape, Item, Planned, RasterFail,
-    RasterRules, RawBlock, WriteError, WriterConfig, WriterOptions, advanced_chunk, advanced_size,
-    checked_bounds, declare, hot_block, pack_planned, plan_chunks, plan_curve, plan_layout, raster_blocks_of,
-    stream_block_of, union,
+    AdvancedItem, AdvancedShape, BlockMeta, Derived, EntityMeta, HotGroup, HotItem, HotShape, Item, Planned,
+    RasterFail, RasterRules, RawBlock, WriteError, WriterConfig, WriterOptions, advanced_chunk,
+    advanced_size, checked_bounds, declare, hot_block, pack_planned, plan_chunks, plan_curve, plan_layout,
+    raster_blocks_of, stream_block_of, union,
 };
-use crate::header::Header;
-use crate::spec::m::ARTIFACT_DIGEST;
 use pvec_capabilities::{CapabilityId, Registry, Version};
 use pvec_components::{RASTER_CAPABILITY, RasterId, Stream};
 use pvec_entity::EntityId;
@@ -108,7 +108,11 @@ struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     fn take(&mut self, n: usize) -> SpillResult<&'a [u8]> {
-        let end = self.at.checked_add(n).filter(|e| *e <= self.bytes.len()).ok_or_else(|| corrupt("a record ends early"))?;
+        let end = self
+            .at
+            .checked_add(n)
+            .filter(|e| *e <= self.bytes.len())
+            .ok_or_else(|| corrupt("a record ends early"))?;
         let out = &self.bytes[self.at..end];
         self.at = end;
         Ok(out)
@@ -210,7 +214,10 @@ impl HotRecord {
             }
             HotShape::EllipseArc { centre, radii, angles } => {
                 out.push(3);
-                put_f64s(&mut out, &[centre[0], centre[1], radii[0], radii[1], angles[0], angles[1], angles[2]]);
+                put_f64s(
+                    &mut out,
+                    &[centre[0], centre[1], radii[0], radii[1], angles[0], angles[1], angles[2]],
+                );
             }
         }
         out.extend_from_slice(&(self.tag.len() as u32).to_le_bytes());
@@ -456,7 +463,12 @@ impl BlockSpool {
         self.emit(&lay, &manifest_bytes, &mut Sink(sink))
     }
 
-    fn emit(&self, lay: &crate::writer::Layout, manifest_bytes: &[u8], out: &mut dyn Out) -> Result<u64, FinishError> {
+    fn emit(
+        &self,
+        lay: &crate::writer::Layout,
+        manifest_bytes: &[u8],
+        out: &mut dyn Out,
+    ) -> Result<u64, FinishError> {
         let mut at = 0u64;
         out.put(&lay.header.encode())?;
         out.put(manifest_bytes)?;
@@ -787,7 +799,12 @@ impl SpillWriter {
     }
 
     /// Sets the spatial directory block, as [`crate::writer::ContainerWriter::set_spatial_directory`] does.
-    pub fn set_spatial_directory(&mut self, nodes: u32, bounds: Bounds, bytes: Vec<u8>) -> Result<(), WriteError> {
+    pub fn set_spatial_directory(
+        &mut self,
+        nodes: u32,
+        bounds: Bounds,
+        bytes: Vec<u8>,
+    ) -> Result<(), WriteError> {
         let bounds = checked_bounds(bounds).ok_or(WriteError::BadBounds { id: None })?;
         u32::try_from(bytes.len()).map_err(|_| WriteError::TooLarge)?;
         self.spatial = Some(Planned {
@@ -893,7 +910,8 @@ impl SpillWriter {
         if let Some(id) = summary.duplicate {
             return Err(WriteError::DuplicateId { id }.into());
         }
-        let streams: Vec<Stream> = self.streams.records()?.map(|r| r.and_then(|b| decode_stream(&b))).collect::<SpillResult<_>>()?;
+        let streams: Vec<Stream> =
+            self.streams.records()?.map(|r| r.and_then(|b| decode_stream(&b))).collect::<SpillResult<_>>()?;
         let (capabilities, min_reader) =
             declare(&self.config.capabilities, streams.iter().map(|s| s.capability), true, &Registry::v1())?;
         let source_bounds = match self.config.bounds {
@@ -909,7 +927,9 @@ impl SpillWriter {
         if let Some(block) = stream_block_of(&numbered, true)? {
             self.spool.push_planned(policy, block)?;
         }
-        for planned in [self.spatial.take(), self.cell_refs.take(), self.straddlers.take()].into_iter().flatten() {
+        for planned in
+            [self.spatial.take(), self.cell_refs.take(), self.straddlers.take()].into_iter().flatten()
+        {
             self.spool.push_planned(policy, planned)?;
         }
         self.emit_rasters(streams.iter().find(|s| s.capability == RASTER_CAPABILITY))?;
@@ -934,7 +954,9 @@ impl SpillWriter {
             let bytes = rec?;
             let r = HotRecord::decode(&bytes)?;
             let m = r.meta();
-            let key = u128::from(m.cell) << 64 | u128::from(r.item.shape.kind().id()) << 32 | u128::from(m.id.index());
+            let key = u128::from(m.cell) << 64
+                | u128::from(r.item.shape.kind().id()) << 32
+                | u128::from(m.id.index());
             sorter.push(key, bytes)?;
         }
         // records of one cell and geometry type are adjacent; each goes into its block as it arrives, and the
@@ -985,7 +1007,11 @@ impl SpillWriter {
         }
         let metas: BTreeMap<u32, Vec<TileMeta>> =
             self.rasters.iter().map(|(id, tiles)| (*id, tiles.iter().map(|t| t.meta).collect())).collect();
-        let rules = RasterRules { inline_bytes: self.raster_inline, chunk_bytes: self.raster_chunk, sniff: self.sniff_tiles };
+        let rules = RasterRules {
+            inline_bytes: self.raster_inline,
+            chunk_bytes: self.raster_chunk,
+            sniff: self.sniff_tiles,
+        };
         let (tiles_log, rasters, spool) = (&mut self.tiles, &self.rasters, &mut self.spool);
         raster_blocks_of::<FinishError>(
             &metas,

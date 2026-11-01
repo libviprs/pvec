@@ -111,10 +111,13 @@ fn push_drawing(w: &mut PvecWriter, n: u32, mix: Mix, seed: u64) {
         let curve = match (mix, k % 9) {
             (Mix::Everything, _) if n >= 3 && i == n - 3 => joined(0.0),
             (Mix::Everything, _) if n >= 3 && i == n - 2 => joined(60.0),
-            (Mix::Short, _) | (_, 0 | 1 | 2) => Curve::Polyline(Polyline::new(vec![p(x, y), p(x + 4.0, y + 3.0)]).unwrap()),
+            (Mix::Short, _) | (_, 0 | 1 | 2) => {
+                Curve::Polyline(Polyline::new(vec![p(x, y), p(x + 4.0, y + 3.0)]).unwrap())
+            }
             (Mix::Everything, 3) => {
-                let wave: Vec<Point2> =
-                    (0..70 + k as u32 % 40).map(|j| p(x + f64::from(j), y + (f64::from(j) * 0.2).sin() * 9.0)).collect();
+                let wave: Vec<Point2> = (0..70 + k as u32 % 40)
+                    .map(|j| p(x + f64::from(j), y + (f64::from(j) * 0.2).sin() * 9.0))
+                    .collect();
                 Curve::Polyline(Polyline::new(wave).unwrap())
             }
             (Mix::Everything, 4) => {
@@ -190,7 +193,12 @@ fn tiles() -> Vec<TileIn> {
                 let bytes = if (l, col, row) == (2, 2, 1) {
                     Vec::new()
                 } else {
-                    tilegen::png(256, 1, 8, &tilegen::payload(843, (13 * col + 29 * row + 71 * l as u32) as u8))
+                    tilegen::png(
+                        256,
+                        1,
+                        8,
+                        &tilegen::payload(843, (13 * col + 29 * row + 71 * l as u32) as u8),
+                    )
                 };
                 out.push(TileIn { level: l as u32, col, row, bytes });
             }
@@ -282,7 +290,13 @@ fn issue_235_the_streamed_artifact_is_the_one_finish_returns_for_every_budget() 
 #[test]
 fn issue_235_the_streamed_artifact_reads_back() {
     let tmp = root("reads");
-    let shape = Shape { indexed: Some((16, Some(MAX_ERROR))), n: 240, mix: Mix::Everything, components: true, raster: true };
+    let shape = Shape {
+        indexed: Some((16, Some(MAX_ERROR))),
+        n: 240,
+        mix: Mix::Everything,
+        components: true,
+        raster: true,
+    };
     let mut out = Vec::new();
     spilled(shape, 3, &tmp, 4096).finish_to(&mut out).unwrap();
     let r = PvecReader::open(out).unwrap();
@@ -323,7 +337,13 @@ impl Write for Peek<'_> {
 #[test]
 fn issue_235_the_spill_files_live_under_the_root_the_caller_names_and_are_gone_after() {
     let tmp = root("under");
-    let shape = Shape { indexed: Some((16, Some(MAX_ERROR))), n: 240, mix: Mix::Everything, components: true, raster: true };
+    let shape = Shape {
+        indexed: Some((16, Some(MAX_ERROR))),
+        n: 240,
+        mix: Mix::Everything,
+        components: true,
+        raster: true,
+    };
     let mut sink = Peek { root: &tmp, seen: None, bytes: Vec::new() };
     spilled(shape, 5, &tmp, 4096).finish_to(&mut sink).unwrap();
     let seen = sink.seen.expect("the artifact was written");
@@ -335,7 +355,8 @@ fn issue_235_the_spill_files_live_under_the_root_the_caller_names_and_are_gone_a
 #[test]
 fn issue_235_dropping_a_writer_that_never_finished_removes_its_spill() {
     let tmp = root("drop");
-    let shape = Shape { indexed: Some((16, None)), n: 240, mix: Mix::Everything, components: true, raster: true };
+    let shape =
+        Shape { indexed: Some((16, None)), n: 240, mix: Mix::Everything, components: true, raster: true };
     let w = spilled(shape, 5, &tmp, 64);
     assert!(entries(&tmp) > 0, "a writer with a spill has made its directory by the time it holds pushes");
     drop(w);
@@ -394,7 +415,13 @@ impl Write for Full {
 fn issue_235_a_failing_sink_is_a_typed_io_error_with_the_io_error_as_source_and_no_spill_left() {
     let tmp = root("full");
     for shape in [
-        Shape { indexed: Some((16, Some(MAX_ERROR))), n: 240, mix: Mix::Everything, components: true, raster: true },
+        Shape {
+            indexed: Some((16, Some(MAX_ERROR))),
+            n: 240,
+            mix: Mix::Everything,
+            components: true,
+            raster: true,
+        },
         Shape { indexed: None, n: 40, mix: Mix::Short, components: false, raster: false },
     ] {
         let total = build(shape, 9).finish().unwrap().len();
@@ -438,7 +465,8 @@ fn issue_235_a_build_that_refuses_writes_nothing_to_the_sink() {
 fn issue_235_the_refusals_are_the_ones_finish_gives() {
     let tmp = root("rules");
     // a leaf capacity of 0, a Tier 0 bound that is not a bound, and a file with no entity
-    let cases: [Option<(u32, Option<f64>)>; 3] = [Some((0, None)), Some((16, Some(f64::NAN))), Some((16, Some(-1.0)))];
+    let cases: [Option<(u32, Option<f64>)>; 3] =
+        [Some((0, None)), Some((16, Some(f64::NAN))), Some((16, Some(-1.0)))];
     for indexed in cases {
         let shape = Shape { indexed, n: 30, mix: Mix::Short, components: false, raster: false };
         let expect = build(shape, 2).finish().unwrap_err();
@@ -482,7 +510,9 @@ fn issue_235_random_drawings_tiny_budgets_and_truncated_sinks_never_panic_or_lea
                 assert_eq!(*n as usize, a.len());
             }
             (Err(a), Err(b)) => assert_eq!(a, b, "case {case}"),
-            _ => panic!("case {case} {shape:?} budget {budget}: finish gave {expect:?} but finish_to gave {got:?}"),
+            _ => panic!(
+                "case {case} {shape:?} budget {budget}: finish gave {expect:?} but finish_to gave {got:?}"
+            ),
         }
         if let Ok(a) = &expect {
             let room = rng.below(a.len() as u64) as usize;

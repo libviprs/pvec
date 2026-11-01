@@ -195,7 +195,9 @@ impl Ent {
     pub fn push_spill(&self, w: &mut SpillWriter) -> Result<(), FinishError> {
         let b = self.bounds();
         match self {
-            Ent::Model { id, style, cell, curve } => w.push_curve(eid(*id), *style, *cell, curve, &mut Vec::new),
+            Ent::Model { id, style, cell, curve } => {
+                w.push_curve(eid(*id), *style, *cell, curve, &mut Vec::new)
+            }
             Ent::Line { id, style, cell, a, b: e } => {
                 w.push_line(EntityMeta { id: eid(*id), style: *style, cell: *cell, bounds: b }, *a, *e)
             }

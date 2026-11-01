@@ -65,8 +65,7 @@ impl SpillStore for FsStore {
         let mut st = self.state()?;
         let id = st.next;
         let path = self.dir.join(format!("f{id}"));
-        let writer =
-            OpenOptions::new().append(true).create_new(true).open(&path).map_err(SpillError::new)?;
+        let writer = OpenOptions::new().append(true).create_new(true).open(&path).map_err(SpillError::new)?;
         st.next += 1;
         st.files.insert(id, Entry { path, writer, reader: None });
         Ok(FileId(id))
@@ -74,13 +73,15 @@ impl SpillStore for FsStore {
 
     fn append(&self, file: FileId, bytes: &[u8]) -> SpillResult<()> {
         let mut st = self.state()?;
-        let e = st.files.get_mut(&file.0).ok_or_else(|| SpillError::corrupt("a spill file that is not there"))?;
+        let e =
+            st.files.get_mut(&file.0).ok_or_else(|| SpillError::corrupt("a spill file that is not there"))?;
         e.writer.write_all(bytes).map_err(SpillError::new)
     }
 
     fn read_at(&self, file: FileId, offset: u64, buf: &mut [u8]) -> SpillResult<usize> {
         let mut st = self.state()?;
-        let e = st.files.get_mut(&file.0).ok_or_else(|| SpillError::corrupt("a spill file that is not there"))?;
+        let e =
+            st.files.get_mut(&file.0).ok_or_else(|| SpillError::corrupt("a spill file that is not there"))?;
         if e.reader.is_none() {
             e.reader = Some(File::open(&e.path).map_err(SpillError::new)?);
         }

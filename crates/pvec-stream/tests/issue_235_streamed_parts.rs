@@ -99,7 +99,8 @@ fn the_plan_of_a_leaf_from_outcomes_is_the_plan_cut_gives_and_an_outcome_survive
         outcomes.push((id(i), o));
     }
     let whole = builder.finish().unwrap();
-    for ids in [vec![0u32, 1, 2], vec![59, 3, 10, 11, 12, 40], (0..n).collect(), vec![7], vec![2, 3, 4, 8, 9]] {
+    for ids in [vec![0u32, 1, 2], vec![59, 3, 10, 11, 12, 40], (0..n).collect(), vec![7], vec![2, 3, 4, 8, 9]]
+    {
         let wanted: Vec<EntityId> = ids.iter().map(|i| id(*i)).collect();
         let cut = whole.cut(&wanted).unwrap().encode();
         let leaf: Vec<(EntityId, Tier0Outcome)> = ids.iter().map(|i| outcomes[*i as usize].clone()).collect();
