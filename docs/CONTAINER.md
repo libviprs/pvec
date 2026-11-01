@@ -537,8 +537,6 @@ A capability is optional, and so skippable by an old reader, only if it satisfie
 
 Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes through the decoded model refuses (`PartialOpen::ensure_lossless_rewrite`), because the model cannot carry what was not decoded. A tool that must keep the blocks copies them as they are, through `read_stored` and `assemble`, and preserves them byte for byte, the descriptor and the checksum included. Both are tested.
 
-
-
 ## 6. An annotated example
 
 This is a real file, written by the container writer from one line from (0, 0) to (10, 0) in millimetres and one
