@@ -373,7 +373,7 @@ impl Ctx<'_> {
         if p[2] != 0.0 {
             return Err(self.missing(
                 capability,
-                &format!("`{what}` is off the drawing plane (z is not 0), and the profile is 2D with no implicit promotion"),
+                &format!("`{what}` is off the drawing plane (z is not 0), and the profile is 2D with no implicit promotion (refused by design, ADR 0017)"),
             ));
         }
         Ok([p[0], p[1]])
