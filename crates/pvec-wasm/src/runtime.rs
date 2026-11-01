@@ -689,6 +689,16 @@ impl Runtime {
         Ok(self.insert(Item::Batch { picked, truncated: end < all.len() }))
     }
 
+    /// Stub for the red tests of issue #252.
+    pub fn entity_distance(&self, _file: u32, _entity: u32, _x: f64, _y: f64) -> Result<f64, AbiError> {
+        Err(AbiError::BadArgument)
+    }
+
+    /// Stub for the red tests of issue #252.
+    pub fn entity_touches_box(&self, _file: u32, _entity: u32, _bounds: Bounds2) -> Result<bool, AbiError> {
+        Err(AbiError::BadArgument)
+    }
+
     fn file(&self, handle: u32) -> Result<Rc<File>, AbiError> {
         match self.get(handle)? {
             Item::File(f) => Ok(Rc::clone(f)),
