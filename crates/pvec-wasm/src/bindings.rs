@@ -254,6 +254,23 @@ pub fn cells_elem(result: u32, which: u32) -> i32 {
     RUNTIME.with(|r| code(r.borrow().cells_view(result, which).map(elem)))
 }
 
+/// The exact distance in source units from the point to the geometry of the entity (issue #252), or NaN when there is
+/// no answer: a handle that was released or is not a file, an unknown entity, a non-finite argument.
+#[wasm_bindgen]
+pub fn entity_distance(file: u32, entity_id: u32, x: f64, y: f64) -> f64 {
+    RUNTIME.with(|r| r.borrow().entity_distance(file, entity_id, x, y).unwrap_or(f64::NAN))
+}
+
+/// 1 when the geometry of the entity meets the box (touching counts), 0 when it does not, or a negative code (issue #252).
+#[wasm_bindgen]
+pub fn entity_touches_box(file: u32, entity_id: u32, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> i32 {
+    RUNTIME.with(|r| {
+        r.borrow()
+            .entity_touches_box(file, entity_id, window(min_x, min_y, max_x, max_y))
+            .map_or_else(|e| e.code(), i32::from)
+    })
+}
+
 /// The Tier 0 stream of the box: a result handle of five arrays, or a negative code (-6 when the file
 /// has no directory, -4 when the directory or a Tier 0 block is damaged).
 #[wasm_bindgen]

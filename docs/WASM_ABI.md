@@ -51,6 +51,8 @@ more), a count, a byte offset into linear memory, or a negative error code.
 | `provide_range` | handle, `offset`, bytes | 0 (issue #205) |
 | `open_poll` | the opening handle | the same handle, now a file, or -7 (issue #205) |
 | `needed_count`, `needed_offset`, `needed_len` | handle, range number | how many ranges a -7 left to provide, and where and how long each is (issue #205) |
+| `entity_distance` | file, entity id, `x`, `y` | the exact distance in source units, or NaN (issue #252) |
+| `entity_touches_box` | file, entity id, `min_x, min_y, max_x, max_y` | 1 when the geometry meets the box, 0 when not, or a negative code (issue #252) |
 
 `open` takes the file whole. A file can instead be opened by byte ranges the host supplies (issue #205), which
 is the next section.
@@ -285,6 +287,26 @@ meaning a bad id, level, column or row, and -4 a failed checksum (the index's or
 
 The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
 (`raster_buffer_elem` and the other `*_elem` calls return it).
+
+## Exact distance (version 2, additive; issue #252)
+
+`entity_distance(file, entity_id, x, y)` returns the exact distance in source units from the point to the entity's
+geometry, measured on the curve itself (`crates/pvec/src/hit.rs`, no tessellation): lines, polylines, arcs, circles,
+ellipses, Bezier curves, B-splines, NURBS, trimmed and composite curves. It returns NaN, the way `directory_bound`
+says "no answer", for a handle that was released or is not a file, an entity the file does not hold, a non-finite `x`
+or `y`, and a curve with no exact distance (an unbounded line). The module holds every entity it returns as exact
+geometry, so there is no Tier 0 preview to fall back to. On a file opened by ranges the entity has to have been read
+by an earlier `query_viewport` or `query_leaf`, or the answer is NaN.
+
+`entity_touches_box(file, entity_id, min_x, min_y, max_x, max_y)` returns 1 when the geometry meets the box (touching
+counts, and so does a curve that lies wholly inside the box), 0 when it does not, and a negative code otherwise: -1
+for a released handle, -5 for a handle that is not a file, -3 for an unknown entity, a box that is not finite or is
+inverted. Segments are clipped exactly; a curved piece is refined until it either misses the box by proof or narrows
+below the numeric policy tolerance with the box still in reach, which counts as touching.
+
+Both are additive: the version stays 2 and the 50 exports before them are untouched, for 52 in all. A module without
+them is a version 2 module that predates issue #252; look for `entity_distance` before calling, the way `raster_stat`
+is looked for.
 
 ## Conformance
 

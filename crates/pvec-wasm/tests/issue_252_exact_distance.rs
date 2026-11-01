@@ -23,7 +23,8 @@ fn frame(x: f64, y: f64, angle: f64) -> Placement2 {
 /// The corpus: one entity of every curve family `hit.rs` handles, ids in this order.
 fn curves() -> Vec<(&'static str, Curve)> {
     let line = Line::new(pt(5.0, 5.0), Vector2::new(3.0, 1.0)).unwrap();
-    let arc = Trimmed::new(Curve::Circle(Circle::new(frame(300.0, 40.0, 0.0), 35.0).unwrap()), 0.4, 2.6, true);
+    let arc =
+        Trimmed::new(Curve::Circle(Circle::new(frame(300.0, 40.0, 0.0), 35.0).unwrap()), 0.4, 2.6, true);
     let nurbs = RationalBSpline::new(
         2,
         vec![pt(500.0, 0.0), pt(560.0, 90.0), pt(640.0, 10.0)],
@@ -38,14 +39,23 @@ fn curves() -> Vec<(&'static str, Curve)> {
         ("ellipse", Curve::Ellipse(Ellipse::new(frame(250.0, 150.0, 0.5), 70.0, 20.0).unwrap())),
         (
             "bezier",
-            Curve::Bezier(Bezier::new(vec![pt(0.0, 300.0), pt(30.0, 380.0), pt(70.0, 240.0), pt(100.0, 310.0)]).unwrap()),
+            Curve::Bezier(
+                Bezier::new(vec![pt(0.0, 300.0), pt(30.0, 380.0), pt(70.0, 240.0), pt(100.0, 310.0)])
+                    .unwrap(),
+            ),
         ),
         (
             "bspline",
             Curve::BSpline(
                 BSpline::new(
                     3,
-                    vec![pt(150.0, 300.0), pt(170.0, 350.0), pt(200.0, 270.0), pt(230.0, 340.0), pt(270.0, 300.0)],
+                    vec![
+                        pt(150.0, 300.0),
+                        pt(170.0, 350.0),
+                        pt(200.0, 270.0),
+                        pt(230.0, 340.0),
+                        pt(270.0, 300.0),
+                    ],
                     vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0],
                 )
                 .unwrap(),
@@ -54,7 +64,9 @@ fn curves() -> Vec<(&'static str, Curve)> {
         ("nurbs", Curve::RationalBSpline(nurbs)),
         (
             "polyline",
-            Curve::Polyline(Polyline::new(vec![pt(400.0, 300.0), pt(450.0, 320.0), pt(480.0, 290.0)]).unwrap()),
+            Curve::Polyline(
+                Polyline::new(vec![pt(400.0, 300.0), pt(450.0, 320.0), pt(480.0, 290.0)]).unwrap(),
+            ),
         ),
     ]
 }
@@ -117,29 +129,63 @@ fn probes(s: &[Point2]) -> Vec<Point2> {
 }
 
 #[test]
-fn issue_252_the_abi_stays_2_and_the_old_50_exports_are_still_there_beside_the_two_new_ones() {
+fn issue_252_the_abi_stays_2_and_the_old_exports_are_still_there_beside_the_two_new_ones() {
     assert_eq!(WASM_ABI_VERSION, 2);
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let src = fs::read_to_string(root.join("src/bindings.rs")).unwrap();
-    let names: Vec<&str> = src
-        .split("#[wasm_bindgen]\npub fn ")
-        .skip(1)
-        .map(|rest| rest.split('(').next().unwrap())
-        .collect();
-    assert_eq!(names.len(), 52, "exports: {names:?}");
+    let names: Vec<&str> =
+        src.split("#[wasm_bindgen]\npub fn ").skip(1).map(|rest| rest.split('(').next().unwrap()).collect();
+    // 44 functions of bindings.rs before this issue; with the memory and allocator exports the module has 50, then 52
+    assert_eq!(names.len(), 46, "exports: {names:?}");
     for new in ["entity_distance", "entity_touches_box"] {
         assert!(names.contains(&new), "{new} is not exported");
     }
-    // the 50 before this issue, by name
+    // the 44 functions before this issue, by name
     for old in [
-        "wasm_abi_version", "open", "query_viewport", "batch_len", "batch_truncated", "tessellate_batch",
-        "buffer_len", "buffer_ptr", "buffer_elem", "tessellation_failed", "tessellation_conformance",
-        "tessellation_origin_x", "tessellation_origin_y", "memory_epoch", "view_current", "force_grow", "release",
-        "directory_stat", "directory_bound", "directory_query", "cells_len", "cells_ptr", "cells_elem",
-        "tier0_viewport", "query_leaf", "tier0_leaf", "tier0_stat", "tier0_buffer_len", "tier0_buffer_ptr",
-        "tier0_buffer_elem", "open_ranged", "provide_range", "open_poll", "needed_count", "needed_offset",
-        "needed_len", "raster_stat", "raster_skipped", "raster_placement", "raster_plan", "raster_tile",
-        "raster_buffer_len", "raster_buffer_ptr", "raster_buffer_elem",
+        "wasm_abi_version",
+        "open",
+        "query_viewport",
+        "batch_len",
+        "batch_truncated",
+        "tessellate_batch",
+        "buffer_len",
+        "buffer_ptr",
+        "buffer_elem",
+        "tessellation_failed",
+        "tessellation_conformance",
+        "tessellation_origin_x",
+        "tessellation_origin_y",
+        "memory_epoch",
+        "view_current",
+        "force_grow",
+        "release",
+        "directory_stat",
+        "directory_bound",
+        "directory_query",
+        "cells_len",
+        "cells_ptr",
+        "cells_elem",
+        "tier0_viewport",
+        "query_leaf",
+        "tier0_leaf",
+        "tier0_stat",
+        "tier0_buffer_len",
+        "tier0_buffer_ptr",
+        "tier0_buffer_elem",
+        "open_ranged",
+        "provide_range",
+        "open_poll",
+        "needed_count",
+        "needed_offset",
+        "needed_len",
+        "raster_stat",
+        "raster_skipped",
+        "raster_placement",
+        "raster_plan",
+        "raster_tile",
+        "raster_buffer_len",
+        "raster_buffer_ptr",
+        "raster_buffer_elem",
     ] {
         assert!(names.contains(&old), "the old export {old} is gone");
     }
@@ -151,28 +197,31 @@ fn issue_252_the_abi_stays_2_and_the_old_50_exports_are_still_there_beside_the_t
 
 #[test]
 fn issue_252_every_curve_family_matches_the_dense_sampling_reference() {
-    let (mut rt, f) = open();
+    let (rt, f) = open();
     for (i, (name, c)) in curves().iter().enumerate() {
         let s = samples(c);
         for p in probes(&s) {
             let want = sampled_distance(&s, p);
             let got = rt.entity_distance(f, i as u32, p.x, p.y).unwrap_or_else(|e| panic!("{name}: {e:?}"));
             // sampling can only overshoot the true minimum, by a hair at 400,000 samples
-            assert!(got <= want + 1e-9, "{name} at {p:?}: exact {got} is above the sample minimum {want}");
-            assert!((got - want).abs() < 1e-4, "{name} at {p:?}: exact {got}, reference {want}");
+            assert!(
+                got <= want + 0.000_000_001,
+                "{name} at {p:?}: exact {got} is above the sample minimum {want}"
+            );
+            assert!((got - want).abs() < 0.0001, "{name} at {p:?}: exact {got}, reference {want}");
         }
     }
 }
 
 #[test]
 fn issue_252_a_point_on_the_curve_is_at_distance_0() {
-    let (mut rt, f) = open();
+    let (rt, f) = open();
     for (i, (name, c)) in curves().iter().enumerate() {
         let d = c.domain();
         for k in [0.0, 0.17, 0.5, 0.83, 1.0] {
             let p = c.eval(d.lo() + (d.hi() - d.lo()) * k).unwrap();
             let got = rt.entity_distance(f, i as u32, p.x, p.y).unwrap();
-            assert!(got < 1e-6, "{name} at parameter fraction {k}: {got}");
+            assert!(got < 0.000_001, "{name} at parameter fraction {k}: {got}");
         }
     }
 }
@@ -184,13 +233,22 @@ fn issue_252_a_released_handle_an_unknown_entity_and_a_non_finite_argument_are_r
     for (x, y) in [(f64::NAN, 0.0), (0.0, f64::NAN), (f64::INFINITY, 0.0), (0.0, f64::NEG_INFINITY)] {
         assert_eq!(rt.entity_distance(f, 0, x, y), Err(AbiError::BadArgument), "{x} {y}");
     }
-    assert_eq!(rt.entity_touches_box(f, 999, Bounds2 { min: [0.0, 0.0], max: [1.0, 1.0] }), Err(AbiError::BadArgument));
+    assert_eq!(
+        rt.entity_touches_box(f, 999, Bounds2 { min: [0.0, 0.0], max: [1.0, 1.0] }),
+        Err(AbiError::BadArgument)
+    );
     for b in [[f64::NAN, 0.0, 1.0, 1.0], [0.0, 0.0, f64::INFINITY, 1.0], [2.0, 0.0, 1.0, 1.0]] {
         let bounds = Bounds2 { min: [b[0], b[1]], max: [b[2], b[3]] };
         assert_eq!(rt.entity_touches_box(f, 0, bounds), Err(AbiError::BadArgument), "{b:?}");
     }
     // a handle that is not a file
-    let q = rt.query_viewport(f, Bounds2 { min: [-1e9, -1e9], max: [1e9, 1e9] }, 10).unwrap();
+    let q = rt
+        .query_viewport(
+            f,
+            Bounds2 { min: [-1_000_000_000.0, -1_000_000_000.0], max: [1_000_000_000.0, 1_000_000_000.0] },
+            10,
+        )
+        .unwrap();
     assert_eq!(rt.entity_distance(q, 0, 0.0, 0.0), Err(AbiError::WrongKind));
     rt.release(f).unwrap();
     assert_eq!(rt.entity_distance(f, 0, 0.0, 0.0), Err(AbiError::Released));
@@ -202,7 +260,7 @@ fn issue_252_a_released_handle_an_unknown_entity_and_a_non_finite_argument_are_r
 
 #[test]
 fn issue_252_the_box_test_agrees_with_the_sampled_curve() {
-    let (mut rt, f) = open();
+    let (rt, f) = open();
     let (mut yes, mut no) = (0, 0);
     for (i, (name, c)) in curves().iter().enumerate() {
         let s = samples(c);
@@ -213,12 +271,12 @@ fn issue_252_the_box_test_agrees_with_the_sampled_curve() {
             }
         }
         // a box that holds the whole curve
-        boxes.push([-1e6, -1e6, 1e6, 1e6]);
+        boxes.push([-1_000_000.0, -1_000_000.0, 1_000_000.0, 1_000_000.0]);
         for b in boxes {
             let gap = sampled_box_distance(&s, b);
             let want = if gap == 0.0 {
                 true
-            } else if gap > 1e-3 {
+            } else if gap > 0.001 {
                 false
             } else {
                 continue; // too close to call by sampling
@@ -234,7 +292,7 @@ fn issue_252_the_box_test_agrees_with_the_sampled_curve() {
 
 #[test]
 fn issue_252_a_box_inside_a_circle_and_away_from_its_curve_does_not_touch_it() {
-    let (mut rt, f) = open();
+    let (rt, f) = open();
     let id = curves().iter().position(|(n, _)| *n == "circle").unwrap() as u32;
     let inside = Bounds2 { min: [140.0, 140.0], max: [160.0, 160.0] };
     assert_eq!(rt.entity_touches_box(f, id, inside), Ok(false));
@@ -242,5 +300,5 @@ fn issue_252_a_box_inside_a_circle_and_away_from_its_curve_does_not_touch_it() {
     assert_eq!(rt.entity_touches_box(f, id, crossing), Ok(true));
     // the distance of the centre is the radius
     let d = rt.entity_distance(f, id, 150.0, 150.0).unwrap();
-    assert!((d - 40.0).abs() < 1e-9, "{d}");
+    assert!((d - 40.0).abs() < 0.000_000_001, "{d}");
 }

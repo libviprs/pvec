@@ -213,6 +213,85 @@ pub(crate) fn nearest(curve: &Curve, p: Point2, cutoff: f64, scale: f64) -> Opti
     found.then_some(Nearest { distance: best.distance, param: best.param })
 }
 
+/// The exact distance from `p` to `curve` in source units, or `None` for a curve with no hit test (a kind added
+/// later) or one this cannot measure (an unbounded line). The accuracy scale is the curve's own size.
+#[cfg(feature = "unstable-stream")]
+pub fn curve_distance(curve: &Curve, x: f64, y: f64) -> Option<f64> {
+    let scale = curve.bounds().map_or(1.0, |b| b.diagonal());
+    nearest(curve, Point2::new(x, y), f64::INFINITY, scale).map(|n| n.distance)
+}
+
+/// Whether `curve` meets the box `min..max` (touching counts). Segments are clipped exactly. An arc or a smooth
+/// piece is refined by the same speed-bound proof as [`nearest`]: an interval whose midpoint is `g` from the box
+/// cannot reach it when `g` exceeds the speed bound times the half width, and one that narrows below the policy
+/// tolerance with the box still in reach counts as touching. A piece that spends the whole budget counts as touching
+/// too, so a pick errs towards finding the entity.
+#[cfg(feature = "unstable-stream")]
+pub fn curve_meets_box(curve: &Curve, min: [f64; 2], max: [f64; 2]) -> bool {
+    let gap = |q: Point2| {
+        (min[0] - q.x).max(0.0).max(q.x - max[0]).hypot((min[1] - q.y).max(0.0).max(q.y - max[1]))
+    };
+    let extent = (max[0] - min[0]).hypot(max[1] - min[1]);
+    let eps = Policy::V1.rel * (curve.bounds().map_or(1.0, |b| b.diagonal()) + extent);
+    let mut all = Vec::new();
+    pieces(curve, None, Map::IDENTITY, &mut all);
+    let mut budget = BUDGET;
+    // refines one curved piece over `lo..hi` with the speed bound `speed`
+    let mut curved = |eval: &dyn Fn(f64) -> Option<Point2>, lo: f64, hi: f64, speed: f64| {
+        let mut stack = vec![(lo, hi)];
+        while let Some((a, b)) = stack.pop() {
+            if budget == 0 {
+                return true;
+            }
+            budget -= 1;
+            let m = 0.5 * (a + b);
+            let Some(q) = eval(m) else { continue };
+            let g = gap(q);
+            if g == 0.0 {
+                return true;
+            }
+            let half = 0.5 * (b - a);
+            if g - speed * half > 0.0 {
+                continue;
+            }
+            if speed * half <= eps || m <= a || m >= b {
+                return true;
+            }
+            stack.push((a, m));
+            stack.push((m, b));
+        }
+        false
+    };
+    all.iter().any(|piece| match *piece {
+        Piece::Segment { a, b, .. } => {
+            // Liang-Barsky: clip the parameter range [0, 1] against the four sides
+            let (dx, dy) = (b.x - a.x, b.y - a.y);
+            let (mut t0, mut t1) = (0.0f64, 1.0f64);
+            for (p, q) in [(-dx, a.x - min[0]), (dx, max[0] - a.x), (-dy, a.y - min[1]), (dy, max[1] - a.y)] {
+                if p == 0.0 {
+                    if q < 0.0 {
+                        return false;
+                    }
+                } else if p < 0.0 {
+                    t0 = t0.max(q / p);
+                } else {
+                    t1 = t1.min(q / p);
+                }
+            }
+            t0 <= t1
+        }
+        Piece::Arc { frame, radius, lo, hi, .. } => {
+            let (o, x, y) = (frame.origin(), frame.x_axis(), frame.y_axis());
+            let at = move |s: f64| {
+                let (sn, cs) = s.sin_cos();
+                Some(Point2::new(o.x + radius * (cs * x.x + sn * y.x), o.y + radius * (cs * x.y + sn * y.y)))
+            };
+            curved(&at, lo, hi, radius)
+        }
+        Piece::Smooth { curve, lo, hi, speed, .. } => curved(&|t| curve.eval(t).ok(), lo, hi, speed),
+    })
+}
+
 fn closest_on_arc(p: Point2, f: &Placement2, r: f64, lo: f64, hi: f64) -> (f64, f64) {
     use core::f64::consts::TAU;
     let (o, x, y) = (f.origin(), f.x_axis(), f.y_axis());
@@ -252,6 +331,17 @@ fn refine(
     best: &mut Best,
     found: &mut bool,
 ) {
+    // The ends of the piece first: a nearest point at an end (a far query point) is not a smooth minimum, so no
+    // Newton step reaches it and a leaf midpoint would stop short by the leaf width.
+    for t in [lo, hi] {
+        if let Ok(q) = curve.eval(t) {
+            let d = dist(p, q);
+            if d <= best.distance && (!*found || d < best.distance) {
+                *best = Best { distance: d, param: map.apply(t) };
+                *found = true;
+            }
+        }
+    }
     // (lower bound, interval start, interval end, midpoint, midpoint distance)
     let mut leaves: Vec<(f64, f64, f64, f64, f64)> = Vec::new();
     let mut stack = vec![(lo, hi)];
