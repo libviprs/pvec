@@ -97,6 +97,12 @@ struct Span {
     pb: [f64; 2],
 }
 
+/// Counts the evaluations of the curve in the unit tests, which bound the work.
+#[cfg(test)]
+thread_local! {
+    static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) fn tessellate_with(
     curve: &Curve,
     ctx: &TessellationContext,
@@ -118,7 +124,11 @@ pub(crate) fn tessellate_with(
     if matches!(curve, Curve::Line(_)) {
         return Err(crate::error::geometry(GeometryError::Unbounded));
     }
-    let at = |t: f64| curve.point_at(t);
+    let at = |t: f64| {
+        #[cfg(test)]
+        EVALUATIONS.with(|c| c.set(c.get() + 1));
+        curve.point_at(t)
+    };
     let to_world = |q: [f64; 2]| ctx.source_to_map.apply_point(Point2 { x: q[0], y: q[1] });
     let to_device = |w: Point2| {
         let s = ctx.map_to_screen.apply_point(w);
@@ -267,5 +277,29 @@ mod tests {
             tessellate_with(&corner(), &context(), false),
             Err(PvecError::ErrorBudgetUnmet { .. })
         ));
+    }
+
+    /// Issue 240: a span that fails its budget is split, and its seven samples are shared with the halves, so each
+    /// measured span after the first costs four evaluations and the split point costs none. The count is exact.
+    #[test]
+    fn issue_240_a_split_reuses_the_samples_of_its_parent() {
+        let p = |x: f64, y: f64| Point2 { x, y };
+        let curve = Curve::BSpline(
+            BSpline::new(
+                3,
+                vec![p(0.0, 0.0), p(900.0, 1200.0), p(-300.0, 1200.0), p(600.0, 0.0)],
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+            )
+            .unwrap(),
+        );
+        let ctx = TessellationContext { max_segments: 4096, ..context() };
+        EVALUATIONS.with(|c| c.set(0));
+        let t = tessellate_with(&curve, &ctx, true).unwrap();
+        let used = EVALUATIONS.with(|c| c.get());
+        let n = t.vertices.len() - 1;
+        assert!(n >= 16, "the fixture has to need real subdivision, got {n} segments");
+        // two end points, seven samples for the root, four new samples for each of the n - 1 other measured spans
+        // on the way down (a binary tree with n leaves has 2n - 1 spans, n - 1 of them split)
+        assert_eq!(used, 2 + 7 + 4 * (2 * n - 2), "evaluations for {n} segments");
     }
 }
