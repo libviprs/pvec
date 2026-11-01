@@ -244,3 +244,29 @@ The refusal names its rule: `RASTER-03` for anything about the bytes, `RASTER-04
 not the file: `pvec validate` reports the raster as skipped with the rule, and the geometry gates pass. The thirteen
 hostile tiles (`pvec_testkit::raster_hostile`) are the corpus of all of this, and an origin that serves only what the
 reader accepts never serves one of them.
+
+## 10. A large raster from a seed
+
+`pvec_testkit::large_raster::large_raster(seed, shape, lines, curves)` writes one artifact with a raster of `shape`
+(the tiler's stored-deflate PNG pyramid, upright at one source unit a pixel) and, on top, `lines` line segments and
+`curves` curves (cubic Beziers as B-splines, and circle arcs) placed from the seed by a splitmix64 in the module, on a
+quarter-pixel grid. The same arguments give the same bytes on any machine; the raster itself depends on the shape
+alone. Digests are committed in `crates/pvec-testkit/tests/golden/large-raster-digests.txt`
+(`PVEC_BLESS_LARGE_RASTER=1` rewrites them).
+
+```
+cargo run --release -p pvec-testkit --example emit_large_raster -- out.pvec \
+    [--seed S] [--width W] [--height H] [--tile-edge 256|512|1024] [--bit-depth 1|8] [--lines N] [--curves N]
+```
+
+It prints the path, the size and the SHA-256. Defaults: seed 1, 8192 by 8192, tiles of 1024, 8 bits gray, 400 lines,
+40 curves. Sizes measured (a stored tile is about `tile_edge^2` bytes at 8 bits and an eighth of that at 1 bit):
+
+| shape | tiles | size |
+|---|---|---|
+| 8192 x 8192, tile 1024, 8 bit | 85 (4 levels) | 89.2 MB |
+| 8192 x 8192, tile 1024, 1 bit | 85 (4 levels) | 11.2 MB |
+| 2048 x 2048, tile 256, 1 bit | 85 (4 levels) | 0.73 MB |
+
+The linework adds a few KB. The big file is inside every default limit (`LIMIT-14`, `LIMIT-15`, block and artifact
+bytes).
