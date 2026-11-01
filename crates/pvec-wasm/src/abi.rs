@@ -32,10 +32,12 @@ pub enum AbiError {
     TileNotStored,
     /// The raster is skipped by a `RASTER-NN` rule, which `raster_skipped` names (issue #221, additive).
     RasterSkipped,
+    /// The batch needs more vertices than the module bounds a result to (issue #236, additive).
+    OutputTooLarge,
 }
 
 impl AbiError {
-    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6, issue #205 adds -7 and issue #221 adds -8 to -10.
+    /// The code an export returns: negative, one per variant, fixed since `WASM_ABI_VERSION` 1; version 2 adds -6, issue #205 adds -7 and issue #221 adds -8 to -10 and issue #236 adds -11.
     pub fn code(self) -> i32 {
         match self {
             AbiError::Released => -1,
@@ -48,6 +50,7 @@ impl AbiError {
             AbiError::NoRaster => -8,
             AbiError::TileNotStored => -9,
             AbiError::RasterSkipped => -10,
+            AbiError::OutputTooLarge => -11,
         }
     }
 }

@@ -331,6 +331,17 @@ holds a file the defaults admit and the browser preset refuses.
 | -8 | the file has no raster stream (issue #221, additive) |
 | -9 | the raster tile is not stored: the index says length 0, and it draws nothing (issue #221, additive) |
 | -10 | the raster is skipped by a `RASTER-NN` or `LIMIT-NN` rule, `raster_skipped` names it (issues #221 and #232, additive) |
+| -11 | `OutputTooLarge`: the batch needs more than 16,777,216 vertices, the most a `tessellate_batch` result holds (issue #236, additive) |
+
+## Tessellation bound (issue #236)
+
+A `tessellate_batch` result holds at most 16,777,216 vertices (2^24, 256 MiB as `Float64Array`, and the `Float32Array`
+form is made beside it). Each curve is tessellated with `max_segments` held to what is left of that bound. A curve the
+bound stops, and not the caller's own `max_segments`, makes the call return -11 with no partial result, and the module
+stays usable: ask again with a looser `max_world_error` or `max_screen_error_px`, or with fewer entities. An entity the
+caller's own `max_segments` stops is still counted by `tessellation_failed`. Before this, an absolute error of 1e-6 over a
+drawing about 130,000 units wide grew one vector past what wasm32 can address and the module panicked with a capacity
+overflow. The code is an addition, `wasm_abi_version()` stays 2.
 
 ## Size
 
