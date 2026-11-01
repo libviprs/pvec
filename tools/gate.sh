@@ -20,6 +20,7 @@ trap '"$NAS_SH" clean "$NAME" >/dev/null 2>&1 || true' EXIT
 set -e
 export CARGO_TARGET_DIR=/tmp/target CARGO_HOME=/tmp/cargo
 rustc --version; uname -m
+tools/exponent-check.sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked $*

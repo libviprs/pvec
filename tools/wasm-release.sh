@@ -62,6 +62,7 @@ trap '"$NAS_SH" clean "$NAME" >/dev/null 2>&1 || true' EXIT
 "$NAS_SH" run "$NAME" "$IMAGE" "
 set -e
 export CARGO_TARGET_DIR=/tmp/target CARGO_HOME=/tmp/cargo
+tools/exponent-check.sh
 rustup target add wasm32-unknown-unknown >/dev/null 2>&1
 wb=\$(awk '/^name = \"wasm-bindgen\"\$/{getline; gsub(/[^0-9.]/,\"\"); print; exit}' Cargo.lock)
 abi=\$(sed -n 's/^pub const WASM_ABI_VERSION: u32 = \([0-9]*\);.*/\1/p' crates/pvec-wasm/src/abi.rs)
