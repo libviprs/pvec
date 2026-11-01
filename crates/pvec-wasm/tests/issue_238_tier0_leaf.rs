@@ -1,13 +1,13 @@
-//! Issue #238: `tier0_leaf`, the Tier 0 stream of one leaf, without the window cull and without a count over the
-//! whole file. `docs/WASM_ABI.md` is the contract; every test name carries the issue number.
+//! Issue #238: `tier0_leaf` (the Tier 0 stream of one leaf) and `query_leaf` (its entities, a page at a time), without a
+//! window to cull by and without a scan over the whole file. `docs/WASM_ABI.md` is the contract; every test name carries the issue number.
 #![allow(missing_docs)]
 
-use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter};
+use pvec::{Bounds2, Curve, EntityId, Manifest, PvecWriter, Transform2};
 use pvec_container::directory::BlockKind;
 use pvec_container::reader::{ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
 use pvec_geometry::{BSpline, Ellipse, Placement2, Point2, Polyline, Vector2};
-use pvec_wasm::{AbiError, Runtime, WASM_ABI_VERSION};
+use pvec_wasm::{AbiError, Precision, Runtime, WASM_ABI_VERSION};
 use std::fs;
 use std::path::Path;
 
@@ -237,4 +237,165 @@ fn issue_238_a_range_opened_file_reads_only_that_leafs_tier0_block_and_no_hot_bl
     let before = host.served.len();
     host.run(&mut rt, f, |r| r.tier0_leaf(f, cell)).unwrap();
     assert_eq!(host.served.len(), before, "what was read stays read");
+}
+
+fn ctx() -> pvec::TessellationContext {
+    pvec::TessellationContext {
+        source_to_map: Transform2::IDENTITY,
+        map_to_screen: Transform2::scale(8.0, 8.0).unwrap(),
+        pixel_ratio: 1.0,
+        max_screen_error_px: 0.25,
+        max_world_error: f64::INFINITY,
+        max_segments: 4096,
+    }
+}
+
+/// The entity ids of `count` entities of a leaf from the `first`th, and whether more remain.
+fn leaf_page(rt: &mut Runtime, f: u32, cell: u32, first: u32, count: u32) -> (Vec<u32>, bool) {
+    let b = rt.query_leaf(f, cell, first, count).unwrap();
+    let truncated = rt.batch_truncated(b).unwrap();
+    let t = rt.tessellate_batch(b, &ctx(), Precision::F64).unwrap();
+    let ids = rt.entity_ids(t).unwrap().to_vec();
+    assert_eq!(rt.batch_len(b).unwrap() as usize, ids.len());
+    (ids, truncated)
+}
+
+#[test]
+fn issue_238_the_document_names_query_leaf() {
+    let doc =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/WASM_ABI.md")).unwrap();
+    for needle in ["query_leaf", "cell 0", "first"] {
+        assert!(doc.contains(needle), "docs/WASM_ABI.md does not mention {needle}");
+    }
+}
+
+#[test]
+fn issue_238_pages_of_a_leaf_are_its_entities_in_ascending_id_and_the_flag_says_when_more_remain() {
+    let mut rt = Runtime::new();
+    let f = rt.open(indexed()).unwrap();
+    let (cells, counts) = cells(&mut rt, f);
+    for (cell, count) in cells.into_iter().zip(counts) {
+        let mut got = Vec::new();
+        let mut first = 0;
+        loop {
+            let (page, more) = leaf_page(&mut rt, f, cell, first, 3);
+            assert!(page.len() <= 3);
+            first += page.len() as u32;
+            got.extend(page);
+            if !more {
+                break;
+            }
+        }
+        assert_eq!(got.len() as u32, count, "cell {cell}");
+        assert!(got.windows(2).all(|w| w[0] < w[1]), "cell {cell}: ascending");
+        let t = rt.tier0_leaf(f, cell).unwrap();
+        assert_eq!(&got, &rt.tier0(t).unwrap().ids, "cell {cell}: the entities the leaf's Tier 0 stream is about");
+    }
+}
+
+#[test]
+fn issue_238_the_leaves_and_cell_0_are_every_entity_once() {
+    let mut rt = Runtime::new();
+    let f = rt.open(indexed()).unwrap();
+    let all = rt.query_viewport(f, everything(), u32::MAX).unwrap();
+    let all = rt.tessellate_batch(all, &ctx(), Precision::F64).unwrap();
+    let want = rt.entity_ids(all).unwrap().to_vec();
+    let (cells, _) = cells(&mut rt, f);
+    let mut got: Vec<u32> = Vec::new();
+    for cell in cells.into_iter().chain([0]) {
+        got.extend(leaf_page(&mut rt, f, cell, 0, u32::MAX).0);
+    }
+    got.sort_unstable();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn issue_238_cell_0_is_the_advanced_curves() {
+    let mut rt = Runtime::new();
+    let f = rt.open(indexed()).unwrap();
+    assert_eq!(leaf_page(&mut rt, f, 0, 0, 10), (vec![102, 103], false));
+    assert_eq!(leaf_page(&mut rt, f, 0, 1, 10), (vec![103], false));
+    assert_eq!(leaf_page(&mut rt, f, 0, 0, 1), (vec![102], true));
+}
+
+#[test]
+fn issue_238_a_page_tessellates_to_what_the_viewport_batch_gives_for_those_entities() {
+    let mut rt = Runtime::new();
+    let f = rt.open(indexed()).unwrap();
+    let all = rt.query_viewport(f, everything(), u32::MAX).unwrap();
+    let all = rt.tessellate_batch(all, &ctx(), Precision::F64).unwrap();
+    let (all_ids, all_off, all_v) =
+        (rt.entity_ids(all).unwrap().to_vec(), rt.offsets(all).unwrap().to_vec(), rt.vertices_f64(all).unwrap().to_vec());
+    let (cells, _) = cells(&mut rt, f);
+    for cell in cells.into_iter().chain([0]) {
+        let b = rt.query_leaf(f, cell, 0, u32::MAX).unwrap();
+        let t = rt.tessellate_batch(b, &ctx(), Precision::F64).unwrap();
+        let (ids, off, v) = (rt.entity_ids(t).unwrap().to_vec(), rt.offsets(t).unwrap().to_vec(), rt.vertices_f64(t).unwrap().to_vec());
+        for (k, id) in ids.iter().enumerate() {
+            let at = all_ids.binary_search(id).unwrap();
+            assert_eq!(
+                v[off[k] as usize * 2..off[k + 1] as usize * 2],
+                all_v[all_off[at] as usize * 2..all_off[at + 1] as usize * 2],
+                "entity {id}"
+            );
+        }
+    }
+}
+
+#[test]
+fn issue_238_query_leaf_misuse_is_refused_and_never_panics() {
+    let mut rt = Runtime::new();
+    let f = rt.open(indexed()).unwrap();
+    let (ids, counts) = cells(&mut rt, f);
+    assert_eq!(rt.query_leaf(f, ids.iter().max().unwrap() + 1, 0, 1), Err(AbiError::BadArgument));
+    assert_eq!(rt.query_leaf(f, u32::MAX, 0, 1), Err(AbiError::BadArgument));
+    // a page past the end is an empty page, not an error
+    let b = rt.query_leaf(f, ids[0], counts[0], 5).unwrap();
+    assert_eq!(rt.batch_len(b), Ok(0));
+    assert_eq!(rt.batch_truncated(b), Ok(false));
+    let t = rt.tier0_leaf(f, ids[0]).unwrap();
+    assert_eq!(rt.query_leaf(t, ids[0], 0, 1), Err(AbiError::WrongKind));
+    let plain = rt.open(file(None)).unwrap();
+    assert_eq!(rt.query_leaf(plain, 1, 0, 1), Err(AbiError::NoIndex));
+    rt.release(f).unwrap();
+    assert_eq!(rt.query_leaf(f, ids[0], 0, 1), Err(AbiError::Released));
+}
+
+#[test]
+fn issue_238_a_range_opened_file_reads_the_hot_blocks_of_that_leaf_only_and_cell_0_reads_the_advanced_chunks() {
+    let bytes = indexed();
+    let reader = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
+    let mut host = Host { bytes: bytes.clone(), served: Vec::new() };
+    let mut rt = Runtime::new();
+    let h = rt.open_ranged(bytes.len() as u64).unwrap();
+    let f = loop {
+        match rt.open_poll(h) {
+            Ok(f) => break f,
+            Err(AbiError::NeedRange) => host.serve(&mut rt, h),
+            Err(e) => panic!("open failed: {e:?}"),
+        }
+    };
+    let opened = host.served.len();
+    let mut mem = Runtime::new();
+    let m = mem.open(bytes).unwrap();
+    let (ids, _) = cells(&mut rt, f);
+    let cell = ids[2];
+    let b = host.run(&mut rt, f, |r| r.query_leaf(f, cell, 0, u32::MAX)).unwrap();
+    let t = rt.tessellate_batch(b, &ctx(), Precision::F64).unwrap();
+    let want = mem.query_leaf(m, cell, 0, u32::MAX).unwrap();
+    let want = mem.tessellate_batch(want, &ctx(), Precision::F64).unwrap();
+    assert_eq!(rt.entity_ids(t).unwrap(), mem.entity_ids(want).unwrap());
+    assert_eq!(rt.vertices_f64(t).unwrap(), mem.vertices_f64(want).unwrap());
+    for e in reader.entries().iter().filter(|e| e.block_kind() == Some(BlockKind::Hot) && e.cell != cell) {
+        let hit = host.served[opened..]
+            .iter()
+            .any(|(o, l)| *o < e.offset + u64::from(e.stored_length) && e.offset < o + u64::from(*l));
+        assert!(!hit, "the hot block of cell {} was requested for a page of cell {cell}", e.cell);
+    }
+    let before = host.served.len();
+    host.run(&mut rt, f, |r| r.query_leaf(f, cell, 0, u32::MAX)).unwrap();
+    assert_eq!(host.served.len(), before, "what was read stays read");
+    let adv = host.run(&mut rt, f, |r| r.query_leaf(f, 0, 0, u32::MAX)).unwrap();
+    let adv = rt.tessellate_batch(adv, &ctx(), Precision::F64).unwrap();
+    assert_eq!(rt.entity_ids(adv).unwrap(), &[102, 103]);
 }
