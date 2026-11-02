@@ -30,10 +30,9 @@ P7.2 and the full packed layout of P7.3 are not here yet.
 comes back as the kind that describes it: a Bezier curve is stored as a B-spline and is read as one,
 a stored segment is a trimmed line, a circle or ellipse arc is a trimmed conic. Writing what was read
 writes the same bytes, which `tests/public_roundtrip.rs` checks on the P2.4 canonical fixtures
-(writer, reader, writer). Two limits remain: a composite whose segments are trimmed is refused, and
-component streams are written but not yet read back.
+(writer, reader, writer). One limit remains: a composite whose segments are trimmed is refused.
 
-`PvecReader::streams()` returns the component streams the reader knows, in file order, and the ones it stepped over, from the file's component block (two empty lists when there is none).
+`PvecReader::streams()` reads the component streams back: it returns the ones the reader knows, in file order, and the ones it stepped over, from the file's component block (two empty lists when there is none).
 
 ## Exact evaluation and tessellation (issue P7.2)
 
