@@ -4,7 +4,8 @@
 use pvec::EntityId;
 use pvec::components::{
     ElementClass, ElementEntry, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LineStyleDef, LineStyleStream, Origin,
-    ProvenanceRecord, ProvenanceStream, RegionKind, RegionRecord, SemanticClassStream, SourceTag, StrokeWidth,
+    ProvenanceRecord, ProvenanceStream, RegionKind, RegionRecord, SemanticClassStream, SourceTag,
+    StrokeWidth,
 };
 
 #[test]
@@ -21,7 +22,9 @@ fn issue_259_a_consumer_fills_the_line_style_provenance_and_semantic_streams() {
         assignments: vec![(e(0), 0)],
     };
     assert_eq!(LineStyleStream::decode(&styles.encode().unwrap()).unwrap(), styles);
-    let prov = ProvenanceStream { records: vec![ProvenanceRecord { entity: e(0), source_kind: 1, handle: vec![1, 2] }] };
+    let prov = ProvenanceStream {
+        records: vec![ProvenanceRecord { entity: e(0), source_kind: 1, handle: vec![1, 2] }],
+    };
     assert_eq!(ProvenanceStream::decode(&prov.encode().unwrap()).unwrap(), prov);
     let sem = SemanticClassStream {
         elements: vec![ElementEntry {
