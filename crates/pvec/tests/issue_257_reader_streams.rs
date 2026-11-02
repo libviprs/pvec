@@ -4,7 +4,7 @@
 
 use pvec::components::Stream;
 use pvec::{Bounds2, Curve, EntityId, Manifest, PvecReader, PvecWriter};
-use pvec_capabilities::{CapabilityId, Registry, Version};
+use pvec_capabilities::{Registry, Version};
 use pvec_components::{LayerStream, SemanticClassStream, SkipReason};
 
 fn manifest() -> Manifest {
@@ -71,19 +71,19 @@ fn issue_257_the_streams_come_back_as_written() {
 }
 
 #[test]
-fn issue_257_a_stream_the_registry_does_not_know_is_listed_as_skipped() {
-    let unknown = Stream {
-        capability: CapabilityId::new(0x7fff_0001),
-        version: Version::new(1, 0, 0),
+fn issue_257_a_stream_of_another_major_version_is_listed_as_skipped() {
+    let newer = Stream {
+        capability: SemanticClassStream::CAPABILITY,
+        version: Version::new(9, 0, 0),
         payload: vec![1, 2, 3],
     };
     let layer = layers();
-    let r = PvecReader::open(write(vec![layer.clone(), unknown])).unwrap();
+    let r = PvecReader::open(write(vec![layer.clone(), newer])).unwrap();
     let (streams, skipped) = r.streams().unwrap();
     assert_eq!(streams, vec![layer]);
     assert_eq!(skipped.len(), 1);
-    assert_eq!(skipped[0].capability, CapabilityId::new(0x7fff_0001));
-    assert_eq!(skipped[0].reason, SkipReason::UnknownCapability);
+    assert_eq!(skipped[0].capability, SemanticClassStream::CAPABILITY);
+    assert_eq!(skipped[0].reason, SkipReason::IncompatibleVersion);
 }
 
 #[test]

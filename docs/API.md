@@ -33,6 +33,8 @@ writes the same bytes, which `tests/public_roundtrip.rs` checks on the P2.4 cano
 (writer, reader, writer). Two limits remain: a composite whose segments are trimmed is refused, and
 component streams are written but not yet read back.
 
+`PvecReader::streams()` returns the component streams the reader knows, in file order, and the ones it stepped over, from the file's component block (two empty lists when there is none).
+
 ## Exact evaluation and tessellation (issue P7.2)
 
 `CurveEval` is exact: `domain`, `point_at`, `derivative_at` (two-sided, refused where only one-sided limits
