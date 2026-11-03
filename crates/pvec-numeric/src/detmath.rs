@@ -155,3 +155,9 @@ pub fn atan2(y: f64, x: f64) -> f64 {
 fn exponent(v: f64) -> i32 {
     i32::try_from((v.to_bits() >> 52) & 0x7ff).unwrap_or(0)
 }
+
+/// The length of the vector `(x, y)`, `sqrt(x*x + y*y)` without the overflow, within two ulps.
+pub fn hypot(x: f64, y: f64) -> f64 {
+    let _ = (x, y);
+    unimplemented!("issue #261")
+}

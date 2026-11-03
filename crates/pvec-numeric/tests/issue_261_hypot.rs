@@ -1,0 +1,107 @@
+//! Issue 261: `f64::hypot` goes to the C library of the machine and its last bit differs between
+//! x86_64 and arm64 glibc, so `detmath::hypot` builds it from `+ - * /` and `sqrt` alone.
+
+use pvec_numeric::detmath::hypot;
+
+fn ulps(a: f64, b: f64) -> u64 {
+    a.to_bits().abs_diff(b.to_bits())
+}
+
+#[test]
+fn exact_cases_stay_exact() {
+    assert_eq!(hypot(3.0, 4.0), 5.0);
+    assert_eq!(hypot(-3.0, 4.0), 5.0);
+    assert_eq!(hypot(4.0, -3.0), 5.0);
+    assert_eq!(hypot(5.0, 12.0), 13.0);
+    assert_eq!(hypot(3.0e150, 4.0e150), 5.0e150);
+    assert_eq!(hypot(3.0e-150, 4.0e-150), 5.0e-150);
+}
+
+#[test]
+fn a_zero_component_gives_the_other_magnitude() {
+    assert_eq!(hypot(0.0, 0.0).to_bits(), 0.0f64.to_bits());
+    assert_eq!(hypot(-0.0, -0.0).to_bits(), 0.0f64.to_bits());
+    assert_eq!(hypot(0.0, -7.5), 7.5);
+    assert_eq!(hypot(-7.5, 0.0), 7.5);
+    assert_eq!(hypot(f64::MIN_POSITIVE / 4.0, 0.0), f64::MIN_POSITIVE / 4.0);
+}
+
+#[test]
+fn infinity_and_nan_follow_ieee() {
+    assert_eq!(hypot(f64::INFINITY, 1.0), f64::INFINITY);
+    assert_eq!(hypot(-1.0, f64::NEG_INFINITY), f64::INFINITY);
+    assert_eq!(hypot(f64::NAN, f64::INFINITY), f64::INFINITY);
+    assert_eq!(hypot(f64::NEG_INFINITY, f64::NAN), f64::INFINITY);
+    assert!(hypot(f64::NAN, 1.0).is_nan());
+    assert!(hypot(2.0, f64::NAN).is_nan());
+}
+
+#[test]
+fn neither_overflow_nor_underflow_in_the_squares() {
+    let big = hypot(1.0e200, 1.0e200);
+    assert!(big.is_finite());
+    assert!(ulps(big, 1.0e200 * std::f64::consts::SQRT_2) <= 2);
+    let small = hypot(1.0e-200, 1.0e-200);
+    assert!(small > 0.0);
+    assert!(ulps(small, 1.0e-200 * std::f64::consts::SQRT_2) <= 2);
+    // the true length is above MAX, so infinity is the right answer
+    assert_eq!(hypot(f64::MAX, f64::MAX), f64::INFINITY);
+    assert!(hypot(f64::MAX, 1.0).is_finite());
+    // a subnormal pair
+    let tiny = f64::from_bits(3);
+    assert_eq!(hypot(tiny, tiny).to_bits(), f64::from_bits(4).to_bits());
+}
+
+#[test]
+fn symmetric_in_sign_and_order() {
+    for i in 1..200 {
+        let (x, y) = (f64::from(i) * 0.731, f64::from(i * 7 % 101) * -0.419);
+        let h = hypot(x, y).to_bits();
+        assert_eq!(hypot(y, x).to_bits(), h);
+        assert_eq!(hypot(-x, y).to_bits(), h);
+        assert_eq!(hypot(x, -y).to_bits(), h);
+    }
+}
+
+#[test]
+fn within_two_ulps_of_the_c_library() {
+    let mut s = 0x2545_f491_4f6c_dd1d_u64;
+    for _ in 0..20_000 {
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        let x = (s >> 11) as f64 / (1u64 << 53) as f64 * 2000.0 - 1000.0;
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        let y = (s >> 11) as f64 / (1u64 << 53) as f64 * 2000.0 - 1000.0;
+        assert!(ulps(hypot(x, y), x.hypot(y)) <= 2, "hypot({x}, {y})");
+    }
+}
+
+#[test]
+fn the_arithmetic_is_pinned_bit_for_bit_so_every_machine_gets_the_same_length() {
+    assert_eq!(hypot(0.28, 0.96).to_bits(), HYPOT_0_28_0_96);
+    assert_eq!(hypot(1.0, 1.0).to_bits(), std::f64::consts::SQRT_2.to_bits());
+    assert_eq!(hypot(0.1, 0.2).to_bits(), HYPOT_0_1_0_2);
+    assert_eq!(hypot(123.456, -789.012).to_bits(), HYPOT_123_456_789_012);
+}
+
+// Filled in from the implementation's output; see the commit that adds it.
+const HYPOT_0_28_0_96: u64 = 0;
+const HYPOT_0_1_0_2: u64 = 0;
+const HYPOT_123_456_789_012: u64 = 0;
+
+#[test]
+fn normalise_direction_and_is_unit_use_it() {
+    use pvec_numeric::Policy;
+    for (dx, dy) in [(0.1, 0.2), (123.456, -789.012), (-0.57735, 0.8165), (3.3e4, 4.4e4)] {
+        let m = f64::max(f64::abs(dx), f64::abs(dy));
+        let (sx, sy) = (dx / m, dy / m);
+        let n = hypot(sx, sy);
+        let d = Policy::V1.normalise_direction(dx, dy).unwrap();
+        assert_eq!(d[0].to_bits(), (sx / n).to_bits(), "({dx}, {dy})");
+        assert_eq!(d[1].to_bits(), (sy / n).to_bits(), "({dx}, {dy})");
+        assert!(Policy::V1.is_unit(d));
+    }
+}
