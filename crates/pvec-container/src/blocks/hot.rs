@@ -9,7 +9,7 @@
 use crate::blocks::aligned::{AlignedBytes, f64s, u32s};
 use crate::spec::FieldSpec;
 use pvec_entity::EntityId;
-use pvec_numeric::{MAX_ENTITIES, NumericError, Policy, check_value};
+use pvec_numeric::{MAX_ENTITIES, NumericError, Policy, check_value, detmath};
 
 /// The four magic bytes of a hot block.
 pub const HOT_MAGIC: [u8; 4] = *b"PVH1";
@@ -348,7 +348,7 @@ fn magnitude(values: &[f64]) -> f64 {
 
 /// NP-06 for the segment from `a` to `b`.
 fn degenerate_segment(a: [f64; 2], b: [f64; 2]) -> bool {
-    POLICY.degenerate_length((b[0] - a[0]).hypot(b[1] - a[1]), magnitude(&[a[0], a[1], b[0], b[1]]))
+    POLICY.degenerate_length(detmath::hypot(b[0] - a[0], b[1] - a[1]), magnitude(&[a[0], a[1], b[0], b[1]]))
 }
 
 /// NP-06 and NP-07 for one entity of `kind`, whose values have already passed `check_value`. `row` is

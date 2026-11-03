@@ -11,7 +11,7 @@
 use crate::generation::{Applied, DropCounts, DropReason, Generation, Refinement, RefinementResult, Update};
 use pvec_entity::{EntityError, EntityId, check_dense};
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
-use pvec_numeric::MAX_ENTITIES;
+use pvec_numeric::{MAX_ENTITIES, detmath};
 use std::collections::BTreeMap;
 
 /// The most vertices one preview may hold.
@@ -679,12 +679,12 @@ fn seg_dist(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let l2 = dx * dx + dy * dy;
     let t = if l2 == 0.0 { 0.0 } else { (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0) };
-    (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy)
+    detmath::hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
 }
 
 fn dist_to(p: [f64; 2], poly: &[[f64; 2]]) -> f64 {
     if poly.len() == 1 {
-        return (p[0] - poly[0][0]).hypot(p[1] - poly[0][1]);
+        return detmath::hypot(p[0] - poly[0][0], p[1] - poly[0][1]);
     }
     poly.windows(2).map(|w| seg_dist(p, w[0], w[1])).fold(f64::INFINITY, f64::min)
 }

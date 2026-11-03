@@ -153,7 +153,8 @@ impl Policy {
         let det = left - right;
         let u = 1.0 / (1u64 << 53) as f64;
         let err = (3.0 + 16.0 * u) * u * (left.abs() + right.abs());
-        let l = (b[0] - a[0]).hypot(b[1] - a[1]).max((c[0] - a[0]).hypot(c[1] - a[1]));
+        let l = crate::detmath::hypot(b[0] - a[0], b[1] - a[1])
+            .max(crate::detmath::hypot(c[0] - a[0], c[1] - a[1]));
         let mag = a[0].abs().max(a[1].abs()).max(b[0].abs()).max(b[1].abs()).max(c[0].abs()).max(c[1].abs());
         let band = err.max(self.tol(l, mag) * l);
         if det.abs() <= band {
@@ -170,7 +171,7 @@ impl Policy {
     pub fn hull_class(&self, pts: &[[f64; 2]]) -> HullClass {
         let Some(&p0) = pts.first() else { return HullClass::Point };
         let mag = pts.iter().fold(0.0f64, |m, p| m.max(p[0].abs()).max(p[1].abs()));
-        let dist = |p: [f64; 2], q: [f64; 2]| (p[0] - q[0]).hypot(p[1] - q[1]);
+        let dist = |p: [f64; 2], q: [f64; 2]| crate::detmath::hypot(p[0] - q[0], p[1] - q[1]);
         let far = pts.iter().copied().fold(p0, |best, p| if dist(p0, p) > dist(p0, best) { p } else { best });
         if self.degenerate_length(dist(p0, far), mag) {
             return HullClass::Point;
