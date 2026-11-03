@@ -285,8 +285,8 @@ impl Trimmed {
     /// approximated.
     ///
     /// The angles come from `pvec_numeric::detmath` (within one ulp, the same bits on every machine); the
-    /// rest is `hypot` and the basic operations; the formulas are written so a large bulge cannot overflow before
-    /// the radius itself does.
+    /// chord is `Point2::distance`, which is `detmath::hypot`, and the rest is the basic operations; the formulas are
+    /// written so a large bulge cannot overflow before the radius itself does.
     pub fn from_bulge(p0: Point2, p1: Point2, bulge: f64) -> Result<Trimmed> {
         let (p0, p1) = (Point2::checked(p0.x, p0.y)?, Point2::checked(p1.x, p1.y)?);
         let b = check_value(bulge)?;

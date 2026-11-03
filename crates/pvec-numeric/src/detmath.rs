@@ -1,4 +1,4 @@
-//! Arctangent from basic arithmetic only (issue #101).
+//! Arctangent and hypotenuse from basic arithmetic only (issues #101 and #261).
 //!
 //! The standard library's `atan` and `atan2` call the C library of the machine, and the last bit of
 //! what they return belongs to that library, not to PVec: the same call gives different bits on
@@ -154,4 +154,25 @@ pub fn atan2(y: f64, x: f64) -> f64 {
 /// The biased exponent field of a finite value, which is all fdlibm's `(iy - ix) >> 20` reads.
 fn exponent(v: f64) -> i32 {
     i32::try_from((v.to_bits() >> 52) & 0x7ff).unwrap_or(0)
+}
+
+/// The length of the vector `(x, y)`, `sqrt(x*x + y*y)` without the overflow, within two ulps.
+///
+/// `f64::hypot` calls the C library and its last bit differs between x86_64 and arm64 glibc (issue
+/// #261). This scales by the larger magnitude, so the square cannot overflow or underflow, and takes
+/// one `sqrt`, which IEEE 754 rounds correctly. An infinity wins over a NaN, as in C99.
+pub fn hypot(x: f64, y: f64) -> f64 {
+    if x.is_infinite() || y.is_infinite() {
+        return f64::INFINITY;
+    }
+    if x.is_nan() || y.is_nan() {
+        return f64::NAN;
+    }
+    let (ax, ay) = (x.abs(), y.abs());
+    let (big, small) = if ax >= ay { (ax, ay) } else { (ay, ax) };
+    if small == 0.0 {
+        return big;
+    }
+    let r = small / big;
+    big * (1.0 + r * r).sqrt()
 }

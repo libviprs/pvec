@@ -1,7 +1,7 @@
 //! Points, vectors, parameter domains, bounds and the closed list of curve kinds.
 
 use crate::error::Result;
-use pvec_numeric::check_value;
+use pvec_numeric::{check_value, detmath};
 
 /// A point in the plane. Plain data: the curve constructors validate what they are given.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -31,7 +31,7 @@ impl Point2 {
 
     /// Euclidean distance to `other`.
     pub fn distance(self, other: Point2) -> f64 {
-        (other.x - self.x).hypot(other.y - self.y)
+        detmath::hypot(other.x - self.x, other.y - self.y)
     }
 
     pub(crate) fn mag(self) -> f64 {
@@ -60,7 +60,7 @@ impl Vector2 {
 
     /// Euclidean length.
     pub fn length(self) -> f64 {
-        self.x.hypot(self.y)
+        detmath::hypot(self.x, self.y)
     }
 
     /// Dot product.
@@ -158,7 +158,7 @@ impl Bounds {
 
     /// Length of the diagonal.
     pub fn diagonal(&self) -> f64 {
-        (self.max.x - self.min.x).hypot(self.max.y - self.min.y)
+        detmath::hypot(self.max.x - self.min.x, self.max.y - self.min.y)
     }
 
     /// Largest coordinate magnitude, the `mag` argument of the tolerance formula (NP-04).
