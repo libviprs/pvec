@@ -133,13 +133,13 @@ impl Policy {
         }
         // Scale by the largest component first so squaring cannot overflow or underflow.
         let (sx, sy) = (dx / m, dy / m);
-        let n = sx.hypot(sy);
+        let n = crate::detmath::hypot(sx, sy);
         Ok([sx / n, sy / n])
     }
 
     /// NP-10: a stored direction is unit length within tolerance.
     pub fn is_unit(&self, d: [f64; 2]) -> bool {
-        self.near(d[0].hypot(d[1]), 1.0, 1.0)
+        self.near(crate::detmath::hypot(d[0], d[1]), 1.0, 1.0)
     }
 
     /// NP-09: orientation of `c` relative to `a -> b`, with a collinear band.

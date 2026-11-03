@@ -13,8 +13,9 @@ fn exact_cases_stay_exact() {
     assert_eq!(hypot(-3.0, 4.0), 5.0);
     assert_eq!(hypot(4.0, -3.0), 5.0);
     assert_eq!(hypot(5.0, 12.0), 13.0);
-    assert_eq!(hypot(3.0e150, 4.0e150), 5.0e150);
-    assert_eq!(hypot(3.0e-150, 4.0e-150), 5.0e-150);
+    let (up, down) = (2.0f64.powi(500), 2.0f64.powi(-500));
+    assert_eq!(hypot(3.0 * up, 4.0 * up), 5.0 * up);
+    assert_eq!(hypot(3.0 * down, 4.0 * down), 5.0 * down);
 }
 
 #[test]
@@ -38,12 +39,13 @@ fn infinity_and_nan_follow_ieee() {
 
 #[test]
 fn neither_overflow_nor_underflow_in_the_squares() {
-    let big = hypot(1.0e200, 1.0e200);
+    let (up, down) = (2.0f64.powi(700), 2.0f64.powi(-700));
+    let big = hypot(up, up);
     assert!(big.is_finite());
-    assert!(ulps(big, 1.0e200 * std::f64::consts::SQRT_2) <= 2);
-    let small = hypot(1.0e-200, 1.0e-200);
+    assert_eq!(big.to_bits(), (up * std::f64::consts::SQRT_2).to_bits());
+    let small = hypot(down, down);
     assert!(small > 0.0);
-    assert!(ulps(small, 1.0e-200 * std::f64::consts::SQRT_2) <= 2);
+    assert_eq!(small.to_bits(), (down * std::f64::consts::SQRT_2).to_bits());
     // the true length is above MAX, so infinity is the right answer
     assert_eq!(hypot(f64::MAX, f64::MAX), f64::INFINITY);
     assert!(hypot(f64::MAX, 1.0).is_finite());
@@ -87,15 +89,14 @@ fn the_arithmetic_is_pinned_bit_for_bit_so_every_machine_gets_the_same_length() 
     assert_eq!(hypot(123.456, -789.012).to_bits(), HYPOT_123_456_789_012);
 }
 
-// Filled in from the implementation's output; see the commit that adds it.
-const HYPOT_0_28_0_96: u64 = 0;
-const HYPOT_0_1_0_2: u64 = 0;
-const HYPOT_123_456_789_012: u64 = 0;
+const HYPOT_0_28_0_96: u64 = 0x3ff0_0000_0000_0000;
+const HYPOT_0_1_0_2: u64 = 0x3fcc_9f25_c5bf_edda;
+const HYPOT_123_456_789_012: u64 = 0x4088_f4e5_9fc8_ba4f;
 
 #[test]
 fn normalise_direction_and_is_unit_use_it() {
     use pvec_numeric::Policy;
-    for (dx, dy) in [(0.1, 0.2), (123.456, -789.012), (-0.57735, 0.8165), (3.3e4, 4.4e4)] {
+    for (dx, dy) in [(0.1, 0.2), (123.456, -789.012), (-0.57735, 0.8165), (33000.0, 44000.0)] {
         let m = f64::max(f64::abs(dx), f64::abs(dy));
         let (sx, sy) = (dx / m, dy / m);
         let n = hypot(sx, sy);
