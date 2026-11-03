@@ -9,10 +9,13 @@ fn ulps(a: f64, b: f64) -> u64 {
 
 #[test]
 fn exact_cases_stay_exact() {
+    // Guaranteed, not lucky: the smaller over the larger is 3/4 for each of these, which is a double,
+    // and 1 + 9/16 = 25/16 and its square root 5/4 and the final product by 4 are all exact.
     assert_eq!(hypot(3.0, 4.0), 5.0);
     assert_eq!(hypot(-3.0, 4.0), 5.0);
     assert_eq!(hypot(4.0, -3.0), 5.0);
-    assert_eq!(hypot(5.0, 12.0), 13.0);
+    // 5 and 12 give r = 5/12, which is not a double, so 13 is within an ulp and nothing more is promised.
+    assert!(ulps(hypot(5.0, 12.0), 13.0) <= 1);
     let (up, down) = (2.0f64.powi(500), 2.0f64.powi(-500));
     assert_eq!(hypot(3.0 * up, 4.0 * up), 5.0 * up);
     assert_eq!(hypot(3.0 * down, 4.0 * down), 5.0 * down);
@@ -105,4 +108,26 @@ fn normalise_direction_and_is_unit_use_it() {
         assert_eq!(d[1].to_bits(), (sy / n).to_bits(), "({dx}, {dy})");
         assert!(Policy::V1.is_unit(d));
     }
+}
+
+// Inputs found by search where the C library of x86_64 glibc and `detmath::hypot` differ by one ulp
+// on opposite sides of a tolerance, so the decision below changes if a predicate goes back to
+// `f64::hypot`. Each holds the bits, so no literal can be rounded differently.
+const SEG: [f64; 2] = [f64::from_bits(0x3d65_ac3a_dd10_d876), f64::from_bits(0x3d6b_b78b_f4a3_9cf4)];
+
+#[test]
+fn a_hull_whose_far_point_is_exactly_the_floor_away_is_a_point() {
+    use pvec_numeric::{HullClass, Policy};
+    // detmath::hypot(SEG) is the NP-06 floor itself (degenerate); the C library says one ulp more.
+    assert_eq!(Policy::V1.hull_class(&[[0.0, 0.0], SEG]), HullClass::Point);
+}
+
+#[test]
+fn the_collinear_band_uses_the_deterministic_length() {
+    use pvec_numeric::{Orientation, Policy};
+    let b = [f64::from_bits(0x3d79_d1d5_4ab5_98a5), f64::from_bits(0x3d67_386a_46d6_b215)];
+    let c = [f64::from_bits(0x3d76_38e7_30e1_d748), f64::from_bits(0xbd62_97ba_c57f_b3aa)];
+    // detmath::hypot puts this determinant inside the band; the C library's longer edge by one ulp
+    // moves the band just under it.
+    assert_eq!(Policy::V1.orient2d([0.0, 0.0], b, c), Orientation::Collinear);
 }
