@@ -1,5 +1,8 @@
+use crate::components::{Skipped, Stream};
 use crate::{Curve, EntityId, Manifest, PvecError};
 use core::f64::consts::TAU;
+use pvec_capabilities::{FORMAT_VERSION, Reader, Registry};
+use pvec_components::read_streams;
 use pvec_container::blocks::advanced::CurveView;
 use pvec_container::blocks::hot::HotKind;
 use pvec_container::directory::{BlockKind, STRADDLER_CELL_FIRST};
@@ -222,6 +225,27 @@ impl PvecReader {
     /// What the file says about itself.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// The component streams of the file from its component block: the ones this reader knows, in file
+    /// order, and the ones it stepped over (an unknown capability, or another major version). A file with
+    /// no component block gives two empty lists. A frame that is damaged, or that declares a geometry
+    /// capability, refuses the whole block.
+    pub fn streams(&self) -> Result<(Vec<Stream>, Vec<Skipped>), PvecError> {
+        let Some(at) =
+            self.inner.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components))
+        else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        let block = self.inner.read_block(BlockId(at as u32)).map_err(container)?;
+        let registry = Registry::v1();
+        let reader = Reader {
+            version: FORMAT_VERSION,
+            implemented: registry.entries().iter().map(|c| c.id).collect(),
+        };
+        let opened = read_streams(block.as_bytes(), &registry, &reader)
+            .map_err(|e| PvecError::Read { rule: e.rule().to_string() })?;
+        Ok((opened.streams, opened.skipped))
     }
 
     /// Reads and checks every block and returns the number of entities in the file.
