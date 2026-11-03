@@ -2,10 +2,10 @@
 //! with the ones the reader stepped over listed apart. A file with no component block gives an empty pair,
 //! and dropping one stream leaves the others parsing.
 
-use pvec::components::Stream;
+use pvec::components::{SkipReason, Stream};
 use pvec::{Bounds2, Curve, EntityId, Manifest, PvecReader, PvecWriter};
 use pvec_capabilities::{Registry, Version};
-use pvec_components::{LayerStream, SemanticClassStream, SkipReason};
+use pvec_components::{LayerStream, SemanticClassStream};
 
 fn manifest() -> Manifest {
     Manifest {

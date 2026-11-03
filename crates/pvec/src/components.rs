@@ -2,6 +2,7 @@
 //! them evolve without touching the geometry core.
 
 pub use pvec_components::{
-    Fill, HatchStream, LayerStream, LineStyleStream, ProvenanceStream, SemanticClassStream, SkipReason,
-    Skipped, Stream, TextStream,
+    ElementClass, ElementEntry, EntityGeometry, Fill, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF,
+    LayerStream, LineStyleDef, LineStyleStream, Origin, ProvenanceRecord, ProvenanceStream, RegionError,
+    RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stream, StrokeWidth, TextStream,
 };

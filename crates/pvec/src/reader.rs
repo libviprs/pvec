@@ -244,7 +244,7 @@ impl PvecReader {
             implemented: registry.entries().iter().map(|c| c.id).collect(),
         };
         let opened = read_streams(block.as_bytes(), &registry, &reader)
-            .map_err(|e| PvecError::Read { rule: e.to_string() })?;
+            .map_err(|e| PvecError::Read { rule: e.rule().to_string() })?;
         Ok((opened.streams, opened.skipped))
     }
 
