@@ -22,6 +22,7 @@ pvec-container = { path = "../pvec-container" }
 pvec-corpus = { path = "../pvec-corpus" }
 pvec-entity = { path = "../pvec-entity" }
 pvec-interchange = { path = "../pvec-interchange" }
+pvec-numeric = { path = "../pvec-numeric" }
 pvec-stream = { path = "../pvec-stream" }
 pvec-testkit = { path = "../pvec-testkit" }
 

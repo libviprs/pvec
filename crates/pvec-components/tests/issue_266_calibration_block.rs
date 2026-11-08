@@ -3,9 +3,9 @@
 //! the calibration with its own rule.
 
 use pvec_components::{
-    CALIBRATION_ERRORS, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat,
-    FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance, ScaleClaim,
-    check_residual, decode_calibration, encode_calibration,
+    CALIBRATION_ERRORS, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind,
+    DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance,
+    ScaleClaim, check_residual, decode_calibration, encode_calibration,
 };
 
 const HEADER: usize = 16;
@@ -49,7 +49,10 @@ fn geopdf() -> Calibration {
     let m = [0.0001, 0.0, 0.0, 0.0001, -1.5, 51.25];
     let control_points: Vec<ControlPoint> = corners
         .iter()
-        .map(|&[x, y]| ControlPoint { source: [x, y], world: [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]] })
+        .map(|&[x, y]| ControlPoint {
+            source: [x, y],
+            world: [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]],
+        })
         .collect();
     Calibration {
         scale: Some(ScaleClaim {
@@ -108,7 +111,11 @@ fn the_header_and_the_scale_record_are_where_the_spec_puts_them() {
     assert_eq!(f(16).to_bits(), (0.0254f64 / 72.0).to_bits());
     assert_eq!(u32::from_le_bytes(b[HEADER + 24..HEADER + 28].try_into().unwrap()), 1);
     assert_eq!(u32::from_le_bytes(b[HEADER + 28..HEADER + 32].try_into().unwrap()), 100);
-    assert_eq!((b[HEADER + 72], b[HEADER + 73], b[HEADER + 74]), (2, 0, 5), "provenance, has_uncertainty, note_len");
+    assert_eq!(
+        (b[HEADER + 72], b[HEADER + 73], b[HEADER + 74]),
+        (2, 0, 5),
+        "provenance, has_uncertainty, note_len"
+    );
     assert_eq!(&b[HEADER + 75..HEADER + 80], &[0; 5]);
     assert_eq!(&b[HEADER + SCALE..], b"1:100");
 }
@@ -127,7 +134,11 @@ fn the_georeference_record_and_the_tail_are_in_the_spec_order() {
     }
     assert_eq!(u32::from_le_bytes(b[at + 56..at + 60].try_into().unwrap()) as usize, def.len());
     assert_eq!(u16::from_le_bytes([b[at + 60], b[at + 61]]), 4, "point count");
-    assert_eq!((b[at + 62], b[at + 63], b[at + 64], b[at + 65]), (2, 2, 9, 1), "kind, method, id len, format");
+    assert_eq!(
+        (b[at + 62], b[at + 63], b[at + 64], b[at + 65]),
+        (2, 2, 9, 1),
+        "kind, method, id len, format"
+    );
     assert_eq!(&b[at + 66..at + 72], &[0; 6]);
     let tail = at + GEO;
     let p0: Vec<f64> =
@@ -309,7 +320,15 @@ fn cal_07_text_and_the_id_character_class() {
 fn cal_08_undefined_tags() {
     let b = encode_calibration(&geopdf()).unwrap();
     let g = HEADER + SCALE;
-    for (at, v) in [(HEADER + 72, 0), (HEADER + 72, 6), (HEADER + 73, 2), (g + 62, 4), (g + 63, 0), (g + 65, 3), (g + 65, 0)] {
+    for (at, v) in [
+        (HEADER + 72, 0),
+        (HEADER + 72, 6),
+        (HEADER + 73, 2),
+        (g + 62, 4),
+        (g + 63, 0),
+        (g + 65, 3),
+        (g + 65, 0),
+    ] {
         let mut m = b.clone();
         m[at] = v;
         assert_eq!(rule(&m), "CAL-08", "byte {at} = {v}");

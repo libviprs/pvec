@@ -139,7 +139,7 @@ georeference of its own (this closes ADR 0018 open question 2).
 | LIMIT-17 | `TooLarge` | the block is stored as, or decodes to, more than `max_calibration_bytes` (65,536 by default and in the browser preset), refused from the directory entry before a byte is fetched |
 | CAL-01 | `BadHeader` | the magic is not `PVCL`, the version is not 1, a flag bit other than 0 and 1 is set, or a reserved field is not zero |
 | CAL-02 | `BadLength` | the `length` field is not the payload's length, the structure ends before the bytes do, or bytes are left over |
-| CAL-03 | `TooMany` | more than 1,024 control points, a CRS id over 64 bytes or a definition over 16,384 bytes |
+| CAL-03 | `TooMany` | more than 1,024 control points, a CRS id over 64 bytes, a definition over 16,384 bytes, or a note or external id over 255 bytes (which only a writer can be handed) |
 | CAL-04 | `BadNumber` | a float that is not finite, is subnormal, is `-0.0` or passes 2^40 (NP-01, NP-02); a factor or a distance outside `[2^-40, 2^40]`; an uncertainty outside `[0, 1)`; a negative residual |
 | CAL-05 | `BadAffine` | the affine fails NP-19: singular under PVec's rule, or a linear entry above 2^20 |
 | CAL-06 | `BadPoints` | two control points with the same source point and different world points, or a measured pair no further apart than NP-06's degenerate length |

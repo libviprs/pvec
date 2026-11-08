@@ -524,7 +524,7 @@ fn limit_13_is_checked_against_the_ceiling_and_is_configuration() {
 
 #[test]
 fn every_raster_limit_has_a_row_in_the_table_and_a_marked_proposed_value() {
-    for k in LimitKind::ALL[12..].iter().copied() {
+    for k in LimitKind::ALL[12..16].iter().copied() {
         let row = pvec_container::limits::LIMIT_TABLE.iter().find(|r| r.kind == k).expect("a row");
         assert!(
             row.rationale.to_lowercase().contains("proposed"),

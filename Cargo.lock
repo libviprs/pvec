@@ -189,6 +189,7 @@ dependencies = [
  "pvec-entity",
  "pvec-geometry",
  "pvec-interchange",
+ "pvec-numeric",
  "pvec-stream",
  "pvec-testkit",
 ]

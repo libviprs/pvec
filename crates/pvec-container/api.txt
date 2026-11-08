@@ -582,7 +582,8 @@ limits.rs: LimitKind::Rasters
 limits.rs: LimitKind::RasterTiles
 limits.rs: LimitKind::TileBytes
 limits.rs: LimitKind::PlanDecodedBytes
-limits.rs: LimitKind::const ALL: [LimitKind; 16]
+limits.rs: LimitKind::CalibrationBytes
+limits.rs: LimitKind::const ALL: [LimitKind; 17]
 limits.rs: LimitKind::rule(self) -> &'static str
 limits.rs: LimitKind::field(self) -> &'static str
 limits.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct LimitExceeded
@@ -614,6 +615,7 @@ limits.rs: Limits.max_rasters: u32
 limits.rs: Limits.max_raster_tiles: u32
 limits.rs: Limits.max_tile_bytes: u32
 limits.rs: Limits.max_plan_decoded_bytes: u64
+limits.rs: Limits.max_calibration_bytes: u32
 limits.rs: Limits::const DEFAULT: Limits
 limits.rs: Limits::const BROWSER: Limits
 limits.rs: Limits::get(&self, kind: LimitKind) -> u64

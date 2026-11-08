@@ -100,3 +100,10 @@ path = "fuzz_targets/fuzz_spill_writer.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_calibration"
+path = "fuzz_targets/fuzz_calibration.rs"
+test = false
+doc = false
+bench = false

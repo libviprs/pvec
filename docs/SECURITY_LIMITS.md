@@ -26,6 +26,7 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 | LIMIT-14 | RasterTiles | `max_raster_tiles` | 1048576 | 131072 |
 | LIMIT-15 | TileBytes | `max_tile_bytes` | 65536 | 65536 |
 | LIMIT-16 | PlanDecodedBytes | `max_plan_decoded_bytes` | 268435456 | 268435456 |
+| LIMIT-17 | CalibrationBytes | `max_calibration_bytes` | 65536 | 65536 |
 
 ## Rationale and where each is enforced
 
@@ -47,6 +48,7 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 | LIMIT-14 | Proposed (ADR 0018): 1,048,576 tiles per artifact and 131,072 in the browser. An index entry is about 24 bytes, so that is 24 MiB and 3 MiB of index at the ceilings, inside LIMIT-02; the numbers borrow LIMIT-06's. Measured by issue 220 (native x64, `docs/BENCHMARKS.md`): 24.44 bytes per tile, so 25.6 MB at the default ceiling and 3.2 MB in the browser. Kept. | the raster index block (issue 218), from the counts in its header, before the tile table is allocated |
 | LIMIT-15 | Proposed (ADR 0018): one tile is stored as at most `2 * 4 * tile_edge^2` plus this field's allowance of 65,536 bytes (589,824 at an edge of 256, 2,162,688 at 512, 8,454,144 at 1024). An uncompressed RGBA PNG of the tile is `4 * edge^2` plus framing, so twice that admits every honest encoding and refuses a progressive JPEG whose only purpose is decode time. Proposed still: it needs the stored tile sizes of real scans and a browser decoder, which issue 220 does not have. | the tile read (issue 219), from the length in the raster index, before the range is requested |
 | LIMIT-16 | Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. The plan enforces it (issue 220, `plan_raster`, tested at 256 tiles of 512 px, and a coarser level is chosen until it fits); proposed still as a number, because what the decoder and the textures cost in a browser is libviprs/maplibre-pvec#102's measurement. | the raster plan (issue 220), before the first range of the plan is requested |
+| LIMIT-17 | ADR 0019: the calibration block is read at open, so it gets a ceiling far below LIMIT-02. 64 KiB is above the 49,894 bytes of the largest block the CAL rules allow (1,024 control points, a 16 KiB definition and the longest strings), so it never refuses a valid block; it is a field so a host can lower it. | the reader, from the kind 11 directory entry's stored and decoded lengths, before the block is fetched; `decode_calibration` holds its input to the constant too |
 
 ## Refusal behaviour
 

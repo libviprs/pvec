@@ -4,7 +4,7 @@ This is the hardening report for issue P7.8 (pvec#59), and how to rerun it. The 
 
 ## What is fuzzed
 
-The eleven targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
+The twelve targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> String`, the string being the rule that refused the input or `ok`), so the same code runs under libFuzzer, under the stable-Rust smoke driver and in `cargo test`. The libFuzzer entry points are in `fuzz/fuzz_targets/`, a workspace of its own because `libfuzzer-sys` builds C++ and the root `Cargo.lock` is kept free of native source.
 
 | target | input | what it holds the reader to |
 |---|---|---|
@@ -19,6 +19,7 @@ The eleven targets are plain functions in `crates/pvec-fuzz` (`fn(&[u8]) -> Stri
 | `fuzz_raster_plan` | a raster grid, a placement (six `f64`) and a viewport, framed in 116 bytes (pvec#220) | the plan never panics; every tile is inside its level, the decoded bytes are under the limit (`LIMIT-16`), a range starts at its first tile and ends at its last, no range is over the request ceiling unless it is one tile, and a not-stored tile is in no range |
 | `fuzz_raster_archive` | a PMTiles v3 archive, with or without the `vnd.pvec` placement (pvec#222) | an archive that reads is written back to the same tiles, at distinct addresses inside their zoom; an import that succeeds gives a placement the stream encoder accepts and tiles inside its pyramid; the limits are checked before anything is sized by a count in the header or a directory |
 | `fuzz_spill_writer` | `[budget][store fails at call][sink room]`, then pushes of seven bytes each (pvec#235) | the writer that keeps its pushes in files writes the in-memory writer's artifact byte for byte for the same pushes, whatever the budget; a rule refused at a push or at the finish is the same rule; a store that fails at any call or a sink that fills is a typed error, and a build that was refused writes nothing to the sink, and one whose files cannot be read back while the bytes flow leaves a prefix of the artifact in it |
+| `fuzz_calibration` | one calibration block (kind 11, `docs/CALIBRATION.md`, ADR 0019) | a block that parses encodes back to the same bytes; it has a scale or a georeference; an accepted affine passes NP-19; the point count is inside its cap and was checked before the tail was sized; a georeference names a CRS id or carries a definition; the residual check of `pvec validate` runs without panicking |
 
 Each target asserts these, so a parser that accepts something it should have refused is a crash, as well as one that panics.
 
@@ -27,6 +28,8 @@ Each target asserts these, so a parser that accepts something it should have ref
 `fuzz_raster_archive` is the tenth (issue #222, the raster half of the PMTiles interchange): its seeds are sparse three level pyramids of each tile type with and without the placement, each cut short at six lengths and with a byte of the header and of the first directory flipped. It ran 300 seconds under libFuzzer on mars (native x86_64, the row above): 2.55 million executions, no crash, no out-of-memory, no timeout. It has not run for the 4 hour budget and has not run on arm64.
 
 `fuzz_spill_writer` is the eleventh (issue #235) and the first that is not a parser: it drives `SpillWriter` over a store in memory that fails at the call the input names, against `ContainerWriter` for the same pushes. Its seeds are sixty scripts and the empty one: budgets from 0 to 1 MiB, a store that never fails or fails at a call between 0 and 79, a sink with room for none of the artifact up to all of it, and pushes of every kind, with a repeated id and with a spline given a cell so that the refusals are reached. The deterministic runs of the unit tests in `crates/pvec/tests/issue_235_streaming_writer.rs` and `crates/pvec-container/tests/issue_235_spill_writer.rs` cover the same ground on the real directory of files. It has run under the stable-Rust smoke driver (below), and it has not run under libFuzzer, for the 4 hour budget, or on arm64.
+
+`fuzz_calibration` is the twelfth (issue #266, ADR 0019), over the block the reader parses at open. Its seeds are the five blocks the panel on #263 named (a GeoPDF-shaped one with four corners to longitude and latitude and a WKT2 definition, a plan scale, a measured pair, 1,024 points, a 16 KiB PROJJSON definition) and nine or ten mutants of each: the magic, the version, the length, the flags cleared, a float set to NaN or to `-0.0`, a tag past its range, a point count past 1,024 and the block cut by a byte. The seeds run in `cargo test -p pvec-fuzz --test targets`, which reaches `ok` and CAL-01, CAL-02, CAL-04 and CAL-08 among others. It has not run under libFuzzer yet.
 
 ## Seed corpus
 

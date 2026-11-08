@@ -218,6 +218,10 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         // not made of artifacts: the index blocks of the tiler's pyramids, and mutants of them
         return raster_index_inputs();
     }
+    if target == "fuzz_calibration" {
+        // not made of artifacts: the calibration blocks the panel named on #263, and mutants of them
+        return calibration_inputs();
+    }
     if target == "fuzz_spill_writer" {
         // not made of artifacts either: scripts of pushes, a budget, a store that fails and a sink that fills
         return spill_inputs();
@@ -650,5 +654,117 @@ fn spill_inputs() -> Vec<Vec<u8>> {
         out.push(v);
     }
     out.push(Vec::new());
+    out
+}
+
+/// The inputs of `fuzz_calibration` (issue #266): a GeoPDF-shaped block (four corners to longitude and latitude,
+/// fitted, with a WKT2 definition), a plan-scale block, a measured block, a block with 1,024 points and one with a
+/// 16 KiB PROJJSON definition, then mutants of each: a byte of the header, the length, a float set to NaN or to
+/// `-0.0`, a tag set past its range, the flags cleared, a count raised past its cap and the block cut short.
+fn calibration_inputs() -> Vec<Vec<u8>> {
+    use pvec_components::{
+        Calibration, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference,
+        Provenance, ScaleClaim, encode_calibration,
+    };
+    let affine = [0.0001, 0.0, 0.0, 0.0001, -1.5, 51.25];
+    let points = |n: usize| -> Vec<ControlPoint> {
+        (0..n)
+            .map(|i| {
+                let (x, y) = ((i % 32) as f64 * 19.0, (i / 32) as f64 * 24.0);
+                let w =
+                    [affine[0] * x + affine[1] * y + affine[4], affine[2] * x + affine[3] * y + affine[5]];
+                ControlPoint { source: [x, y], world: w }
+            })
+            .collect()
+    };
+    let geo = |n: usize, definition: Option<CrsDefinition>| Georeference {
+        source_to_crs: affine,
+        crs_kind: CrsKind::Geographic,
+        method: FitMethod::Fitted,
+        crs_id: "EPSG:4326".to_string(),
+        definition,
+        control_points: points(n),
+        residual_max: 0.0,
+    };
+    let scale = |provenance: Provenance, metres: f64, note: &str| ScaleClaim {
+        metres_per_source_unit: metres,
+        provenance,
+        uncertainty: None,
+        note: note.to_string(),
+    };
+    let wkt = CrsDefinition {
+        format: DefinitionFormat::Wkt2,
+        text: "GEOGCRS[\"WGS 84\",\n\tCS[ellipsoidal,2]]".into(),
+    };
+    let valid: Vec<Calibration> = vec![
+        Calibration {
+            scale: Some(ScaleClaim {
+                uncertainty: Some(0.002),
+                ..scale(Provenance::Georeference, 6.95, "/GPTS")
+            }),
+            georeference: Some(geo(4, Some(wkt))),
+            external_id: String::new(),
+        },
+        Calibration {
+            scale: Some(scale(
+                Provenance::PlanScale {
+                    numerator: 1,
+                    denominator: 100,
+                    paper_metres_per_unit: 0.0254 / 72.0,
+                },
+                0.0254 / 72.0 * 100.0,
+                "1:100",
+            )),
+            georeference: None,
+            external_id: "sheet-a1".to_string(),
+        },
+        Calibration {
+            scale: Some(scale(
+                Provenance::Measured { p0: [0.0, 0.0], p1: [3000.0, 4000.0], distance_metres: 5.0 },
+                0.001,
+                "",
+            )),
+            georeference: None,
+            external_id: String::new(),
+        },
+        Calibration { scale: None, georeference: Some(geo(1_024, None)), external_id: String::new() },
+        Calibration {
+            scale: Some(scale(Provenance::DeclaredUnit, 0.0254 / 72.0, "points")),
+            georeference: Some(Georeference {
+                definition: Some(CrsDefinition {
+                    format: DefinitionFormat::Projjson,
+                    text: "{".repeat(16_384),
+                }),
+                crs_id: String::new(),
+                crs_kind: CrsKind::Engineering,
+                method: FitMethod::Manual,
+                ..geo(0, None)
+            }),
+            external_id: String::new(),
+        },
+    ];
+    let mut out = Vec::new();
+    for c in &valid {
+        let b = encode_calibration(c).expect("a seed the writer accepts");
+        let mutant = |at: usize, bytes: &[u8]| {
+            let mut m = b.clone();
+            m[at..at + bytes.len()].copy_from_slice(bytes);
+            m
+        };
+        out.push(mutant(0, b"PVCX"));
+        out.push(mutant(4, &2u16.to_le_bytes()));
+        out.push(mutant(8, &(b.len() as u32 + 1).to_le_bytes()));
+        out.push(mutant(6, &0u16.to_le_bytes()));
+        out.push(mutant(16, &f64::NAN.to_le_bytes()));
+        out.push(mutant(16, &(-0.0f64).to_le_bytes()));
+        out.push(b[..b.len() - 1].to_vec());
+        if c.scale.is_some() {
+            out.push(mutant(16 + 72, &[9]));
+        } else {
+            out.push(mutant(16 + 62, &[7]));
+            out.push(mutant(16 + 60, &1_025u16.to_le_bytes()));
+        }
+        out.push(b);
+    }
     out
 }
