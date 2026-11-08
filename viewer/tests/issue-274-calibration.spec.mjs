@@ -49,7 +49,8 @@ test("#274 the pointer reads in source units and in CRS units through the stored
   await expect(pointer).toContainText(`x ${sx.toFixed(2)}, y ${sy.toFixed(2)}`);
   const [a, b, c, d, tx, ty] = AFFINE;
   await expect(pointer).toContainText(`E ${(a * sx + b * sy + tx).toFixed(2)}, N ${(c * sx + d * sy + ty).toFixed(2)}`);
-  await page.mouse.move(box.x + box.width + 50, box.y + 10);
+  const header = await page.locator("header").boundingBox();
+  await page.mouse.move(header.x + 10, header.y + header.height / 2);
   await expect(pointer).toHaveText("");
 });
 
