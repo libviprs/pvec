@@ -432,6 +432,7 @@ Each refusal is a typed `WriteError` with a rule identifier.
 | WRT-15 | raster tiles the container cannot store: tiles for a raster the placement stream does not place, a tile outside its grid or given twice, a tile longer than a chunk, a grid over the ceiling (the error carries its RASTER rule) |
 | WRT-16 | the raster placement stream is refused (the error carries its RASTER rule) |
 | WRT-17 | a raster tile the reader would refuse: its header is not the placement's edge, bit depth and channels, it is not one image and nothing after it, or it is over the ceiling of a tile (the error carries its RASTER-03, RASTER-04 or LIMIT-15 rule) |
+| WRT-18 | the calibration is one a reader would refuse (the error carries its CAL rule, `docs/CALIBRATION.md`) |
 
 ### 4.6 Review checklist
 

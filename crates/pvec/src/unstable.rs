@@ -23,6 +23,10 @@ use std::collections::HashMap;
 pub use crate::hit::{curve_distance, curve_meets_box};
 pub use crate::reader::LoadedEntity;
 pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec};
+pub use pvec_components::{
+    Calibration, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, Provenance,
+    ScaleClaim,
+};
 pub use pvec_container::blocks::raster::TileIn;
 pub use pvec_container::limits::Limits;
 pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
@@ -41,6 +45,7 @@ pub(crate) enum Op {
     Composite { id: EntityId, segments: Vec<EntityId>, bounds: Bounds2, closed: bool },
     Components(crate::components::Stream),
     Raster(RasterId, Vec<TileIn>),
+    Calibration(Calibration),
 }
 
 /// What an indexed writer remembers.
@@ -84,7 +89,7 @@ impl Indexing {
                     .iter()
                     .filter_map(|op| match op {
                         Op::Curve(id, _) | Op::Composite { id, .. } => Some(id.index() + 1),
-                        Op::Components(_) | Op::Raster(..) => None,
+                        Op::Components(_) | Op::Raster(..) | Op::Calibration(_) => None,
                     })
                     .max()
                     .unwrap_or(0);
@@ -96,7 +101,7 @@ impl Indexing {
                         // A composite is in no leaf, so no leaf block ever carries its entry: the plan only
                         // needs one for every id to be complete, and `tier0_blocks` cuts the leaves' ids.
                         Op::Composite { id, .. } => plan.add_exact(*id),
-                        Op::Components(_) | Op::Raster(..) => Ok(()),
+                        Op::Components(_) | Op::Raster(..) | Op::Calibration(_) => Ok(()),
                     }
                     .map_err(|e| write_error(e.rule()))?;
                 }
@@ -124,6 +129,7 @@ impl Indexing {
                 }
                 Op::Components(stream) => w.push_stream(stream),
                 Op::Raster(id, tiles) => w.push_raster_tiles(id, tiles),
+                Op::Calibration(c) => w.calibration(&c),
             }
             .map_err(refused)?;
         }
@@ -456,6 +462,10 @@ impl Spill {
     ) -> Result<(), PvecError> {
         self.writer.push_raster_tiles(raster, tiles).map_err(finish_error)
     }
+
+    pub(crate) fn calibration(&mut self, calibration: &Calibration) -> Result<(), PvecError> {
+        self.writer.calibration(calibration).map_err(finish_error)
+    }
 }
 
 impl PvecWriter {
@@ -627,4 +637,68 @@ fn place_cell(
         w.push_tier0_leaf(cell, records.len() as u32, to, bytes).map_err(finish_error)?;
     }
     w.emit_hot_cell(cell, records).map_err(finish_error)
+}
+
+/// The scale a reader should use, never a bare number: the calibration's claim with where it came from when the file
+/// carries a scale record, the manifest's unit otherwise (ADR 0019). Nothing is applied to coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum EffectiveScale {
+    /// The calibration's scale record.
+    Calibration {
+        /// What one source unit stands for in the world, in metres.
+        metres_per_source_unit: f64,
+        /// Where the claim came from, with its evidence.
+        provenance: Provenance,
+        /// The relative uncertainty, when one was stated.
+        uncertainty: Option<f64>,
+    },
+    /// The manifest's unit: what one coordinate unit is, from the drawing header.
+    Manifest {
+        /// Metres in one source unit.
+        metres_per_unit: f64,
+    },
+}
+
+impl PvecWriter {
+    /// Sets the calibration of the file (capability 22, ADR 0019): a scale, a georeference or both, written as the
+    /// last block. A calibration the rules refuse is an error here with its `CAL-NN` rule, and not at `finish`.
+    pub fn calibration(&mut self, calibration: &Calibration) -> Result<(), PvecError> {
+        pvec_components::encode_calibration(calibration).map_err(|e| write_error(e.rule()))?;
+        self.touched = true;
+        if let Some(spill) = &mut self.spill {
+            return spill.calibration(calibration);
+        }
+        if let Some(index) = &mut self.index {
+            index.log.push(Op::Calibration(calibration.clone()));
+        }
+        self.inner.calibration(calibration).map_err(refused)
+    }
+}
+
+impl PvecReader {
+    /// The calibration of the file: `None` when it has none, or when this reader was configured without
+    /// capability 22 (the open reports `Effect::Uncalibrated` then). A refused calibration is an error with its
+    /// `CAL-NN` or `LIMIT-17` rule; the geometry does not depend on it.
+    pub fn calibration(&self) -> Result<Option<Calibration>, PvecError> {
+        self.inner.calibration().map_err(|e| PvecError::Read { rule: e.rule() })
+    }
+
+    /// The georeference record of the calibration, when there is one.
+    pub fn georeference(&self) -> Result<Option<Georeference>, PvecError> {
+        Ok(self.calibration()?.and_then(|c| c.georeference))
+    }
+
+    /// The calibration's scale with its provenance when the file carries a scale record, the manifest's unit
+    /// otherwise. Both stay readable on their own: this is the one a viewer that wants a single answer uses.
+    pub fn effective_scale(&self) -> Result<EffectiveScale, PvecError> {
+        Ok(match self.calibration()?.and_then(|c| c.scale) {
+            Some(s) => EffectiveScale::Calibration {
+                metres_per_source_unit: s.metres_per_source_unit,
+                provenance: s.provenance,
+                uncertainty: s.uncertainty,
+            },
+            None => EffectiveScale::Manifest { metres_per_unit: self.manifest().metres_per_unit },
+        })
+    }
 }

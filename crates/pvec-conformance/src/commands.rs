@@ -4,6 +4,7 @@ use crate::decode::decode;
 use crate::json::Json;
 use crate::{Outcome, REPORT_SCHEMA_VERSION, exit};
 use pvec_capabilities::{Declared, Registry, Requirement, Version};
+use pvec_components::{CrsKind, DefinitionFormat, FitMethod, Provenance, check_residual};
 use pvec_container::directory::{BlockEntry, BlockKind, parse_directory};
 use pvec_container::manifest::DirectoryPointer;
 use pvec_container::negotiate::{
@@ -170,6 +171,93 @@ fn declared(registry: &Registry, d: &Declared) -> Json {
     ])
 }
 
+/// What `inspect` and `validate` say about the calibration (ADR 0019, `docs/CALIBRATION.md`): the JSON and the
+/// human lines. `residual` runs the CAL-11 check, which only `validate` does. A refused calibration is reported with
+/// its rule and never fails the file.
+fn calibration_report(bytes: &[u8], residual: bool) -> (Json, String) {
+    let refused = |e: &ReadError| {
+        let json =
+            Json::object([("status", s("refused")), ("rule", s(e.rule())), ("message", s(e.to_string()))]);
+        (json, format!("calibration refused ({}): {e}\n", e.rule()))
+    };
+    let c = match open(bytes).and_then(|r| r.calibration()) {
+        Ok(Some(c)) => c,
+        Ok(None) => return (Json::object([("status", s("absent"))]), "calibration: none\n".to_string()),
+        Err(e) => return refused(&e),
+    };
+    let checked = match (&c.georeference, residual) {
+        (Some(g), true) => match check_residual(g) {
+            Ok(r) => Json::Real(r),
+            Err(e) => return refused(&ReadError::Calibration(e)),
+        },
+        _ => Json::Null,
+    };
+    let mut human = String::new();
+    let scale = c.scale.as_ref().map_or(Json::Null, |sc| {
+        let provenance = match sc.provenance {
+            Provenance::DeclaredUnit => "declared_unit",
+            Provenance::PlanScale { .. } => "plan_scale",
+            Provenance::Measured { .. } => "measured",
+            Provenance::Georeference => "georeference",
+            Provenance::Manual => "manual",
+            _ => "unknown",
+        };
+        human.push_str(&format!(
+            "calibration scale: {} m per source unit ({provenance})\n",
+            sc.metres_per_source_unit
+        ));
+        Json::object([
+            ("metres_per_source_unit", Json::Real(sc.metres_per_source_unit)),
+            ("provenance", s(provenance)),
+            ("uncertainty", sc.uncertainty.map_or(Json::Null, Json::Real)),
+            ("note", s(&sc.note)),
+        ])
+    });
+    let georeference = c.georeference.as_ref().map_or(Json::Null, |g| {
+        let kind = match g.crs_kind {
+            CrsKind::Projected => "projected",
+            CrsKind::Geographic => "geographic",
+            CrsKind::Engineering => "engineering",
+            _ => "unknown",
+        };
+        let method = match g.method {
+            FitMethod::Declared => "declared",
+            FitMethod::Fitted => "fitted",
+            FitMethod::Manual => "manual",
+            _ => "unknown",
+        };
+        let definition = g.definition.as_ref().map_or(Json::Null, |d| {
+            s(match d.format {
+                DefinitionFormat::Wkt2 => "wkt2",
+                DefinitionFormat::Projjson => "projjson",
+                _ => "unknown",
+            })
+        });
+        let id = if g.crs_id.is_empty() { "none" } else { g.crs_id.as_str() };
+        human.push_str(&format!(
+            "georeference: CRS {id} ({kind}, {method}, {} points)\n",
+            g.control_points.len()
+        ));
+        Json::object([
+            ("crs_id", s(&g.crs_id)),
+            ("crs_kind", s(kind)),
+            ("method", s(method)),
+            ("source_to_crs", list(g.source_to_crs.iter().map(|x| Json::Real(*x)))),
+            ("points", u(g.control_points.len() as u64)),
+            ("residual_max", Json::Real(g.residual_max)),
+            ("definition_format", definition),
+        ])
+    });
+    let json = Json::object([
+        ("status", s("ok")),
+        ("scale", scale),
+        ("georeference", georeference),
+        ("external_id", s(&c.external_id)),
+        ("residual", checked),
+    ]);
+    (json, human)
+}
+
 /// `inspect`: header, manifest and directory summary.
 pub fn inspect(bytes: &[u8], path: &str) -> Outcome {
     let size = bytes.len();
@@ -198,6 +286,7 @@ pub fn inspect(bytes: &[u8], path: &str) -> Outcome {
     }
     by_kind.sort();
     let entity_total: u64 = by_kind.iter().map(|k| k.2).sum();
+    let (calibration, calibration_lines) = calibration_report(bytes, false);
     let result = Json::object([
         (
             "header",
@@ -243,8 +332,9 @@ pub fn inspect(bytes: &[u8], path: &str) -> Outcome {
                 ),
             ]),
         ),
+        ("calibration", calibration),
     ]);
-    let human = format!(
+    let mut human = format!(
         "{path}: container {}.{}, {} bytes, {} blocks, {entity_total} entities, {} capabilities, producer {} {}\n",
         header.major,
         header.minor,
@@ -254,6 +344,9 @@ pub fn inspect(bytes: &[u8], path: &str) -> Outcome {
         manifest.metadata.producer_id,
         manifest.metadata.producer_version
     );
+    // the manifest says what a unit is, the calibration what it stands for: both lines, neither replaces the other
+    human.push_str(&format!("unit: {} m per source unit (manifest)\n", manifest.unit.metres_per_unit()));
+    human.push_str(&calibration_lines);
     envelope("inspect", path, size, exit::CONFORMS, None, result, human)
 }
 
@@ -292,6 +385,8 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
     let rasters: Vec<(u32, Option<ReadError>)> =
         reader.rasters().into_iter().map(|id| (id, reader.validate_raster(id).err())).collect();
     let skipped_rasters = rasters.iter().filter(|(_, e)| e.is_some()).count();
+    // a refused calibration, CAL-11 included, is reported with its rule and leaves the file conforming
+    let (calibration, calibration_lines) = calibration_report(bytes, true);
     let result = Json::object([
         ("format_valid", Json::Bool(true)),
         ("blocks", u(v.blocks as u64)),
@@ -308,6 +403,7 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
                 ])
             })),
         ),
+        ("calibration", calibration),
         (
             "checks",
             Json::object([
@@ -343,6 +439,9 @@ pub fn validate(bytes: &[u8], path: &str) -> Outcome {
             "{skipped_rasters} raster{} skipped\n",
             if skipped_rasters == 1 { "" } else { "s" }
         ));
+    }
+    if calibration_lines != "calibration: none\n" {
+        human.push_str(&calibration_lines);
     }
     envelope("validate", path, size, exit::CONFORMS, None, result, human)
 }

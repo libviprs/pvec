@@ -777,6 +777,7 @@ reader.rs: ReadError::Negotiation(Refusal)
 reader.rs: ReadError::Raster(IndexError)
 reader.rs: ReadError::Tile(TileRefusal)
 reader.rs: ReadError::Placement(RasterError)
+reader.rs: ReadError::Calibration(CalibrationError)
 reader.rs: ReadError::Skipped { id: u32 }
 reader.rs: ReadError::NoSuchBlock { id: u32, blocks: usize }
 reader.rs: ReadError::rule(&self) -> String
@@ -820,6 +821,7 @@ reader.rs: ContainerReader<S>::advanced(&self, chunk: usize) -> Result<Option<Ad
 reader.rs: ContainerReader<S>::verify_artifact_digest(&self) -> Result<DigestStatus, ReadError>
 reader.rs: ContainerReader<S>::read_stored(&self, id: BlockId) -> Result<Bytes, ReadError>
 reader.rs: ContainerReader<S>::rasters(&self) -> Vec<u32>
+reader.rs: ContainerReader<S>::calibration(&self) -> Result<Option<Calibration>, ReadError>
 reader.rs: ContainerReader<S>::raster_index(&self, raster: u32) -> Result<Arc<RasterIndex>, ReadError>
 reader.rs: ContainerReader<S>::raster_placements(&self) -> Result<Arc<Vec<Placement>>, ReadError>
 reader.rs: ContainerReader<S>::raster_placement(&self, raster: u32) -> Result<Placement, ReadError>
@@ -1025,6 +1027,7 @@ spill_writer.rs: IdSummary.duplicate: Option<u32>
 spill_writer.rs: #[derive(Debug)] pub struct SpillWriter
 spill_writer.rs: SpillWriter::new(config: WriterConfig, store: Store, budget: usize) -> SpillResult<SpillWriter>
 spill_writer.rs: SpillWriter::with_options(config: WriterConfig, options: WriterOptions, store: Store, budget: usize) -> SpillResult<SpillWriter>
+spill_writer.rs: SpillWriter::calibration(&mut self, calibration: &Calibration) -> Result<(), FinishError>
 spill_writer.rs: SpillWriter::store(&self) -> Store
 spill_writer.rs: SpillWriter::budget(&self) -> usize
 spill_writer.rs: SpillWriter::hot_count(&self) -> u64
@@ -1098,6 +1101,7 @@ writer.rs: WriteError::Tier0Cell { cell: u32 }
 writer.rs: WriteError::Raster(IndexError)
 writer.rs: WriteError::Placement(RasterError)
 writer.rs: WriteError::Tile { raster: u32, level: u32, col: u32, row: u32, refusal: TileRefusal }
+writer.rs: WriteError::Calibration { rule: &'static str }
 writer.rs: WriteError::rule(&self) -> &'static str
 writer.rs: pub const WRITE_RULES: &[(&str, &str)]
 writer.rs: impl fmt::Display for WriteError
@@ -1137,5 +1141,7 @@ writer.rs: ContainerWriter::raster_chunk_bytes(&mut self, bytes: u32)
 writer.rs: ContainerWriter::raster_inline_bytes(&mut self, bytes: u64)
 writer.rs: ContainerWriter::skip_tile_checks(&mut self)
 writer.rs: ContainerWriter::push_raster_tiles(&mut self, raster: RasterId, tiles: Vec<TileIn>) -> Result<(), WriteError>
+writer.rs: ContainerWriter::calibration(&mut self, calibration: &Calibration) -> Result<(), WriteError>
 writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>
 writer.rs: impl<E> From<WriteError> for RasterFail<E>
+writer.rs: pub fn calibration_block(calibration: &Calibration) -> Result<RawBlock, WriteError>

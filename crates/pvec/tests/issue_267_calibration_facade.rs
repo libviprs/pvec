@@ -4,8 +4,8 @@
 #![cfg(feature = "unstable-stream")]
 
 use pvec::unstable::{
-    Calibration, CrsKind, EffectiveScale, FitMethod, Georeference, Provenance, ReaderCapabilities, ReaderConfig,
-    ScaleClaim,
+    Calibration, CrsKind, EffectiveScale, FitMethod, Georeference, Provenance, ReaderCapabilities,
+    ReaderConfig, ScaleClaim,
 };
 use pvec::{Bounds2, CapabilityId, Curve, EntityId, Manifest, PvecReader, PvecWriter};
 use pvec_geometry::{Point2, Polyline};
@@ -24,7 +24,11 @@ fn calibration() -> Calibration {
     Calibration {
         scale: Some(ScaleClaim {
             metres_per_source_unit: 0.1,
-            provenance: Provenance::PlanScale { numerator: 1, denominator: 100, paper_metres_per_unit: 0.001 },
+            provenance: Provenance::PlanScale {
+                numerator: 1,
+                denominator: 100,
+                paper_metres_per_unit: 0.001,
+            },
             uncertainty: Some(0.005),
             note: "1:100".into(),
         }),
@@ -71,7 +75,11 @@ fn effective_scale_is_the_calibration_with_its_provenance_or_the_manifest() {
         got,
         EffectiveScale::Calibration {
             metres_per_source_unit: 0.1,
-            provenance: Provenance::PlanScale { numerator: 1, denominator: 100, paper_metres_per_unit: 0.001 },
+            provenance: Provenance::PlanScale {
+                numerator: 1,
+                denominator: 100,
+                paper_metres_per_unit: 0.001
+            },
             uncertainty: Some(0.005),
         }
     );

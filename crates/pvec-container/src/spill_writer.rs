@@ -38,7 +38,7 @@ use crate::writer::{
     raster_blocks_of, stream_block_of, union,
 };
 use pvec_capabilities::{CapabilityId, Registry, Version};
-use pvec_components::{RASTER_CAPABILITY, RasterId, Stream};
+use pvec_components::{CALIBRATION_CAPABILITY, Calibration, RASTER_CAPABILITY, RasterId, Stream};
 use pvec_entity::EntityId;
 use pvec_geometry::Curve;
 use std::collections::{BTreeMap, BTreeSet};
@@ -567,6 +567,7 @@ pub struct SpillWriter {
     raster_inline: u64,
     sniff_tiles: bool,
     derived: Vec<Derived>,
+    calibration: Option<RawBlock>,
 }
 
 impl SpillWriter {
@@ -606,9 +607,16 @@ impl SpillWriter {
             raster_inline: crate::writer::RASTER_INLINE_BYTES,
             sniff_tiles: true,
             derived: Vec::new(),
+            calibration: None,
             store,
             budget,
         })
+    }
+
+    /// Sets the calibration of the artifact, as [`crate::writer::ContainerWriter::calibration`] does.
+    pub fn calibration(&mut self, calibration: &Calibration) -> Result<(), FinishError> {
+        self.calibration = Some(crate::writer::calibration_block(calibration)?);
+        Ok(())
     }
 
     /// The store, for a sorter of the caller's that should share its files.
@@ -914,8 +922,11 @@ impl SpillWriter {
         }
         let streams: Vec<Stream> =
             self.streams.records()?.map(|r| r.and_then(|b| decode_stream(&b))).collect::<SpillResult<_>>()?;
-        let (capabilities, min_reader) =
-            declare(&self.config.capabilities, streams.iter().map(|s| s.capability), true, &Registry::v1())?;
+        let declared = streams
+            .iter()
+            .map(|s| s.capability)
+            .chain(self.calibration.is_some().then_some(CALIBRATION_CAPABILITY));
+        let (capabilities, min_reader) = declare(&self.config.capabilities, declared, true, &Registry::v1())?;
         let source_bounds = match self.config.bounds {
             Some(b) => checked_bounds(b).ok_or(WriteError::BadBounds { id: None })?,
             None => self.extent.ok_or(WriteError::Empty)?,
@@ -935,6 +946,10 @@ impl SpillWriter {
             self.spool.push_planned(policy, planned)?;
         }
         self.emit_rasters(streams.iter().find(|s| s.capability == RASTER_CAPABILITY))?;
+        // the calibration is the last block, as `ContainerWriter::finish` writes it
+        if let Some(block) = self.calibration.take() {
+            self.spool.push(block)?;
+        }
         let manifest = Manifest {
             unit: self.config.unit,
             bounds: source_bounds,

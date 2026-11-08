@@ -31,13 +31,14 @@ use crate::directory::BlockEntry;
 use crate::directory::DirectoryError;
 use crate::engine::{Core, DigestCheck, Need, OpenOptions, Opening, Validation};
 use crate::integrity::{DigestStatus, IntegrityError};
-use crate::limits::{Accountant, LimitExceeded, Limits, LimitsError, Reservation};
+use crate::limits::{Accountant, LimitExceeded, LimitKind, Limits, LimitsError, Reservation};
 use crate::negotiate::{PartialOpen, ReaderCapabilities, Refusal};
 use crate::source::{AsyncBlockSource, BlockSource, Bytes, SourceError};
 use crate::{ContainerError, Header, Manifest};
 use pvec_capabilities::{Reader, Registry};
 use pvec_components::{
-    Placement, RasterError, RasterRead, RasterSkip, StreamError, read_rasters, read_streams,
+    CALIBRATION_KIND, Calibration, CalibrationError, Placement, RasterError, RasterRead, RasterSkip,
+    StreamError, decode_calibration, read_rasters, read_streams,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -131,6 +132,8 @@ pub enum ReadError {
     /// The raster placement stream is damaged or refused (`RASTER-nn`, `COMP-nn`). The rasters are, the geometry
     /// and the other streams are not.
     Placement(RasterError),
+    /// The calibration is refused (`CAL-nn`, `docs/CALIBRATION.md`). The calibration is, the file is not.
+    Calibration(CalibrationError),
     /// The block was skipped when the file was opened, so its payload is not read.
     Skipped {
         /// The block.
@@ -166,6 +169,7 @@ impl ReadError {
             ReadError::Raster(e) => e.rule().to_string(),
             ReadError::Tile(e) => e.rule().to_string(),
             ReadError::Placement(e) => e.rule().to_string(),
+            ReadError::Calibration(e) => e.rule().to_string(),
             ReadError::Skipped { .. } => "SKIPPED".to_string(),
         }
     }
@@ -198,6 +202,7 @@ impl fmt::Display for ReadError {
             ReadError::Raster(e) => write!(f, "{e}"),
             ReadError::Tile(e) => write!(f, "{e}"),
             ReadError::Placement(e) => write!(f, "{e}"),
+            ReadError::Calibration(e) => write!(f, "{e}"),
             ReadError::Skipped { id } => write!(f, "block {id} was skipped when the file was opened"),
         }
     }
@@ -969,6 +974,29 @@ impl<S: BlockSource> ContainerReader<S> {
     /// The rasters the directory names, by any kind 9 or kind 10 block, ascending.
     pub fn rasters(&self) -> Vec<u32> {
         self.shared.core.raster_ids()
+    }
+
+    /// The calibration of the file (kind 11, capability 22, ADR 0019): `None` when the file has none or this reader
+    /// skipped it at open. The directory is checked first (`CAL-12`) and the entry's lengths are held to LIMIT-17
+    /// before the block is fetched; the block is then read like any other and parsed. A refusal is an error for
+    /// the calibration only: the file stays open and the geometry reads.
+    pub fn calibration(&self) -> Result<Option<Calibration>, ReadError> {
+        let entries = self.entries();
+        let mut kind_11 = entries.iter().enumerate().filter(|(_, e)| e.kind == CALIBRATION_KIND);
+        let Some((i, e)) = kind_11.next() else {
+            return Ok(None);
+        };
+        if kind_11.next().is_some() || e.cell != 0 || e.subtype != 0 || e.flags != 0 {
+            return Err(ReadError::Calibration(CalibrationError::Directory));
+        }
+        let id = BlockId(i as u32);
+        if self.partial_open().is_some_and(|p| p.blocks.iter().any(|b| b.block == id)) {
+            return Ok(None);
+        }
+        let limits = &self.shared.config.limits;
+        limits.check(LimitKind::CalibrationBytes, u64::from(e.stored_length.max(e.uncompressed_length)))?;
+        let block = self.read_block(id)?;
+        decode_calibration(block.as_bytes()).map(Some).map_err(ReadError::Calibration)
     }
 
     /// The index of `raster`, read when it is first asked for and kept: the kind 9 block through

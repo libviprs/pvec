@@ -21,7 +21,11 @@ fn calibration() -> Calibration {
     Calibration {
         scale: Some(ScaleClaim {
             metres_per_source_unit: 0.1,
-            provenance: Provenance::PlanScale { numerator: 1, denominator: 100, paper_metres_per_unit: 0.001 },
+            provenance: Provenance::PlanScale {
+                numerator: 1,
+                denominator: 100,
+                paper_metres_per_unit: 0.001,
+            },
             uncertainty: None,
             note: "1:100".into(),
         }),
@@ -57,7 +61,10 @@ fn the_calibration_is_one_kind_11_block_last_with_codec_0_and_22_is_declared_opt
     assert_eq!((last.kind, last.capability, last.cell, last.subtype), (11, 22, 0, 0));
     assert_eq!((last.count, last.flags, last.codec), (2, 0, 0));
     let payload = encode_calibration(&calibration()).unwrap();
-    assert_eq!((last.stored_length as usize, last.uncompressed_length as usize), (payload.len(), payload.len()));
+    assert_eq!(
+        (last.stored_length as usize, last.uncompressed_length as usize),
+        (payload.len(), payload.len())
+    );
     assert_eq!(a.entries.iter().filter(|e| e.kind == 11).count(), 1);
     let d = a.manifest.capabilities.iter().find(|d| d.id == CapabilityId::new(22)).expect("22 is declared");
     assert_eq!((d.requirement, d.version), (Requirement::Optional, Version::new(1, 0, 0)));
@@ -87,7 +94,10 @@ fn a_reader_without_22_skips_it_reports_it_and_reads_the_same_geometry() {
     let r = open(bytes, ReaderCapabilities::v1().without(CapabilityId::new(22)), Limits::DEFAULT);
     assert_eq!(r.calibration().unwrap(), None);
     let p = r.partial_open().expect("a degraded open");
-    assert_eq!(p.capabilities.iter().map(|c| (c.id.get(), c.effect)).collect::<Vec<_>>(), [(22, Effect::Uncalibrated)]);
+    assert_eq!(
+        p.capabilities.iter().map(|c| (c.id.get(), c.effect)).collect::<Vec<_>>(),
+        [(22, Effect::Uncalibrated)]
+    );
     let other = open(plain, ReaderCapabilities::v1(), Limits::DEFAULT);
     let geometry = |r: &ContainerReader<MemorySource<Vec<u8>>>| {
         r.entries()

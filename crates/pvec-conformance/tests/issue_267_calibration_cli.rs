@@ -14,8 +14,10 @@ use support::*;
 fn calibration(residual_max: f64) -> Calibration {
     let m = [2.0, 0.0, 0.0, 2.0, 1000.0, 2000.0];
     let world = |x: f64, y: f64| [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]];
-    let mut control_points: Vec<ControlPoint> =
-        [[0.0, 0.0], [8.0, 0.0], [8.0, 6.0]].iter().map(|&[x, y]| ControlPoint { source: [x, y], world: world(x, y) }).collect();
+    let mut control_points: Vec<ControlPoint> = [[0.0, 0.0], [8.0, 0.0], [8.0, 6.0]]
+        .iter()
+        .map(|&[x, y]| ControlPoint { source: [x, y], world: world(x, y) })
+        .collect();
     control_points[2].world[0] += 0.5;
     Calibration {
         scale: Some(ScaleClaim {
@@ -66,9 +68,17 @@ fn inspect_prints_the_manifest_unit_and_the_calibration_scale_on_two_lines() {
     let path = file("calibrated.pvec", &calibrated(&calibration(0.5)));
     let human = pvec(&["inspect", &path]);
     assert_eq!(human.code, 0, "{}", human.stderr);
-    assert!(human.stdout.contains("unit: 1 m per source unit (manifest)"), "{}", human.stdout);
-    assert!(human.stdout.contains("calibration scale: 0.05 m per source unit (measured)"), "{}", human.stdout);
-    assert!(human.stdout.contains("georeference: CRS LOCAL:SITE-GRID (engineering, fitted, 3 points)"), "{}", human.stdout);
+    assert!(human.stdout.contains("unit: 0.001 m per source unit (manifest)"), "{}", human.stdout);
+    assert!(
+        human.stdout.contains("calibration scale: 0.05 m per source unit (measured)"),
+        "{}",
+        human.stdout
+    );
+    assert!(
+        human.stdout.contains("georeference: CRS LOCAL:SITE-GRID (engineering, fitted, 3 points)"),
+        "{}",
+        human.stdout
+    );
     let run = pvec(&["inspect", "--format", "json", &path]);
     let doc = run.json();
     validate(&schema(), &doc).unwrap_or_else(|e| panic!("{e}\n{}", run.stdout));
@@ -76,7 +86,7 @@ fn inspect_prints_the_manifest_unit_and_the_calibration_scale_on_two_lines() {
     assert_eq!(doc.at("result.calibration.scale.metres_per_source_unit").num(), 0.05);
     assert_eq!(doc.at("result.calibration.scale.provenance").str(), "measured");
     assert_eq!(doc.at("result.calibration.georeference.crs_id").str(), "LOCAL:SITE-GRID");
-    assert_eq!(doc.at("result.manifest.metres_per_unit").num(), 1.0);
+    assert_eq!(doc.at("result.manifest.metres_per_unit").num(), 0.001);
 }
 
 #[test]
