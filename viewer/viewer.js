@@ -100,6 +100,9 @@ const state = {
   rasters: [], // per RasterId: { p: pixel_to_source, f: the fourteen u32 fields } or null when skipped
   tiles: new Map(), // "raster/level/col/row" -> ImageBitmap, or null for a tile that draws nothing
   decoding: new Map(), // the same keys -> the promise of the decode in flight
+  source: null, // { url, len, validator } for a file read by ranges
+  changed: false, // the file changed on the server under a ranged view
+  dirty: false,
 };
 
 const TILE_CACHE = 512;
@@ -161,31 +164,101 @@ function tileKey(r, level, col, row) {
   return `${r}/${level}/${col}/${row}`;
 }
 
-// Reads a tile's encoded bytes from the module and decodes them in the background; the frame that asked draws
-// without it, and the decode schedules the next one. The module decodes nothing (ADR 0018): the browser does,
-// with orientation and colour space left alone (WASM_ABI.md, "Rasters").
+// A file read by HTTP ranges (issue #273): the URL, its length at open, and the validator captured at open, which
+// every later range carries as If-Range. The rules are those of HttpRangeSource in pvec-container (issue #264).
+class Changed extends Error {}
+
+// The strong validator of a response: its ETag unless that is weak, else its Last-Modified.
+function validatorOf(response) {
+  const etag = response.headers.get("etag");
+  if (etag && !etag.startsWith("W/")) return etag;
+  return response.headers.get("last-modified");
+}
+
+async function fetchRange(offset, len) {
+  const src = state.source;
+  const headers = { Range: `bytes=${offset}-${offset + len - 1}` };
+  if (src.validator) headers["If-Range"] = src.validator;
+  const r = await fetch(src.url, { headers, cache: "no-store" });
+  if (r.status === 200 && src.validator) {
+    r.body?.cancel();
+    throw new Changed(`the server answered If-Range ${src.validator} with the whole file`);
+  }
+  if (r.status !== 206) {
+    r.body?.cancel();
+    throw new Error(`the server did not honour the range (status ${r.status})`);
+  }
+  const cr = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(r.headers.get("content-range") || "");
+  if (cr && cr[3] !== "*" && Number(cr[3]) !== src.len) {
+    throw new Changed(`opened at ${src.len} bytes, the file is now ${cr[3]}`);
+  }
+  if (cr && (Number(cr[1]) !== offset || Number(cr[2]) !== offset + len - 1)) {
+    throw new Error(`asked for ${offset}+${len} and got ${cr[1]}-${cr[2]}`);
+  }
+  const v = validatorOf(r);
+  if (v && src.validator && v !== src.validator) throw new Changed(`opened as ${src.validator}, the range came as ${v}`);
+  if (v && !src.validator) src.validator = v;
+  const body = new Uint8Array(await r.arrayBuffer());
+  if (body.length !== len) throw new Error(`asked for ${len} bytes and got ${body.length}`);
+  return body;
+}
+
+// Makes a module call, and while it answers -7 (WASM_ABI.md, "Opening by byte ranges") fetches every range it
+// names and calls it again. The needed list is read before the first await, so two calls in flight never mix up
+// their lists.
+async function ask(name, call, handle = state.file) {
+  const x = state.x;
+  for (let round = 0; ; round++) {
+    const r = call();
+    if (r !== -7) return r;
+    if (!state.source || round >= 32) throw new ModuleError(name, -7);
+    const ranges = [];
+    for (let i = 0; i < x.needed_count(handle); i++) ranges.push([x.needed_offset(handle, i), x.needed_len(handle, i)]);
+    const bodies = await Promise.all(ranges.map(([o, l]) => fetchRange(o, l)));
+    ranges.forEach(([o], i) => {
+      const [ptr, len] = pass(x, bodies[i]);
+      check("provide_range", x.provide_range(handle, o, ptr, len));
+    });
+  }
+}
+
+function fail(e) {
+  if (e instanceof Changed) {
+    state.changed = true;
+    setStatus(`${state.name}: the file changed on the server since it was opened (${e.message}). Reload to see the new one.`, true);
+  } else {
+    setStatus(`${state.name}: ${e.message}`, true);
+  }
+}
+
+// Reads a tile's encoded bytes from the module (fetching its range first on a ranged file) and decodes them in the
+// background; the frame that asked draws without it, and the decode schedules the next one. The module decodes
+// nothing (ADR 0018): the browser does, with orientation and colour space left alone (WASM_ABI.md, "Rasters").
 function decodeTile(r, level, col, row) {
   const key = tileKey(r, level, col, row);
-  if (state.tiles.has(key) || state.decoding.has(key)) return;
+  if (state.tiles.has(key) || state.decoding.has(key) || state.changed) return;
   const { x, file } = state;
-  const handle = x.raster_tile(file, r, level, col, row);
-  if (handle === -9) {
-    state.tiles.set(key, null);
-    return;
-  }
-  check("raster_tile", handle);
-  const bytes = rasterArray(x, handle, 0, Uint8Array).slice();
-  x.release(handle);
-  const job = createImageBitmap(new Blob([bytes]), { imageOrientation: "none", colorSpaceConversion: "none" })
-    .then((bitmap) => {
-      state.tiles.set(key, bitmap);
-      while (state.tiles.size > TILE_CACHE) {
-        const [oldest, old] = state.tiles.entries().next().value;
-        if (old) old.close();
-        state.tiles.delete(oldest);
-      }
+  const job = (async () => {
+    const handle = await ask("raster_tile", () => x.raster_tile(file, r, level, col, row));
+    if (handle === -9) {
+      state.tiles.set(key, null);
+      return;
+    }
+    check("raster_tile", handle);
+    const bytes = rasterArray(x, handle, 0, Uint8Array).slice();
+    x.release(handle);
+    const bitmap = await createImageBitmap(new Blob([bytes]), { imageOrientation: "none", colorSpaceConversion: "none" });
+    state.tiles.set(key, bitmap);
+    while (state.tiles.size > TILE_CACHE) {
+      const [oldest, old] = state.tiles.entries().next().value;
+      if (old) old.close();
+      state.tiles.delete(oldest);
+    }
+  })()
+    .catch((e) => {
+      state.tiles.set(key, null);
+      if (e instanceof Changed || e instanceof ModuleError) fail(e);
     })
-    .catch(() => state.tiles.set(key, null))
     .finally(() => {
       state.decoding.delete(key);
       schedule();
@@ -193,83 +266,77 @@ function decodeTile(r, level, col, row) {
   state.decoding.set(key, job);
 }
 
-// The rasters of one band in the window: `raster_plan` picks each raster's level and tiles for the display scale,
-// and every tile is drawn through view ∘ pixel_to_source ∘ (the level's pixel size, the tile's place), clipped to
-// the visible box so a padded edge never shows.
-function drawRasters(ctx, band) {
+// What one band of rasters needs this frame: `raster_plan` picks each raster's level and tiles for the display
+// scale. Copied out of module memory, so painting needs no module call.
+async function planRasters(band) {
   const { x, file } = state;
-  if (!state.rasters.some((r) => r && r.f[12] === band)) return;
+  if (!state.rasters.some((r) => r && r.f[12] === band)) return [];
   const dpr = window.devicePixelRatio || 1;
   const [x0, y0, x1, y1] = window_();
-  const plan = check("raster_plan", x.raster_plan(file, x0, y0, x1, y1, state.view.scale * dpr, 0));
+  const plan = check("raster_plan", await ask("raster_plan", () => x.raster_plan(file, x0, y0, x1, y1, state.view.scale * dpr, 0)));
   try {
     const ids = rasterArray(x, plan, 0, Uint32Array).slice();
     const levels = rasterArray(x, plan, 1, Uint32Array).slice();
     const table = rasterArray(x, plan, 2, Uint32Array).slice();
     const cells = rasterArray(x, plan, 3, Uint32Array).slice();
-    const view = viewAffine();
+    const out = [];
     for (let i = 0; i < ids.length; i++) {
       const raster = state.rasters[ids[i]];
       if (!raster || raster.f[12] !== band) continue;
-      const { p, f } = raster;
-      const [vx0, vy0, vx1, vy1] = [f[2], f[3], f[4], f[5]];
-      const edge = f[6];
-      const level = levels[i];
-      const k = 2 ** (f[7] - 1 - level);
-      const toPixels = compose(view, p);
-      ctx.save();
-      ctx.globalAlpha = f[11] / 255;
-      ctx.setTransform(dpr * toPixels[0], dpr * toPixels[2], dpr * toPixels[1], dpr * toPixels[3], dpr * toPixels[4], dpr * toPixels[5]);
-      ctx.beginPath();
-      ctx.rect(vx0, vy0, vx1 - vx0, vy1 - vy0);
-      ctx.clip();
-      for (let t = table[i]; t < table[i + 1]; t++) {
-        const [col, row] = [cells[2 * t], cells[2 * t + 1]];
-        const key = tileKey(ids[i], level, col, row);
-        const bitmap = state.tiles.get(key);
-        if (bitmap === undefined) decodeTile(ids[i], level, col, row);
-        if (!bitmap) continue;
-        const m = compose(toPixels, [k, 0, 0, k, col * edge * k, row * edge * k]);
-        ctx.setTransform(dpr * m[0], dpr * m[2], dpr * m[1], dpr * m[3], dpr * m[4], dpr * m[5]);
-        ctx.drawImage(bitmap, 0, 0);
-      }
-      ctx.restore();
+      const tiles = [];
+      for (let t = table[i]; t < table[i + 1]; t++) tiles.push([cells[2 * t], cells[2 * t + 1]]);
+      out.push({ id: ids[i], raster, level: levels[i], tiles });
     }
+    return out;
   } finally {
     x.release(plan);
   }
 }
 
+// Every tile of the plan is drawn through view ∘ pixel_to_source ∘ (the level's pixel size, the tile's place),
+// clipped to the visible box so a padded edge never shows.
+function paintRasters(ctx, planned) {
+  const dpr = window.devicePixelRatio || 1;
+  const view = viewAffine();
+  for (const { id, raster, level, tiles } of planned) {
+    const { p, f } = raster;
+    const [vx0, vy0, vx1, vy1] = [f[2], f[3], f[4], f[5]];
+    const edge = f[6];
+    const k = 2 ** (f[7] - 1 - level);
+    const toPixels = compose(view, p);
+    ctx.save();
+    ctx.globalAlpha = f[11] / 255;
+    ctx.setTransform(dpr * toPixels[0], dpr * toPixels[2], dpr * toPixels[1], dpr * toPixels[3], dpr * toPixels[4], dpr * toPixels[5]);
+    ctx.beginPath();
+    ctx.rect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+    ctx.clip();
+    for (const [col, row] of tiles) {
+      const bitmap = state.tiles.get(tileKey(id, level, col, row));
+      if (bitmap === undefined) decodeTile(id, level, col, row);
+      if (!bitmap) continue;
+      const m = compose(toPixels, [k, 0, 0, k, col * edge * k, row * edge * k]);
+      ctx.setTransform(dpr * m[0], dpr * m[2], dpr * m[1], dpr * m[3], dpr * m[4], dpr * m[5]);
+      ctx.drawImage(bitmap, 0, 0);
+    }
+    ctx.restore();
+  }
+}
+
 // The vectors of the window: `query_viewport` culls, `tessellate_batch` holds every curve to a quarter of a
 // device pixel after the whole transform chain, and the vertices come back in source space.
-function drawVectors(ctx) {
+async function planVectors() {
   const { x, file } = state;
   const dpr = window.devicePixelRatio || 1;
   const [w, h] = size();
   const { cx, cy, scale } = state.view;
   const [x0, y0, x1, y1] = window_();
-  const batch = check("query_viewport", x.query_viewport(file, x0, y0, x1, y1, 1 << 22));
+  const batch = check("query_viewport", await ask("query_viewport", () => x.query_viewport(file, x0, y0, x1, y1, 1 << 22)));
   try {
     const chain = new Float64Array([1, 0, 0, 1, 0, 0, scale, 0, 0, -scale, w / 2 - scale * cx, h / 2 + scale * cy, dpr, 0.25, Infinity]);
     const [ptr, len] = pass(x, chain);
     const result = check("tessellate_batch", x.tessellate_batch(batch, ptr, len, 1 << 16, 0));
     try {
-      const vertices = tessArray(x, result, 0, Float64Array);
-      const offsets = tessArray(x, result, 1, Uint32Array);
-      ctx.beginPath();
-      for (let i = 0; i + 1 < offsets.length; i++) {
-        for (let v = offsets[i]; v < offsets[i + 1]; v++) {
-          const sx = w / 2 + (vertices[2 * v] - cx) * scale;
-          const sy = h / 2 - (vertices[2 * v + 1] - cy) * scale;
-          if (v === offsets[i]) ctx.moveTo(sx, sy);
-          else ctx.lineTo(sx, sy);
-        }
-      }
-      ctx.lineWidth = 1;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      ctx.strokeStyle = token("--stroke");
-      ctx.stroke();
+      return { vertices: tessArray(x, result, 0, Float64Array).slice(), offsets: tessArray(x, result, 1, Uint32Array).slice() };
     } finally {
       x.release(result);
     }
@@ -278,7 +345,36 @@ function drawVectors(ctx) {
   }
 }
 
-function draw() {
+function paintVectors(ctx, { vertices, offsets }) {
+  const [w, h] = size();
+  const { cx, cy, scale } = state.view;
+  ctx.beginPath();
+  for (let i = 0; i + 1 < offsets.length; i++) {
+    for (let v = offsets[i]; v < offsets[i + 1]; v++) {
+      const sx = w / 2 + (vertices[2 * v] - cx) * scale;
+      const sy = h / 2 - (vertices[2 * v + 1] - cy) * scale;
+      if (v === offsets[i]) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+  }
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = token("--stroke");
+  ctx.stroke();
+}
+
+// One frame: everything the window needs is read first (fetching ranges when the file is remote), then painted
+// in one go, underlay rasters, vectors, overlay rasters, so a slow range never shows a half-drawn frame.
+async function draw() {
+  let parts = null;
+  if (state.file >= 0 && !state.changed) {
+    try {
+      parts = { under: await planRasters(0), vectors: await planVectors(), over: await planRasters(1) };
+    } catch (e) {
+      fail(e);
+    }
+  }
   const dpr = window.devicePixelRatio || 1;
   const [w, h] = size();
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -287,39 +383,39 @@ function draw() {
   }
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!parts && state.changed) return;
   ctx.fillStyle = token("--canvas");
   ctx.fillRect(0, 0, w, h);
-  if (state.file < 0) return;
-  try {
-    drawRasters(ctx, 0);
-    drawVectors(ctx);
-    drawRasters(ctx, 1);
-  } catch (e) {
-    setStatus(`${state.name}: ${e.message}`, true);
-  }
+  if (!parts) return;
+  paintRasters(ctx, parts.under);
+  paintVectors(ctx, parts.vectors);
+  paintRasters(ctx, parts.over);
 }
 
-// Draws on the next frame, once however often it is asked; `idle()` resolves when that frame is drawn.
+// Draws on the next frame, once however often it is asked, and again if it was asked while a frame was being
+// read; `idle()` resolves when nothing is left to draw.
 function schedule() {
+  state.dirty = true;
   if (!state.pending) {
-    state.pending = new Promise((resolve) =>
-      requestAnimationFrame(() => {
-        state.pending = null;
-        draw();
-        resolve();
-      }),
-    );
+    state.pending = (async () => {
+      while (state.dirty) {
+        state.dirty = false;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await draw();
+      }
+      state.pending = null;
+    })();
   }
   return state.pending;
 }
 
 // The extent to fit: the spatial directory's box when the file has one, else the vertices of every curve at a
 // coarse tolerance, joined with the footprints of the rasters.
-function extentOf(x, file) {
+async function extentOf(x, file) {
   const corner = [0, 1, 2, 3].map((i) => x.directory_bound(file, i));
   if (corner.every(Number.isFinite)) return { extent: corner, entities: x.directory_stat(file, 3) };
   const big = 1e300;
-  const batch = check("query_viewport", x.query_viewport(file, -big, -big, big, big, 1 << 22));
+  const batch = check("query_viewport", await ask("query_viewport", () => x.query_viewport(file, -big, -big, big, big, 1 << 22), file));
   const entities = x.batch_len(batch);
   let box = [Infinity, Infinity, -Infinity, -Infinity];
   try {
@@ -341,10 +437,10 @@ function extentOf(x, file) {
 
 // The placements of the file, and what its status line says about them: how many, how many skipped and by
 // which rule, or the rule that refused the whole stream.
-function readRasters(x, file) {
+async function readRasters(x, file) {
   const out = { rasters: [], text: "0 rasters" };
   if (typeof x.raster_stat !== "function") return out;
-  const n = x.raster_stat(file, 0);
+  const n = await ask("raster_stat", () => x.raster_stat(file, 0), file);
   if (n === -8) return out;
   check("raster_stat", n);
   const notes = [];
@@ -356,7 +452,7 @@ function readRasters(x, file) {
   for (let i = 0; i < skipped; i++) rules.add(rule(x.raster_skipped(file, i, 2), x.raster_skipped(file, i, 1)));
   if (skipped > 0) notes.push(`${skipped} skipped (${[...rules].join(", ")})`);
   for (let r = 0; r < n; r++) {
-    const h = x.raster_placement(file, r);
+    const h = await ask("raster_placement", () => x.raster_placement(file, r), file);
     if (h === -10) {
       out.rasters.push(null);
       continue;
@@ -382,15 +478,20 @@ function footprint({ p, f }) {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
-async function openBytes(name, bytes) {
-  const x = state.x;
-  if (state.file >= 0) x.release(state.file);
+function forget() {
+  if (state.file >= 0) state.x.release(state.file);
+  for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
+  state.tiles.clear();
   state.file = -1;
-  state.name = name;
-  const [ptr, len] = pass(x, new Uint8Array(bytes));
-  const file = check("open", x.open(ptr, len));
-  const { extent, entities } = extentOf(x, file);
-  const { rasters, text } = readRasters(x, file);
+  state.source = null;
+  state.changed = false;
+}
+
+// After a file handle is open, by either route: what to fit, what to say.
+async function opened(name, file) {
+  const x = state.x;
+  const { extent, entities } = await extentOf(x, file);
+  const { rasters, text } = await readRasters(x, file);
   for (const r of rasters.filter(Boolean)) {
     const [a, b, c, d] = footprint(r);
     extent[0] = Math.min(extent[0], a);
@@ -398,22 +499,50 @@ async function openBytes(name, bytes) {
     extent[2] = Math.max(extent[2], c);
     extent[3] = Math.max(extent[3], d);
   }
-  for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
-  state.tiles.clear();
   state.file = file;
   state.extent = extent;
   state.rasters = rasters;
-  setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${text}`);
-  fit();
+  setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${text}${state.source ? ", read by ranges" : ""}`);
+  const view = (params.get("view") || "").split(",").map(Number);
+  if (view.length === 3 && view.every(Number.isFinite) && view[2] > 0) {
+    [state.view.cx, state.view.cy, state.view.scale] = view;
+    state.fitted = true;
+    schedule();
+  } else {
+    fit();
+  }
 }
 
+async function openBytes(name, bytes) {
+  forget();
+  state.name = name;
+  const [ptr, len] = pass(state.x, new Uint8Array(bytes));
+  await opened(name, check("open", state.x.open(ptr, len)));
+}
+
+// A URL is read by ranges when the server says it serves them (a HEAD with Accept-Ranges: bytes and a length), and
+// fetched whole otherwise, or when the page has ranges=0.
 async function openUrl(url) {
   const name = decodeURIComponent(new URL(url, location.href).pathname.split("/").pop() || url);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
   try {
+    if (params.get("ranges") !== "0") {
+      const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+      const len = Number(head.headers.get("content-length"));
+      if (head.ok && head.headers.get("accept-ranges") === "bytes" && len > 0) {
+        forget();
+        state.name = name;
+        state.source = { url, len, validator: validatorOf(head) };
+        const x = state.x;
+        const h = check("open_ranged", x.open_ranged(len));
+        await opened(name, check("open_poll", await ask("open_poll", () => x.open_poll(h), h)));
+        return;
+      }
+    }
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     await openBytes(name, await response.arrayBuffer());
   } catch (e) {
+    if (e instanceof Changed) throw e;
     throw new Error(`${name}: ${e.message}`);
   }
 }
@@ -517,7 +646,8 @@ window.pvecViewer = {
     const file = params.get("file");
     if (file) await openUrl(file);
   } catch (e) {
-    setStatus(e.message, true);
+    if (e instanceof Changed) fail(e);
+    else setStatus(e.message, true);
   } finally {
     schedule();
     state.settled = true;

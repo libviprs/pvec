@@ -1,14 +1,17 @@
 // Issue #273: the viewer opens a URL by HTTP ranges through the module's -7 loop, sends the validator it captured
 // at open as If-Range, and stops with "changed" when the file is replaced under it instead of drawing other bytes.
-// Each test serves its own copy of the fixture from tmp-273/, so it can replace it.
+// Each test serves its own copy of tests/compat/raster-probe.pvec from tmp-273/, so it can replace it. That file is
+// 51 KiB with its full resolution tiles in chunks after the first 4 KiB, so a view away from the raster has not
+// fetched them yet; its one shown raster covers about x 100 to 388, y -78 to 178 (issue_221_raster_exports.rs).
 import { test, expect } from "@playwright/test";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
-const FIXTURE = here("../../tests/compat/viewer-page.pvec");
-const OTHER = here("../../tests/compat/raster-probe.pvec");
-const RED = [0xd0, 0x40, 0x30];
+const FIXTURE = here("../../tests/compat/raster-probe.pvec");
+const OTHER = here("../../tests/compat/viewer-page.pvec");
+const AWAY = "-600,600,1";
+const ON = [244, 50, 6];
 
 let dir, url;
 test.beforeEach(async ({}, info) => {
@@ -32,9 +35,9 @@ function recordFile(page) {
   return seen;
 }
 
-// `view` starts the page on the circle, away from the raster, so its tiles are still to be fetched.
-async function open(page, query, view = "306,200,2") {
-  await page.goto(`/viewer/index.html?file=${encodeURIComponent(query)}&view=${view}`);
+// `view` starts the page away from the raster by default, so its tiles are still to be fetched.
+async function open(page, query, view = AWAY, extra = "") {
+  await page.goto(`/viewer/index.html?file=${encodeURIComponent(query)}&view=${view}${extra}`);
   await page.waitForFunction(() => window.pvecViewer && window.pvecViewer.settled === true, null, { timeout: 30_000 });
   await page.evaluate(() => window.pvecViewer.idle());
 }
@@ -53,32 +56,37 @@ async function zoomOn(page, x, y, scale) {
   await page.evaluate(() => window.pvecViewer.idle());
 }
 
-async function pixel(page, x, y) {
-  return page.evaluate(([x, y]) => {
-    const [sx, sy] = window.pvecViewer.toScreen(x, y);
+// A digest of the whole canvas (FNV-1a over its bytes), so two frames compare without shipping the pixels.
+async function pixels(page) {
+  return page.evaluate(() => {
     const canvas = document.getElementById("view");
-    const k = canvas.width / canvas.clientWidth;
-    return Array.from(canvas.getContext("2d").getImageData(Math.round(sx * k), Math.round(sy * k), 1, 1).data.slice(0, 3));
-  }, [x, y]);
+    const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    let h = 0x811c9dc5;
+    for (let i = 0; i < data.length; i++) h = Math.imul(h ^ data[i], 0x01000193) >>> 0;
+    return h;
+  });
 }
-
-const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 test("#273 a URL is opened by ranges, never fetched whole, and draws what a whole open draws", async ({ page }) => {
   const seen = recordFile(page);
-  await open(page, url, "306,396,1");
-  await expect(page.locator("#status")).toContainText("4 entities");
-  await expect(page.locator("#status")).not.toHaveClass(/error/);
-  expect(dist(await pixel(page, 200, 500), RED)).toBeLessThan(12);
+  const view = ON.join(",");
+  await open(page, url, view);
+  const status = page.locator("#status");
+  await expect(status).toContainText("1 entity, 2 rasters, 1 skipped (RASTER-04), read by ranges");
+  await expect(status).not.toHaveClass(/error/);
+  const ranged = await pixels(page);
   const gets = seen.filter((r) => r.method === "GET");
-  expect(gets.length).toBeGreaterThan(0);
+  expect(gets.length).toBeGreaterThan(1);
   expect(gets.every((r) => /^bytes=\d+-\d+$/.test(r.range || "")), JSON.stringify(seen)).toBe(true);
+  await open(page, url, view, "&ranges=0");
+  await expect(status).not.toContainText("read by ranges");
+  expect(await pixels(page)).toEqual(ranged);
 });
 
 test("#273 every range after the open carries the validator from the open as If-Range", async ({ page }) => {
   const seen = recordFile(page);
   await open(page, url);
-  await zoomOn(page, 300, 460, 12);
+  await zoomOn(page, ...ON);
   const gets = seen.filter((r) => r.method === "GET");
   expect(gets.length).toBeGreaterThan(1);
   const first = gets[0].ifRange;
@@ -93,7 +101,7 @@ test("#273 a file replaced at the same length stops the view with 'changed' and 
   bytes[bytes.length - 100] ^= 0xff;
   await new Promise((r) => setTimeout(r, 20));
   await writeFile(`${dir}page.pvec`, bytes);
-  await zoomOn(page, 300, 460, 12);
+  await zoomOn(page, ...ON);
   const status = page.locator("#status");
   await expect(status).toHaveClass(/error/);
   await expect(status).toContainText("changed");
@@ -103,7 +111,7 @@ test("#273 a server that ignores If-Range but sends a new ETag is caught as well
   await open(page, `${url}?ignore-if-range=1`);
   await new Promise((r) => setTimeout(r, 20));
   await copyFile(OTHER, `${dir}page.pvec`);
-  await zoomOn(page, 300, 460, 12);
+  await zoomOn(page, ...ON);
   const status = page.locator("#status");
   await expect(status).toHaveClass(/error/);
   await expect(status).toContainText("changed");
@@ -112,7 +120,7 @@ test("#273 a server that ignores If-Range but sends a new ETag is caught as well
 test("#273 a weak ETag is never sent as If-Range, and the view still draws", async ({ page }) => {
   const seen = recordFile(page);
   await open(page, `${url}?weak=1`);
-  await zoomOn(page, 300, 460, 12);
+  await zoomOn(page, ...ON);
   await expect(page.locator("#status")).not.toHaveClass(/error/);
   const gets = seen.filter((r) => r.method === "GET");
   expect(gets.length).toBeGreaterThan(0);
