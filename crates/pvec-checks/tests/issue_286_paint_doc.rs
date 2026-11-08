@@ -70,3 +70,27 @@ fn security_limits_lists_the_ceilings_of_the_two_streams() {
         assert!(d.contains(needle), "docs/SECURITY_LIMITS.md does not say {needle:?}");
     }
 }
+
+#[test]
+fn p2_the_registry_docs_and_matrix_know_capability_25() {
+    let generated = render_markdown(&Registry::v1());
+    let row = generated.lines().find(|l| l.starts_with("| 25 | `fill_paint` |")).expect("a row for 25");
+    assert!(row.contains("| component | 1.0.0 |") && row.contains("ADR 0021"), "{row}");
+    let d = read("docs/COMPONENT_STREAMS.md");
+    for needle in ["`fill_paint`", "| 25 |", "| COMP-23 |", "| COMP-24 |", "| COMP-27 |"] {
+        assert!(d.contains(needle), "docs/COMPONENT_STREAMS.md does not say {needle:?}");
+    }
+    let l = read("docs/SECURITY_LIMITS.md");
+    for needle in ["25 `fill_paint`", "4,096 gradients", "1,024 tilings", "8,192 points"] {
+        assert!(l.contains(needle), "docs/SECURITY_LIMITS.md does not say {needle:?}");
+    }
+    assert!(read("tests/compat/matrix.txt").contains("case old-reader-fill-paint-file-open-degraded"));
+}
+
+#[test]
+fn p2_the_thirteenth_fuzz_target_is_named_in_the_docs_and_the_script() {
+    let doc = read("docs/FUZZING.md");
+    assert!(doc.contains("The thirteen targets") && doc.contains("`fuzz_fill_paint` is the thirteenth"));
+    assert!(read("tools/fuzz.sh").contains("fuzz_fill_paint"));
+    assert!(repo_root().join("fuzz/fuzz_targets/fuzz_fill_paint.rs").is_file());
+}
