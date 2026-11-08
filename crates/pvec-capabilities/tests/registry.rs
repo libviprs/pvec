@@ -369,3 +369,46 @@ fn a_raster_class_entry_can_never_be_required() {
     c.requirement = Requirement::Required;
     assert_eq!(Registry::new(vec![c], vec![]).unwrap_err(), RegistryError::ComponentMustBeOptional("raster"));
 }
+
+#[test]
+fn the_calibration_entry_is_22_class_calibration_optional_and_1_2_0() {
+    let r = Registry::v1();
+    let c = r.get(CapabilityId::new(22)).expect("capability 22 is registered");
+    assert_eq!(c.name, "calibration");
+    assert_eq!(c.class, Class::Calibration);
+    assert_eq!(c.requirement, Requirement::Optional);
+    assert_eq!(c.min_reader, Version::new(1, 2, 0));
+    assert!(c.iso_construct.is_empty() && c.adr.is_none());
+    assert!(c.restriction.contains("ADR 0019") && c.restriction.contains("kind 11"));
+    assert_eq!(r.by_name("calibration").map(|c| c.id.get()), Some(22));
+}
+
+#[test]
+fn a_calibration_class_entry_can_never_be_required_and_names_no_construct() {
+    let mut c = component(1, "calibration");
+    c.class = Class::Calibration;
+    c.requirement = Requirement::Required;
+    assert_eq!(
+        Registry::new(vec![c.clone()], vec![]).unwrap_err(),
+        RegistryError::ComponentMustBeOptional("calibration")
+    );
+    c.requirement = Requirement::Optional;
+    c.iso_construct = "line";
+    let r = Registry::new(vec![c], vec![]).unwrap();
+    assert_eq!(r.validate_against_profile(&[]).unwrap_err(), RegistryError::ComponentNamesConstruct("calibration"));
+}
+
+#[test]
+fn a_file_cannot_declare_the_calibration_capability_required() {
+    let r = Registry::v1();
+    let reader = Reader { version: Version::new(1, 2, 0), implemented: r.entries().iter().map(|c| c.id).collect() };
+    let file = Declaration {
+        min_reader: Version::new(1, 0, 0),
+        capabilities: vec![Declared {
+            id: CapabilityId::new(22),
+            requirement: Requirement::Required,
+            version: Version::new(1, 0, 0),
+        }],
+    };
+    assert_eq!(r.negotiate(&reader, &file), Err(NegotiationError::ComponentDeclaredRequired(CapabilityId::new(22))));
+}

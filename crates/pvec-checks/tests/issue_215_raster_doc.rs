@@ -76,5 +76,5 @@ fn migration_and_the_freeze_record_carry_the_new_wording() {
     let f = read("docs/FREEZE-v1.md");
     let row = f.lines().find(|l| l.starts_with("| extension rules")).expect("the extension rules row");
     assert!(row.contains("a capability may own block kinds") && row.contains("2026-"), "row: {row}");
-    assert!(f.contains("capability format version 1.1.0"));
+    assert!(f.contains("capability format version 1.2.0"));
 }

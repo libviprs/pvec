@@ -97,7 +97,7 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         "the 1.0.0 reader, raster file row"
     );
     let pairs = matrix.lines().filter(|l| l.starts_with("case ")).count();
-    let words = ["eleven", "twelve", "thirteen", "fourteen"];
+    let words = ["eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen"];
     assert!(
         d.contains(&format!("outcome of {} reader and file pairs", words[pairs - 11])),
         "the document counts {pairs} pairs differently"
@@ -107,10 +107,36 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
 #[test]
 fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
     let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
-    assert!(text.starts_with("# ") && text.contains("format_version = \"1.1.0\""));
+    assert!(text.starts_with("# ") && text.contains("format_version = \"1.2.0\""));
     let s = Snapshot::parse(&text).unwrap();
     let e = s.entries.iter().find(|e| e.id == 21).expect("entry 21");
     assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("raster", "raster", "optional"));
     assert_eq!(e.min_reader.to_string(), "1.1.0");
     assert_eq!(e.status_since.to_string(), "1.1.0");
+}
+
+#[test]
+fn the_committed_snapshot_has_entry_22_calibration_optional_at_1_2_0() {
+    let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
+    let s = Snapshot::parse(&text).unwrap();
+    assert_eq!(s.format_version.to_string(), "1.2.0");
+    let e = s.entries.iter().find(|e| e.id == 22).expect("entry 22");
+    assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("calibration", "calibration", "optional"));
+    assert_eq!((e.min_reader.to_string(), e.status_since.to_string()), ("1.2.0".to_string(), "1.2.0".to_string()));
+}
+
+#[test]
+fn the_document_has_the_calibration_row_and_the_matrix_its_three_cases() {
+    let d = doc();
+    for needle in ["kind 11, capability 22", "Effect::Uncalibrated", "`FORMAT_VERSION`, 1.2.0 today", "calibration) cannot be declared required"] {
+        assert!(d.contains(needle), "docs/COMPATIBILITY.md does not say {needle:?}");
+    }
+    let matrix = fs::read_to_string(repo_root().join("tests/compat/matrix.txt")).unwrap();
+    for case in [
+        "case old-reader-calibrated-file-open-degraded",
+        "case raster-reader-calibrated-raster-file-open-degraded",
+        "case calibration-declared-required-is-refused",
+    ] {
+        assert!(matrix.contains(case), "the matrix has no `{case}`");
+    }
 }

@@ -119,3 +119,36 @@ base = mixed
 min_reader = 2.0.0
 outcome = refuse
 rule = NEGOTIATE-03
+
+# Kind 11 is owned by capability 22 (ADR 0019). An optional 22 leaves min_reader at 1.0.0, so a 1.0.0 reader
+# skips the calibration block from its entry and reports Effect::Uncalibrated.
+case old-reader-calibrated-file-open-degraded
+reader = s_old
+base = mixed
+caps = 22:optional:1.0
+garbage = 11:22:64
+outcome = open_degraded
+skipped = 14,15,16,18,20,22
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+blocks = 11:unknown_block_kind
+geometry = same
+
+# A 1.1.0 reader that knows rasters and not calibrations, on a file that has both.
+case raster-reader-calibrated-raster-file-open-degraded
+reader = s_raster
+base = mixed
+caps = 21:optional:1.0,22:optional:1.0
+garbage = 11:22:64
+outcome = open_degraded
+skipped = 22
+reasons = not_implemented
+blocks = 11:unknown_block_kind
+geometry = same
+
+case calibration-declared-required-is-refused
+reader = v1
+base = mixed
+caps = 22:required:1.0
+outcome = refuse
+rule = NEGOTIATE-04
+named = 22
