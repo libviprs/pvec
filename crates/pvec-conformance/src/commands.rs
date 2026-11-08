@@ -847,7 +847,15 @@ pub fn calibrate(
             Err(e) => return refusal(e.rule().to_string(), e.to_string()),
         }
     } else {
-        let kept = open(bytes).ok().and_then(|r| r.calibration().ok().flatten());
+        // the georeference and external id the file carries are kept; one that is refused is not dropped quietly
+        let kept = match open(bytes).map(|r| r.calibration()) {
+            Ok(Ok(kept)) => kept,
+            Ok(Err(e)) => {
+                let message = format!("the file's calibration is refused, so it cannot be kept: {e}");
+                return refusal(e.rule(), message);
+            }
+            Err(e) => return (read_refusal("calibrate", path, size, &e, Json::object([])), None),
+        };
         let base =
             kept.unwrap_or(Calibration { scale: None, georeference: None, external_id: String::new() });
         Some(Calibration { scale, ..base })

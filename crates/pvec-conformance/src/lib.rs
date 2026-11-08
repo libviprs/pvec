@@ -179,14 +179,23 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
                         ratio.split_once(':').and_then(|(n, d)| Some((n.parse().ok()?, d.parse().ok()?)));
                     let (numerator, denominator): (u32, u32) =
                         parsed.ok_or(format!("--plan-scale is <n>:<d>, not {ratio}"))?;
-                    let metres = paper * f64::from(denominator) / f64::from(numerator);
+                    // a zero in the ratio leaves the factor at the paper unit, so CAL-10 is what refuses it
+                    let metres = if numerator == 0 || denominator == 0 {
+                        paper
+                    } else {
+                        paper * f64::from(denominator) / f64::from(numerator)
+                    };
                     let provenance =
                         Provenance::PlanScale { numerator, denominator, paper_metres_per_unit: paper };
                     return Ok(Some(claim(metres, provenance)));
                 }
                 if let Some(points) = calibrate.get("--measured") {
                     let distance = number("--distance")?.ok_or("--measured needs --distance")?;
-                    let p: Vec<f64> = points.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                    let p: Vec<f64> = points
+                        .split(',')
+                        .map(|x| x.trim().parse::<f64>())
+                        .collect::<Result<_, _>>()
+                        .unwrap_or_default();
                     let [x0, y0, x1, y1] = p[..] else {
                         return Err(format!("--measured is <x0,y0,x1,y1>, not {points}"));
                     };
@@ -220,14 +229,35 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
                 None => None,
             };
             let remove = calibrate.contains_key("--remove");
-            if !remove && scale.is_none() && block.is_none() {
-                return usage("calibrate needs --remove, --block or a scale");
+            let given = [remove, block.is_some(), scale.is_some()].iter().filter(|g| **g).count();
+            let scales = ["--scale", "--plan-scale", "--measured"]
+                .iter()
+                .filter(|f| calibrate.contains_key(**f))
+                .count();
+            if given != 1 || scales > 1 || (scale.is_none() && calibrate.contains_key("--note")) {
+                return usage(
+                    "calibrate takes one of --remove, --block or one scale, and --note only with a scale",
+                );
             }
             let (outcome, written) = commands::calibrate(&bytes, path, remove, block.as_deref(), scale);
             if let Some(new) = written {
-                // the new file goes next to the old one and is renamed over it, so a reader sees one or the other
-                let temp = format!("{path}.calibrate-{}.tmp", std::process::id());
-                let done = std::fs::write(&temp, &new).and_then(|()| std::fs::rename(&temp, path));
+                // the new file goes next to the old one, made new so no other writer's temporary file is truncated,
+                // synced, given the old file's permissions and renamed over it, so a reader sees one or the other
+                use std::io::Write as _;
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.subsec_nanos());
+                let temp = format!("{path}.calibrate-{}-{nanos}.tmp", std::process::id());
+                let done = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp)
+                    .and_then(|mut f| {
+                        f.write_all(&new)?;
+                        f.sync_all()?;
+                        std::fs::set_permissions(&temp, std::fs::metadata(path)?.permissions())
+                    })
+                    .and_then(|()| std::fs::rename(&temp, path));
                 if let Err(e) = done {
                     let _ = std::fs::remove_file(&temp);
                     return io(format!("pvec: cannot write {path}: {e}\n"));

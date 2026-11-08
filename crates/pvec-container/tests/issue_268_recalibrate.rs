@@ -195,3 +195,41 @@ fn after_a_replace_a_stale_reader_still_reads_the_unmoved_blocks_and_refuses_the
     }
     assert!(r.calibration().is_err(), "the stale calibration block came back as if it were good");
 }
+
+#[test]
+fn a_damaged_block_or_a_wrong_digest_is_refused_and_never_sealed_again() {
+    let good = Art::new(written(&mixed(), Some(&georeferenced())));
+    // a flipped byte in a geometry block, with the table and the digest left as they were
+    let mut flipped = good.bytes.clone();
+    let at = good.entries[0].offset as usize + 8;
+    flipped[at] ^= 0x40;
+    let e = recalibrate(&flipped, Some(&scale_only(0.5))).unwrap_err();
+    assert!(matches!(e.rule().as_str(), "INTEGRITY-01" | "INTEGRITY-03"), "{e}");
+    // the digest alone is wrong: every block matches its checksum
+    let mut digest = good.bytes.clone();
+    let d = pvec_container::Header::LEN + pvec_container::spec::m::ARTIFACT_DIGEST;
+    digest[d] ^= 1;
+    assert_eq!(recalibrate(&digest, Some(&scale_only(0.5))).unwrap_err().rule(), "INTEGRITY-01");
+    // a damaged old calibration is refused on a remove too, though its block is dropped
+    let mut old = good.bytes.clone();
+    let last = good.entries.last().unwrap();
+    old[last.offset as usize] = b'X';
+    assert!(recalibrate(&old, None).is_err(), "a damaged block was read past");
+}
+
+#[test]
+fn the_one_shot_bytes_hold_with_checksums_only_and_with_no_integrity() {
+    use pvec_container::compress::CodecPolicy;
+    use pvec_container::writer::WriterOptions;
+    for integrity in [Integrity::Checksums, Integrity::None] {
+        let options = WriterOptions { integrity, codecs: CodecPolicy::default() };
+        let plain = mixed().load_with(&[], options).unwrap().finish().unwrap();
+        let mut w = mixed().load_with(&[], options).unwrap();
+        w.calibration(&georeferenced()).unwrap();
+        assert_eq!(
+            recalibrate(&plain, Some(&georeferenced())).unwrap(),
+            w.finish().unwrap(),
+            "{integrity:?}"
+        );
+    }
+}
