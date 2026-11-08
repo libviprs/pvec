@@ -41,6 +41,7 @@ calibration.rs: CrsDefinition.text: String
 calibration.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DefinitionFormat
 calibration.rs: DefinitionFormat::Wkt2
 calibration.rs: DefinitionFormat::Projjson
+calibration.rs: DefinitionFormat::Wkt1
 calibration.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ControlPoint
 calibration.rs: ControlPoint.source: [f64; 2]
 calibration.rs: ControlPoint.world: [f64; 2]

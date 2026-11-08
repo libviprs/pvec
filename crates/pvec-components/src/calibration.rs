@@ -173,6 +173,8 @@ pub enum DefinitionFormat {
     Wkt2,
     /// PROJJSON.
     Projjson,
+    /// OGC WKT1, what a GeoPDF `/GCS /WKT` holds (issue #283).
+    Wkt1,
 }
 
 /// One control point: a source point and the world point it stands for.
@@ -509,6 +511,7 @@ pub fn encode_calibration(c: &Calibration) -> Result<Vec<u8>, CalibrationError> 
             None => 0,
             Some(DefinitionFormat::Wkt2) => 1,
             Some(DefinitionFormat::Projjson) => 2,
+            Some(DefinitionFormat::Wkt1) => 3,
         };
         out.extend_from_slice(&[crs_kind, method, g.crs_id.len() as u8, format]);
         out.extend_from_slice(&[0; 6]);
@@ -661,6 +664,7 @@ pub fn decode_calibration(bytes: &[u8]) -> Result<Calibration, CalibrationError>
             (0, 0) => None,
             (1, 1..) => Some(CrsDefinition { format: DefinitionFormat::Wkt2, text: definition_text }),
             (2, 1..) => Some(CrsDefinition { format: DefinitionFormat::Projjson, text: definition_text }),
+            (3, 1..) => Some(CrsDefinition { format: DefinitionFormat::Wkt1, text: definition_text }),
             _ => return Err(E::BadTag),
         };
         let mut source_to_crs = [0.0; 6];

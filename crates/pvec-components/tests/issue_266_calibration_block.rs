@@ -326,7 +326,7 @@ fn cal_08_undefined_tags() {
         (HEADER + 73, 2),
         (g + 62, 4),
         (g + 63, 0),
-        (g + 65, 3),
+        (g + 65, 4),
         (g + 65, 0),
     ] {
         let mut m = b.clone();
@@ -449,6 +449,7 @@ fn issue_283_a_wkt1_definition_has_tag_3_and_round_trips() {
     let mut m = b.clone();
     m[HEADER + SCALE + 65] = 4;
     assert_eq!(rule(&m), "CAL-08");
-    let d = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/CALIBRATION.md")).unwrap();
+    let d =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/CALIBRATION.md")).unwrap();
     assert!(d.contains("0 none, 1 WKT2, 2 PROJJSON, 3 WKT1"));
 }
