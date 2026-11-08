@@ -66,6 +66,28 @@ function tessArray(x, result, which, Type) {
   return new Type(x.memory.buffer, x.buffer_ptr(result, which) >>> 0, len);
 }
 
+// One array of a raster result (placement, plan or tile), as a fresh view.
+function rasterArray(x, result, which, Type) {
+  const len = check("raster_buffer_len", x.raster_buffer_len(result, which));
+  return new Type(x.memory.buffer, x.raster_buffer_ptr(result, which) >>> 0, len);
+}
+
+// `m` after `n`, both in PVec's [a b c d tx ty] order (rows [a b tx] and [c d ty]).
+function compose(m, n) {
+  return [
+    m[0] * n[0] + m[1] * n[2],
+    m[0] * n[1] + m[1] * n[3],
+    m[2] * n[0] + m[3] * n[2],
+    m[2] * n[1] + m[3] * n[3],
+    m[0] * n[4] + m[1] * n[5] + m[4],
+    m[2] * n[4] + m[3] * n[5] + m[5],
+  ];
+}
+
+function rule(family, number) {
+  return `${family === 1 ? "LIMIT" : "RASTER"}-${String(number).padStart(2, "0")}`;
+}
+
 const state = {
   x: null, // the module's exports
   file: -1, // the open file handle
@@ -75,7 +97,12 @@ const state = {
   settled: false,
   pending: null,
   fitted: false,
+  rasters: [], // per RasterId: { p: pixel_to_source, f: the fourteen u32 fields } or null when skipped
+  tiles: new Map(), // "raster/level/col/row" -> ImageBitmap, or null for a tile that draws nothing
+  decoding: new Map(), // the same keys -> the promise of the decode in flight
 };
+
+const TILE_CACHE = 512;
 
 function size() {
   return [canvas.clientWidth, canvas.clientHeight];
@@ -121,6 +148,96 @@ function setStatus(text, error = false) {
 
 function token(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Source to CSS pixels, as an affine in PVec order.
+function viewAffine() {
+  const [w, h] = size();
+  const { cx, cy, scale } = state.view;
+  return [scale, 0, 0, -scale, w / 2 - scale * cx, h / 2 + scale * cy];
+}
+
+function tileKey(r, level, col, row) {
+  return `${r}/${level}/${col}/${row}`;
+}
+
+// Reads a tile's encoded bytes from the module and decodes them in the background; the frame that asked draws
+// without it, and the decode schedules the next one. The module decodes nothing (ADR 0018): the browser does,
+// with orientation and colour space left alone (WASM_ABI.md, "Rasters").
+function decodeTile(r, level, col, row) {
+  const key = tileKey(r, level, col, row);
+  if (state.tiles.has(key) || state.decoding.has(key)) return;
+  const { x, file } = state;
+  const handle = x.raster_tile(file, r, level, col, row);
+  if (handle === -9) {
+    state.tiles.set(key, null);
+    return;
+  }
+  check("raster_tile", handle);
+  const bytes = rasterArray(x, handle, 0, Uint8Array).slice();
+  x.release(handle);
+  const job = createImageBitmap(new Blob([bytes]), { imageOrientation: "none", colorSpaceConversion: "none" })
+    .then((bitmap) => {
+      state.tiles.set(key, bitmap);
+      while (state.tiles.size > TILE_CACHE) {
+        const [oldest, old] = state.tiles.entries().next().value;
+        if (old) old.close();
+        state.tiles.delete(oldest);
+      }
+    })
+    .catch(() => state.tiles.set(key, null))
+    .finally(() => {
+      state.decoding.delete(key);
+      schedule();
+    });
+  state.decoding.set(key, job);
+}
+
+// The rasters of one band in the window: `raster_plan` picks each raster's level and tiles for the display scale,
+// and every tile is drawn through view ∘ pixel_to_source ∘ (the level's pixel size, the tile's place), clipped to
+// the visible box so a padded edge never shows.
+function drawRasters(ctx, band) {
+  const { x, file } = state;
+  if (!state.rasters.some((r) => r && r.f[12] === band)) return;
+  const dpr = window.devicePixelRatio || 1;
+  const [x0, y0, x1, y1] = window_();
+  const plan = check("raster_plan", x.raster_plan(file, x0, y0, x1, y1, state.view.scale * dpr, 0));
+  try {
+    const ids = rasterArray(x, plan, 0, Uint32Array).slice();
+    const levels = rasterArray(x, plan, 1, Uint32Array).slice();
+    const table = rasterArray(x, plan, 2, Uint32Array).slice();
+    const cells = rasterArray(x, plan, 3, Uint32Array).slice();
+    const view = viewAffine();
+    for (let i = 0; i < ids.length; i++) {
+      const raster = state.rasters[ids[i]];
+      if (!raster || raster.f[12] !== band) continue;
+      const { p, f } = raster;
+      const [vx0, vy0, vx1, vy1] = [f[2], f[3], f[4], f[5]];
+      const edge = f[6];
+      const level = levels[i];
+      const k = 2 ** (f[7] - 1 - level);
+      const toPixels = compose(view, p);
+      ctx.save();
+      ctx.globalAlpha = f[11] / 255;
+      ctx.setTransform(dpr * toPixels[0], dpr * toPixels[2], dpr * toPixels[1], dpr * toPixels[3], dpr * toPixels[4], dpr * toPixels[5]);
+      ctx.beginPath();
+      ctx.rect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+      ctx.clip();
+      for (let t = table[i]; t < table[i + 1]; t++) {
+        const [col, row] = [cells[2 * t], cells[2 * t + 1]];
+        const key = tileKey(ids[i], level, col, row);
+        const bitmap = state.tiles.get(key);
+        if (bitmap === undefined) decodeTile(ids[i], level, col, row);
+        if (!bitmap) continue;
+        const m = compose(toPixels, [k, 0, 0, k, col * edge * k, row * edge * k]);
+        ctx.setTransform(dpr * m[0], dpr * m[2], dpr * m[1], dpr * m[3], dpr * m[4], dpr * m[5]);
+        ctx.drawImage(bitmap, 0, 0);
+      }
+      ctx.restore();
+    }
+  } finally {
+    x.release(plan);
+  }
 }
 
 // The vectors of the window: `query_viewport` culls, `tessellate_batch` holds every curve to a quarter of a
@@ -174,7 +291,9 @@ function draw() {
   ctx.fillRect(0, 0, w, h);
   if (state.file < 0) return;
   try {
+    drawRasters(ctx, 0);
     drawVectors(ctx);
+    drawRasters(ctx, 1);
   } catch (e) {
     setStatus(`${state.name}: ${e.message}`, true);
   }
@@ -220,10 +339,47 @@ function extentOf(x, file) {
   return { extent: box[0] <= box[2] ? box : [0, 0, 1, 1], entities };
 }
 
-function rasterCount(x, file) {
-  if (typeof x.raster_stat !== "function") return 0;
+// The placements of the file, and what its status line says about them: how many, how many skipped and by
+// which rule, or the rule that refused the whole stream.
+function readRasters(x, file) {
+  const out = { rasters: [], text: "0 rasters" };
+  if (typeof x.raster_stat !== "function") return out;
   const n = x.raster_stat(file, 0);
-  return n < 0 ? 0 : n;
+  if (n === -8) return out;
+  check("raster_stat", n);
+  const notes = [];
+  if (x.raster_stat(file, 3) === 1 && x.raster_stat(file, 2) === 1 && x.raster_stat(file, 4) > 0) {
+    notes.push(`raster stream refused (${rule(x.raster_stat(file, 5), x.raster_stat(file, 4))})`);
+  }
+  const skipped = Math.max(0, x.raster_stat(file, 1));
+  const rules = new Set();
+  for (let i = 0; i < skipped; i++) rules.add(rule(x.raster_skipped(file, i, 2), x.raster_skipped(file, i, 1)));
+  if (skipped > 0) notes.push(`${skipped} skipped (${[...rules].join(", ")})`);
+  for (let r = 0; r < n; r++) {
+    const h = x.raster_placement(file, r);
+    if (h === -10) {
+      out.rasters.push(null);
+      continue;
+    }
+    check("raster_placement", h);
+    out.rasters.push({ p: Array.from(rasterArray(x, h, 0, Float64Array)), f: rasterArray(x, h, 1, Uint32Array).slice() });
+    x.release(h);
+  }
+  out.text = `${n} raster${n === 1 ? "" : "s"}${notes.length ? `, ${notes.join(", ")}` : ""}`;
+  return out;
+}
+
+// The box of a raster's visible pixels in source space.
+function footprint({ p, f }) {
+  const corners = [
+    [f[2], f[3]],
+    [f[4], f[3]],
+    [f[4], f[5]],
+    [f[2], f[5]],
+  ].map(([u, v]) => [p[0] * u + p[1] * v + p[4], p[2] * u + p[3] * v + p[5]]);
+  const xs = corners.map((c) => c[0]);
+  const ys = corners.map((c) => c[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
 async function openBytes(name, bytes) {
@@ -234,10 +390,20 @@ async function openBytes(name, bytes) {
   const [ptr, len] = pass(x, new Uint8Array(bytes));
   const file = check("open", x.open(ptr, len));
   const { extent, entities } = extentOf(x, file);
-  const rasters = rasterCount(x, file);
+  const { rasters, text } = readRasters(x, file);
+  for (const r of rasters.filter(Boolean)) {
+    const [a, b, c, d] = footprint(r);
+    extent[0] = Math.min(extent[0], a);
+    extent[1] = Math.min(extent[1], b);
+    extent[2] = Math.max(extent[2], c);
+    extent[3] = Math.max(extent[3], d);
+  }
+  for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
+  state.tiles.clear();
   state.file = file;
   state.extent = extent;
-  setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${rasters} raster${rasters === 1 ? "" : "s"}`);
+  state.rasters = rasters;
+  setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${text}`);
   fit();
 }
 
@@ -333,7 +499,13 @@ window.pvecViewer = {
   get view() {
     return state.view;
   },
-  idle: () => state.pending || Promise.resolve(),
+  // resolves once no frame is pending and no tile is being decoded
+  idle: async () => {
+    while (state.pending || state.decoding.size) {
+      await Promise.all([state.pending, ...state.decoding.values()]);
+    }
+  },
+  redraw: schedule,
   toScreen,
   sourceAt,
   fit,
