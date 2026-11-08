@@ -388,7 +388,9 @@ async function openBytes(name, bytes) {
   state.file = -1;
   state.name = name;
   const [ptr, len] = pass(x, new Uint8Array(bytes));
+  // held from here, so `forget` or the next open releases it even when reading the extent throws
   const file = check("open", x.open(ptr, len));
+  state.file = file;
   const { extent, entities } = extentOf(x, file);
   const { rasters, text } = readRasters(x, file);
   for (const r of rasters.filter(Boolean)) {
@@ -400,7 +402,6 @@ async function openBytes(name, bytes) {
   }
   for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
   state.tiles.clear();
-  state.file = file;
   state.extent = extent;
   state.rasters = rasters;
   setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${text}`);
