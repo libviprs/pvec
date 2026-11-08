@@ -104,7 +104,8 @@ fn issue_271_the_viewer_fixture_is_what_this_test_writes_and_the_module_reads_it
     let mut rt = Runtime::new();
     let f = rt.open(have).expect("the module opens it");
     assert_eq!((rt.raster_stat(f, 0), rt.raster_stat(f, 1)), (Ok(1), Ok(0)), "one raster, none skipped");
-    let batch =
-        rt.query_viewport(f, pvec::Bounds2 { min: [-1e6, -1e6], max: [1e6, 1e6] }, 1 << 20).expect("a batch");
+    let batch = rt
+        .query_viewport(f, pvec::Bounds2 { min: [-10_000.0, -10_000.0], max: [10_000.0, 10_000.0] }, 1 << 20)
+        .expect("a batch");
     assert_eq!(rt.batch_len(batch), Ok(4), "the frame, the mark, the line and the circle");
 }

@@ -41,9 +41,11 @@ async function around(page, x, y, r = 2) {
   );
 }
 
-const close = (a, b, tol = 40) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) <= tol;
-const has = (pixels, colour) => pixels.some((p) => close(p, colour));
-const all = (pixels, colour) => pixels.every((p) => close(p, colour, 8));
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+// A stroke of one CSS pixel on a pixel boundary is antialiased over two rows at about half strength, so a pixel
+// counts as inked when it is at least a third of the way from the paper to the stroke colour.
+const inked = (pixels, { canvas, stroke }) => pixels.some((p) => dist(p, canvas) >= dist(stroke, canvas) / 3);
+const all = (pixels, colour) => pixels.every((p) => dist(p, colour) <= 8);
 
 test("#271 opens the page fixture and says what it holds", async ({ page }) => {
   await open(page);
@@ -56,7 +58,8 @@ test("#271 opens the page fixture and says what it holds", async ({ page }) => {
 
 test("#271 draws the frame, the corner mark, the line and the circle where the source puts them", async ({ page }) => {
   await open(page);
-  const { canvas, stroke } = await tokens(page);
+  const colours = await tokens(page);
+  const { canvas } = colours;
   for (const [x, y, what] of [
     [306, 0, "bottom edge of the frame"],
     [0, 396, "left edge of the frame"],
@@ -68,7 +71,7 @@ test("#271 draws the frame, the corner mark, the line and the circle where the s
     [386, 200, "the circle, east"],
     [306, 120, "the circle, south"],
   ]) {
-    expect(has(await around(page, x, y), stroke), `${what} at (${x}, ${y})`).toBe(true);
+    expect(inked(await around(page, x, y), colours), `${what} at (${x}, ${y})`).toBe(true);
   }
   for (const [x, y, what] of [
     [306, 200, "the centre of the circle"],
@@ -96,15 +99,17 @@ test("#271 source y is up: the top of the page is at the top of the screen", asy
 test("#271 zooming keeps the source point under the pointer, and dragging pans by the pointer's move", async ({ page }) => {
   await open(page);
   const box = await page.locator("#view").boundingBox();
-  const at = [box.x + 300, box.y + 250];
-  const before = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), [300, 250]);
+  // mouse events carry whole CSS pixels, and the canvas may start at a fraction of one below the header
+  const at = [Math.round(box.x + 300), Math.round(box.y + 250)];
+  const local = [at[0] - box.x, at[1] - box.y];
+  const before = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), local);
   const scale0 = await page.evaluate(() => window.pvecViewer.view.scale);
   await page.mouse.move(at[0], at[1]);
   await page.mouse.wheel(0, -400);
   await page.evaluate(() => window.pvecViewer.idle());
   const scale1 = await page.evaluate(() => window.pvecViewer.view.scale);
   expect(scale1).toBeGreaterThan(scale0);
-  const after = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), [300, 250]);
+  const after = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), local);
   expect(Math.abs(after[0] - before[0])).toBeLessThan(1e-6 * 612);
   expect(Math.abs(after[1] - before[1])).toBeLessThan(1e-6 * 792);
 
@@ -112,7 +117,7 @@ test("#271 zooming keeps the source point under the pointer, and dragging pans b
   await page.mouse.move(at[0] + 100, at[1] + 40, { steps: 5 });
   await page.mouse.up();
   await page.evaluate(() => window.pvecViewer.idle());
-  const moved = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), [400, 290]);
+  const moved = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), [local[0] + 100, local[1] + 40]);
   expect(Math.abs(moved[0] - before[0])).toBeLessThan(1e-6 * 612);
   expect(Math.abs(moved[1] - before[1])).toBeLessThan(1e-6 * 792);
 });
@@ -140,8 +145,10 @@ test("#271 a file that is not a PVec is refused with the module's code, and noth
 test("#271 the dark theme draws light strokes on a dark canvas", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await open(page);
-  const { canvas, stroke } = await tokens(page);
+  const colours = await tokens(page);
+  const { canvas, stroke } = colours;
   expect(canvas[0] + canvas[1] + canvas[2]).toBeLessThan(150);
-  expect(has(await around(page, 306, 0), stroke)).toBe(true);
+  expect(stroke[0] + stroke[1] + stroke[2]).toBeGreaterThan(600);
+  expect(inked(await around(page, 306, 0), colours)).toBe(true);
   expect(all(await around(page, 50, 300, 1), canvas)).toBe(true);
 });

@@ -8,7 +8,8 @@ Chapter 1 is the STEP AP242 export (P6.2, pvec#19). Chapter 2 belongs to the rou
 and is added by that issue. Chapter 3 is the GML export (P6.4, pvec#21), chapter 4 the
 GeoPackage export (P6.5, pvec#22), chapter 5 the vector tile export (P6.6, pvec#23)
 chapter 6 the PMTiles packaging (P6.7, pvec#24), chapter 7 the fidelity reports every export emits
-(P6.8, pvec#25) and chapter 8 what every export does with a raster (R2.3, pvec#222).
+(P6.8, pvec#25), chapter 8 what every export does with a raster (R2.3, pvec#222) and chapter 9 which route
+a reader takes to display a file (ADR 0020, pvec#271).
 
 ## 1. STEP AP242 export
 
@@ -948,3 +949,16 @@ export carried) and `unsupported` (one entry per raster left out, with its `rast
 
 Georeferencing an archive, re-encoding, GeoPackage tile tables, composing a placement from a `GeoTransform`
 (`libviprs/libviprs#1328`), and the MLT and AVIF tile types.
+
+## 9. Displaying a PVec
+
+ADR 0020 decides it, and it is short. To look at a `.pvec` of ours, vectors and rasters together, open it in the
+viewer in `viewer/`: a static page over the pvec-wasm module that draws the curves exactly (tessellated by the
+module, with the error measured on screen) and the rasters from their own pyramid, in source space. A client that is
+not ours, and only needs a picture, takes the PMTiles pair of chapter 8 (or the vector tiles of chapter 5) and loses
+what those chapters say it loses. Nothing in this repository is a map library layer, and `libviprs/maplibre-pvec` is
+archived.
+
+The page takes `file=` (the URL of a `.pvec`) and `module=` (the URL of `pvec_wasm_bg.wasm`, by default next to the
+page), or a local file from its picker. `tools/viewer-test.sh` builds the module into `viewer/` and runs the page's
+browser tests in a container; serving `viewer/` with the module beside it is all a deployment needs.

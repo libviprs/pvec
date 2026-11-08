@@ -52,6 +52,6 @@ labelled mathematically exact:
 |---|---|
 | [`libviprs/pvec-gold-fixtures`](https://github.com/libviprs/pvec-gold-fixtures) | the containerised dual-converter DWG oracle and the fixture corpus this repository's conformance suite reads |
 | [`libviprs/libviprs`](https://github.com/libviprs/libviprs) | DWG and vector-PDF ingestion, normalised into PVec semantic geometry |
-| [`libviprs/maplibre-pvec`](https://github.com/libviprs/maplibre-pvec) | the MapLibre GL JS add-on that streams `.pvec` and renders it |
+| [`libviprs/maplibre-pvec`](https://github.com/libviprs/maplibre-pvec) | archived: the MapLibre GL JS layer that used to render `.pvec`. The viewer is now `viewer/` here (ADR 0020) |
 
 Dependency direction is one way: `pvec-gold-fixtures` → `pvec` → { `libviprs`, `maplibre-pvec` }.
