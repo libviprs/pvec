@@ -476,6 +476,8 @@ The gaps the epic listed are settled the same way:
 2. Where does the CRS identifier live (placement, manifest or sidecar) so the out-of-band georeference of a
    geo-referenced raster can be rebuilt reproducibly? Still open on purpose: it needs an answer only when a
    producer wants the reproducible rebuild, and libviprs/libviprs#1328 proceeds with the out-of-band georeference.
+   Answered 2026-11-07 (ADR 0019): in the artifact's calibration block (capability 22, kind 11), one per artifact. A
+   raster's world position is that georeference after its `pixel_to_source`, so a raster stores none of its own.
 3. A polygon clip in the placement with a stencil pass, as a v1.x addition, if baking into alpha proves too costly.
 4. Is the Hilbert order inside a level worth the writer complexity on real scans? #220 measures requests per
    viewport against row-major. The PMTiles export of #222 does not depend on the answer.

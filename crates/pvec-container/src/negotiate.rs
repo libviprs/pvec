@@ -96,7 +96,7 @@ pub enum Refusal {
         /// The major version the reader supports.
         supported_major: u16,
     },
-    /// A component or the raster capability declared required, which neither ever is.
+    /// A capability whose class is never required (component, raster, calibration) declared required.
     ComponentDeclaredRequired(CapabilityId),
     /// An optional extension declared required.
     ExtensionDeclaredRequired(CapabilityId),
@@ -148,21 +148,24 @@ pub const NEGOTIATE_RULES: &[(&str, &str)] = &[
     ),
     (
         "NEGOTIATE-04",
-        "a component, the raster capability or an optional extension is declared required, which the registry does not allow",
+        "a capability whose class is never required (a component, the raster or the calibration capability) or an optional extension is declared required, which the registry does not allow",
     ),
     ("NEGOTIATE-05", "a block names a capability id the manifest does not declare"),
     (
         "NEGOTIATE-06",
-        "a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none",
+        "a block of a kind a capability owns (kinds 9 and 10 belong to capability 21, kind 11 belongs to capability 22) names another capability, or none",
     ),
 ];
 
 /// The block kinds a capability owns, outside `BlockKind::ALL`: the kind id, its name and the owner
-/// (ADR 0018). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
+/// (ADR 0018, ADR 0019). A block of one of these kinds must name its owner in its directory entry (`NEGOTIATE-06`);
 /// a reader that implements the owner is handed the block, and one that does not skips it as a kind it does
 /// not know. `DIR-02` is untouched: a kind the format defines still names no capability.
-pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 2] =
-    [(9, "raster_index", CapabilityId::new(21)), (10, "raster_tiles", CapabilityId::new(21))];
+pub const CAPABILITY_OWNED_KINDS: [(u16, &str, CapabilityId); 3] = [
+    (9, "raster_index", CapabilityId::new(21)),
+    (10, "raster_tiles", CapabilityId::new(21)),
+    (11, "calibration", CapabilityId::new(22)),
+];
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -193,7 +196,7 @@ impl fmt::Display for Refusal {
             Refusal::ComponentDeclaredRequired(id) => {
                 write!(
                     f,
-                    "{rule}: capability id {id} is a component or the raster capability and cannot be declared required"
+                    "{rule}: capability id {id} is of a class that is never required and cannot be declared required"
                 )
             }
             Refusal::ExtensionDeclaredRequired(id) => {
@@ -244,6 +247,8 @@ pub enum Effect {
     Uncomponented,
     /// The drawing has raster images this reader cannot show.
     Unrastered,
+    /// The file carries a scale or a georeference this reader cannot show (ADR 0019).
+    Uncalibrated,
     /// The reader cannot say.
     Unknown,
 }
@@ -347,10 +352,11 @@ impl PartialOpen {
             self.capabilities.iter().filter(|c| c.effect == effect).map(name).collect::<Vec<_>>().join(", ")
         };
         let mut parts = Vec::new();
-        let (styles, components, rasters, unknown) = (
+        let (styles, components, rasters, calibrations, unknown) = (
             list(Effect::Unstyled),
             list(Effect::Uncomponented),
             list(Effect::Unrastered),
+            list(Effect::Uncalibrated),
             list(Effect::Unknown),
         );
         if !styles.is_empty() {
@@ -368,6 +374,11 @@ impl PartialOpen {
         if !rasters.is_empty() {
             parts.push(format!(
                 "this file has an image this reader cannot show, because capability {rasters} was not read"
+            ));
+        }
+        if !calibrations.is_empty() {
+            parts.push(format!(
+                "this file carries a scale or georeference this reader cannot show, because capability {calibrations} was not read"
             ));
         }
         if !unknown.is_empty() {
@@ -408,6 +419,7 @@ fn effect_of(id: CapabilityId) -> Effect {
             }
         }
         Some(c) if c.class == Class::Raster => Effect::Unrastered,
+        Some(c) if c.class == Class::Calibration => Effect::Uncalibrated,
         _ => Effect::Unknown,
     }
 }
@@ -438,7 +450,9 @@ pub fn negotiate(manifest: &Manifest, entries: &[BlockEntry], reader: &ReaderCap
                     reader: reader.version,
                 });
             }
-            if matches!(c.class, Class::Component | Class::Raster) && d.requirement == Requirement::Required {
+            if matches!(c.class, Class::Component | Class::Raster | Class::Calibration)
+                && d.requirement == Requirement::Required
+            {
                 return Outcome::Refuse(Refusal::ComponentDeclaredRequired(d.id));
             }
             if c.class == Class::Extension
@@ -611,7 +625,7 @@ the version it was written at and a requirement, required or optional. Matching 
 A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable \
 by the growth rules of section 1.7. `version_gaps` lists those capabilities with the version the file declares and \
 the one the reader implements, so a consumer can report the gap. A newer major of an optional capability is skipped, and of a required one is \
-refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as \
+refused. The registry's own rules apply first: a capability whose class is never required (component, raster, calibration) cannot be declared required, and an extension the registry lists as \
 optional cannot be declared required by a file.\n\n\
 Refusals are `Refusal` values and carry a rule:\n\n\
 | rule | meaning |\n|---|---|\n",
@@ -628,8 +642,8 @@ skips a block from a descriptor alone, and never requests a byte of its payload:
 when it is set (`DIR-04`);\n\
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);\n\
 * a block whose capability the reader skipped is skipped with it;\n\
-* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21 and are not in the kind table of \
-chapter 4) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not \
+* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21, and kind 11, which belongs to \
+capability 22; none is in `BlockKind::ALL`) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not \
 know, naming the capability from its entry, when it does not. It must name its owner and no other capability \
 (`NEGOTIATE-06`).\n\n\
 A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and \
@@ -652,7 +666,7 @@ the capability.\n\
 6. Its id comes from the registry (`docs/CAPABILITIES.md`, `docs/EXTENSIONS.md`) and is never reused.\n\n\
 ### 5.5 The report and re-writing\n\n\
 `PartialOpen` lists the skipped capability ids with their versions, names and what each leaves undone (entities \
-unstyled, entities without a component, or unknown), the skipped blocks, and the number of entities a skipped \
+unstyled, entities without a component, an image or a calibration the reader cannot show, or unknown), the skipped blocks, and the number of entities a skipped \
 capability may apply to, so a consumer can say so and not silently drop content. Which entities a skipped stream \
 names is in its payload, which is not read.\n\n\
 Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes \

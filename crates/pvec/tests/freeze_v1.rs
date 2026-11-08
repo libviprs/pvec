@@ -98,7 +98,7 @@ fn the_five_bench_reports_are_listed_in_a_checklist_with_their_state() {
 #[test]
 fn the_v1_constants_are_the_frozen_values() {
     assert_eq!((Header::MAJOR, Header::MINOR), (1, 0), "container version");
-    assert_eq!(FORMAT_VERSION, Version::new(1, 1, 0), "capability format version");
+    assert_eq!(FORMAT_VERSION, Version::new(1, 2, 0), "capability format version");
     let wasm = read("crates/pvec-wasm/src/abi.rs");
     assert!(wasm.contains("pub const WASM_ABI_VERSION: u32 = 2;"), "wasm_abi_version");
     let doc = freeze();

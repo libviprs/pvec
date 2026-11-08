@@ -60,7 +60,7 @@ so churn there never touches the core snapshot.
 Since the raster work (ADR 0018, issue 216) the same module holds `Effect`, `ReaderCapabilities` and `ReaderConfig`, the
 container types a degraded open and a limited open need, and two `PvecReader` calls: `PvecReader::open_with_config(bytes,
 config)`, which opens with the capabilities and limits the config names, and `PvecReader::skipped_effects()`, which lists each skipped capability with what it leaves
-undone (`Unstyled`, `Uncomponented`, `Unrastered` or `Unknown`). `Unrastered` is the "this file has an image
+undone (`Unstyled`, `Uncomponented`, `Unrastered`, `Uncalibrated` or `Unknown`). `Unrastered` is the "this file has an image
 your reader cannot show" promise, and the list is empty for a file that was read whole.
 
 Since issue 218 it also holds the raster calls. `PvecWriter::rasters(placements)` attaches the raster stream (capability 21) and

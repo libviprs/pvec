@@ -18,7 +18,7 @@ result file records a failure, so the table cannot say more than the files do.
 | internal layout (SoA + arenas) | ADR 0004 | P8.3 layout arms | docs/bench/LAYOUT.md records the SoA gate red on x64 (2.01x against 3x) and the block size gate red, pvec#192 | NOT FROZEN |
 | spatial index + straddler strategy | ADR 0005 | P8.3 index arms, total viewport I/O | docs/bench/LAYOUT.md records the index gate red on 7 of 7 entries (3x to 38x the bytes of the best alternative), pvec#192 | NOT FROZEN |
 | progressive tiers | ADR 0007 | P8.5 coverage stages | docs/bench/PROGRESSIVE.md records 8 of 9 gates red on x64 and 7 of 9 on arm64 (directory 2.1 s against 0.3 s, Tier 0 3.3 s against 1.5 s, full refinement 10.4 s against 5 s on architectural-1e6), pvec#192 | NOT FROZEN |
-| extension rules | ADR 0008 and ADR 0013 | registry lint + P7.6 matrix | tests/compat/matrix.txt; since 2026-10-31 a capability may own block kinds (kinds 9 and 10, capability 21, ADR 0018), on purpose and dated | FROZEN |
+| extension rules | ADR 0008 and ADR 0013 | registry lint + P7.6 matrix | tests/compat/matrix.txt; since 2026-10-31 a capability may own block kinds (kinds 9 and 10, capability 21, ADR 0018), and since 2026-11-07 kind 11 belongs to capability 22 (ADR 0019), on purpose and dated | FROZEN |
 | capability registry + compatibility contract | ADR 0010 | P7.8 capability matrix | docs/capabilities.toml | FROZEN |
 | security and resource limits (P4.8) | ADR 0008 and docs/SECURITY_LIMITS.md | P7.8 findings all fixed | the findings are fixed, but the 4 hour nightly fuzz run is still outstanding (pvec#190), so the gate is not closed | NOT FROZEN |
 | fixture corpus revision | EPIC O revision pin | corpus.lock.json digests | the chunk ordering change of pvec#159 moved the bytes of 9 of the 10 generated entries after corpus.lock.json was written, which turned `every_digest_in_the_lock_matches_the_rebuilt_artifact` in crates/pvec-bench/tests/issue_60_corpus.rs red. pvec#196 resolves it with a second lock (pvec#197): corpus.lock.json stays as the corpus the benchmark reports were measured on and cite, and corpus.post159.lock.json pins the current corpus that the corpus test checks. Which of the two is the v1 revision pin is not decided, and `gen_corpus -- check` and tools/corpus-offline.sh still read the old lock, so the corpus is not frozen | NOT FROZEN |
@@ -26,9 +26,9 @@ result file records a failure, so the table cannot say more than the files do.
 
 ## Constants
 
-At the freeze the constants are: container 1.0 (`Header::MAJOR` 1, `Header::MINOR` 0), capability format version 1.1.0
-(`FORMAT_VERSION`, 1.0.0 until ADR 0018 added capability 21), and `wasm_abi_version` 2 (it was 1 until pvec#201 added the spatial directory and the Tier 0 stream to the ABI, before any tag; `docs/WASM_ABI.md` says what changed and what did not). The registry snapshot `docs/capabilities.toml` has sha256
-`2baba44bf59f7906a1078ae1129ef2aaf31acce7749a65f991c4b5a339055023`, and the corpus lock
+At the freeze the constants are: container 1.0 (`Header::MAJOR` 1, `Header::MINOR` 0), capability format version 1.2.0
+(`FORMAT_VERSION`, 1.0.0 until ADR 0018 added capability 21, 1.1.0 until ADR 0019 added capability 22), and `wasm_abi_version` 2 (it was 1 until pvec#201 added the spatial directory and the Tier 0 stream to the ABI, before any tag; `docs/WASM_ABI.md` says what changed and what did not). The registry snapshot `docs/capabilities.toml` has sha256
+`58ee0a82fd195396aedb21e31ab8b5401d441c02048b5ff690b25aee78ad61a9`, and the corpus lock
 `crates/pvec-bench/benches/corpus/corpus.lock.json` has sha256
 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`. The freeze tests recompute both, so changing the
 registry or the corpus lock turns them red until this page is updated on purpose. The lock digest is recorded so a

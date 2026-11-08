@@ -52,3 +52,13 @@ required and `Registry::new` refuses one that is), it refers to no entity, and i
 are reserved for capability 21 in `docs/CONTAINER.md`. It is not a component (a component is information about
 entities) and not a geometry extension (`docs/EXTENSIONS.md`), so neither of their rules applies to it. The `Class`
 enum is `#[non_exhaustive]`, so the variant is a compatible addition, and the format version moves to 1.1.0 with it.
+
+## Amendment 2026-11-07: the `Calibration` class
+
+ADR 0019 adds a fifth class, `Calibration`, on the pattern of `Raster`. Its first and so far only entry is capability
+22 `calibration`. A `Calibration` entry is optional by construction (a file cannot declare it required and
+`Registry::new` refuses one that is), it refers to no entity, and it may own block kinds: kind 11 is reserved for
+capability 22 in `docs/CONTAINER.md`. It is a scale and a georeference for the whole artifact, so it is neither a
+component nor a raster, and an old reader that skips it reports `Effect::Uncalibrated`, not `Unrastered`. NEGOTIATE-04
+now reads by class: a capability whose class is never required (component, raster, calibration) cannot be declared
+required. The variant is a compatible addition, and the format version moves to 1.2.0 with it.
