@@ -415,6 +415,21 @@ fn a_negative_zero_is_written_as_positive_zero_and_a_stored_one_is_refused() {
     let back = decode_calibration(&b).unwrap();
     assert_eq!(back.georeference.as_ref().unwrap().source_to_crs[1].to_bits(), 0);
     assert_eq!(encode_calibration(&back).unwrap(), b);
+    // CAL-06 compares points as they are stored: -0.0 and +0.0 are one source point
+    let mut c = geopdf();
+    let g = c.georeference.as_mut().unwrap();
+    let mut twin = g.control_points[0];
+    twin.source = [-0.0, 0.0];
+    twin.world[0] += 1.0;
+    g.control_points.push(twin);
+    assert_eq!(encode_rule(&c), "CAL-06", "a contradiction hidden behind a -0.0");
+    let mut c = geopdf();
+    let g = c.georeference.as_mut().unwrap();
+    let mut twin = g.control_points[0];
+    twin.world = [twin.world[0] + 0.0, twin.world[1]];
+    twin.source = [-0.0, -0.0];
+    g.control_points.push(twin);
+    assert_eq!(encode_rule(&c), "ok", "an exact duplicate once written");
     // the same zero stored as -0.0 in a control point is refused
     let tail = HEADER + SCALE + GEO;
     let mut m = b.clone();
