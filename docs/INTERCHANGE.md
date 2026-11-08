@@ -64,6 +64,8 @@ with its reason, so nothing is dropped without saying so.
 | `source_provenance` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
 | `dwg_semantics` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
 | `semantic_class` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `paint_order` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
+| `stroke_paint` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
 | `raster` | Component | `none` | `Unsupported` | a raster is pixels, not geometry; the AP242 reference export writes the 2D curve profile only and records the raster as Unsupported (ADR 0018) |
 
 ### 1.3 What each value rests on
@@ -313,6 +315,8 @@ generated from `gml::MAPPING` and a test fails if this copy drifts
 | `source_provenance` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 | `dwg_semantics` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 | `semantic_class` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `paint_order` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
+| `stroke_paint` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 | `raster` | Component | `none` | `Unsupported` | a raster is pixels, not geometry; the GML export writes curve geometry only and records the raster as Unsupported (ADR 0018) |
 <!-- mapping-table:end -->
 

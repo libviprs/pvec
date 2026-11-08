@@ -369,6 +369,8 @@ pub const MAPPING: &[MappingRow] = &[
     row!("source_provenance", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
     row!("dwg_semantics", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
     row!("semantic_class", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
+    row!("paint_order", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
+    row!("stroke_paint", Component, "none", NATIVE, Unsupported, COMPONENT_REASON),
     row!(
         "raster",
         Component,

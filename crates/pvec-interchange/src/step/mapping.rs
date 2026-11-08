@@ -172,6 +172,8 @@ pub const MAPPING: &[MappingRow] = &[
     row!("source_provenance", Component, "none", Unsupported, COMPONENT_REASON),
     row!("dwg_semantics", Component, "none", Unsupported, COMPONENT_REASON),
     row!("semantic_class", Component, "none", Unsupported, COMPONENT_REASON),
+    row!("paint_order", Component, "none", Unsupported, COMPONENT_REASON),
+    row!("stroke_paint", Component, "none", Unsupported, COMPONENT_REASON),
     row!(
         "raster",
         Component,
