@@ -403,3 +403,21 @@ fn the_error_table_has_one_row_per_rule_in_order() {
     want.extend((1..=12).map(|n| format!("CAL-{n:02}")));
     assert_eq!(rules, want);
 }
+
+#[test]
+fn a_negative_zero_is_written_as_positive_zero_and_a_stored_one_is_refused() {
+    let mut c = geopdf();
+    let g = c.georeference.as_mut().unwrap();
+    g.source_to_crs[1] = -0.0;
+    g.control_points[0].source = [-0.0, -0.0];
+    let b = encode_calibration(&c).expect("a -0.0 the writer is handed is normalised, not refused");
+    assert!(!b.chunks_exact(8).any(|w| w == (-0.0f64).to_le_bytes()), "a -0.0 was stored");
+    let back = decode_calibration(&b).unwrap();
+    assert_eq!(back.georeference.as_ref().unwrap().source_to_crs[1].to_bits(), 0);
+    assert_eq!(encode_calibration(&back).unwrap(), b);
+    // the same zero stored as -0.0 in a control point is refused
+    let tail = HEADER + SCALE + GEO;
+    let mut m = b.clone();
+    put_f64(&mut m, tail, -0.0);
+    assert_eq!(rule(&m), "CAL-04");
+}
