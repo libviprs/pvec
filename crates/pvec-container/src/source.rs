@@ -94,6 +94,14 @@ pub enum SourceError {
         /// What it answered with.
         detail: String,
     },
+    /// The object changed since the source first read from it: the server answered an `If-Range` with
+    /// the whole new object, a range came back with another validator, or the `Content-Range` total is
+    /// not the length the source was opened with. Nothing from the new object is handed to the decoder;
+    /// the caller reopens the file.
+    Changed {
+        /// What showed the change.
+        detail: String,
+    },
     /// The transport or the file failed.
     Io(String),
 }
@@ -106,6 +114,7 @@ impl fmt::Display for SourceError {
             }
             SourceError::Short { wanted, got } => write!(f, "asked for {wanted} bytes and got {got}"),
             SourceError::RangeNotHonoured { detail } => write!(f, "the range was not honoured: {detail}"),
+            SourceError::Changed { detail } => write!(f, "the object changed since it was opened: {detail}"),
             SourceError::Io(e) => write!(f, "io: {e}"),
         }
     }
@@ -282,6 +291,23 @@ pub struct HttpResponse {
 pub trait HttpTransport {
     /// Sends `GET` with the range header and returns the response.
     fn fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>;
+
+    /// Sends `GET` with the range header and, when `if_range` is `Some`, an `If-Range` header with that
+    /// value, and returns the response with the validator it carried: its `ETag` as sent (quotes included),
+    /// or its `Last-Modified` only when it has no `ETag` at all, else `None`. A weak `ETag` is reported as it
+    /// is and never sent back, and a date is not a validator for a response that has any `ETag` (RFC 9110
+    /// 13.1.5). On a `200` the transport may drop the body.
+    ///
+    /// The default sends no `If-Range` and reports no validator, so a transport that only implements
+    /// [`HttpTransport::fetch`] reads as it always did, without the change check.
+    fn fetch_if_range(
+        &self,
+        range: HttpRange,
+        if_range: Option<&str>,
+    ) -> impl Future<Output = Result<(HttpResponse, Option<String>), String>> {
+        let _ = if_range;
+        async move { self.fetch(range).await.map(|r| (r, None)) }
+    }
 }
 
 /// An artifact behind HTTP range requests. The transport is the caller's (a `fetch` in a browser, a
@@ -290,16 +316,23 @@ pub trait HttpTransport {
 /// A response is accepted only if it is a `206` whose body is exactly the bytes asked for. A `200` (the
 /// server ignored the range and sent the whole object), a `206` for another range and a body of another
 /// length are errors: a short answer is never handed to the decoder.
+///
+/// The source also holds the object to the version it first read (issue #264). The first strong validator
+/// a response carries is kept and sent as `If-Range` with every later range, so a server answers a
+/// rewritten object with a `200`, which is [`SourceError::Changed`]. A `206` under another validator (a
+/// server that ignores `If-Range`) and a `Content-Range` total other than `len` are `Changed` as well. A
+/// weak `ETag` is never sent, because `If-Range` takes a strong validator only (RFC 9110 13.1.5).
 #[derive(Debug)]
 pub struct HttpRangeSource<T: HttpTransport> {
     transport: T,
     len: u64,
+    validator: Mutex<Option<String>>,
 }
 
 impl<T: HttpTransport> HttpRangeSource<T> {
     /// A source over `transport` for an object of `len` bytes (from a `HEAD`, or a suffix range).
     pub fn new(transport: T, len: u64) -> HttpRangeSource<T> {
-        HttpRangeSource { transport, len }
+        HttpRangeSource { transport, len, validator: Mutex::new(None) }
     }
 }
 
@@ -314,15 +347,43 @@ impl<T: HttpTransport> AsyncBlockSource for HttpRangeSource<T> {
             return Ok(Bytes::new(Vec::new()));
         }
         let range = HttpRange { start: offset, end: offset + u64::from(len) - 1 };
-        let response = self.transport.fetch(range).await.map_err(SourceError::Io)?;
+        let lock = || self.validator.lock().map_err(|_| SourceError::Io("validator lock poisoned".into()));
+        let sent = lock()?.clone();
+        let (response, validator) =
+            self.transport.fetch_if_range(range, sent.as_deref()).await.map_err(SourceError::Io)?;
+        if response.status == 200 && sent.is_some() {
+            return Err(SourceError::Changed {
+                detail: format!(
+                    "the server answered If-Range {} with the whole object",
+                    sent.unwrap_or_default()
+                ),
+            });
+        }
         if response.status != 206 {
             return Err(SourceError::RangeNotHonoured { detail: format!("status {}", response.status) });
         }
-        if let Some((first, last, _)) = response.content_range {
+        if let Some((first, last, total)) = response.content_range {
             if first != range.start || last != range.end {
                 return Err(SourceError::RangeNotHonoured {
                     detail: format!("asked for {}-{} and got {first}-{last}", range.start, range.end),
                 });
+            }
+            if let Some(total) = total.filter(|&t| t != self.len) {
+                return Err(SourceError::Changed {
+                    detail: format!("opened at {} bytes, the object is now {total}", self.len),
+                });
+            }
+        }
+        if let Some(v) = validator.filter(|v| !v.starts_with("W/")) {
+            let mut kept = lock()?;
+            match kept.as_deref() {
+                None => *kept = Some(v),
+                Some(k) if k != v => {
+                    return Err(SourceError::Changed {
+                        detail: format!("opened as {k}, the range came as {v}"),
+                    });
+                }
+                Some(_) => {}
             }
         }
         if response.body.len() as u64 != u64::from(len) {

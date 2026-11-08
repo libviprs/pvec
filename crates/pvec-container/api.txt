@@ -855,6 +855,7 @@ source.rs: #[derive(Clone, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum Sou
 source.rs: SourceError::OutOfRange { offset: u64, len: u64, source_len: u64 }
 source.rs: SourceError::Short { wanted: u64, got: u64 }
 source.rs: SourceError::RangeNotHonoured { detail: String }
+source.rs: SourceError::Changed { detail: String }
 source.rs: SourceError::Io(String)
 source.rs: impl fmt::Display for SourceError
 source.rs: impl std::error::Error for SourceError {}
@@ -887,6 +888,7 @@ source.rs: HttpResponse.content_range: Option<(u64, u64, Option<u64>)>
 source.rs: HttpResponse.body: Vec<u8>
 source.rs: pub trait HttpTransport
 source.rs: HttpTransport::fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>
+source.rs: HttpTransport::fetch_if_range(&self, range: HttpRange, if_range: Option<&str>) -> impl Future<Output = Result<(HttpResponse, Option<String>), String>>
 source.rs: #[derive(Debug)] pub struct HttpRangeSource<T: HttpTransport>
 source.rs: HttpRangeSource<T>::new(transport: T, len: u64) -> HttpRangeSource<T>
 source.rs: impl<T: HttpTransport> AsyncBlockSource for HttpRangeSource<T>
