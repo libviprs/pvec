@@ -301,7 +301,7 @@ ranges the first calibration call may return -7 until the one range of the kind 
 a file with none or a refused one), 1 the provenance (1 `declared_unit`, 2 `plan_scale`, 3 `measured`, 4 `georeference`,
 5 `manual`; 0 without a scale), 2 whether an uncertainty is stated, 3 the CRS kind (1 projected, 2 geographic, 3
 engineering), 4 the method (1 declared, 2 fitted, 3 manual), 5 the control points, 6 the definition format (1 WKT2, 2
-PROJJSON), 7 the number of the rule that refused the calibration (0 when none did), 8 its family (0 `CAL`, 1 `LIMIT`), 9
+PROJJSON, 3 WKT1), 7 the number of the rule that refused the calibration (0 when none did), 8 its family (0 `CAL`, 1 `LIMIT`), 9
 whether the file carries a calibration this reader cannot show (`Effect::Uncalibrated`, or a refused one), 10 and 11 the
 numerator and denominator of a plan scale. A selector past 11 is -3.
 

@@ -80,7 +80,7 @@ tool can audit it, and a producer may have rounded.
 | 62 | 1 | `crs_kind` | u8 | 1 projected, 2 geographic, 3 engineering or local |
 | 63 | 1 | `method` | u8 | 1 declared by the source, 2 fitted by the writer from the points, 3 manual |
 | 64 | 1 | `crs_id_len` | u8 | 0 to 64 |
-| 65 | 1 | `definition_format` | u8 | 0 none, 1 WKT2, 2 PROJJSON; 0 exactly when `definition_len` is 0 |
+| 65 | 1 | `definition_format` | u8 | 0 none, 1 WKT2, 2 PROJJSON, 3 WKT1; 0 exactly when `definition_len` is 0 |
 | 66 | 6 | reserved | 6 x u8 | zero |
 
 The affine is in the raster's order (`docs/RASTER.md` 1.1), so one convention covers both. Its output is (easting,

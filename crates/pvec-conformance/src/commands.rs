@@ -239,6 +239,7 @@ fn calibration_report(bytes: &[u8], residual: bool) -> (Json, String) {
             s(match d.format {
                 DefinitionFormat::Wkt2 => "wkt2",
                 DefinitionFormat::Projjson => "projjson",
+                DefinitionFormat::Wkt1 => "wkt1",
                 _ => "unknown",
             })
         });

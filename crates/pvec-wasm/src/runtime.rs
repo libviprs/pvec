@@ -1087,7 +1087,8 @@ impl Runtime {
             5 => geo.map_or(0, |g| g.control_points.len() as u32),
             6 => geo.and_then(|g| g.definition.as_ref()).map_or(0, |d| match d.format {
                 DefinitionFormat::Wkt2 => 1,
-                _ => 2,
+                DefinitionFormat::Projjson => 2,
+                _ => 3,
             }),
             7 => rule.map_or(0, |r| r.0),
             8 => rule.map_or(0, |r| r.1),

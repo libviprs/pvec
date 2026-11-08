@@ -61,7 +61,7 @@ ADR 0018 refused. This answers ADR 0018 open question 2: the CRS identifier live
 
 **The georeference record.** An affine source to CRS in the raster's `[a b c d tx ty]` order, held to NP-19; a CRS
 kind (projected, geographic, engineering); a method (declared, fitted, manual); a CRS id as an authority code of at
-most 64 bytes; an optional opaque WKT2 or PROJJSON definition of at most 16 KiB that no PVec crate parses; 0 to
+most 64 bytes; an optional opaque WKT2, PROJJSON or WKT1 definition of at most 16 KiB that no PVec crate parses; 0 to
 1,024 control points as evidence; and the fit's maximum residual. The affine is authored and mandatory: a
 reader-side fit gives implementation-dependent bits, and PVec's numeric story is authored bits and one rule. The
 points stay so the fit can be audited and redone after a CRS correction.
@@ -106,6 +106,15 @@ they get here. A twelfth fuzz target, `fuzz_calibration`.
   and the external id. The `which` tables are in `docs/WASM_ABI.md`.
 * **LIMIT-17 is a `Limits` field**, `max_calibration_bytes`, so a host can lower it. Both presets hold 65,536, which
   is above the 49,894 byte largest block the rules allow.
+
+## Amendment 2026-11-07: a WKT1 tag
+
+The panel's tags were 1 WKT2 and 2 PROJJSON. A GeoPDF `/GCS /WKT` holds OGC WKT1, and libviprs writes that string as
+the definition, so it would have been stored labelled WKT2. Tag 3 is WKT1 (#283). I chose a third tag over reading 1 as
+"WKT, any version": a label should say what the bytes are without the host sniffing `GEOGCS[` against `GEOGCRS[`, and
+converting WKT1 to WKT2 at the producer needs a CRS library, which PVec and its producers do not carry. Tags 1 and 2
+keep their meaning, `DefinitionFormat` is `#[non_exhaustive]`, nothing with a calibration has been released, and PVec
+still never parses the text.
 
 ## Consequences
 
