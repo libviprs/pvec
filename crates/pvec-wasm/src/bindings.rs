@@ -330,6 +330,38 @@ pub fn raster_stat(file: u32, which: u32) -> i32 {
     RUNTIME.with(|r| code(r.borrow_mut().raster_stat(file, which)))
 }
 
+/// One integer about the calibration of `file` (ADR 0019), or a negative code: 0 the records present (bit 0 scale,
+/// bit 1 georeference), 1 the provenance, 2 whether an uncertainty is stated, 3 the CRS kind, 4 the method, 5 the
+/// control points, 6 the definition format, 7 and 8 the number and family of the rule that refused it, 9 whether the
+/// file carries a calibration this reader cannot show (`Effect::Uncalibrated`), 10 and 11 the plan scale's ratio. A
+/// module that exports this one has the calibration calls; the ABI version is still 2.
+#[wasm_bindgen]
+pub fn calibration_stat(file: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().calibration_stat(file, which)))
+}
+
+/// One float about the calibration of `file`, NaN for what is not there: 0 metres per source unit, 1 the
+/// uncertainty, 2 the residual, 3 to 8 the affine `[a b c d tx ty]`, 9 the manifest's metres per unit, 10 the plan
+/// scale's paper unit, 11 to 14 the measured points, 15 the measured distance.
+#[wasm_bindgen]
+pub fn calibration_number(file: u32, which: u32) -> f64 {
+    RUNTIME.with(|r| r.borrow_mut().calibration_number(file, which))
+}
+
+/// Coordinate `which` (0 `sx`, 1 `sy`, 2 `wx`, 3 `wy`) of control point `i` of `file`, NaN when there is none.
+#[wasm_bindgen]
+pub fn calibration_point(file: u32, i: u32, which: u32) -> f64 {
+    RUNTIME.with(|r| r.borrow_mut().calibration_point(file, i, which))
+}
+
+/// Text `which` of the calibration of `file` (0 the CRS id, 1 the definition, 2 the note, 3 the external id) as a
+/// result handle whose array 0 holds the UTF-8 bytes (`raster_buffer_*`, then `release`), or a negative code. Empty
+/// when it is not there; the module never interprets them.
+#[wasm_bindgen]
+pub fn calibration_text(file: u32, which: u32) -> i32 {
+    RUNTIME.with(|r| code(r.borrow_mut().calibration_text(file, which)))
+}
+
 /// For the `i`th skipped raster (ascending raster id): `which` 0 its `RasterId`, 1 the number of the `RASTER-NN`
 /// rule that skipped it. A negative code for a number that is not one.
 #[wasm_bindgen]

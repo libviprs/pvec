@@ -4,8 +4,9 @@ use crate::abi::{
 };
 use crate::{AbiError, BufferKind, DISPLAY_FIDELITY, ElemType, Precision, View};
 use pvec::unstable::{
-    Aabb, InfeasibleReason, Limits, PixelFormat, Placement, PreviewForm, RasterId, ReaderConfig,
-    SpatialDirectory, Tier0Leaves, TileSlot, ViewportQuery, curve_distance, curve_meets_box, footprint,
+    Aabb, Calibration, CrsKind, DefinitionFormat, Effect, FitMethod, InfeasibleReason, Limits, PixelFormat,
+    Placement, PreviewForm, Provenance, RasterId, ReaderConfig, SpatialDirectory, Tier0Leaves, TileSlot,
+    ViewportQuery, curve_distance, curve_meets_box, footprint,
 };
 use pvec::{Bounds2, Curve, CurveEval, EntityId, PvecError, PvecReader, Tessellate, TessellationContext};
 use std::cell::{Cell, RefCell};
@@ -159,15 +160,33 @@ struct Ranged {
     loaded: RefCell<Loaded>,
 }
 
-/// The number and the family (0 `RASTER`, 1 `LIMIT`) of the rule a reader error names, when it is one of those.
+/// The number and the family (0 `RASTER` or `CAL`, 1 `LIMIT`) of the rule a reader error names, when it is one of
+/// those.
 fn rule_number(error: &PvecError) -> Option<(u32, u32)> {
     let PvecError::Read { rule } = error else { return None };
     let (family, rest) = match rule.split_once('-')? {
-        ("RASTER", rest) => (0, rest),
+        ("RASTER" | "CAL", rest) => (0, rest),
         ("LIMIT", rest) => (1, rest),
         _ => return None,
     };
     Some((rest.get(..2)?.parse().ok()?, family))
+}
+
+/// What reading the calibration gave: the calibration or none, or the rule that refused it (`None` when the error
+/// names no `CAL-NN` or `LIMIT-NN` rule).
+type CalibrationRead = Result<Option<Rc<Calibration>>, Option<(u32, u32)>>;
+
+/// Reads the calibration through `reader`, once per file: at open for a file opened whole, since its reader may
+/// not be kept, and at the first calibration call for one opened by ranges. `None` while a range is missing.
+fn read_calibration(reader: &PvecReader, ranged: Option<&Ranged>) -> Option<CalibrationRead> {
+    if let Some(r) = ranged {
+        r.ranges.clear_needed();
+    }
+    match reader.calibration() {
+        Ok(c) => Some(Ok(c.map(Rc::new))),
+        Err(_) if ranged.is_some_and(|r| !r.ranges.needed().is_empty()) => None,
+        Err(e) => Some(Err(rule_number(&e))),
+    }
 }
 
 /// What reading the raster stream gave: the placements, no stream, or the error of a damaged one.
@@ -193,6 +212,11 @@ struct File {
     skipped: RefCell<BTreeMap<u32, (u32, u32)>>,
     /// The rule that refused the whole raster stream, when it names one, in the same form.
     stream_rule: Cell<Option<(u32, u32)>>,
+    /// The calibration once read (`None` until then), the manifest's unit, and whether the open skipped a
+    /// calibration (`Effect::Uncalibrated`).
+    calibration: RefCell<Option<CalibrationRead>>,
+    metres_per_unit: f64,
+    uncalibrated: bool,
 }
 
 /// What the spatial directory of a file says about itself.
@@ -419,6 +443,8 @@ enum Item {
         bytes: Vec<u8>,
         forget: Option<(Arc<Ranges>, u64, u32)>,
     },
+    /// A text of the calibration (`calibration_text`), as UTF-8 bytes in array 0.
+    Text(Vec<u8>),
 }
 
 struct Slot {
@@ -492,6 +518,9 @@ impl Runtime {
         let index = index_of(&reader);
         // a reader is kept when a call can still read through it: an index, or rasters
         let rasters = reader.raster_placements().map(|p| (!p.is_empty()).then_some(p));
+        let calibration = read_calibration(&reader, None);
+        let metres_per_unit = reader.manifest().metres_per_unit;
+        let uncalibrated = reader.skipped_effects().iter().any(|(_, e)| *e == Effect::Uncalibrated);
         let reader =
             if matches!(index, Ok(None)) && matches!(rasters, Ok(None)) { None } else { Some(reader) };
         Ok(self.insert(Item::File(Rc::new(File {
@@ -503,6 +532,9 @@ impl Runtime {
             stream_rule: Cell::new(rasters.as_ref().err().and_then(rule_number)),
             rasters: RefCell::new(Some(rasters.map(|p| p.map(Rc::new)).map_err(|_| AbiError::Read))),
             skipped: RefCell::default(),
+            calibration: RefCell::new(calibration),
+            metres_per_unit,
+            uncalibrated,
         }))))
     }
 
@@ -568,6 +600,8 @@ impl Runtime {
         if index.is_err() && !ranges.needed().is_empty() {
             return Err(AbiError::NeedRange);
         }
+        let metres_per_unit = reader.manifest().metres_per_unit;
+        let uncalibrated = reader.skipped_effects().iter().any(|(_, e)| *e == Effect::Uncalibrated);
         let file = File {
             reader: Some(reader),
             entities: RefCell::new(BTreeMap::new()),
@@ -577,6 +611,9 @@ impl Runtime {
             rasters: RefCell::default(),
             skipped: RefCell::default(),
             stream_rule: Cell::default(),
+            calibration: RefCell::default(),
+            metres_per_unit,
+            uncalibrated,
         };
         let at = (handle & ((1 << INDEX_BITS) - 1)) as usize;
         self.slots[at].item = Some(Item::File(Rc::new(file)));
@@ -1007,6 +1044,120 @@ impl Runtime {
         }
     }
 
+    /// The calibration of a file (ADR 0019), read once: `NeedRange` while a range-opened file lacks its block.
+    fn calibration(&self, file: &File) -> Result<CalibrationRead, AbiError> {
+        if file.calibration.borrow().is_none() {
+            let reader = file.reader.as_ref().ok_or(AbiError::Read)?;
+            let read = read_calibration(reader, file.ranged.as_ref()).ok_or(AbiError::NeedRange)?;
+            *file.calibration.borrow_mut() = Some(read);
+        }
+        file.calibration.borrow().clone().ok_or(AbiError::Read)
+    }
+
+    /// One integer about the calibration of a file (`docs/WASM_ABI.md`, "Calibration"): 0 the records present (bit 0
+    /// scale, bit 1 georeference), 1 the provenance, 2 whether an uncertainty is stated, 3 the CRS kind, 4 the method,
+    /// 5 the control points, 6 the definition format, 7 the number and 8 the family (0 `CAL`, 1 `LIMIT`) of the rule
+    /// that refused it, 9 whether the file carries a calibration this reader cannot show (`Effect::Uncalibrated`),
+    /// 10 and 11 the plan scale's ratio. Zero for what is not there.
+    pub fn calibration_stat(&mut self, file: u32, which: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let read = self.calibration(&file)?;
+        let c = read.as_ref().ok().cloned().flatten();
+        let scale = c.as_ref().and_then(|c| c.scale.as_ref());
+        let geo = c.as_ref().and_then(|c| c.georeference.as_ref());
+        let rule = read.as_ref().err().copied().flatten();
+        let ratio = scale.and_then(|s| match s.provenance {
+            Provenance::PlanScale { numerator, denominator, .. } => Some((numerator, denominator)),
+            _ => None,
+        });
+        Ok(match which {
+            0 => u32::from(scale.is_some()) | (u32::from(geo.is_some()) << 1),
+            1 => scale.map_or(0, |s| u32::from(s.provenance.word())),
+            2 => u32::from(scale.is_some_and(|s| s.uncertainty.is_some())),
+            3 => geo.map_or(0, |g| match g.crs_kind {
+                CrsKind::Projected => 1,
+                CrsKind::Geographic => 2,
+                _ => 3,
+            }),
+            4 => geo.map_or(0, |g| match g.method {
+                FitMethod::Declared => 1,
+                FitMethod::Fitted => 2,
+                _ => 3,
+            }),
+            5 => geo.map_or(0, |g| g.control_points.len() as u32),
+            6 => geo.and_then(|g| g.definition.as_ref()).map_or(0, |d| match d.format {
+                DefinitionFormat::Wkt2 => 1,
+                _ => 2,
+            }),
+            7 => rule.map_or(0, |r| r.0),
+            8 => rule.map_or(0, |r| r.1),
+            9 => u32::from(file.uncalibrated || read.is_err()),
+            10 => ratio.map_or(0, |r| r.0),
+            11 => ratio.map_or(0, |r| r.1),
+            _ => return Err(AbiError::BadArgument),
+        })
+    }
+
+    /// One float about the calibration of a file, NaN for what is not there and for an error: 0 metres per source
+    /// unit, 1 the uncertainty, 2 the residual, 3 to 8 the affine `[a b c d tx ty]`, 9 the manifest's metres per unit,
+    /// 10 the plan scale's paper unit, 11 to 14 the measured `p0` and `p1`, 15 the measured distance.
+    pub fn calibration_number(&mut self, file: u32, which: u32) -> f64 {
+        let Ok(file) = self.file(file) else { return f64::NAN };
+        if which == 9 {
+            return file.metres_per_unit;
+        }
+        let Ok(Ok(Some(c))) = self.calibration(&file) else { return f64::NAN };
+        let scale = c.scale.as_ref();
+        let geo = c.georeference.as_ref();
+        let paper = scale.and_then(|s| match s.provenance {
+            Provenance::PlanScale { paper_metres_per_unit, .. } => Some(paper_metres_per_unit),
+            _ => None,
+        });
+        let measured = scale.and_then(|s| match s.provenance {
+            Provenance::Measured { p0, p1, distance_metres } => {
+                Some([p0[0], p0[1], p1[0], p1[1], distance_metres])
+            }
+            _ => None,
+        });
+        match which {
+            0 => scale.map(|s| s.metres_per_source_unit),
+            1 => scale.and_then(|s| s.uncertainty),
+            2 => geo.map(|g| g.residual_max),
+            3..=8 => geo.map(|g| g.source_to_crs[which as usize - 3]),
+            10 => paper,
+            11..=15 => measured.map(|m| m[which as usize - 11]),
+            _ => None,
+        }
+        .unwrap_or(f64::NAN)
+    }
+
+    /// Coordinate `which` (0 `sx`, 1 `sy`, 2 `wx`, 3 `wy`) of control point `i`, NaN when there is none.
+    pub fn calibration_point(&mut self, file: u32, i: u32, which: u32) -> f64 {
+        let Ok(file) = self.file(file) else { return f64::NAN };
+        let Ok(Ok(Some(c))) = self.calibration(&file) else { return f64::NAN };
+        let point = c.georeference.as_ref().and_then(|g| g.control_points.get(i as usize));
+        point
+            .and_then(|p| [p.source[0], p.source[1], p.world[0], p.world[1]].get(which as usize).copied())
+            .unwrap_or(f64::NAN)
+    }
+
+    /// Text `which` of the calibration as a result handle whose array 0 (read with the `raster_buffer_*` calls,
+    /// released with `release`) holds its UTF-8 bytes: 0 the CRS id, 1 the definition, 2 the scale's note, 3 the
+    /// external id. Empty when it is not there; the module never interprets any of them.
+    pub fn calibration_text(&mut self, file: u32, which: u32) -> Result<u32, AbiError> {
+        let file = self.file(file)?;
+        let c = self.calibration(&file)?.ok().flatten();
+        let geo = c.as_ref().and_then(|c| c.georeference.as_ref());
+        let text = match which {
+            0 => geo.map(|g| g.crs_id.clone()),
+            1 => geo.and_then(|g| g.definition.as_ref()).map(|d| d.text.clone()),
+            2 => c.as_ref().and_then(|c| c.scale.as_ref()).map(|s| s.note.clone()),
+            3 => c.as_ref().map(|c| c.external_id.clone()),
+            _ => return Err(AbiError::BadArgument),
+        };
+        Ok(self.insert(Item::Text(text.unwrap_or_default().into_bytes())))
+    }
+
     /// For the `i`th skipped raster: 0 its id, 1 the number of the rule, 2 its family (0 `RASTER`, 1 `LIMIT`).
     pub fn raster_skipped(&mut self, file: u32, i: u32, which: u32) -> Result<u32, AbiError> {
         let file = self.file(file)?;
@@ -1212,6 +1363,8 @@ impl Runtime {
             },
             Item::Tile { bytes, .. } if which == 0 => Ok(U8(bytes)),
             Item::Tile { .. } => Err(AbiError::BadArgument),
+            Item::Text(bytes) if which == 0 => Ok(U8(bytes)),
+            Item::Text(_) => Err(AbiError::BadArgument),
             _ => Err(AbiError::WrongKind),
         }
     }

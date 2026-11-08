@@ -288,6 +288,33 @@ meaning a bad id, level, column or row, and -4 a failed checksum (the index's or
 The element type table has four entries: 0 `Float64Array`, 1 `Float32Array`, 2 `Uint32Array`, 3 `Uint8Array`
 (`raster_buffer_elem` and the other `*_elem` calls return it).
 
+## Calibration (version 2, additive; issue #269, ADR 0019)
+
+A file may carry a calibration (capability 22, block kind 11, `docs/CALIBRATION.md`): a scale claim, a georeference, or
+both. The module hands the numbers and the bytes to the host and interprets none of them: it has no CRS database and
+never reprojects, and nothing is applied to a coordinate. These exports are **additions to version 2**, found by testing
+that the module exports `calibration_stat`. A file opened whole has its calibration read at open; on a file opened by
+ranges the first calibration call may return -7 until the one range of the kind 11 block is provided. Every test is in
+`crates/pvec-wasm/tests/issue_269_calibration_exports.rs`.
+
+`calibration_stat(file, n)`, an integer or a negative code: 0 the records present (bit 0 scale, bit 1 georeference; 0 for
+a file with none or a refused one), 1 the provenance (1 `declared_unit`, 2 `plan_scale`, 3 `measured`, 4 `georeference`,
+5 `manual`; 0 without a scale), 2 whether an uncertainty is stated, 3 the CRS kind (1 projected, 2 geographic, 3
+engineering), 4 the method (1 declared, 2 fitted, 3 manual), 5 the control points, 6 the definition format (1 WKT2, 2
+PROJJSON), 7 the number of the rule that refused the calibration (0 when none did), 8 its family (0 `CAL`, 1 `LIMIT`), 9
+whether the file carries a calibration this reader cannot show (`Effect::Uncalibrated`, or a refused one), 10 and 11 the
+numerator and denominator of a plan scale. A selector past 11 is -3.
+
+`calibration_number(file, n)`, a float, NaN for what is not there and for a handle that is not a file: 0
+`metres_per_source_unit`, 1 the uncertainty, 2 `residual_max`, 3 to 8 the affine `[a b c d tx ty]` (the bits as written), 9
+the manifest's `metres_per_unit` (always there), 10 a plan scale's `paper_metres_per_unit`, 11 to 14 a measured scale's
+`p0` and `p1`, 15 its distance in metres. `calibration_point(file, i, n)`: coordinate `n` (0 `sx`, 1 `sy`, 2 `wx`, 3
+`wy`) of control point `i`, NaN past the last. `calibration_text(file, n)`: a result handle (or a negative code) whose
+array 0, read with `raster_buffer_len`, `raster_buffer_ptr` and `raster_buffer_elem` (a `Uint8Array`) and released with
+`release`, holds the UTF-8 bytes of 0 the CRS id, 1 the definition, 2 the scale's note, 3 the external id, empty when
+absent; no export returns a string. The host shows a CRS id it does not know as it is. The four are additive: the 52
+exports before them are untouched, for 56 in all.
+
 ## Exact distance (version 2, additive; issue #252)
 
 `entity_distance(file, entity_id, x, y)` returns the exact distance in source units from the point to the entity's

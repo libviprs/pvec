@@ -16,12 +16,19 @@ fn calibration() -> Calibration {
     let m = [0.5, 0.0, 0.0, 0.5, 530_000.0, 180_000.0];
     let control_points: Vec<ControlPoint> = [[0.0, 0.0], [40.0, 0.0], [40.0, 30.0]]
         .iter()
-        .map(|&[x, y]| ControlPoint { source: [x, y], world: [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]] })
+        .map(|&[x, y]| ControlPoint {
+            source: [x, y],
+            world: [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]],
+        })
         .collect();
     Calibration {
         scale: Some(ScaleClaim {
             metres_per_source_unit: 0.1,
-            provenance: Provenance::PlanScale { numerator: 1, denominator: 100, paper_metres_per_unit: 0.001 },
+            provenance: Provenance::PlanScale {
+                numerator: 1,
+                denominator: 100,
+                paper_metres_per_unit: 0.001,
+            },
             uncertainty: Some(0.005),
             note: "1:100".into(),
         }),
@@ -30,7 +37,10 @@ fn calibration() -> Calibration {
             crs_kind: CrsKind::Projected,
             method: FitMethod::Fitted,
             crs_id: "EPSG:27700".into(),
-            definition: Some(CrsDefinition { format: DefinitionFormat::Wkt2, text: "PROJCRS[\"OSGB36\"]".into() }),
+            definition: Some(CrsDefinition {
+                format: DefinitionFormat::Wkt2,
+                text: "PROJCRS[\"OSGB36\"]".into(),
+            }),
             control_points,
             residual_max: 0.0,
         }),
@@ -72,7 +82,8 @@ fn issue_269_the_abi_stays_2_and_the_documents_name_the_group() {
     for name in ["calibration_stat", "calibration_number", "calibration_point", "calibration_text"] {
         assert!(doc.contains(&format!("`{name}(")), "WASM_ABI.md does not describe {name}");
     }
-    let bindings = std::fs::read_to_string(pvec_checks::repo_root().join("crates/pvec-wasm/src/bindings.rs")).unwrap();
+    let bindings =
+        std::fs::read_to_string(pvec_checks::repo_root().join("crates/pvec-wasm/src/bindings.rs")).unwrap();
     for name in ["calibration_stat", "calibration_number", "calibration_point", "calibration_text"] {
         assert!(bindings.contains(&format!("pub fn {name}(")), "no export {name}");
     }
@@ -115,7 +126,13 @@ fn issue_269_the_floats_are_the_written_bits() {
 #[test]
 fn issue_269_the_texts_come_back_as_bytes() {
     let (mut rt, f) = open(file(Some(&calibration())));
-    let text = |rt: &mut Runtime, n| String::from_utf8(rt.calibration_text(f, n).unwrap()).unwrap();
+    // a result handle whose array 0 is the bytes: no export returns a string (packed_abi, issue 54)
+    let text = |rt: &mut Runtime, n| {
+        let h = rt.calibration_text(f, n).unwrap();
+        let s = String::from_utf8(rt.raster_u8(h, 0).unwrap().to_vec()).unwrap();
+        rt.release(h).unwrap();
+        s
+    };
     assert_eq!(text(&mut rt, 0), "EPSG:27700");
     assert_eq!(text(&mut rt, 1), "PROJCRS[\"OSGB36\"]");
     assert_eq!(text(&mut rt, 2), "1:100");
@@ -130,7 +147,8 @@ fn issue_269_a_file_without_a_calibration_has_zeros_nans_and_the_manifest_unit()
     assert_eq!(rt.calibration_stat(f, 9), Ok(0));
     assert!(rt.calibration_number(f, 0).is_nan());
     assert_eq!(rt.calibration_number(f, 9), 0.001);
-    assert_eq!(rt.calibration_text(f, 0), Ok(Vec::new()));
+    let h = rt.calibration_text(f, 0).unwrap();
+    assert_eq!(rt.raster_u8(h, 0), Ok(&[][..]));
 }
 
 #[test]
