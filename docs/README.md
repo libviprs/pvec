@@ -15,6 +15,7 @@ only page that defines one.
 * [CONTAINER.md](CONTAINER.md): header, manifest, blocks, writer, negotiation, and an annotated hex dump of a real file (chapter 6).
 * [GEOMETRY_ENCODING.md](GEOMETRY_ENCODING.md): how geometry is encoded in blocks.
 * [RASTER.md](RASTER.md): rasters inside an artifact, the placement and the index and tile blocks (ADR 0018).
+* [PAINT.md](PAINT.md): the paint model, designed in ADR 0021 and not built yet: paint order, stroke colour, fill rule, gradient and tiling fills and clips as capabilities 23 to 26.
 * [CALIBRATION.md](CALIBRATION.md): the scale and the georeference of an artifact, the kind 11 block and its CAL rules (ADR 0019).
 * [CAPABILITIES.md](CAPABILITIES.md) and [COMPATIBILITY.md](COMPATIBILITY.md): the capability registry and the compatibility rules.
 * [EXTENSIONS.md](EXTENSIONS.md): how an extension is proposed and accepted.
