@@ -138,7 +138,7 @@ means for the same file.
 1. This ADR, `docs/CALIBRATION.md`, registry entry 22 and the class, kind 11 reserved, `Effect::Uncalibrated`,
    format 1.2.0, the compatibility row and matrix cases (#265).
 2. The block parser and encoder, LIMIT-17, `fuzz_calibration` (#266).
-3. Writer, reader, negotiation, facade accessors, `pvec info` and `validate` (#267).
+3. Writer, reader, negotiation, facade accessors, `pvec inspect` and `validate` (#267).
 4. `recalibrate` through `assemble`, and `pvec calibrate` (#268).
 5. The WASM exports (#269).
 6. `If-Range` with a captured ETag in pvec-sources.
