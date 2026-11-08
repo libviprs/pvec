@@ -141,12 +141,11 @@ fn an_entity_id_at_or_above_the_limit_is_comp_08() {
 
 #[test]
 fn a_parent_that_is_not_an_earlier_clip_is_comp_25() {
-    for parent in [0u32, 1, 2, 7] {
-        // clip 1 naming itself, a later clip, or a clip that does not exist as its parent
+    // clip 1 naming itself, a later clip, or a clip that does not exist as its parent
+    for parent in [1u32, 2, 7] {
         let mut s = fixture();
-        s.clips[1].parent = Some(parent + if parent == 0 { 1 } else { 0 });
-        let want = if s.clips[1].parent.unwrap() as usize >= s.clips.len() { "COMP-25" } else { "COMP-25" };
-        assert_eq!(rule_of(s), want, "parent {parent}");
+        s.clips[1].parent = Some(parent);
+        assert_eq!(rule_of(s), "COMP-25", "parent {parent}");
     }
     // two clips naming each other
     let s = ClipStream {
@@ -164,8 +163,8 @@ fn a_chain_of_eight_is_allowed_and_nine_is_comp_26() {
     let mut s = chain(9);
     s.clips[8].parent = None;
     let mut b = s.encode().unwrap();
-    // clip 8 starts after eight clips of 24 bytes each; give it the parent 7 by hand
-    let at = 8 + 8 * 24 + 4;
+    // clip 8 starts after eight clips of 20 bytes each (16 and one entity id); give it the parent 7 by hand
+    let at = 8 + 8 * 20 + 4;
     b[at..at + 4].copy_from_slice(&7u32.to_le_bytes());
     assert_eq!(ClipStream::decode(&b).unwrap_err().rule(), "COMP-26");
 }
