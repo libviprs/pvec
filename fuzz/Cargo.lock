@@ -143,6 +143,7 @@ dependencies = [
  "pvec-corpus",
  "pvec-entity",
  "pvec-interchange",
+ "pvec-numeric",
  "pvec-stream",
  "pvec-testkit",
 ]

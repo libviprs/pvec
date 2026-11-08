@@ -487,11 +487,10 @@ fn the_accountant_is_shared_by_clones_and_counts_what_is_live() {
 // ---------------------------------------------------------------- the raster ceilings (issue 217, ADR 0018)
 
 #[test]
-fn limit_13_to_16_exist_with_their_default_and_browser_values_and_all_has_sixteen() {
-    assert_eq!(LimitKind::ALL.len(), 16);
-    let rules: Vec<&str> = LimitKind::ALL[12..].iter().map(|k| k.rule()).collect();
+fn limit_13_to_16_exist_with_their_default_and_browser_values() {
+    let rules: Vec<&str> = LimitKind::ALL[12..16].iter().map(|k| k.rule()).collect();
     assert_eq!(rules, ["LIMIT-13", "LIMIT-14", "LIMIT-15", "LIMIT-16"]);
-    let fields: Vec<&str> = LimitKind::ALL[12..].iter().map(|k| k.field()).collect();
+    let fields: Vec<&str> = LimitKind::ALL[12..16].iter().map(|k| k.field()).collect();
     assert_eq!(fields, ["max_rasters", "max_raster_tiles", "max_tile_bytes", "max_plan_decoded_bytes"]);
     let (d, b) = (Limits::DEFAULT, Limits::BROWSER);
     assert_eq!((d.max_rasters, b.max_rasters), (4_096, 4_096));
@@ -499,7 +498,7 @@ fn limit_13_to_16_exist_with_their_default_and_browser_values_and_all_has_sixtee
     // LIMIT-15 is a formula of the placement, `2 * 4 * tile_edge^2` plus this header allowance
     assert_eq!((d.max_tile_bytes, b.max_tile_bytes), (65_536, 65_536));
     assert_eq!((d.max_plan_decoded_bytes, b.max_plan_decoded_bytes), (256 << 20, 256 << 20));
-    for k in LimitKind::ALL[12..].iter().copied() {
+    for k in LimitKind::ALL[12..16].iter().copied() {
         assert_eq!(
             d.get(k),
             match k {
@@ -525,11 +524,27 @@ fn limit_13_is_checked_against_the_ceiling_and_is_configuration() {
 
 #[test]
 fn every_raster_limit_has_a_row_in_the_table_and_a_marked_proposed_value() {
-    for k in LimitKind::ALL[12..].iter().copied() {
+    for k in LimitKind::ALL[12..16].iter().copied() {
         let row = pvec_container::limits::LIMIT_TABLE.iter().find(|r| r.kind == k).expect("a row");
         assert!(
             row.rationale.to_lowercase().contains("proposed"),
             "{k:?} is proposed until #220 measures it"
         );
     }
+}
+
+// ---------------------------------------------------------------- the calibration ceiling (issue 266, ADR 0019)
+
+#[test]
+fn limit_17_is_the_calibration_block_ceiling_a_field_at_64_kib_in_both_presets() {
+    assert_eq!(LimitKind::ALL.len(), 17);
+    let k = LimitKind::ALL[16];
+    assert_eq!((k, k.rule(), k.field()), (LimitKind::CalibrationBytes, "LIMIT-17", "max_calibration_bytes"));
+    let (d, b) = (Limits::DEFAULT, Limits::BROWSER);
+    assert_eq!((d.max_calibration_bytes, b.max_calibration_bytes), (65_536, 65_536));
+    assert_eq!(d.get(k), 65_536);
+    assert_eq!(u64::from(pvec_components::MAX_CALIBRATION_BYTES), d.get(k));
+    let lowered = Limits { max_calibration_bytes: 1_024, ..Limits::BROWSER };
+    let e = lowered.check(k, 1_025).unwrap_err();
+    assert_eq!((e.declared, e.ceiling, e.limit.rule()), (1_025, 1_024, "LIMIT-17"));
 }

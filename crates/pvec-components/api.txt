@@ -1,3 +1,70 @@
+calibration.rs: pub const CALIBRATION_CAPABILITY: CapabilityId
+calibration.rs: pub const CALIBRATION_KIND: u16
+calibration.rs: pub const MAX_CALIBRATION_BYTES: u32
+calibration.rs: pub const MAX_CALIBRATION_POINTS: usize
+calibration.rs: #[derive(Clone, Debug, PartialEq)] pub struct Calibration
+calibration.rs: Calibration.scale: Option<ScaleClaim>
+calibration.rs: Calibration.georeference: Option<Georeference>
+calibration.rs: Calibration.external_id: String
+calibration.rs: Calibration::records(&self) -> u32
+calibration.rs: #[derive(Clone, Debug, PartialEq)] pub struct ScaleClaim
+calibration.rs: ScaleClaim.metres_per_source_unit: f64
+calibration.rs: ScaleClaim.provenance: Provenance
+calibration.rs: ScaleClaim.uncertainty: Option<f64>
+calibration.rs: ScaleClaim.note: String
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq)] #[non_exhaustive] pub enum Provenance
+calibration.rs: Provenance::DeclaredUnit
+calibration.rs: Provenance::PlanScale { numerator: u32, denominator: u32, paper_metres_per_unit: f64 }
+calibration.rs: Provenance::Measured { p0: [f64; 2], p1: [f64; 2], distance_metres: f64 }
+calibration.rs: Provenance::Georeference
+calibration.rs: Provenance::Manual
+calibration.rs: Provenance::word(&self) -> u8
+calibration.rs: #[derive(Clone, Debug, PartialEq)] pub struct Georeference
+calibration.rs: Georeference.source_to_crs: [f64; 6]
+calibration.rs: Georeference.crs_kind: CrsKind
+calibration.rs: Georeference.method: FitMethod
+calibration.rs: Georeference.crs_id: String
+calibration.rs: Georeference.definition: Option<CrsDefinition>
+calibration.rs: Georeference.control_points: Vec<ControlPoint>
+calibration.rs: Georeference.residual_max: f64
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum CrsKind
+calibration.rs: CrsKind::Projected
+calibration.rs: CrsKind::Geographic
+calibration.rs: CrsKind::Engineering
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum FitMethod
+calibration.rs: FitMethod::Declared
+calibration.rs: FitMethod::Fitted
+calibration.rs: FitMethod::Manual
+calibration.rs: #[derive(Clone, Debug, PartialEq)] pub struct CrsDefinition
+calibration.rs: CrsDefinition.format: DefinitionFormat
+calibration.rs: CrsDefinition.text: String
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum DefinitionFormat
+calibration.rs: DefinitionFormat::Wkt2
+calibration.rs: DefinitionFormat::Projjson
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct ControlPoint
+calibration.rs: ControlPoint.source: [f64; 2]
+calibration.rs: ControlPoint.world: [f64; 2]
+calibration.rs: #[derive(Clone, Copy, Debug, PartialEq)] #[non_exhaustive] pub enum CalibrationError
+calibration.rs: CalibrationError::TooLarge { declared: u64 }
+calibration.rs: CalibrationError::BadHeader
+calibration.rs: CalibrationError::BadLength
+calibration.rs: CalibrationError::TooMany
+calibration.rs: CalibrationError::BadNumber
+calibration.rs: CalibrationError::BadAffine
+calibration.rs: CalibrationError::BadPoints
+calibration.rs: CalibrationError::BadText
+calibration.rs: CalibrationError::BadTag
+calibration.rs: CalibrationError::Empty
+calibration.rs: CalibrationError::BadEvidence
+calibration.rs: CalibrationError::ResidualMismatch { stored: f64, recomputed: f64 }
+calibration.rs: CalibrationError::Directory
+calibration.rs: CalibrationError::rule(&self) -> &'static str
+calibration.rs: impl fmt::Display for CalibrationError
+calibration.rs: impl std::error::Error for CalibrationError {}
+calibration.rs: pub const CALIBRATION_ERRORS: &[(&str, &str, &str)]
+calibration.rs: pub fn encode_calibration(c: &Calibration) -> Result<Vec<u8>, CalibrationError>
+calibration.rs: pub fn decode_calibration(bytes: &[u8]) -> Result<Calibration, CalibrationError>
+calibration.rs: pub fn check_residual(g: &Georeference) -> Result<f64, CalibrationError>
 error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum StreamError
 error.rs: StreamError::BadMagic
 error.rs: StreamError::UnsupportedVersion(u16)
@@ -50,6 +117,7 @@ frame.rs: Opened.streams: Vec<Stream>
 frame.rs: Opened.skipped: Vec<Skipped>
 frame.rs: pub fn encode_streams(streams: &[Stream]) -> Result<Vec<u8>, StreamError>
 frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader) -> Result<Opened, StreamError>
+lib.rs: pub use calibration::{ CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration, }
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
 lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream, }

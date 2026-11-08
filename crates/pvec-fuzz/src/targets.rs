@@ -28,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 11] = [
+pub const TARGETS: [(&str, Target); 12] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -40,6 +40,7 @@ pub const TARGETS: [(&str, Target); 11] = [
     ("fuzz_raster_plan", fuzz_raster_plan),
     ("fuzz_raster_archive", fuzz_raster_archive),
     ("fuzz_spill_writer", crate::spill::fuzz_spill_writer),
+    ("fuzz_calibration", fuzz_calibration),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -628,6 +629,34 @@ pub fn fuzz_raster_archive(data: &[u8]) -> String {
             );
             assert!(t.col < cols && t.row < rows, "a tile outside its level");
         }
+    }
+    "ok".to_string()
+}
+
+/// The calibration block (kind 11, `docs/CALIBRATION.md`, ADR 0019), the parser the reader runs at open over
+/// hostile bytes. A block that parses must encode to the bytes it came from, so a parser that accepts a block the
+/// writer would not write is a crash; its affine passes NP-19, its counts are inside their caps, and the residual
+/// check of `pvec validate` runs on it without panicking.
+pub fn fuzz_calibration(data: &[u8]) -> String {
+    use pvec_components::{MAX_CALIBRATION_POINTS, check_residual, decode_calibration, encode_calibration};
+    let c = match decode_calibration(data) {
+        Ok(c) => c,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert_eq!(
+        encode_calibration(&c).as_deref(),
+        Ok(data),
+        "a block that parses is not the block that encodes"
+    );
+    assert!(c.scale.is_some() || c.georeference.is_some(), "a calibration with no record");
+    if let Some(g) = &c.georeference {
+        assert!(
+            pvec_numeric::Policy::V1.validate_affine(g.source_to_crs).is_ok(),
+            "an affine that fails NP-19"
+        );
+        assert!(g.control_points.len() <= MAX_CALIBRATION_POINTS);
+        assert!(!g.crs_id.is_empty() || g.definition.is_some(), "a georeference with no CRS");
+        let _ = check_residual(g);
     }
     "ok".to_string()
 }

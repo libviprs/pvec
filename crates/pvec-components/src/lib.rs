@@ -1,5 +1,6 @@
 //! Independent component streams (issue P3.7): layer, line style, text, hatch, source provenance and
-//! reserved space for future DWG semantics, and since issue 217 the raster placement stream (ADR 0018).
+//! reserved space for future DWG semantics, and since issue 217 the raster placement stream (ADR 0018). Since
+//! issue 266 it also parses the calibration block of capability 22 (ADR 0019), a read-at-open payload like them.
 //!
 //! Style, text and hatch evolve on a different schedule from the geometry mathematics, so they live
 //! outside the geometry oracle. Each stream has its own registry capability id and semantic version
@@ -11,12 +12,18 @@
 //! curve, which is why a stream cannot change a geometry verdict. The tests prove the independence per
 //! stream anyway. The byte layout is in `docs/COMPONENT_STREAMS.md`.
 
+mod calibration;
 mod error;
 mod frame;
 mod payloads;
 mod raster;
 mod semantic;
 
+pub use calibration::{
+    CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError,
+    ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES,
+    MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration,
+};
 pub use error::{ComponentError, StreamError};
 pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams};
 pub use payloads::{

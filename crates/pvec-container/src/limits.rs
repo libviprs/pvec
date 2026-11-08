@@ -17,7 +17,7 @@
 //! from [`LIMIT_TABLE`] and the two presets.
 
 use core::fmt;
-use pvec_components::MAX_RASTERS;
+use pvec_components::{MAX_CALIBRATION_BYTES, MAX_RASTERS};
 use pvec_numeric::{MAX_CONTROL_POINTS, MAX_ENTITIES, MAX_KNOTS, MAX_NESTING_DEPTH};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -58,11 +58,13 @@ pub enum LimitKind {
     TileBytes,
     /// A plan would hand the host more decoded raster bytes at once than the ceiling.
     PlanDecodedBytes,
+    /// The calibration block (kind 11) is stored as, or decodes to, more bytes than the ceiling (ADR 0019).
+    CalibrationBytes,
 }
 
 impl LimitKind {
     /// Every limit, in rule order.
-    pub const ALL: [LimitKind; 16] = [
+    pub const ALL: [LimitKind; 17] = [
         LimitKind::ExpansionRatio,
         LimitKind::BlockBytes,
         LimitKind::AllocationBudget,
@@ -79,6 +81,7 @@ impl LimitKind {
         LimitKind::RasterTiles,
         LimitKind::TileBytes,
         LimitKind::PlanDecodedBytes,
+        LimitKind::CalibrationBytes,
     ];
 
     /// The rule identifier of `docs/SECURITY_LIMITS.md`.
@@ -100,6 +103,7 @@ impl LimitKind {
             LimitKind::RasterTiles => "LIMIT-14",
             LimitKind::TileBytes => "LIMIT-15",
             LimitKind::PlanDecodedBytes => "LIMIT-16",
+            LimitKind::CalibrationBytes => "LIMIT-17",
         }
     }
 
@@ -122,6 +126,7 @@ impl LimitKind {
             LimitKind::RasterTiles => "max_raster_tiles",
             LimitKind::TileBytes => "max_tile_bytes",
             LimitKind::PlanDecodedBytes => "max_plan_decoded_bytes",
+            LimitKind::CalibrationBytes => "max_calibration_bytes",
         }
     }
 }
@@ -227,6 +232,8 @@ pub struct Limits {
     pub max_tile_bytes: u32,
     /// The most decoded raster bytes one plan may hand the host at once (proposed).
     pub max_plan_decoded_bytes: u64,
+    /// The most bytes the calibration block may be stored as or decode to (ADR 0019).
+    pub max_calibration_bytes: u32,
 }
 
 impl Limits {
@@ -247,6 +254,7 @@ impl Limits {
         max_raster_tiles: 1 << 20,
         max_tile_bytes: 1 << 16,
         max_plan_decoded_bytes: 1 << 28,
+        max_calibration_bytes: MAX_CALIBRATION_BYTES,
     };
 
     /// The stricter preset for a browser tab, where memory is a few hundred megabytes and a hostile file
@@ -267,6 +275,7 @@ impl Limits {
         max_raster_tiles: 1 << 17,
         max_tile_bytes: 1 << 16,
         max_plan_decoded_bytes: 1 << 28,
+        max_calibration_bytes: MAX_CALIBRATION_BYTES,
     };
 
     /// The value of one limit, widened.
@@ -288,6 +297,7 @@ impl Limits {
             LimitKind::RasterTiles => u64::from(self.max_raster_tiles),
             LimitKind::TileBytes => u64::from(self.max_tile_bytes),
             LimitKind::PlanDecodedBytes => self.max_plan_decoded_bytes,
+            LimitKind::CalibrationBytes => u64::from(self.max_calibration_bytes),
         }
     }
 
@@ -414,6 +424,11 @@ pub const LIMIT_TABLE: &[LimitRow] = &[
         kind: LimitKind::PlanDecodedBytes,
         rationale: "Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. The plan enforces it (issue 220, `plan_raster`, tested at 256 tiles of 512 px, and a coarser level is chosen until it fits); proposed still as a number, because what the decoder and the textures cost in a browser is libviprs/maplibre-pvec#102's measurement.",
         enforced: "the raster plan (issue 220), before the first range of the plan is requested",
+    },
+    LimitRow {
+        kind: LimitKind::CalibrationBytes,
+        rationale: "ADR 0019: the calibration block is read at open, so it gets a ceiling far below LIMIT-02. 64 KiB is above the 49,894 bytes of the largest block the CAL rules allow (1,024 control points, a 16 KiB definition and the longest strings), so it never refuses a valid block; it is a field so a host can lower it.",
+        enforced: "the reader, from the kind 11 directory entry's stored and decoded lengths, before the block is fetched; `decode_calibration` holds its input to the constant too",
     },
 ];
 

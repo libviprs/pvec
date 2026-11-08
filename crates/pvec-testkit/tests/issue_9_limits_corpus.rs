@@ -61,3 +61,10 @@ fn the_committed_document_lists_the_four_raster_ceilings_with_their_values() {
         assert!(committed.contains(needle), "docs/SECURITY_LIMITS.md has no row {needle}");
     }
 }
+
+#[test]
+fn the_committed_document_lists_the_calibration_ceiling() {
+    let committed = std::fs::read_to_string(doc_path()).unwrap_or_default();
+    let row = "| LIMIT-17 | CalibrationBytes | `max_calibration_bytes` | 65536 | 65536 |";
+    assert!(committed.contains(row), "docs/SECURITY_LIMITS.md has no row {row}");
+}

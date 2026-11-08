@@ -670,6 +670,7 @@ fn limits_are_not_a_way_to_make_the_reader_panic() {
             max_raster_tiles: (rng.next() % 8) as u32,
             max_tile_bytes: (rng.next() % 4096) as u32,
             max_plan_decoded_bytes: rng.next() % 8192,
+            max_calibration_bytes: (rng.next() % 8192) as u32,
         };
         let cfg = ReaderConfig { limits: l, ..ReaderConfig::default() };
         let source = MemorySource::new(art.bytes.clone());

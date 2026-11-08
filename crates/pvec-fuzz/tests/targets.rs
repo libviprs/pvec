@@ -10,7 +10,7 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 11] = [
+const NAMES: [&str; 12] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
@@ -22,6 +22,7 @@ const NAMES: [&str; 11] = [
     "fuzz_raster_plan",
     "fuzz_raster_archive",
     "fuzz_spill_writer",
+    "fuzz_calibration",
 ];
 
 #[test]
@@ -215,4 +216,24 @@ fn the_raster_headers_target_takes_a_frame_shorter_than_its_header_and_a_header_
         assert_eq!(panics(|| drop(pvec_fuzz::fuzz_raster_headers(&vec![1u8; n]))), None);
     }
     assert_eq!(pvec_fuzz::fuzz_raster_headers(&[]), "short");
+}
+
+#[test]
+fn the_calibration_target_reaches_its_parser_and_each_rule_it_is_for() {
+    let seeds = corpus();
+    let inputs = for_target("fuzz_calibration", &seeds);
+    assert!(inputs.len() >= 20, "only {} seeds", inputs.len());
+    let words: std::collections::BTreeSet<String> =
+        inputs.iter().map(|i| pvec_fuzz::fuzz_calibration(i)).collect();
+    for want in ["ok", "CAL-01", "CAL-02", "CAL-04", "CAL-08"] {
+        assert!(words.contains(want), "no seed reaches {want}: {words:?}");
+    }
+    // the seeds the panel named: GeoPDF-shaped, plan scale, measured, 1,024 points, a 16 KiB definition
+    let ok: Vec<&Vec<u8>> = inputs.iter().filter(|i| pvec_fuzz::fuzz_calibration(i) == "ok").collect();
+    assert!(ok.len() >= 5, "only {} seeds parse", ok.len());
+    assert!(ok.iter().any(|i| i.len() > 32 * 1024), "no seed with 1,024 points");
+    assert!(ok.iter().any(|i| i.windows(9).any(|w| w == b"EPSG:4326")), "no GeoPDF-shaped seed");
+    for input in &inputs {
+        assert_eq!(panics(|| drop(pvec_fuzz::fuzz_calibration(input))), None);
+    }
 }
