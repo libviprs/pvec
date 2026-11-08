@@ -233,3 +233,15 @@ fn the_one_shot_bytes_hold_with_checksums_only_and_with_no_integrity() {
         );
     }
 }
+
+#[test]
+fn on_a_file_with_checksums_and_no_digest_a_damaged_block_is_refused_by_its_checksum() {
+    use pvec_container::compress::CodecPolicy;
+    use pvec_container::writer::WriterOptions;
+    let options = WriterOptions { integrity: Integrity::Checksums, codecs: CodecPolicy::default() };
+    let good = Art::new(mixed().load_with(&[], options).unwrap().finish().unwrap());
+    assert!(good.manifest.artifact_digest.is_none() && good.manifest.block_checksums.is_some());
+    let mut flipped = good.bytes.clone();
+    flipped[good.entries[0].offset as usize + 8] ^= 0x40;
+    assert_eq!(recalibrate(&flipped, Some(&scale_only(0.5))).unwrap_err().rule(), "INTEGRITY-03");
+}
