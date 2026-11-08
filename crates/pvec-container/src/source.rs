@@ -94,6 +94,14 @@ pub enum SourceError {
         /// What it answered with.
         detail: String,
     },
+    /// The object changed since the source first read from it: the server answered an `If-Range` with
+    /// the whole new object, a range came back with another validator, or the `Content-Range` total is
+    /// not the length the source was opened with. Nothing from the new object is handed to the decoder;
+    /// the caller reopens the file.
+    Changed {
+        /// What showed the change.
+        detail: String,
+    },
     /// The transport or the file failed.
     Io(String),
 }
@@ -106,6 +114,7 @@ impl fmt::Display for SourceError {
             }
             SourceError::Short { wanted, got } => write!(f, "asked for {wanted} bytes and got {got}"),
             SourceError::RangeNotHonoured { detail } => write!(f, "the range was not honoured: {detail}"),
+            SourceError::Changed { detail } => write!(f, "the object changed since it was opened: {detail}"),
             SourceError::Io(e) => write!(f, "io: {e}"),
         }
     }
@@ -282,6 +291,21 @@ pub struct HttpResponse {
 pub trait HttpTransport {
     /// Sends `GET` with the range header and returns the response.
     fn fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>;
+
+    /// Sends `GET` with the range header and, when `if_range` is `Some`, an `If-Range` header with that
+    /// value, and returns the response with the validator it carried: its strong `ETag` as sent (quotes
+    /// included), else its `Last-Modified`, else `None`. On a `200` the transport may drop the body.
+    ///
+    /// The default sends no `If-Range` and reports no validator, so a transport that only implements
+    /// [`HttpTransport::fetch`] reads as it always did, without the change check.
+    fn fetch_if_range(
+        &self,
+        range: HttpRange,
+        if_range: Option<&str>,
+    ) -> impl Future<Output = Result<(HttpResponse, Option<String>), String>> {
+        let _ = if_range;
+        async move { self.fetch(range).await.map(|r| (r, None)) }
+    }
 }
 
 /// An artifact behind HTTP range requests. The transport is the caller's (a `fetch` in a browser, a
