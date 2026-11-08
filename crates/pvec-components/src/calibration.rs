@@ -37,9 +37,6 @@ const GEO: usize = 72;
 const MAX_CRS_ID: usize = 64;
 const MAX_DEFINITION: usize = 16_384;
 const MAX_STRING: usize = 255;
-/// The smallest and the largest factor or distance: `[2^-40, 2^40]` (CAL-04).
-const MIN_FACTOR: f64 = 1.0 / (1u64 << 40) as f64;
-const MAX_FACTOR: f64 = (1u64 << 40) as f64;
 
 /// A calibration: a scale, a georeference or both, and the id an application keeps for it.
 #[derive(Clone, Debug, PartialEq)]
@@ -255,7 +252,7 @@ impl fmt::Display for CalibrationError {
             CalibrationError::TooLarge { declared } => {
                 write!(
                     f,
-                    "the calibration block is {declared} bytes against a ceiling of {MAX_CALIBRATION_BYTES} ({r})"
+                    "the calibration block is {declared} bytes against the format's ceiling of {MAX_CALIBRATION_BYTES} ({r})"
                 )
             }
             CalibrationError::ResidualMismatch { stored, recomputed } => write!(
@@ -339,18 +336,16 @@ pub const CALIBRATION_ERRORS: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// NP-01, NP-02 and NP-03, with `-0.0` refused rather than normalised, since the stored bits are the canonical
-/// ones (CAL-04).
+/// NP-01, NP-02 and NP-03 (CAL-04). A `-0.0` passes here and is written as `+0.0`; a stored `-0.0` is refused by
+/// the decoder, since the stored bits are the canonical ones.
 fn number(x: f64) -> Result<f64, CalibrationError> {
-    match check_value(x) {
-        Ok(v) if v.to_bits() == x.to_bits() => Ok(v),
-        _ => Err(CalibrationError::BadNumber),
-    }
+    check_value(x).map_err(|_| CalibrationError::BadNumber)
 }
 
 /// A factor or a distance: a number in `[2^-40, 2^40]` (CAL-04).
 fn factor(x: f64) -> Result<f64, CalibrationError> {
-    if (MIN_FACTOR..=MAX_FACTOR).contains(&number(x)?) { Ok(x) } else { Err(CalibrationError::BadNumber) }
+    let (min, max) = (1.0 / (1u64 << 40) as f64, (1u64 << 40) as f64);
+    if (min..=max).contains(&number(x)?) { Ok(x) } else { Err(CalibrationError::BadNumber) }
 }
 
 /// The RASTER-07 text rules: no control (LF and TAB aside when `lf_tab`), no line or paragraph separator, no
@@ -461,7 +456,8 @@ fn check(c: &Calibration) -> Result<(), CalibrationError> {
 pub fn encode_calibration(c: &Calibration) -> Result<Vec<u8>, CalibrationError> {
     check(c)?;
     let mut out = Vec::with_capacity(HEADER + SCALE + GEO);
-    let f = |out: &mut Vec<u8>, x: f64| out.extend_from_slice(&x.to_le_bytes());
+    // `x + 0.0` is `x`, except that `-0.0` becomes `+0.0` (NP-03), so a zero has one byte form
+    let f = |out: &mut Vec<u8>, x: f64| out.extend_from_slice(&(x + 0.0).to_le_bytes());
     out.extend_from_slice(&MAGIC);
     out.extend_from_slice(&1u16.to_le_bytes());
     let flags = u16::from(c.scale.is_some()) | (u16::from(c.georeference.is_some()) << 1);
@@ -569,8 +565,14 @@ pub fn decode_calibration(bytes: &[u8]) -> Result<Calibration, CalibrationError>
     if (has_scale && bytes[s + 75..s + 80] != [0; 5]) || (has_geo && bytes[g + 66..g + 72] != [0; 6]) {
         return Err(E::BadHeader);
     }
-    // every float of the fixed records, unused evidence included, is held to NP-01 to NP-03 first
-    let floats = |at: usize, n: usize| (0..n).try_for_each(|i| number(f64_at(at + 8 * i)).map(drop));
+    // every float of the fixed records, unused evidence included, is held to NP-01 to NP-03 first, and a stored
+    // `-0.0` is refused: the writer never stores one, so a block that parses is the block that encodes
+    let floats = |at: usize, n: usize| {
+        (0..n).try_for_each(|i| match f64_at(at + 8 * i) {
+            x if x.to_bits() == (-0.0f64).to_bits() => Err(E::BadNumber),
+            x => number(x).map(drop),
+        })
+    };
     if has_scale {
         floats(s, 3)?;
         floats(s + 32, 5)?;
@@ -591,6 +593,7 @@ pub fn decode_calibration(bytes: &[u8]) -> Result<Calibration, CalibrationError>
     if fixed + points * 32 + id_len + def_len + note_len + ext_len != bytes.len() {
         return Err(E::BadLength);
     }
+    floats(fixed, points * 4)?;
     let mut at = fixed;
     let mut take = |n: usize| {
         let t = &bytes[at..at + n];

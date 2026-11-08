@@ -180,7 +180,16 @@ fn calibration_report(bytes: &[u8], residual: bool) -> (Json, String) {
             Json::object([("status", s("refused")), ("rule", s(e.rule())), ("message", s(e.to_string()))]);
         (json, format!("calibration refused ({}): {e}\n", e.rule()))
     };
-    let c = match open(bytes).and_then(|r| r.calibration()) {
+    // a file the reader does not open is not a refused calibration: the calibration was never read
+    let reader = match open(bytes) {
+        Ok(r) => r,
+        Err(e) => {
+            let json =
+                Json::object([("status", s("unread")), ("rule", s(e.rule())), ("message", s(e.to_string()))]);
+            return (json, format!("calibration: not read, the file is refused ({})\n", e.rule()));
+        }
+    };
+    let c = match reader.calibration() {
         Ok(Some(c)) => c,
         Ok(None) => return (Json::object([("status", s("absent"))]), "calibration: none\n".to_string()),
         Err(e) => return refused(&e),
@@ -838,7 +847,15 @@ pub fn calibrate(
             Err(e) => return refusal(e.rule().to_string(), e.to_string()),
         }
     } else {
-        let kept = open(bytes).ok().and_then(|r| r.calibration().ok().flatten());
+        // the georeference and external id the file carries are kept; one that is refused is not dropped quietly
+        let kept = match open(bytes).map(|r| r.calibration()) {
+            Ok(Ok(kept)) => kept,
+            Ok(Err(e)) => {
+                let message = format!("the file's calibration is refused, so it cannot be kept: {e}");
+                return refusal(e.rule(), message);
+            }
+            Err(e) => return (read_refusal("calibrate", path, size, &e, Json::object([])), None),
+        };
         let base =
             kept.unwrap_or(Calibration { scale: None, georeference: None, external_id: String::new() });
         Some(Calibration { scale, ..base })

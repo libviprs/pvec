@@ -116,3 +116,22 @@ fn validate_recomputes_the_residual_and_a_mismatch_refuses_the_calibration_not_t
     let human = pvec(&["validate", &bad]);
     assert!(human.stdout.contains("calibration refused (CAL-11)"), "{}", human.stdout);
 }
+
+#[test]
+fn a_file_the_reader_refuses_has_its_calibration_unread_not_refused() {
+    let needs = rebuild(&calibrated(&calibration(0.5)), |m, _| {
+        m.capabilities.push(Declared {
+            id: CapabilityId::new(99),
+            requirement: Requirement::Required,
+            version: Version::new(1, 0, 0),
+        });
+        m.capabilities.sort_by_key(|d| d.id);
+    });
+    let path = file("needs99-267.pvec", &needs);
+    let run = pvec(&["inspect", "--format", "json", &path]);
+    assert_eq!(run.code, 0, "{}", run.stdout);
+    let doc = run.json();
+    validate(&schema(), &doc).unwrap_or_else(|e| panic!("{e}\n{}", run.stdout));
+    assert_eq!(doc.at("result.calibration.status").str(), "unread");
+    assert_eq!(doc.at("result.calibration.rule").str(), "NEGOTIATE-01");
+}

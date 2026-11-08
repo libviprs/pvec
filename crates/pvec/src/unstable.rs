@@ -715,26 +715,39 @@ pub fn recalibrate(bytes: &[u8], calibration: Option<&Calibration>) -> Result<Ve
     })
 }
 
-/// [`recalibrate`] on a file: the new bytes go to a temporary file in the same directory, which is flushed to disk
-/// and renamed over `path`, so a reader sees the old file or the new one and never half of either, and a reader
-/// that kept the old file open keeps reading the old bytes. Nothing is written when the calibration or the file is
+/// [`recalibrate`] on a file: the new bytes go to a new temporary file in the same directory (made new, so it never
+/// truncates another writer's), which is synced, given the old file's permissions and renamed over it, and the
+/// directory is synced where the platform allows it. A reader sees the old file or the new one and never half of
+/// either, and a reader that kept the old file open keeps reading the old bytes. A symbolic link is followed, so
+/// the file it names is replaced and the link stays. Nothing is written when the calibration or the file is
 /// refused, and the temporary file is removed when the write fails. An I/O error is [`PvecError::Io`] with stage
 /// `"recalibrate"`.
 pub fn recalibrate_file(path: &std::path::Path, calibration: Option<&Calibration>) -> Result<(), PvecError> {
     use std::io::Write as _;
-    let old = std::fs::read(path).map_err(|e| io_error("recalibrate", e))?;
+    let io = |e| io_error("recalibrate", e);
+    let path = std::fs::canonicalize(path).map_err(io)?;
+    let old = std::fs::read(&path).map_err(io)?;
     let new = recalibrate(&old, calibration)?;
     let name = path.file_name().map_or_else(|| "artifact".into(), |n| n.to_string_lossy().into_owned());
-    let temp = path.with_file_name(format!(".{name}.recalibrate-{}.tmp", std::process::id()));
-    let written = std::fs::File::create(&temp).and_then(|mut f| {
+    let nanos =
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
+    let temp = path.with_file_name(format!(".{name}.recalibrate-{}-{nanos}.tmp", std::process::id()));
+    let written = std::fs::OpenOptions::new().write(true).create_new(true).open(&temp).and_then(|mut f| {
         f.write_all(&new)?;
-        f.sync_all()
+        f.sync_all()?;
+        std::fs::set_permissions(&temp, std::fs::metadata(&path)?.permissions())
     });
-    match written.and_then(|()| std::fs::rename(&temp, path)) {
-        Ok(()) => Ok(()),
+    match written.and_then(|()| std::fs::rename(&temp, &path)) {
+        Ok(()) => {
+            // the rename is durable once the directory is; a platform that cannot open a directory skips this
+            if let Some(dir) = path.parent().and_then(|d| std::fs::File::open(d).ok()) {
+                let _ = dir.sync_all();
+            }
+            Ok(())
+        }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
-            Err(io_error("recalibrate", e))
+            Err(io(e))
         }
     }
 }

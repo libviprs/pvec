@@ -51,3 +51,22 @@ fn a_calibration_the_rules_refuse_exits_64_and_leaves_the_file_alone() {
     assert!(run.stdout.contains("CAL-06") || run.stderr.contains("CAL-06"), "{} {}", run.stdout, run.stderr);
     assert_eq!(std::fs::read(&path).unwrap(), good_file());
 }
+
+#[test]
+fn flags_that_do_not_make_one_calibration_are_usage_errors() {
+    let path = file("calibrate-flags.pvec", &good_file());
+    for args in [
+        &["calibrate", "--remove", "--scale", "1", &path][..],
+        &["calibrate", "--scale", "1", "--plan-scale", "1:50", "--paper-unit", "0.001", &path],
+        &["calibrate", "--remove", "--note", "x", &path],
+        &["calibrate", "--measured", "1,2,x,3,4", "--distance", "5", &path],
+        &["calibrate", "--measured", "1,2,3", "--distance", "5", &path],
+    ] {
+        assert_eq!(pvec(args).code, 64, "{args:?}");
+    }
+    assert_eq!(std::fs::read(&path).unwrap(), good_file());
+    // a zero in a plan scale's ratio is the calibration's to refuse, as CAL-10
+    let run = pvec(&["calibrate", "--plan-scale", "0:100", "--paper-unit", "0.001", &path]);
+    assert_eq!(run.code, 2, "{}", run.stdout);
+    assert!(run.stdout.contains("CAL-10"), "{}", run.stdout);
+}

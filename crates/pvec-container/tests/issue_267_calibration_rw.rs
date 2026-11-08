@@ -146,6 +146,8 @@ fn a_damaged_or_misplaced_block_refuses_the_calibration_and_not_the_file() {
     let misplaced = rebuild(&good, Integrity::Full, |_, blocks| blocks.last_mut().unwrap().subtype = 1);
     let r = open(misplaced.bytes, ReaderCapabilities::v1(), Limits::DEFAULT);
     assert_eq!(r.calibration().unwrap_err().rule(), "CAL-12");
+    // LAYOUT-04 makes the keys unique, so a second kind 11 block always differs from the first in its cell or
+    // subtype; the reader names it CAL-12 for being a second block before it looks at either
     let two = rebuild(&good, Integrity::Full, |_, blocks| {
         let mut second = blocks.last().unwrap().clone();
         second.subtype = 1;
