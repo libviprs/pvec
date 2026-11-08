@@ -51,6 +51,8 @@ const USAGE: &str = "usage: pvec <subcommand> [--format json|human] <args>
   compare-step <file.pvec> <file.step> --evaluator-report <report.txt> [--requests]
   tessellate <file.pvec> --error-px <n> [--units-per-pixel <n>]
   bench-open <file.pvec> [--iterations <n>]
+  calibrate <file.pvec> (--remove | --block <calibration.bin> | --scale <m> [--provenance manual|declared_unit|georeference]
+            | --plan-scale <n>:<d> --paper-unit <m> | --measured <x0,y0,x1,y1> --distance <m>) [--note <text>]
 exit codes: 0 conforms, 1 non-conformance found, 2 refused or invalid, 3 unsupported required capability, 64 usage, 65 io, 70 internal";
 
 fn usage(message: &str) -> (Outcome, bool) {
@@ -73,6 +75,8 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
     let mut positional: Vec<&str> = Vec::new();
     let (mut report, mut error_px, mut units_per_px, mut iterations, mut want_requests) =
         (None, None, 1.0f64, 10u32, false);
+    // the flags of `calibrate`, read once the subcommand is known
+    let mut calibrate: std::collections::BTreeMap<&str, String> = std::collections::BTreeMap::new();
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         let mut value = |name: &str| it.next().map(String::as_str).ok_or(format!("{name} needs a value"));
@@ -111,6 +115,14 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
                 }
                 _ => Err(format!("--iterations is 1 to 100000, not {v}")),
             }),
+            "--remove" => {
+                calibrate.insert("--remove", String::new());
+                Ok(())
+            }
+            flag @ ("--block" | "--scale" | "--provenance" | "--plan-scale" | "--paper-unit"
+            | "--measured" | "--distance" | "--note") => value(flag).map(|v| {
+                calibrate.insert(flag, v.to_string());
+            }),
             flag if flag.starts_with("--") => Err(format!("unknown option {flag}")),
             file => {
                 positional.push(file);
@@ -123,7 +135,8 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
     }
     let wanted = match command.as_str() {
         "compare-step" => 2,
-        "inspect" | "validate" | "dump-manifest" | "capabilities" | "tessellate" | "bench-open" => 1,
+        "inspect" | "validate" | "dump-manifest" | "capabilities" | "tessellate" | "bench-open"
+        | "calibrate" => 1,
         other => return usage(&format!("unknown subcommand {other}")),
     };
     if positional.len() != wanted {
@@ -142,6 +155,116 @@ pub fn run(args: &[String]) -> (Outcome, bool) {
         "dump-manifest" => commands::dump_manifest(&bytes, path),
         "capabilities" => commands::capabilities(&bytes, path),
         "bench-open" => commands::bench_open(&bytes, path, iterations),
+        "calibrate" => {
+            // the scale the flags state, checked as a command line and not yet as a calibration: the CAL rules are
+            // the writer's, and a calibration they refuse is a refused file (exit 2), not a usage error
+            let number = |name: &str| -> Result<Option<f64>, String> {
+                calibrate.get(name).map_or(Ok(None), |v| match v.parse::<f64>() {
+                    Ok(x) if x.is_finite() && x > 0.0 => Ok(Some(x)),
+                    _ => Err(format!("{name} is a positive number, not {v}")),
+                })
+            };
+            let note = calibrate.get("--note").cloned().unwrap_or_default();
+            let scale = (|| -> Result<Option<pvec_components::ScaleClaim>, String> {
+                use pvec_components::{Provenance, ScaleClaim};
+                let claim = |metres_per_source_unit, provenance| ScaleClaim {
+                    metres_per_source_unit,
+                    provenance,
+                    uncertainty: None,
+                    note: note.clone(),
+                };
+                if let Some(ratio) = calibrate.get("--plan-scale") {
+                    let paper = number("--paper-unit")?.ok_or("--plan-scale needs --paper-unit")?;
+                    let parsed =
+                        ratio.split_once(':').and_then(|(n, d)| Some((n.parse().ok()?, d.parse().ok()?)));
+                    let (numerator, denominator): (u32, u32) =
+                        parsed.ok_or(format!("--plan-scale is <n>:<d>, not {ratio}"))?;
+                    // a zero in the ratio leaves the factor at the paper unit, so CAL-10 is what refuses it
+                    let metres = if numerator == 0 || denominator == 0 {
+                        paper
+                    } else {
+                        paper * f64::from(denominator) / f64::from(numerator)
+                    };
+                    let provenance =
+                        Provenance::PlanScale { numerator, denominator, paper_metres_per_unit: paper };
+                    return Ok(Some(claim(metres, provenance)));
+                }
+                if let Some(points) = calibrate.get("--measured") {
+                    let distance = number("--distance")?.ok_or("--measured needs --distance")?;
+                    let p: Vec<f64> = points
+                        .split(',')
+                        .map(|x| x.trim().parse::<f64>())
+                        .collect::<Result<_, _>>()
+                        .unwrap_or_default();
+                    let [x0, y0, x1, y1] = p[..] else {
+                        return Err(format!("--measured is <x0,y0,x1,y1>, not {points}"));
+                    };
+                    let length = ((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)).sqrt();
+                    // coincident points leave the factor at the distance, so CAL-06 is what refuses them
+                    let metres = if length > 0.0 { distance / length } else { distance };
+                    let provenance =
+                        Provenance::Measured { p0: [x0, y0], p1: [x1, y1], distance_metres: distance };
+                    return Ok(Some(claim(metres, provenance)));
+                }
+                let Some(metres) = number("--scale")? else { return Ok(None) };
+                let provenance = match calibrate.get("--provenance").map_or("manual", String::as_str) {
+                    "manual" => Provenance::Manual,
+                    "declared_unit" => Provenance::DeclaredUnit,
+                    "georeference" => Provenance::Georeference,
+                    other => {
+                        return Err(format!(
+                            "--provenance is manual, declared_unit or georeference, not {other}"
+                        ));
+                    }
+                };
+                Ok(Some(claim(metres, provenance)))
+            })();
+            let scale = match scale {
+                Ok(s) => s,
+                Err(e) => return usage(&e),
+            };
+            let block = match calibrate.get("--block").map(|p| read(p)) {
+                Some(Ok(b)) => Some(b),
+                Some(Err(h)) => return io(h),
+                None => None,
+            };
+            let remove = calibrate.contains_key("--remove");
+            let given = [remove, block.is_some(), scale.is_some()].iter().filter(|g| **g).count();
+            let scales = ["--scale", "--plan-scale", "--measured"]
+                .iter()
+                .filter(|f| calibrate.contains_key(**f))
+                .count();
+            if given != 1 || scales > 1 || (scale.is_none() && calibrate.contains_key("--note")) {
+                return usage(
+                    "calibrate takes one of --remove, --block or one scale, and --note only with a scale",
+                );
+            }
+            let (outcome, written) = commands::calibrate(&bytes, path, remove, block.as_deref(), scale);
+            if let Some(new) = written {
+                // the new file goes next to the old one, made new so no other writer's temporary file is truncated,
+                // synced, given the old file's permissions and renamed over it, so a reader sees one or the other
+                use std::io::Write as _;
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.subsec_nanos());
+                let temp = format!("{path}.calibrate-{}-{nanos}.tmp", std::process::id());
+                let done = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp)
+                    .and_then(|mut f| {
+                        f.write_all(&new)?;
+                        f.sync_all()?;
+                        std::fs::set_permissions(&temp, std::fs::metadata(path)?.permissions())
+                    })
+                    .and_then(|()| std::fs::rename(&temp, path));
+                if let Err(e) = done {
+                    let _ = std::fs::remove_file(&temp);
+                    return io(format!("pvec: cannot write {path}: {e}\n"));
+                }
+            }
+            outcome
+        }
         "tessellate" => match error_px {
             Some(px) => commands::tessellate(&bytes, path, px, units_per_px),
             None => return usage("tessellate needs --error-px"),

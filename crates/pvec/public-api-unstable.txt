@@ -36,3 +36,5 @@ unstable.rs: PvecWriter::calibration(&mut self, calibration: &Calibration) -> Re
 unstable.rs: PvecReader::calibration(&self) -> Result<Option<Calibration>, PvecError>
 unstable.rs: PvecReader::georeference(&self) -> Result<Option<Georeference>, PvecError>
 unstable.rs: PvecReader::effective_scale(&self) -> Result<EffectiveScale, PvecError>
+unstable.rs: pub fn recalibrate(bytes: &[u8], calibration: Option<&Calibration>) -> Result<Vec<u8>, PvecError>
+unstable.rs: pub fn recalibrate_file(path: &std::path::Path, calibration: Option<&Calibration>) -> Result<(), PvecError>

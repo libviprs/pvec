@@ -27,6 +27,9 @@
     },
     {
       "$ref": "#/$defs/report_bench_open"
+    },
+    {
+      "$ref": "#/$defs/report_calibrate"
     }
   ],
   "$defs": {
@@ -1515,6 +1518,83 @@
             "number",
             "null"
           ]
+        }
+      }
+    },
+    "calibrate_result": {
+      "type": "object",
+      "required": [
+        "bytes",
+        "calibration"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
+        }
+      }
+    },
+    "report_calibrate": {
+      "type": "object",
+      "required": [
+        "report_schema_version",
+        "command",
+        "input",
+        "exit_code",
+        "status",
+        "error",
+        "result"
+      ],
+      "properties": {
+        "report_schema_version": {
+          "const": 1
+        },
+        "command": {
+          "const": "calibrate"
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "path",
+            "size_bytes"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "size_bytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "nonconforming",
+            "unsupported_capability",
+            "refused"
+          ]
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/error"
+            }
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/calibrate_result"
         }
       }
     }

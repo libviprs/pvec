@@ -1145,3 +1145,10 @@ writer.rs: ContainerWriter::calibration(&mut self, calibration: &Calibration) ->
 writer.rs: ContainerWriter::finish(mut self) -> Result<Vec<u8>, WriteError>
 writer.rs: impl<E> From<WriteError> for RasterFail<E>
 writer.rs: pub fn calibration_block(calibration: &Calibration) -> Result<RawBlock, WriteError>
+writer.rs: #[derive(Clone, Debug, PartialEq)] #[non_exhaustive] pub enum RecalibrateError
+writer.rs: RecalibrateError::Read(crate::reader::ReadError)
+writer.rs: RecalibrateError::Write(WriteError)
+writer.rs: RecalibrateError::rule(&self) -> String
+writer.rs: impl fmt::Display for RecalibrateError
+writer.rs: impl std::error::Error for RecalibrateError {}
+writer.rs: pub fn recalibrate(bytes: &[u8], calibration: Option<&Calibration>) -> Result<Vec<u8>, RecalibrateError>
