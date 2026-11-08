@@ -215,7 +215,11 @@ fn the_step_from_1_2_0_to_1_3_0_that_adds_the_paint_entries_is_a_legal_non_break
     let mut old = new.clone();
     old.format_version = Version::new(1, 2, 0);
     old.entries.retain(|e| e.id < 23);
-    assert_eq!(lint_transition(&old, &new), vec![], "23 and 24 are optional components at 1.0.0 with min reader 1.0.0");
+    assert_eq!(
+        lint_transition(&old, &new),
+        vec![],
+        "23 and 24 are optional components at 1.0.0 with min reader 1.0.0"
+    );
     // the new entries are the two of P1, in id order
     let added: Vec<_> = new.entries.iter().filter(|e| e.id >= 23).map(|e| e.name.as_str()).collect();
     assert_eq!(added, vec!["paint_order", "stroke_paint"]);

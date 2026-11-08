@@ -103,7 +103,10 @@ fn more_than_65536_colours_or_2_pow_24_assignments_are_comp_03() {
 #[test]
 fn no_colours_at_all_is_comp_05() {
     assert_eq!(rule_of_raw(&[], &[]), "COMP-05");
-    assert_eq!(StrokePaintStream { colours: vec![], assignments: vec![] }.encode().unwrap_err().rule(), "COMP-05");
+    assert_eq!(
+        StrokePaintStream { colours: vec![], assignments: vec![] }.encode().unwrap_err().rule(),
+        "COMP-05"
+    );
 }
 
 #[test]
