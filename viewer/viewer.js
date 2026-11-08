@@ -4,6 +4,9 @@
 
 const canvas = document.getElementById("view");
 const statusLine = document.getElementById("status");
+const calibrationLine = document.getElementById("calibration");
+const pointerLine = document.getElementById("pointer");
+const scalebar = document.getElementById("scalebar");
 const params = new URLSearchParams(location.search);
 
 // docs/WASM_ABI.md, "Error codes"
@@ -97,6 +100,7 @@ const state = {
   settled: false,
   pending: null,
   fitted: false,
+  calibration: null, // what readCalibration found at open
   rasters: [], // per RasterId: { p: pixel_to_source, f: the fourteen u32 fields } or null when skipped
   tiles: new Map(), // "raster/level/col/row" -> ImageBitmap, or null for a tile that draws nothing
   decoding: new Map(), // the same keys -> the promise of the decode in flight
@@ -407,6 +411,7 @@ async function draw() {
   paintRasters(ctx, parts.under);
   paintVectors(ctx, parts.vectors);
   paintRasters(ctx, parts.over);
+  paintScalebar();
 }
 
 // Draws on the next frame, once however often it is asked, and again if it was asked while a frame was being
@@ -506,9 +511,114 @@ function forget() {
   state.tiles.clear();
   state.decoding.clear();
   state.rasters = [];
+  state.calibration = null;
+  calibrationLine.textContent = "";
+  pointerLine.textContent = "";
+  scalebar.hidden = true;
   state.file = -1;
   state.source = null;
   state.changed = false;
+}
+
+// The calibration block (ADR 0019, WASM_ABI.md "Calibration"), read once at open: the scale claim, the
+// georeference, and the manifest unit, which is always there. The module interprets none of it and neither does
+// the page: a CRS id is shown as it is, and nothing is reprojected or applied to a coordinate.
+async function readCalibration(x, file) {
+  const manifest = x.calibration_number ? x.calibration_number(file, 9) : NaN;
+  if (typeof x.calibration_stat !== "function") return { manifest, older: true };
+  const stat = (n) => x.calibration_stat(file, n);
+  const present = check("calibration_stat", await ask("calibration_stat", () => stat(0), file));
+  const num = (n) => x.calibration_number(file, n);
+  const text = (n) => {
+    const h = check("calibration_text", x.calibration_text(file, n));
+    try {
+      return new TextDecoder().decode(rasterArray(x, h, 0, Uint8Array));
+    } finally {
+      x.release(h);
+    }
+  };
+  const out = { manifest: x.calibration_number(file, 9), refused: stat(7) > 0 ? `${stat(8) === 1 ? "LIMIT" : "CAL"}-${String(stat(7)).padStart(2, "0")}` : null, unshown: stat(9) === 1 };
+  if (present & 1) {
+    out.scale = { metres: num(0), provenance: stat(1), uncertainty: stat(2) === 1 ? num(1) : null, ratio: [stat(10), stat(11)] };
+  }
+  if (present & 2) {
+    out.georeference = {
+      affine: [3, 4, 5, 6, 7, 8].map(num),
+      kind: stat(3),
+      method: stat(4),
+      points: stat(5),
+      crs: text(0),
+    };
+  }
+  return out;
+}
+
+// A length in metres the way a person reads it: four significant digits, in km, m or mm.
+function length(m) {
+  const [v, unit] = m >= 1000 ? [m / 1000, "km"] : m >= 1 ? [m, "m"] : [m * 1000, "mm"];
+  return `${Number(v.toPrecision(4))} ${unit}`;
+}
+
+const PROVENANCE = ["", "declared unit", "plan scale", "measured", "from the georeference", "manual"];
+const CRS_KIND = ["", "projected", "geographic", "engineering"];
+const METHOD = ["", "declared", "fitted", "manual"];
+
+function describeCalibration(c) {
+  const manifest = Number.isFinite(c.manifest) ? `Manifest: 1 unit is ${length(c.manifest)}.` : "";
+  if (c.older) return "This module reads no calibration.";
+  const parts = [];
+  if (c.scale) {
+    const { metres, provenance, uncertainty, ratio } = c.scale;
+    const plan = provenance === 2 ? ` ${ratio[0]}:${ratio[1]}` : "";
+    const plus = uncertainty === null ? "" : `, ±${Number((uncertainty * 100).toPrecision(3))}%`;
+    parts.push(`Scale${plan} (${PROVENANCE[provenance] || "unknown provenance"}): 1 unit is ${length(metres)}${plus}.`);
+  } else if (c.refused) {
+    parts.push(`Calibration refused (${c.refused}).`);
+  } else if (c.unshown) {
+    parts.push("The file carries a calibration this viewer cannot show.");
+  } else {
+    parts.push("Uncalibrated.");
+  }
+  parts.push(manifest);
+  if (c.georeference) {
+    const g = c.georeference;
+    const points = g.points ? `, ${g.points} control point${g.points === 1 ? "" : "s"}` : "";
+    parts.push(`Georeference: ${g.crs || "no CRS id"} (${CRS_KIND[g.kind] || "unknown kind"}, ${METHOD[g.method] || "unknown method"}${points}).`);
+  }
+  return parts.filter(Boolean).join(" ");
+}
+
+// The pointer in source units, and through the stored affine in CRS units when there is a georeference.
+function showPointer(e) {
+  if (state.file < 0) return;
+  const r = canvas.getBoundingClientRect();
+  const [x, y] = sourceAt(e.clientX - r.left, e.clientY - r.top);
+  let text = `x ${x.toFixed(2)}, y ${y.toFixed(2)}`;
+  const g = state.calibration && state.calibration.georeference;
+  if (g) {
+    const [a, b, c, d, tx, ty] = g.affine;
+    const [wx, wy] = [a * x + b * y + tx, c * x + d * y + ty];
+    const [nx, ny, digits] = g.kind === 2 ? ["lon", "lat", 7] : g.kind === 3 ? ["X", "Y", 2] : ["E", "N", 2];
+    text += `; ${nx} ${wx.toFixed(digits)}, ${ny} ${wy.toFixed(digits)}${g.crs ? ` (${g.crs})` : ""}`;
+  }
+  pointerLine.textContent = text;
+}
+
+// A bar of a round length near 120 CSS pixels at the effective scale: the calibration's when there is one, the
+// manifest unit's otherwise, and then it says so.
+function paintScalebar() {
+  const c = state.calibration;
+  const metres = c && c.scale ? c.scale.metres : c && c.manifest;
+  if (!Number.isFinite(metres) || metres <= 0) {
+    scalebar.hidden = true;
+    return;
+  }
+  const perPixel = metres / state.view.scale;
+  const step = 10 ** Math.floor(Math.log10(120 * perPixel));
+  const nice = [5, 2, 1].map((k) => k * step).find((v) => v <= 120 * perPixel) || step;
+  scalebar.querySelector(".bar").style.width = `${nice / perPixel}px`;
+  scalebar.querySelector(".label").textContent = `${length(nice)}${c.scale ? "" : " (manifest unit)"}`;
+  scalebar.hidden = false;
 }
 
 // After a file handle is open, by either route: what to fit, what to say.
@@ -516,6 +626,8 @@ async function opened(name, file) {
   const x = state.x;
   const { extent, entities } = await extentOf(x, file);
   const { rasters, text } = await readRasters(x, file);
+  state.calibration = await readCalibration(x, file);
+  calibrationLine.textContent = describeCalibration(state.calibration);
   for (const r of rasters.filter(Boolean)) {
     const [a, b, c, d] = footprint(r);
     extent[0] = Math.min(extent[0], a);
@@ -589,6 +701,7 @@ canvas.addEventListener("pointerdown", (e) => {
   drag = { x: e.clientX, y: e.clientY };
 });
 canvas.addEventListener("pointermove", (e) => {
+  showPointer(e);
   if (!drag) return;
   state.view.cx -= (e.clientX - drag.x) / state.view.scale;
   state.view.cy += (e.clientY - drag.y) / state.view.scale;
