@@ -964,5 +964,8 @@ page), or a local file from its picker, and `view=cx,cy,scale` to start somewher
 whose server answers a `HEAD` with `Accept-Ranges: bytes` is read by ranges through the module's -7 loop (issue
 #273): only what the window needs is fetched, every range carries the validator from the `HEAD` (or, when the `HEAD` has none, from the first range) as `If-Range` (the
 rules of `HttpRangeSource`, READER.md), and a file that changed on the server stops the view with a message instead
-of drawing bytes from another file. `ranges=0` fetches the file whole. `tools/viewer-test.sh` builds the module into `viewer/` and runs the page's
+of drawing bytes from another file. `ranges=0` fetches the file whole. When the file carries a calibration block (ADR 0019), the page shows the scale with its provenance and
+uncertainty next to the manifest unit, the CRS id as it is, a scale bar at the effective scale, and the pointer in source
+units and, through the stored affine, in CRS units (issue #274). It never reprojects and has no CRS database; an
+uncalibrated file says so and its scale bar is in manifest units. `tools/viewer-test.sh` builds the module into `viewer/` and runs the page's
 browser tests in a container; serving `viewer/` with the module beside it is all a deployment needs.
