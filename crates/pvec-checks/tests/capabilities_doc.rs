@@ -83,7 +83,11 @@ fn the_generated_document_lists_entry_21_as_an_optional_raster_class_capability(
 #[test]
 fn the_generated_document_lists_entry_22_as_an_optional_calibration_class_capability() {
     let generated = render_markdown(&Registry::v1());
-    let row = generated.lines().find(|l| l.starts_with("| 22 | `calibration` |")).expect("a row for capability 22");
-    assert!(row.contains("| calibration | 1.0.0 |") && row.contains("| optional |") && row.contains("ADR 0019"), "{row}");
+    let row =
+        generated.lines().find(|l| l.starts_with("| 22 | `calibration` |")).expect("a row for capability 22");
+    assert!(
+        row.contains("| calibration | 1.0.0 |") && row.contains("| optional |") && row.contains("ADR 0019"),
+        "{row}"
+    );
     assert!(row.contains("| 1.2.0 |"), "{row}");
 }

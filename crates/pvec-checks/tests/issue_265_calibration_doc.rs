@@ -91,7 +91,10 @@ fn adr_0010_and_0018_record_the_class_and_the_answer() {
 fn readme_migration_and_freeze_carry_the_new_wording() {
     assert!(read("docs/README.md").contains("(CALIBRATION.md)"));
     let m = flat(&read("docs/MIGRATION.md"));
-    assert!(m.contains("1.2.0 is the second") && m.contains("capability 22"), "MIGRATION.md has no 1.2.0 line");
+    assert!(
+        m.contains("1.2.0 is the second") && m.contains("capability 22"),
+        "MIGRATION.md has no 1.2.0 line"
+    );
     let f = read("docs/FREEZE-v1.md");
     assert!(f.contains("capability format version 1.2.0"));
     let row = f.lines().find(|l| l.starts_with("| extension rules")).expect("the extension rules row");

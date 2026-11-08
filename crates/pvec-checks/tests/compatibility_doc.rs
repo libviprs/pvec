@@ -121,14 +121,25 @@ fn the_committed_snapshot_has_entry_22_calibration_optional_at_1_2_0() {
     let s = Snapshot::parse(&text).unwrap();
     assert_eq!(s.format_version.to_string(), "1.2.0");
     let e = s.entries.iter().find(|e| e.id == 22).expect("entry 22");
-    assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("calibration", "calibration", "optional"));
-    assert_eq!((e.min_reader.to_string(), e.status_since.to_string()), ("1.2.0".to_string(), "1.2.0".to_string()));
+    assert_eq!(
+        (e.name.as_str(), e.class.as_str(), e.requirement.as_str()),
+        ("calibration", "calibration", "optional")
+    );
+    assert_eq!(
+        (e.min_reader.to_string(), e.status_since.to_string()),
+        ("1.2.0".to_string(), "1.2.0".to_string())
+    );
 }
 
 #[test]
 fn the_document_has_the_calibration_row_and_the_matrix_its_three_cases() {
     let d = doc();
-    for needle in ["kind 11, capability 22", "Effect::Uncalibrated", "`FORMAT_VERSION`, 1.2.0 today", "calibration) cannot be declared required"] {
+    for needle in [
+        "kind 11, capability 22",
+        "Effect::Uncalibrated",
+        "`FORMAT_VERSION`, 1.2.0 today",
+        "calibration) cannot be declared required",
+    ] {
         assert!(d.contains(needle), "docs/COMPATIBILITY.md does not say {needle:?}");
     }
     let matrix = fs::read_to_string(repo_root().join("tests/compat/matrix.txt")).unwrap();

@@ -58,7 +58,10 @@ fn a_reader_without_22_skips_the_block_and_says_the_file_is_uncalibrated() {
         panic!("a reader without 22 opens a calibrated file degraded")
     };
     let c = p.capabilities.iter().find(|c| c.id == cap(22)).expect("22 is reported");
-    assert_eq!((c.reason, c.effect, c.name), (SkipReason::NotImplemented, Effect::Uncalibrated, Some("calibration")));
+    assert_eq!(
+        (c.reason, c.effect, c.name),
+        (SkipReason::NotImplemented, Effect::Uncalibrated, Some("calibration"))
+    );
     let b = p.blocks.iter().find(|b| b.kind == 11).expect("the kind 11 entry is reported");
     assert_eq!((b.reason, b.capability), (SkipReason::UnknownBlockKind, Some(cap(22))));
     assert!(
@@ -106,8 +109,10 @@ fn files_without_a_calibration_are_byte_identical_to_what_1_1_0_wrote() {
     ]
     .into_iter()
     .collect();
-    let mut here: BTreeMap<String, String> =
-        fixtures().iter().map(|f| (f.name.to_string(), sha256_hex(&f.write().expect("the fixture writes")))).collect();
+    let mut here: BTreeMap<String, String> = fixtures()
+        .iter()
+        .map(|f| (f.name.to_string(), sha256_hex(&f.write().expect("the fixture writes"))))
+        .collect();
     here.insert("raster-two".to_string(), sha256_hex(&raster::two_rasters_file()));
     assert_eq!(here.len(), at_1_1_0.len());
     for (name, digest) in &here {

@@ -366,8 +366,11 @@ The block kinds:
 | 8 | tier0 | the Tier 0 stream of one index leaf (`docs/STREAMING.md` section 4.5) | 0 | entities the leaf's Tier 0 covers |
 | 9 | raster_index | reserved, capability-owned by 21 (`docs/RASTER.md`): the level table and tile table of one raster, `cell` = its `RasterId` | 0 | tiles stored |
 | 10 | raster_tiles | reserved, capability-owned by 21 (`docs/RASTER.md`): the encoded tiles of one (raster, level, chunk), `cell` = its `RasterId` | `level * 1024 + chunk` | tiles in the chunk |
+| 11 | calibration | reserved, capability-owned by 22 (`docs/CALIBRATION.md`): the scale and the georeference of the artifact, one block, `cell` 0 | 0 | records present (1 or 2) |
 
 Kinds 9 and 10 are not in `BlockKind::ALL` and not a kind "the format defines" for DIR-02: their entries name capability 21, a reader that does not implement it skips them as `UnknownBlockKind` naming 21, and the rest of the kind table is unchanged. The writer puts them after every kind the format defines, so the canonical order (group, cell, kind, subtype) puts every kind 9 block next to the others, by `RasterId`, and then every kind 10 block by `RasterId` and `level * 1024 + chunk`; LAYOUT-04 keys are therefore unique, and ascending by level inside a raster. Both are optional (the must-understand flag is clear), carry the has-bounds flag (the footprint of the raster's visible box in source space for a kind 9 block, the box of the chunk's tiles for a kind 10 block), are stored with codec 0 (a tile is read as a range of its chunk, which a compressed block would not allow) and name capability 21. The layout of both is `docs/RASTER.md` sections 2 and 3; a reader reads the index of a raster the first time that raster is asked for, and a tile is one range inside its chunk, checked against the index's XXH3-64 before it is returned (INTEGRITY-05), whether or not the file has a checksum table. The chunk's own checksum in the table is full validation's.
+
+Kind 11 is not in `BlockKind::ALL` either: its one entry names capability 22 (ADR 0019), a reader that does not implement 22 skips it as `UnknownBlockKind` naming 22 and reports `Effect::Uncalibrated`, and the writer puts it after every other block, kinds 9 and 10 included, so it is always the last block and a re-calibration rewrites only it, the checksum table and the directory. It is optional, carries no bounds, is stored with codec 0 and is held to LIMIT-17 before it is fetched. The layout is `docs/CALIBRATION.md`.
 
 Flag bit 0 is must-understand: a reader that does not know the kind refuses the file (ADR 0008). Geometry blocks carry it; the component stream set, the spatial directory, the reference arrays, the straddler lists and the Tier 0 blocks do not, so a reader that does not know them skips them. Flag bit 1 says the bounds are meaningful: a hot block and the record block carry the union of the bounds the caller gave their entities, the spatial directory carries the box of its root, the straddler lists carry the union of the boxes they list, a Tier 0 block carries the bounds of its leaf, an arena or a component set carries none and its four bounds are zero. The codec ids are in section 4.7; a codec id the reader does not know refuses a must-understand block and skips an optional one. The capability id is 0 for every kind this chapter defines and, for a block of a kind the reader does not know, names the capability the block belongs to (chapter 5). A reader checks every entry before using it:
 
@@ -496,7 +499,7 @@ A reader that meets a block it has never heard of has to skip it correctly, with
 | `OpenDegraded` | an optional capability is not supported, or is declared at a major version the reader does not implement, or a block is of a kind or a codec the reader does not know | reads the file, skips what it cannot read, and returns a `PartialOpen` that lists the skipped capability ids and blocks |
 | `Refuse` | a required capability is not supported, or is declared at another major version, or the file needs a newer reader | opens nothing, and the refusal names the capability id and the version the file declares |
 
-A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. `version_gaps` lists those capabilities with the version the file declares and the one the reader implements, so a consumer can report the gap. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a component is never required, and an extension the registry lists as optional cannot be declared required by a file.
+A newer minor version of a capability the reader supports opens: a minor only adds, and what it adds is ignorable by the growth rules of section 1.7. `version_gaps` lists those capabilities with the version the file declares and the one the reader implements, so a consumer can report the gap. A newer major of an optional capability is skipped, and of a required one is refused. The registry's own rules apply first: a capability whose class is never required (component, raster, calibration) cannot be declared required, and an extension the registry lists as optional cannot be declared required by a file.
 
 Refusals are `Refusal` values and carry a rule:
 
@@ -505,9 +508,9 @@ Refusals are `Refusal` values and carry a rule:
 | NEGOTIATE-01 | a required capability is not supported by the reader, or not known to it at all; the refusal names its id and the version the file declares |
 | NEGOTIATE-02 | a required capability is declared at a major version the reader does not support (a newer minor of a supported major opens) |
 | NEGOTIATE-03 | the file needs a newer reader than this one (its minimum reader, or a required capability's) |
-| NEGOTIATE-04 | a component, the raster capability or an optional extension is declared required, which the registry does not allow |
+| NEGOTIATE-04 | a capability whose class is never required (a component, the raster or the calibration capability) or an optional extension is declared required, which the registry does not allow |
 | NEGOTIATE-05 | a block names a capability id the manifest does not declare |
-| NEGOTIATE-06 | a block of a kind a capability owns (kinds 9 and 10 belong to capability 21) names another capability, or none |
+| NEGOTIATE-06 | a block of a kind a capability owns (kinds 9 and 10 belong to capability 21, kind 11 belongs to capability 22) names another capability, or none |
 
 ### 5.3 The skip contract
 
@@ -516,7 +519,7 @@ A block carries everything needed to skip it in its directory entry: its kind id
 * a block of a kind the reader does not know is skipped when its must-understand bit is clear, and refuses the file when it is set (`DIR-04`);
 * a block with a codec the reader does not know is skipped on the same terms (`DIR-05`);
 * a block whose capability the reader skipped is skipped with it;
-* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21 and are not in the kind table of chapter 4) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not know, naming the capability from its entry, when it does not. It must name its owner and no other capability (`NEGOTIATE-06`).
+* a block of a kind a capability owns (kinds 9 and 10, which belong to capability 21, and kind 11, which belongs to capability 22; none is in `BlockKind::ALL`) is handed to that capability when the reader implements it, and is skipped as a kind the reader does not know, naming the capability from its entry, when it does not. It must name its owner and no other capability (`NEGOTIATE-06`).
 
 A skipped block is not fetched, not checksummed, not decompressed, not parsed and not counted in a read plan, and a coalesced request never reads across it. The one exception is the explicit whole-file digest verification, which reads every byte by definition. The reader reports it, and the entity counts and the geometry it reads are bit-identical to the same file without the block. A block cannot name a capability the manifest does not declare (`NEGOTIATE-05`), and a block of a kind the format defines names none (`DIR-02`), because its kind fixes it.
 
@@ -533,7 +536,7 @@ A capability is optional, and so skippable by an old reader, only if it satisfie
 
 ### 5.5 The report and re-writing
 
-`PartialOpen` lists the skipped capability ids with their versions, names and what each leaves undone (entities unstyled, entities without a component, or unknown), the skipped blocks, and the number of entities a skipped capability may apply to, so a consumer can say so and not silently drop content. Which entities a skipped stream names is in its payload, which is not read.
+`PartialOpen` lists the skipped capability ids with their versions, names and what each leaves undone (entities unstyled, entities without a component, an image or a calibration the reader cannot show, or unknown), the skipped blocks, and the number of entities a skipped capability may apply to, so a consumer can say so and not silently drop content. Which entities a skipped stream names is in its payload, which is not read.
 
 Re-writing a file whose optional blocks the reader did not understand has one answer per path. A rewrite that goes through the decoded model refuses (`PartialOpen::ensure_lossless_rewrite`), because the model cannot carry what was not decoded. A tool that must keep the blocks copies them as they are, through `read_stored` and `assemble`, and preserves them byte for byte, the descriptor and the checksum included. Both are tested.
 

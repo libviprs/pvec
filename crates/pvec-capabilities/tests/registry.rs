@@ -395,13 +395,17 @@ fn a_calibration_class_entry_can_never_be_required_and_names_no_construct() {
     c.requirement = Requirement::Optional;
     c.iso_construct = "line";
     let r = Registry::new(vec![c], vec![]).unwrap();
-    assert_eq!(r.validate_against_profile(&[]).unwrap_err(), RegistryError::ComponentNamesConstruct("calibration"));
+    assert_eq!(
+        r.validate_against_profile(&[]).unwrap_err(),
+        RegistryError::ComponentNamesConstruct("calibration")
+    );
 }
 
 #[test]
 fn a_file_cannot_declare_the_calibration_capability_required() {
     let r = Registry::v1();
-    let reader = Reader { version: Version::new(1, 2, 0), implemented: r.entries().iter().map(|c| c.id).collect() };
+    let reader =
+        Reader { version: Version::new(1, 2, 0), implemented: r.entries().iter().map(|c| c.id).collect() };
     let file = Declaration {
         min_reader: Version::new(1, 0, 0),
         capabilities: vec![Declared {
@@ -410,5 +414,8 @@ fn a_file_cannot_declare_the_calibration_capability_required() {
             version: Version::new(1, 0, 0),
         }],
     };
-    assert_eq!(r.negotiate(&reader, &file), Err(NegotiationError::ComponentDeclaredRequired(CapabilityId::new(22))));
+    assert_eq!(
+        r.negotiate(&reader, &file),
+        Err(NegotiationError::ComponentDeclaredRequired(CapabilityId::new(22)))
+    );
 }
