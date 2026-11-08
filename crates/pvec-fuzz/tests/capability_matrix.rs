@@ -44,13 +44,15 @@ fn list(text: Option<&String>) -> Vec<String> {
     text.map(|t| t.split(',').map(|s| s.trim().to_string()).collect()).unwrap_or_default()
 }
 
-/// The three readers of the matrix.
+/// The four readers of the matrix: `s_raster` is a 1.1.0 reader with rasters and no calibration (ADR 0019).
 fn readers() -> Vec<(&'static str, ReaderCapabilities)> {
-    let mut old = (14..=21).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
+    let mut old = (14..=22).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
     old.version = Version::new(1, 0, 0);
     let mut new = ReaderCapabilities::v1().with(CapabilityId::new(99), 3, 1);
     new.version = Version::new(1, 1, 0);
-    vec![("s_old", old), ("s_new", new), ("v1", ReaderCapabilities::v1())]
+    let mut raster = ReaderCapabilities::v1().without(CapabilityId::new(22));
+    raster.version = Version::new(1, 1, 0);
+    vec![("s_old", old), ("s_new", new), ("s_raster", raster), ("v1", ReaderCapabilities::v1())]
 }
 
 fn file_for(case: &Case) -> Art {
@@ -184,7 +186,7 @@ fn every_crossing_of_a_reader_and_a_file_is_consistent_with_the_reader_that_open
             assert_eq!(negotiate(&file.manifest, &file.entries, &reader), out, "{here}: deterministic");
         }
     }
-    assert_eq!(crossings, 3 * files.len());
+    assert_eq!(crossings, 4 * files.len());
 }
 
 #[test]

@@ -136,7 +136,7 @@ None. Neither the 187 million libFuzzer executions of the smoke runs, the 3.17 b
 
 ## Capability matrix
 
-`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (twelve, with the outcome written in the fixture), builds the three readers (`S_old`, `S_new`, this build), and checks that each declared pair keeps its outcome, that every one of the 3 x 13 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
+`crates/pvec-fuzz/tests/capability_matrix.rs` is an ordinary test. It reads the pairs P7.6 declared in `tests/compat/matrix.txt` (fifteen, with the outcome written in the fixture), builds the four readers (`S_old`, `S_new`, `S_raster`, this build), and checks that each declared pair keeps its outcome, that every one of the 4 x 17 reader and file crossings is consistent (`negotiate` refuses exactly when `open` does, with the same rule; a degraded open skips only declared capabilities and validates; negotiation is deterministic) and that the geometry read is the same whichever reader opens the file. Another test edits a declared outcome and shows the harness disagrees, which is what turns the matrix red when an outcome changes.
 
 ## Running it
 
