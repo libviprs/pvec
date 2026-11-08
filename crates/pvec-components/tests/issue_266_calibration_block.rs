@@ -436,3 +436,19 @@ fn a_negative_zero_is_written_as_positive_zero_and_a_stored_one_is_refused() {
     put_f64(&mut m, tail, -0.0);
     assert_eq!(rule(&m), "CAL-04");
 }
+
+/// Issue #283: a GeoPDF `/GCS /WKT` is WKT1, which has its own tag, 3; 1 and 2 keep their meaning.
+#[test]
+fn issue_283_a_wkt1_definition_has_tag_3_and_round_trips() {
+    let mut c = geopdf();
+    c.georeference.as_mut().unwrap().definition =
+        Some(CrsDefinition { format: DefinitionFormat::Wkt1, text: "GEOGCS[\"WGS 84\"]".into() });
+    let b = encode_calibration(&c).unwrap();
+    assert_eq!(b[HEADER + SCALE + 65], 3);
+    assert_eq!(decode_calibration(&b).unwrap(), c);
+    let mut m = b.clone();
+    m[HEADER + SCALE + 65] = 4;
+    assert_eq!(rule(&m), "CAL-08");
+    let d = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/CALIBRATION.md")).unwrap();
+    assert!(d.contains("0 none, 1 WKT2, 2 PROJJSON, 3 WKT1"));
+}
