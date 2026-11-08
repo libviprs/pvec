@@ -232,10 +232,11 @@ async function openBytes(name, bytes) {
   state.file = -1;
   state.name = name;
   const [ptr, len] = pass(x, new Uint8Array(bytes));
+  // held from here, so `forget` or the next open releases it even when reading the extent throws
   const file = check("open", x.open(ptr, len));
+  state.file = file;
   const { extent, entities } = extentOf(x, file);
   const rasters = rasterCount(x, file);
-  state.file = file;
   state.extent = extent;
   setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${rasters} raster${rasters === 1 ? "" : "s"}`);
   fit();
