@@ -812,3 +812,46 @@ pub fn bench_open(bytes: &[u8], path: &str, iterations: u32) -> Outcome {
     let human = format!("{path}: opened {iterations} times, median {median} ns (min {min}, max {max})\n");
     envelope("bench-open", path, size, exit::CONFORMS, None, result, human)
 }
+
+/// `calibrate`: the file with its calibration set, replaced or removed (ADR 0019), through `recalibrate`, which
+/// copies every other block as it is stored. `block` is an encoded kind 11 payload that replaces the whole
+/// calibration; `scale` replaces the scale record and keeps the file's georeference and external id. The new bytes
+/// come back for the caller to write; a calibration or a file that is refused writes nothing (exit 2).
+pub fn calibrate(
+    bytes: &[u8],
+    path: &str,
+    remove: bool,
+    block: Option<&[u8]>,
+    scale: Option<pvec_components::ScaleClaim>,
+) -> (Outcome, Option<Vec<u8>>) {
+    use pvec_components::{Calibration, decode_calibration};
+    use pvec_container::writer::{RecalibrateError, recalibrate};
+    let size = bytes.len();
+    let refusal = |code: String, message: String| {
+        (refused("calibrate", path, size, exit::REFUSED, code, message, Json::object([])), None)
+    };
+    let wanted = if remove {
+        None
+    } else if let Some(b) = block {
+        match decode_calibration(b) {
+            Ok(c) => Some(c),
+            Err(e) => return refusal(e.rule().to_string(), e.to_string()),
+        }
+    } else {
+        let kept = open(bytes).ok().and_then(|r| r.calibration().ok().flatten());
+        let base =
+            kept.unwrap_or(Calibration { scale: None, georeference: None, external_id: String::new() });
+        Some(Calibration { scale, ..base })
+    };
+    let new = match recalibrate(bytes, wanted.as_ref()) {
+        Ok(n) => n,
+        Err(RecalibrateError::Read(e)) => {
+            return (read_refusal("calibrate", path, size, &e, Json::object([])), None);
+        }
+        Err(e) => return refusal(e.rule(), e.to_string()),
+    };
+    let (calibration, lines) = calibration_report(&new, false);
+    let result = Json::object([("bytes", u(new.len() as u64)), ("calibration", calibration)]);
+    let human = format!("{path}: rewritten, {} bytes\n{lines}", new.len());
+    (envelope("calibrate", path, size, exit::CONFORMS, None, result, human), Some(new))
+}

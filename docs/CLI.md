@@ -52,6 +52,12 @@ Result fields: `header` (container version, header length, checksum algorithms, 
 
 Result fields: `format_valid`, `blocks`, `entities`, `skipped_blocks` (blocks of an optional capability this build skipped without reading), `rasters` (one entry for each raster the file names: `raster`, `status` `ok` or `skipped`, and for a skipped one the `rule` that refused it, `RASTER-nn`, `LIMIT-nn` or `INTEGRITY-05`, and a `message`; a raster is refused on its own, so a file whose only fault is a bad tile still exits 0 with status `ok` and the geometry gates passed), `calibration` (as `inspect` gives it, plus `residual`: the largest residual recomputed from the control points when the record is fitted from at least 3, the CAL-11 check of `docs/CALIBRATION.md`; a calibration that fails a CAL rule is `refused` with the rule and the file still exits 0), `checks` (`structure`, `limits`, `block_checksums`, `artifact_digest`; the last two are `verified` or `not_written`) and `limits` (the ceilings the file was held to).
 
+### `calibrate`
+
+`pvec calibrate <file.pvec>` with one of `--remove`, `--block <calibration.bin>` (an encoded kind 11 payload, `docs/CALIBRATION.md`, which replaces the whole calibration), `--scale <m>` with `--provenance manual`, `declared_unit` or `georeference` (manual by default), `--plan-scale <n>:<d> --paper-unit <m>`, or `--measured <x0,y0,x1,y1> --distance <m>`, and `--note <text>` for the scale's note. A scale replaces the scale record and keeps the georeference and external id the file carries. The file is rewritten through `recalibrate` (ADR 0019): every other block is copied as it is stored, the checksum table and the digest are recomputed, the input is checked against its own first, and the new bytes go to a temporary file beside it that is renamed over it. Exit 0, 2 with the rule when the calibration or the file is refused (nothing is written then), 64 for flags that are missing or are not numbers.
+
+Result fields: `bytes` (the new length) and `calibration` (as `inspect` gives it, for the file as rewritten).
+
 ### `dump-manifest`
 
 `pvec dump-manifest <file.pvec>`. The manifest in full. Exit 0, or 2.

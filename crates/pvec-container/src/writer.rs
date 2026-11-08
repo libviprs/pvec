@@ -1640,6 +1640,106 @@ pub fn calibration_block(calibration: &Calibration) -> Result<RawBlock, WriteErr
     })
 }
 
+/// Why a re-calibration was refused. The input is never changed: the result is new bytes or this.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum RecalibrateError {
+    /// The file does not open, a block does not read, or a block or the file does not match its checksum.
+    Read(crate::reader::ReadError),
+    /// The calibration is refused (`WRT-18` with its CAL rule), or the file does not lay out.
+    Write(WriteError),
+}
+
+impl RecalibrateError {
+    /// The rule of the refusal: the reader's or the writer's.
+    pub fn rule(&self) -> String {
+        match self {
+            RecalibrateError::Read(e) => e.rule(),
+            RecalibrateError::Write(WriteError::Calibration { rule }) => (*rule).to_string(),
+            RecalibrateError::Write(e) => e.rule().to_string(),
+        }
+    }
+}
+
+impl fmt::Display for RecalibrateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RecalibrateError::Read(e) => write!(f, "{e}"),
+            RecalibrateError::Write(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for RecalibrateError {}
+
+/// The artifact `bytes` with its calibration set to `calibration`, or removed for `None` (ADR 0019).
+///
+/// A canonical rewrite through [`assemble`]: every block but the old kind 11 one is copied as it is stored, its
+/// descriptor and bytes untouched, blocks of capabilities this build does not know included; the new calibration
+/// block goes last; the manifest gains or loses capability 22 and nothing else. So the result is byte for byte what
+/// a one-shot write of the same content gives, a replace moves no other block, and an add or a remove moves every
+/// block by the manifest's 16 byte capability entry. The checksum table and the digest are recomputed over the new
+/// layout, so the input is checked first: its digest when it has one (one whole-file read) and every block against
+/// its checksum when it has a table, so a damaged block is refused rather than sealed again.
+pub fn recalibrate(bytes: &[u8], calibration: Option<&Calibration>) -> Result<Vec<u8>, RecalibrateError> {
+    use crate::integrity::IntegrityError;
+    use crate::reader::{BlockId, ContainerReader, ReadError, ReaderConfig};
+    let read = RecalibrateError::Read;
+    let block = calibration.map(calibration_block).transpose().map_err(RecalibrateError::Write)?;
+    let reader = ContainerReader::open(crate::source::MemorySource::new(bytes), ReaderConfig::default())
+        .map_err(read)?;
+    reader.verify_artifact_digest().map_err(read)?;
+    let mut manifest = reader.manifest().clone();
+    let sums: Option<Vec<u64>> = manifest.block_checksums.map(|t| {
+        let table = &bytes[t.offset as usize..(t.offset + t.length) as usize];
+        table.chunks_exact(8).map(|s| u64::from_le_bytes(s.try_into().expect("eight bytes"))).collect()
+    });
+    let mut blocks = Vec::with_capacity(reader.entries().len() + 1);
+    for (i, e) in reader.entries().iter().enumerate() {
+        let stored = reader.read_stored(BlockId(i as u32)).map_err(read)?;
+        if let Some(expected) = sums.as_ref().and_then(|s| s.get(i).copied()) {
+            let found = block_checksum(&stored);
+            if found != expected {
+                let e = IntegrityError::BlockChecksum { block: i as u32, expected, found };
+                return Err(read(ReadError::Integrity(e)));
+            }
+        }
+        if e.kind == CALIBRATION_KIND {
+            continue;
+        }
+        blocks.push(RawBlock {
+            kind: e.kind,
+            subtype: e.subtype,
+            cell: e.cell,
+            count: e.count,
+            bounds: e.bounds,
+            flags: e.flags,
+            codec: e.codec,
+            capability: e.capability,
+            uncompressed_length: e.uncompressed_length,
+            stored: stored.to_vec(),
+        });
+    }
+    manifest.capabilities.retain(|d| d.id != CALIBRATION_CAPABILITY);
+    if let Some(block) = block {
+        let registry = Registry::v1();
+        let entry = registry.get(CALIBRATION_CAPABILITY).expect("capability 22 is registered");
+        manifest.capabilities.push(Declared {
+            id: CALIBRATION_CAPABILITY,
+            requirement: entry.requirement,
+            version: entry.version,
+        });
+        manifest.capabilities.sort_by_key(|d| d.id);
+        blocks.push(block);
+    }
+    let integrity = match (manifest.block_checksums.is_some(), manifest.artifact_digest.is_some()) {
+        (_, true) => Integrity::Full,
+        (true, false) => Integrity::Checksums,
+        (false, false) => Integrity::None,
+    };
+    assemble(manifest, &blocks, integrity).map_err(RecalibrateError::Write)
+}
+
 /// A curve of the semantic model, turned into what the writer stores.
 pub(crate) enum Item {
     Hot(EntityMeta, HotShape),

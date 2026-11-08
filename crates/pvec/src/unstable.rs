@@ -702,3 +702,39 @@ impl PvecReader {
         })
     }
 }
+
+/// The artifact `bytes` with its calibration set, replaced, or removed for `None` (ADR 0019): a canonical rewrite in
+/// which every other block is copied as it is stored, so the result is byte for byte what writing the same content
+/// with [`PvecWriter::calibration`] gives. A calibration the rules refuse is a `Write` error with its `CAL-NN` rule;
+/// a file that does not open or whose blocks fail their checksums is a `Read` error.
+pub fn recalibrate(bytes: &[u8], calibration: Option<&Calibration>) -> Result<Vec<u8>, PvecError> {
+    use pvec_container::writer::RecalibrateError;
+    pvec_container::writer::recalibrate(bytes, calibration).map_err(|e| match &e {
+        RecalibrateError::Read(_) => PvecError::Read { rule: e.rule() },
+        _ => PvecError::Write { rule: e.rule() },
+    })
+}
+
+/// [`recalibrate`] on a file: the new bytes go to a temporary file in the same directory, which is flushed to disk
+/// and renamed over `path`, so a reader sees the old file or the new one and never half of either, and a reader
+/// that kept the old file open keeps reading the old bytes. Nothing is written when the calibration or the file is
+/// refused, and the temporary file is removed when the write fails. An I/O error is [`PvecError::Io`] with stage
+/// `"recalibrate"`.
+pub fn recalibrate_file(path: &std::path::Path, calibration: Option<&Calibration>) -> Result<(), PvecError> {
+    use std::io::Write as _;
+    let old = std::fs::read(path).map_err(|e| io_error("recalibrate", e))?;
+    let new = recalibrate(&old, calibration)?;
+    let name = path.file_name().map_or_else(|| "artifact".into(), |n| n.to_string_lossy().into_owned());
+    let temp = path.with_file_name(format!(".{name}.recalibrate-{}.tmp", std::process::id()));
+    let written = std::fs::File::create(&temp).and_then(|mut f| {
+        f.write_all(&new)?;
+        f.sync_all()
+    });
+    match written.and_then(|()| std::fs::rename(&temp, path)) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let _ = std::fs::remove_file(&temp);
+            Err(io_error("recalibrate", e))
+        }
+    }
+}

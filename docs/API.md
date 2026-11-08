@@ -79,6 +79,12 @@ reader was configured without capability 22, and `PvecReader::effective_scale()`
 otherwise, never a bare number. `Calibration`, `ScaleClaim`, `Provenance`, `Georeference`, `CrsKind`, `FitMethod`,
 `CrsDefinition`, `DefinitionFormat` and `ControlPoint` come with them. Nothing is applied to coordinates.
 
+Since issue 268 a calibration can be changed after the write. `pvec::unstable::recalibrate(bytes, calibration)` sets, replaces
+or removes it (`None`) by a canonical rewrite that copies every other block as it is stored, so the result is the bytes a
+one-shot write of the same content gives; `recalibrate_file(path, calibration)` does the same to a file through a temporary
+file in its directory and a rename. A calibration the rules refuse is a `Write` error with its `CAL-NN` rule and nothing is
+written; a file that does not open or fails its checksums is a `Read` error.
+
 ## Never exported
 
 Anything from `pvec-container` (`BlockKind`, `DirectoryEntry`, `Header`, `ContainerWriter`,

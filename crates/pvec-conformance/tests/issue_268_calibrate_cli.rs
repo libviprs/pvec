@@ -26,7 +26,8 @@ fn calibrate_sets_a_manual_scale_then_removes_it() {
 #[test]
 fn calibrate_states_a_plan_scale_and_a_measured_scale() {
     let path = file("calibrate-plan.pvec", &good_file());
-    let run = pvec(&["calibrate", "--plan-scale", "1:50", "--paper-unit", "0.001", "--note", "1:50 at A1", &path]);
+    let run =
+        pvec(&["calibrate", "--plan-scale", "1:50", "--paper-unit", "0.001", "--note", "1:50 at A1", &path]);
     assert_eq!(run.code, 0, "{}", run.stderr);
     let doc = pvec(&["inspect", "--format", "json", &path]).json();
     assert_eq!(doc.at("result.calibration.scale.provenance").str(), "plan_scale");

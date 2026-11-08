@@ -20,7 +20,11 @@ fn scale(metres: f64) -> Calibration {
     Calibration {
         scale: Some(ScaleClaim {
             metres_per_source_unit: metres,
-            provenance: Provenance::Measured { p0: [0.0, 0.0], p1: [30.0, 40.0], distance_metres: 50.0 * metres },
+            provenance: Provenance::Measured {
+                p0: [0.0, 0.0],
+                p1: [30.0, 40.0],
+                distance_metres: 50.0 * metres,
+            },
             uncertainty: None,
             note: String::new(),
         }),
@@ -60,8 +64,10 @@ fn a_file_is_replaced_whole_by_a_rename_and_nothing_is_left_beside_it() {
     assert_eq!(r.calibration().unwrap(), Some(scale(0.2)));
     recalibrate_file(&path, None).unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), write(None));
-    let names: Vec<String> =
-        std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    let names: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
     assert_eq!(names, ["plan.pvec"], "a temporary file was left behind");
     let _ = std::fs::remove_dir_all(&dir);
 }

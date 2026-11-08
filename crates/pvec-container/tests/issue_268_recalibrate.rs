@@ -32,7 +32,11 @@ fn georeferenced() -> Calibration {
     Calibration {
         scale: Some(ScaleClaim {
             metres_per_source_unit: 0.1,
-            provenance: Provenance::PlanScale { numerator: 1, denominator: 100, paper_metres_per_unit: 0.001 },
+            provenance: Provenance::PlanScale {
+                numerator: 1,
+                denominator: 100,
+                paper_metres_per_unit: 0.001,
+            },
             uncertainty: Some(0.01),
             note: "1:100 on A1".into(),
         }),
