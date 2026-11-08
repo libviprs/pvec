@@ -293,8 +293,10 @@ pub trait HttpTransport {
     fn fetch(&self, range: HttpRange) -> impl Future<Output = Result<HttpResponse, String>>;
 
     /// Sends `GET` with the range header and, when `if_range` is `Some`, an `If-Range` header with that
-    /// value, and returns the response with the validator it carried: its strong `ETag` as sent (quotes
-    /// included), else its `Last-Modified`, else `None`. On a `200` the transport may drop the body.
+    /// value, and returns the response with the validator it carried: its `ETag` as sent (quotes included),
+    /// or its `Last-Modified` only when it has no `ETag` at all, else `None`. A weak `ETag` is reported as it
+    /// is and never sent back, and a date is not a validator for a response that has any `ETag` (RFC 9110
+    /// 13.1.5). On a `200` the transport may drop the body.
     ///
     /// The default sends no `If-Range` and reports no validator, so a transport that only implements
     /// [`HttpTransport::fetch`] reads as it always did, without the change check.
