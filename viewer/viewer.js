@@ -100,6 +100,8 @@ const state = {
   rasters: [], // per RasterId: { p: pixel_to_source, f: the fourteen u32 fields } or null when skipped
   tiles: new Map(), // "raster/level/col/row" -> ImageBitmap, or null for a tile that draws nothing
   decoding: new Map(), // the same keys -> the promise of the decode in flight
+  held: -1, // the handle to release on the next open, set as soon as one is issued
+  generation: 0, // bumped by every open, so work started for the file before is dropped when it lands
   source: null, // { url, len, validator } for a file read by ranges
   changed: false, // the file changed on the server under a ranged view
   dirty: false,
@@ -237,9 +239,11 @@ function fail(e) {
 function decodeTile(r, level, col, row) {
   const key = tileKey(r, level, col, row);
   if (state.tiles.has(key) || state.decoding.has(key) || state.changed) return;
-  const { x, file } = state;
+  const { x, file, generation } = state;
+  const current = () => generation === state.generation;
   const job = (async () => {
     const handle = await ask("raster_tile", () => x.raster_tile(file, r, level, col, row));
+    if (!current()) return;
     if (handle === -9) {
       state.tiles.set(key, null);
       return;
@@ -248,6 +252,10 @@ function decodeTile(r, level, col, row) {
     const bytes = rasterArray(x, handle, 0, Uint8Array).slice();
     x.release(handle);
     const bitmap = await createImageBitmap(new Blob([bytes]), { imageOrientation: "none", colorSpaceConversion: "none" });
+    if (!current()) {
+      bitmap.close();
+      return;
+    }
     state.tiles.set(key, bitmap);
     while (state.tiles.size > TILE_CACHE) {
       const [oldest, old] = state.tiles.entries().next().value;
@@ -256,11 +264,12 @@ function decodeTile(r, level, col, row) {
     }
   })()
     .catch((e) => {
+      if (!current()) return;
       state.tiles.set(key, null);
       if (e instanceof Changed || e instanceof ModuleError) fail(e);
     })
     .finally(() => {
-      state.decoding.delete(key);
+      if (state.decoding.get(key) === job) state.decoding.delete(key);
       schedule();
     });
   state.decoding.set(key, job);
@@ -368,13 +377,15 @@ function paintVectors(ctx, { vertices, offsets }) {
 // in one go, underlay rasters, vectors, overlay rasters, so a slow range never shows a half-drawn frame.
 async function draw() {
   let parts = null;
+  const generation = state.generation;
   if (state.file >= 0 && !state.changed) {
     try {
       parts = { under: await planRasters(0), vectors: await planVectors(), over: await planRasters(1) };
     } catch (e) {
-      fail(e);
+      if (generation === state.generation) fail(e);
     }
   }
+  if (generation !== state.generation) return;
   const dpr = window.devicePixelRatio || 1;
   const [w, h] = size();
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -398,12 +409,15 @@ function schedule() {
   state.dirty = true;
   if (!state.pending) {
     state.pending = (async () => {
-      while (state.dirty) {
-        state.dirty = false;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await draw();
+      try {
+        while (state.dirty) {
+          state.dirty = false;
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          await draw();
+        }
+      } finally {
+        state.pending = null;
       }
-      state.pending = null;
     })();
   }
   return state.pending;
@@ -479,9 +493,13 @@ function footprint({ p, f }) {
 }
 
 function forget() {
-  if (state.file >= 0) state.x.release(state.file);
+  if (state.held >= 0) state.x.release(state.held);
+  state.held = -1;
+  state.generation += 1;
   for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
   state.tiles.clear();
+  state.decoding.clear();
+  state.rasters = [];
   state.file = -1;
   state.source = null;
   state.changed = false;
@@ -517,7 +535,8 @@ async function openBytes(name, bytes) {
   forget();
   state.name = name;
   const [ptr, len] = pass(state.x, new Uint8Array(bytes));
-  await opened(name, check("open", state.x.open(ptr, len)));
+  state.held = check("open", state.x.open(ptr, len));
+  await opened(name, state.held);
 }
 
 // A URL is read by ranges when the server says it serves them (a HEAD with Accept-Ranges: bytes and a length), and
@@ -534,6 +553,7 @@ async function openUrl(url) {
         state.source = { url, len, validator: validatorOf(head) };
         const x = state.x;
         const h = check("open_ranged", x.open_ranged(len));
+        state.held = h;
         await opened(name, check("open_poll", await ask("open_poll", () => x.open_poll(h), h)));
         return;
       }

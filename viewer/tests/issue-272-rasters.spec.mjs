@@ -1,11 +1,13 @@
 // Issue #272: the viewer draws the rasters of a .pvec from the module's raster exports, under the vectors by band,
 // where pixel_to_source puts them. tests/compat/viewer-page.pvec holds one 512 by 256 RGB raster on 400 by 200
-// points from (100, 450): the left half is RED, the right half BLUE (crates/pvec-wasm/tests/issue_271_viewer_fixture.rs).
+// points from (100, 450): the left half is RED, the right half BLUE, and a GREEN overlay raster on 60 by 60 points
+// from (360, 170) (crates/pvec-wasm/tests/issue_271_viewer_fixture.rs).
 import { test, expect } from "@playwright/test";
 
 const PAGE = "/viewer/index.html?file=/tests/compat/viewer-page.pvec";
 const RED = [0xd0, 0x40, 0x30];
 const BLUE = [0x30, 0x60, 0xd0];
+const GREEN = [0x30, 0xa0, 0x50];
 
 async function open(page, url = PAGE) {
   await page.goto(url);
@@ -70,8 +72,15 @@ test("#272 the raster lands where pixel_to_source puts it, and nothing outside i
 test("#272 an underlay raster is drawn before the vectors, so the line crosses it", async ({ page }) => {
   await open(page);
   const { stroke } = await tokens(page);
-  const pixels = await around(page, 200, 550, 2);
+  const pixels = await around(page, 200, 550, 3);
+  expect(pixels.some((p) => dist(p, RED) <= 12), "the raster around the line at (200, 550)").toBe(true);
   expect(pixels.some((p) => dist(p, RED) >= dist(stroke, RED) / 3), "the line over the raster at (200, 550)").toBe(true);
+});
+
+test("#272 an overlay raster is drawn after the vectors, so it covers the circle", async ({ page }) => {
+  await open(page);
+  expect(all(await around(page, 386, 200, 2), GREEN), "the overlay over the circle's east at (386, 200)").toBe(true);
+  expect(all(await around(page, 390, 225), GREEN), "the overlay's top right").toBe(true);
 });
 
 test("#272 zoomed in on the seam, the finer level still lands in place", async ({ page }) => {
@@ -87,7 +96,7 @@ test("#272 zoomed in on the seam, the finer level still lands in place", async (
 
 test("#272 the status line names the rasters, and a skipped one with its rule", async ({ page }) => {
   await open(page);
-  await expect(page.locator("#status")).toContainText("1 raster");
+  await expect(page.locator("#status")).toContainText("2 rasters");
   await open(page, "/viewer/index.html?file=/tests/compat/raster-probe.pvec");
   const status = page.locator("#status");
   await expect(status).toContainText("2 rasters");

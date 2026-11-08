@@ -52,7 +52,7 @@ test("#271 opens the page fixture and says what it holds", async ({ page }) => {
   const status = page.locator("#status");
   await expect(status).toContainText("viewer-page.pvec");
   await expect(status).toContainText("4 entities");
-  await expect(status).toContainText("1 raster");
+  await expect(status).toContainText("2 rasters");
   await expect(status).not.toHaveClass(/error/);
 });
 
@@ -68,7 +68,7 @@ test("#271 draws the frame, the corner mark, the line and the circle where the s
     [50, 772, "top of the corner mark"],
     [80, 740, "side of the corner mark"],
     [50, 550, "the line, left of the raster"],
-    [386, 200, "the circle, east"],
+    [226, 200, "the circle, west"],
     [306, 120, "the circle, south"],
   ]) {
     expect(inked(await around(page, x, y), colours), `${what} at (${x}, ${y})`).toBe(true);
@@ -140,6 +140,14 @@ test("#271 a file that is not a PVec is refused with the module's code, and noth
   const status = page.locator("#status");
   await expect(status).toHaveClass(/error/);
   await expect(status).toContainText("-4");
+  const pixels = await page.evaluate(() => {
+    const c = document.getElementById("view");
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    return [d[0], d[1], d[2], new Set(Array.from({ length: d.length / 4 }, (_, i) => d[4 * i] * 65536 + d[4 * i + 1] * 256 + d[4 * i + 2])).size];
+  });
+  const { canvas } = await tokens(page);
+  expect(pixels.slice(0, 3)).toEqual(canvas);
+  expect(pixels[3], "one colour over the whole canvas").toBe(1);
 });
 
 test("#271 the dark theme draws light strokes on a dark canvas", async ({ page }) => {
