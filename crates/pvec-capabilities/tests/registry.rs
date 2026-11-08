@@ -419,3 +419,28 @@ fn a_file_cannot_declare_the_calibration_capability_required() {
         Err(NegotiationError::ComponentDeclaredRequired(CapabilityId::new(22)))
     );
 }
+
+#[test]
+fn the_paint_streams_23_and_24_are_optional_components_and_cannot_be_declared_required() {
+    let r = Registry::v1();
+    for (id, name) in [(23, "paint_order"), (24, "stroke_paint")] {
+        let c = r.get(CapabilityId::new(id)).unwrap_or_else(|| panic!("{id} is registered"));
+        assert_eq!((c.name, c.class, c.requirement), (name, Class::Component, Requirement::Optional));
+        assert_eq!((c.version, c.min_reader), (Version::new(1, 0, 0), Version::new(1, 0, 0)));
+        assert_eq!(r.by_name(name).map(|c| c.id.get()), Some(id));
+        let reader =
+            Reader { version: Version::new(1, 3, 0), implemented: r.entries().iter().map(|c| c.id).collect() };
+        let file = Declaration {
+            min_reader: Version::new(1, 0, 0),
+            capabilities: vec![Declared {
+                id: CapabilityId::new(id),
+                requirement: Requirement::Required,
+                version: Version::new(1, 0, 0),
+            }],
+        };
+        assert_eq!(
+            r.negotiate(&reader, &file),
+            Err(NegotiationError::ComponentDeclaredRequired(CapabilityId::new(id)))
+        );
+    }
+}

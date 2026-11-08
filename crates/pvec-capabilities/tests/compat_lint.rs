@@ -199,10 +199,24 @@ fn the_step_from_1_0_0_to_1_1_0_that_adds_the_raster_entry_is_a_legal_non_breaki
 
 #[test]
 fn the_step_from_1_1_0_to_1_2_0_that_adds_the_calibration_entry_is_a_legal_non_breaking_one() {
-    let new = Snapshot::from_registry(&Registry::v1());
-    assert_eq!(new.format_version, Version::new(1, 2, 0));
+    let mut new = Snapshot::from_registry(&Registry::v1());
+    new.format_version = Version::new(1, 2, 0);
+    new.entries.retain(|e| e.id < 23);
     let mut old = new.clone();
     old.format_version = Version::new(1, 1, 0);
     old.entries.retain(|e| e.id != 22);
     assert_eq!(lint_transition(&old, &new), vec![]);
+}
+
+#[test]
+fn the_step_from_1_2_0_to_1_3_0_that_adds_the_paint_entries_is_a_legal_non_breaking_one() {
+    let new = Snapshot::from_registry(&Registry::v1());
+    assert_eq!(new.format_version, Version::new(1, 3, 0));
+    let mut old = new.clone();
+    old.format_version = Version::new(1, 2, 0);
+    old.entries.retain(|e| e.id < 23);
+    assert_eq!(lint_transition(&old, &new), vec![], "23 and 24 are optional components at 1.0.0 with min reader 1.0.0");
+    // the new entries are the two of P1, in id order
+    let added: Vec<_> = new.entries.iter().filter(|e| e.id >= 23).map(|e| e.name.as_str()).collect();
+    assert_eq!(added, vec!["paint_order", "stroke_paint"]);
 }
