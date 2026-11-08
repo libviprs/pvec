@@ -8,3 +8,4 @@ viewer/pvec_wasm_bg.wasm
 viewer/tests/node_modules/
 viewer/tests/test-results/
 viewer/tests/playwright-report/
+viewer/tests/tmp-*/

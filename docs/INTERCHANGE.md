@@ -960,5 +960,9 @@ what those chapters say it loses. Nothing in this repository is a map library la
 archived.
 
 The page takes `file=` (the URL of a `.pvec`) and `module=` (the URL of `pvec_wasm_bg.wasm`, by default next to the
-page), or a local file from its picker. `tools/viewer-test.sh` builds the module into `viewer/` and runs the page's
+page), or a local file from its picker, and `view=cx,cy,scale` to start somewhere other than the fitted view. A URL
+whose server answers a `HEAD` with `Accept-Ranges: bytes` is read by ranges through the module's -7 loop (issue
+#273): only what the window needs is fetched, every range carries the validator from the `HEAD` (or, when the `HEAD` has none, from the first range) as `If-Range` (the
+rules of `HttpRangeSource`, READER.md), and a file that changed on the server stops the view with a message instead
+of drawing bytes from another file. `ranges=0` fetches the file whole. `tools/viewer-test.sh` builds the module into `viewer/` and runs the page's
 browser tests in a container; serving `viewer/` with the module beside it is all a deployment needs.
