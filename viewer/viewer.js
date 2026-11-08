@@ -524,8 +524,7 @@ function forget() {
 // georeference, and the manifest unit, which is always there. The module interprets none of it and neither does
 // the page: a CRS id is shown as it is, and nothing is reprojected or applied to a coordinate.
 async function readCalibration(x, file) {
-  const manifest = x.calibration_number ? x.calibration_number(file, 9) : NaN;
-  if (typeof x.calibration_stat !== "function") return { manifest, older: true };
+  if (typeof x.calibration_stat !== "function") return { older: true };
   const stat = (n) => x.calibration_stat(file, n);
   const present = check("calibration_stat", await ask("calibration_stat", () => stat(0), file));
   const num = (n) => x.calibration_number(file, n);
@@ -537,7 +536,12 @@ async function readCalibration(x, file) {
       x.release(h);
     }
   };
-  const out = { manifest: x.calibration_number(file, 9), refused: stat(7) > 0 ? `${stat(8) === 1 ? "LIMIT" : "CAL"}-${String(stat(7)).padStart(2, "0")}` : null, unshown: stat(9) === 1 };
+  const [rule, family, unshown] = [7, 8, 9].map((n) => check("calibration_stat", stat(n)));
+  const out = {
+    manifest: x.calibration_number(file, 9),
+    refused: rule > 0 ? `${family === 1 ? "LIMIT" : "CAL"}-${String(rule).padStart(2, "0")}` : null,
+    unshown: unshown === 1,
+  };
   if (present & 1) {
     out.scale = { metres: num(0), provenance: stat(1), uncertainty: stat(2) === 1 ? num(1) : null, ratio: [stat(10), stat(11)] };
   }
@@ -576,6 +580,8 @@ function describeCalibration(c) {
     parts.push(`Calibration refused (${c.refused}).`);
   } else if (c.unshown) {
     parts.push("The file carries a calibration this viewer cannot show.");
+  } else if (c.georeference) {
+    parts.push("No scale claim.");
   } else {
     parts.push("Uncalibrated.");
   }
@@ -598,7 +604,8 @@ function showPointer(e) {
   if (g) {
     const [a, b, c, d, tx, ty] = g.affine;
     const [wx, wy] = [a * x + b * y + tx, c * x + d * y + ty];
-    const [nx, ny, digits] = g.kind === 2 ? ["lon", "lat", 7] : g.kind === 3 ? ["X", "Y", 2] : ["E", "N", 2];
+    // CALIBRATION.md: easting and northing for projected and engineering, longitude and latitude for geographic
+    const [nx, ny, digits] = g.kind === 2 ? ["lon", "lat", 7] : ["E", "N", 2];
     text += `; ${nx} ${wx.toFixed(digits)}, ${ny} ${wy.toFixed(digits)}${g.crs ? ` (${g.crs})` : ""}`;
   }
   pointerLine.textContent = text;
@@ -712,6 +719,9 @@ const endDrag = () => {
   drag = null;
 };
 canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointerleave", () => {
+  pointerLine.textContent = "";
+});
 canvas.addEventListener("pointercancel", endDrag);
 canvas.addEventListener(
   "wheel",

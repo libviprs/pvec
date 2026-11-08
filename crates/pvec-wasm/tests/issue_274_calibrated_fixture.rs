@@ -1,11 +1,17 @@
 //! Issue #274: the calibrated file the viewer's browser tests open, `tests/compat/viewer-calibrated.pvec`. The same
 //! page as `viewer-page.pvec` without its rasters (a frame, a corner mark, a line, a circle, in points with y up),
 //! carrying a calibration block (ADR 0019): a 1:100 plan scale on a sheet in points, with a 1% uncertainty, and a
-//! declared georeference into `EPSG:27700` whose affine is that scale, from (530000, 180000). The specs in
-//! `viewer/tests/issue-274-calibration.spec.mjs` know these numbers. `PVEC_BLESS_FIXTURE=1` writes the file again.
+//! declared georeference into `EPSG:27700` whose affine is that scale turned by the 3-4-5 angle (`[0.8 s, -0.6 s, 0.6 s,
+//! 0.8 s]`, so a swapped entry shows) from (530000, 180000). `viewer-calibration-refused.pvec` is the same file with
+//! the calibration block's magic damaged, so a reader refuses the calibration as CAL-01 and still draws the page.
+//! The specs in `viewer/tests/issue-274-calibration.spec.mjs` know these numbers. `PVEC_BLESS_FIXTURE=1` writes both
+//! files again.
 
 use pvec_components::{Calibration, CrsKind, FitMethod, Georeference, Provenance, ScaleClaim};
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriterConfig};
+use pvec_container::integrity::Integrity;
+use pvec_container::reader::{BlockId, ContainerReader, ReaderConfig};
+use pvec_container::source::MemorySource;
+use pvec_container::writer::{ContainerWriter, EntityMeta, RawBlock, WriterConfig, assemble};
 use pvec_container::{Bounds, LengthUnit, Metadata};
 use pvec_entity::EntityId;
 use pvec_wasm::Runtime;
@@ -60,7 +66,7 @@ fn issue_274_the_calibrated_viewer_fixture_is_what_this_test_writes_and_the_modu
                 note: "1:100 on the title block".into(),
             }),
             georeference: Some(Georeference {
-                source_to_crs: [scale, 0.0, 0.0, scale, 530_000.0, 180_000.0],
+                source_to_crs: [scale * 0.8, -scale * 0.6, scale * 0.6, scale * 0.8, 530_000.0, 180_000.0],
                 crs_kind: CrsKind::Projected,
                 method: FitMethod::Declared,
                 crs_id: "EPSG:27700".into(),
@@ -73,9 +79,44 @@ fn issue_274_the_calibrated_viewer_fixture_is_what_this_test_writes_and_the_modu
         .expect("the calibration");
         w.finish().expect("the file")
     };
+    // the same file with the kind 11 block's magic damaged, every other block copied as it is
+    let refused = {
+        let reader = ContainerReader::open(MemorySource::new(want.clone()), ReaderConfig::default()).unwrap();
+        let mut blocks = Vec::new();
+        for (i, e) in reader.entries().iter().enumerate() {
+            let mut stored = reader.read_stored(BlockId(i as u32)).unwrap().to_vec();
+            if e.kind == 11 {
+                stored[0] = b'X';
+            }
+            blocks.push(RawBlock {
+                kind: e.kind,
+                subtype: e.subtype,
+                cell: e.cell,
+                count: e.count,
+                bounds: e.bounds,
+                flags: e.flags,
+                codec: e.codec,
+                capability: e.capability,
+                uncompressed_length: e.uncompressed_length,
+                stored,
+            });
+        }
+        assemble(reader.manifest().clone(), &blocks, Integrity::Full).unwrap()
+    };
+    let refused_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat/viewer-calibration-refused.pvec");
     if std::env::var_os("PVEC_BLESS_FIXTURE").is_some() {
         fs::write(&path, &want).unwrap();
+        fs::write(&refused_path, &refused).unwrap();
     }
+    assert!(fs::read(&refused_path).unwrap() == refused, "viewer-calibration-refused.pvec: bless it again");
+    let mut rt = Runtime::new();
+    let f = rt.open(refused).expect("the page still opens");
+    assert_eq!(
+        (rt.calibration_stat(f, 0), rt.calibration_stat(f, 7), rt.calibration_stat(f, 8)),
+        (Ok(0), Ok(1), Ok(0)),
+        "CAL-01"
+    );
     let have =
         fs::read(&path).expect("tests/compat/viewer-calibrated.pvec: write it with PVEC_BLESS_FIXTURE=1");
     assert!(have == want, "tests/compat/viewer-calibrated.pvec is not what this test writes: bless it again");

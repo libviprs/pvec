@@ -2,10 +2,12 @@
 // and uncertainty next to the manifest unit, the CRS id as it is, a scale bar at the effective scale, and the pointer
 // in source units and in CRS units through the stored affine. Nothing is reprojected. tests/compat/viewer-calibrated.pvec
 // is a 1:100 plan scale on a sheet in points (1 unit is 0.0254 / 72 * 100 m) with a declared georeference into
-// EPSG:27700 whose affine is that scale from (530000, 180000) (crates/pvec-wasm/tests/issue_274_calibrated_fixture.rs).
+// EPSG:27700 whose affine is that scale turned by the 3-4-5 angle from (530000, 180000), and
+// viewer-calibration-refused.pvec the same with the block damaged (crates/pvec-wasm/tests/issue_274_calibrated_fixture.rs).
 import { test, expect } from "@playwright/test";
 
 const SCALE = (0.0254 / 72) * 100;
+const AFFINE = [SCALE * 0.8, -SCALE * 0.6, SCALE * 0.6, SCALE * 0.8, 530000, 180000];
 
 async function open(page, file) {
   await page.goto(`/viewer/index.html?file=${file}`);
@@ -45,7 +47,10 @@ test("#274 the pointer reads in source units and in CRS units through the stored
   const [sx, sy] = await page.evaluate(([x, y]) => window.pvecViewer.sourceAt(x, y), [at[0] - box.x, at[1] - box.y]);
   const pointer = page.locator("#pointer");
   await expect(pointer).toContainText(`x ${sx.toFixed(2)}, y ${sy.toFixed(2)}`);
-  await expect(pointer).toContainText(`E ${(SCALE * sx + 530000).toFixed(2)}, N ${(SCALE * sy + 180000).toFixed(2)}`);
+  const [a, b, c, d, tx, ty] = AFFINE;
+  await expect(pointer).toContainText(`E ${(a * sx + b * sy + tx).toFixed(2)}, N ${(c * sx + d * sy + ty).toFixed(2)}`);
+  await page.mouse.move(box.x + box.width + 50, box.y + 10);
+  await expect(pointer).toHaveText("");
 });
 
 test("#274 the scale bar is as long on screen as it says, at the calibration's scale", async ({ page }) => {
@@ -58,20 +63,45 @@ test("#274 the scale bar is as long on screen as it says, at the calibration's s
   expect(Math.abs((width / scale) * SCALE - metres(label)) / metres(label)).toBeLessThan(0.01);
 });
 
-test("#274 the calibration readout keeps its contrast in the dark theme", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
-  await open(page, "/tests/compat/viewer-calibrated.pvec");
-  const [fg, bg] = await page.evaluate(() => {
-    const css = getComputedStyle(document.getElementById("calibration"));
-    return [css.color, getComputedStyle(document.body).backgroundColor];
-  });
-  const lum = (c) => {
-    const [r, g, b] = c.match(/\d+/g).slice(0, 3).map((v) => {
-      const s = Number(v) / 255;
-      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
-  expect((hi + 0.05) / (lo + 0.05)).toBeGreaterThanOrEqual(4.5);
+test("#274 a refused calibration block shows its rule, and the page still draws in manifest units", async ({ page }) => {
+  await open(page, "/tests/compat/viewer-calibration-refused.pvec");
+  const cal = page.locator("#calibration");
+  await expect(cal).toContainText("Calibration refused (CAL-01).");
+  await expect(cal).toContainText("Manifest: 1 unit is 1 m");
+  await expect(cal).not.toContainText("Georeference");
+  await expect(page.locator("#status")).toContainText("4 entities");
+  await expect(page.locator("#status")).not.toHaveClass(/error/);
+  await expect(page.locator("#scalebar .label")).toContainText("manifest unit");
 });
+
+for (const scheme of ["light", "dark"]) {
+  test(`#274 the readout, the pointer line and the scale bar keep their contrast in the ${scheme} theme`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await open(page, "/tests/compat/viewer-calibrated.pvec");
+    const box = await page.locator("#view").boundingBox();
+    await page.mouse.move(box.x + 200, box.y + 200);
+    const pairs = await page.evaluate(() => {
+      const bg = (el) => {
+        for (; el; el = el.parentElement) {
+          const c = getComputedStyle(el).backgroundColor;
+          if (!c.endsWith(", 0)") && c !== "transparent") return c;
+        }
+        return "rgb(255, 255, 255)";
+      };
+      return ["calibration", "pointer"].map((id) => document.getElementById(id))
+        .concat([document.querySelector("#scalebar .label")])
+        .map((el) => [el.id || el.className, getComputedStyle(el).color, bg(el)]);
+    });
+    const lum = (c) => {
+      const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map((v) => {
+        const s = Number(v) / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    for (const [what, fg, bg] of pairs) {
+      const [hi, lo] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+      expect((hi + 0.05) / (lo + 0.05), `${what}: ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+}
