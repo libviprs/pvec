@@ -425,14 +425,14 @@ fn check(c: &Calibration) -> Result<(), CalibrationError> {
         {
             return Err(E::BadEvidence);
         }
-        // a source point given two world points: sorted by the bits, which are the values since -0.0 and NaN
-        // are refused above
+        // a source point given two world points: sorted by the bits as they are stored, `x + 0.0` turning a -0.0
+        // into the +0.0 the encoder writes, so two points the block cannot tell apart compare equal here (NaN is
+        // refused above)
+        let bits = |x: f64| (x + 0.0).to_bits();
         let mut keyed: Vec<[u64; 4]> = g
             .control_points
             .iter()
-            .map(|p| {
-                [p.source[0].to_bits(), p.source[1].to_bits(), p.world[0].to_bits(), p.world[1].to_bits()]
-            })
+            .map(|p| [bits(p.source[0]), bits(p.source[1]), bits(p.world[0]), bits(p.world[1])])
             .collect();
         keyed.sort_unstable();
         if keyed.windows(2).any(|w| w[0][..2] == w[1][..2] && w[0] != w[1]) {
