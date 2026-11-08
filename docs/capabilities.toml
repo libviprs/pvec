@@ -1,7 +1,7 @@
 # The capability registry snapshot. Generated from crates/pvec-capabilities; I do not edit it by hand.
 # Regenerate with: PVEC_BLESS_CAPABILITIES=1 cargo test -p pvec-checks --test compatibility_doc
 # The rules it is linted against are in docs/COMPATIBILITY.md.
-format_version = "1.2.0"
+format_version = "1.3.0"
 
 [[capability]]
 id = 1
@@ -222,3 +222,23 @@ requirement = "optional"
 min_reader = "1.2.0"
 status = "active"
 status_since = "1.2.0"
+
+[[capability]]
+id = 23
+name = "paint_order"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"
+
+[[capability]]
+id = 24
+name = "stroke_paint"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"

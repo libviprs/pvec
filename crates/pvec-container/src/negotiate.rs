@@ -412,7 +412,7 @@ pub enum Outcome {
 fn effect_of(id: CapabilityId) -> Effect {
     match registry().get(id) {
         Some(c) if c.class == Class::Component => {
-            if id == pvec_capabilities::ids::LAYER || id == pvec_capabilities::ids::LINE_STYLE {
+            if [pvec_capabilities::ids::LAYER, pvec_capabilities::ids::LINE_STYLE, pvec_capabilities::ids::STROKE_PAINT].contains(&id) {
                 Effect::Unstyled
             } else {
                 Effect::Uncomponented

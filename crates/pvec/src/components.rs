@@ -3,6 +3,6 @@
 
 pub use pvec_components::{
     ElementClass, ElementEntry, EntityGeometry, Fill, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF,
-    LayerStream, LineStyleDef, LineStyleStream, Origin, ProvenanceRecord, ProvenanceStream, RegionError,
-    RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stream, StrokeWidth, TextStream,
+    ItemKind, LayerStream, LineStyleDef, LineStyleStream, Origin, PaintOrderStream, PaintRun, ProvenanceRecord, ProvenanceStream, RegionError,
+    RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stream, StrokePaintStream, StrokeWidth, TextStream,
 };

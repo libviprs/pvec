@@ -109,6 +109,12 @@ pub enum ComponentError {
     ConfidenceNotAllowed,
     /// A stream major version this decoder has no layout for.
     UnsupportedVersion(u16),
+    /// A paint item named twice, in one run or across runs.
+    DuplicateItem,
+    /// A paint item that does not exist (validation).
+    MissingItem,
+    /// Keys that are not strictly ascending where the layout requires it.
+    NotAscending,
 }
 
 impl ComponentError {
@@ -131,6 +137,9 @@ impl ComponentError {
             ComponentError::Duplicate(_) => "COMP-14",
             ComponentError::ConfidenceNotAllowed => "COMP-15",
             ComponentError::UnsupportedVersion(_) => "COMP-20",
+            ComponentError::DuplicateItem => "COMP-21",
+            ComponentError::MissingItem => "COMP-22",
+            ComponentError::NotAscending => "COMP-28",
         }
     }
 }
