@@ -31,7 +31,9 @@ exports the first one of a group): `directory_stat`, `directory_bound`, `directo
 the raster group of issue 221 (`docs/WASM_ABI.md`, "Rasters"), probed by `raster_stat`: `raster_stat`, `raster_skipped`,
 `raster_placement`, `raster_plan`, `raster_tile`, `raster_buffer_len`, `raster_buffer_ptr`, `raster_buffer_elem`. A
 host built against the version 2 exports before the raster group exists still works, and one that wants rasters
-checks for `raster_stat` once at start.
+checks for `raster_stat` once at start. The calibration group of issue 269 (`docs/WASM_ABI.md`, "Calibration", ADR 0019)
+is the same kind of addition, probed by `calibration_stat`: `calibration_stat`, `calibration_number`, `calibration_point`,
+`calibration_text`.
 
 ## What requires v2
 

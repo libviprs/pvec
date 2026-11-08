@@ -135,8 +135,9 @@ fn issue_252_the_abi_stays_2_and_the_old_exports_are_still_there_beside_the_two_
     let src = fs::read_to_string(root.join("src/bindings.rs")).unwrap();
     let names: Vec<&str> =
         src.split("#[wasm_bindgen]\npub fn ").skip(1).map(|rest| rest.split('(').next().unwrap()).collect();
-    // 44 functions of bindings.rs before this issue; with the memory and allocator exports the module has 50, then 52
-    assert_eq!(names.len(), 46, "exports: {names:?}");
+    // 44 functions of bindings.rs before this issue; with the memory and allocator exports the module has 50, then 52;
+    // the four calibration exports of #269 come after, so this counts 50 now
+    assert_eq!(names.len(), 50, "exports: {names:?}");
     for new in ["entity_distance", "entity_touches_box"] {
         assert!(names.contains(&new), "{new} is not exported");
     }
