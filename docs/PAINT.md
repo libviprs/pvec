@@ -1,6 +1,6 @@
 # The paint model
 
-This page is the byte-level design of ADR 0021 (`docs/adr/0021-paint-model.md`). The ADR says why, this page says what is written, what a reader does with it and what each producer has to change. Nothing here is implemented yet: it is the design that the codec, the PDF mapper, the server and the PlanViewer renderer are built against, and the tracking issues are listed in chapter 9.
+This page is the byte-level design of ADR 0021 (`docs/adr/0021-paint-model.md`). The ADR says why, this page says what is written, what a reader does with it and what each producer has to change. The codec for streams 23 and 24 is in `crates/pvec-components` (issue 286, P1); the rest is still design. It is what the codec, the PDF mapper, the server and the PlanViewer renderer are built against, and the tracking issues are listed in chapter 9.
 
 The driver is a PDF page that has to look in a PVec viewer like it does in PDFium. PlanViewer measures that region by region (planviewer issue 32): fills, clips, shadings, tiling patterns, alpha, images, soft masks and text. Forty-five of those regions cannot be drawn from a PVec today, and the reasons are all in what the file does not say, not in how a viewer draws what it is given.
 

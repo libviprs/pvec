@@ -172,12 +172,21 @@ pub const MAPPING: &[MappingRow] = &[
     row!("source_provenance", Component, "none", Unsupported, COMPONENT_REASON),
     row!("dwg_semantics", Component, "none", Unsupported, COMPONENT_REASON),
     row!("semantic_class", Component, "none", Unsupported, COMPONENT_REASON),
+    row!("paint_order", Component, "none", Unsupported, COMPONENT_REASON),
+    row!("stroke_paint", Component, "none", Unsupported, COMPONENT_REASON),
     row!(
         "raster",
         Component,
         "none",
         Unsupported,
         "a raster is pixels, not geometry; the AP242 reference export writes the 2D curve profile only and records the raster as Unsupported (ADR 0018)"
+    ),
+    row!(
+        "calibration",
+        Component,
+        "none",
+        Unsupported,
+        "a calibration is a scale and a georeference for the page, not geometry; the AP242 reference export writes the 2D curve profile only and records it as Unsupported (ADR 0019)"
     ),
 ];
 

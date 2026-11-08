@@ -50,7 +50,10 @@ fn reader_named(name: &str) -> ReaderCapabilities {
         }
         // a 1.1.0 reader: rasters, no calibration (ADR 0019)
         "s_raster" => {
-            r = r.without(CapabilityId::new(22)).without(CapabilityId::new(23)).without(CapabilityId::new(24));
+            r = r
+                .without(CapabilityId::new(22))
+                .without(CapabilityId::new(23))
+                .without(CapabilityId::new(24));
             r.version = Version::new(1, 1, 0);
         }
         "s_new" => {
