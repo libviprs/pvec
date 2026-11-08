@@ -16,7 +16,7 @@ calibration is present, and a reader draws it the same way.
 ## 1. The block
 
 One per artifact. Directory entry: kind 11, capability 22, `cell` 0, `subtype` 0, `count` = the number of records
-present (1 or 2), must-understand clear, has-bounds clear, codec 0 (the default policy names 0 for kind 11, so a
+present (1 or 2; informational, a reader takes the records from the flags), must-understand clear, has-bounds clear, codec 0 (the default policy names 0 for kind 11, so a
 rewrite tool needs no compressor; a reader still decodes another codec it knows). The writer puts it after every
 other block, kind 9 and 10 included, so it is always the last block in the canonical order (`CONTAINER.md` 4.3). A
 second kind 11 block, or one with `cell`, `subtype` or a flag set, is CAL-12, from the directory alone. Its stored
@@ -65,7 +65,8 @@ A field a provenance does not use is zero (all bits clear), and one it uses is s
 | 4 `georeference` | derived from the georeference record, which must be present | none |
 | 5 `manual` | somebody typed it in | none |
 
-PVec does not check that `metres_per_source_unit` agrees with its evidence: the evidence is there so a person or a
+A factor or a distance of zero is out of its range and refused as CAL-04, not as missing evidence; CAL-10 is
+about fields being set or clear for the provenance. PVec does not check that `metres_per_source_unit` agrees with its evidence: the evidence is there so a person or a
 tool can audit it, and a producer may have rounded.
 
 ### 1.3 The georeference record (72 bytes)
@@ -126,7 +127,7 @@ The manifest's `metres_per_unit` and the calibration's `metres_per_source_unit` 
 says what one coordinate unit *is* (a millimetre, from the drawing header); the calibration says what it *stands
 for* in the world (0.1 m on a 1:100 sheet, 0.000352778 m for a PDF point). They differing is the normal case. The
 manifest is never overwritten. The facade's `effective_scale()` returns the calibration's scale with its provenance
-when there is one and the manifest's otherwise, never a bare number, and `pvec info` prints both.
+when there is one and the manifest's otherwise, never a bare number, and `pvec inspect` prints both.
 
 A raster's world position is `source_to_crs` after its `pixel_to_source`: one composition, so a raster carries no
 georeference of its own (this closes ADR 0018 open question 2).
