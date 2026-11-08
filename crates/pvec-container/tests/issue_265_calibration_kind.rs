@@ -25,6 +25,14 @@ fn calibrated(requirement: Requirement, capability: u16) -> Art {
     let base = art::from_input_with(&mixed(), SEALED);
     rebuild(&base, Integrity::Full, |m, blocks| {
         m.capabilities.push(Declared { id: cap(22), requirement, version: Version::new(1, 0, 0) });
+        // the capability the block names is declared too, so the refusal is about the kind and not NEGOTIATE-05
+        if capability != 22 {
+            m.capabilities.push(Declared {
+                id: cap(u32::from(capability)),
+                requirement: Requirement::Optional,
+                version: Version::new(1, 0, 0),
+            });
+        }
         m.capabilities.sort_by_key(|d| d.id);
         blocks.push(RawBlock {
             kind: 11,
