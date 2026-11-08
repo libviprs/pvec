@@ -1,6 +1,6 @@
 //! Issue #271: the file the viewer's browser tests open, `tests/compat/viewer-page.pvec`. It is shaped like a
 //! converted PDF page: source units are points with y up, a 612 by 792 frame, some linework, and one RGB raster
-//! placed the way a PDF image is (pixel rows down, source y up). The specs in `viewer/tests/` know these
+//! placed the way a PDF image is (pixel rows down, source y up), plus a small green overlay raster (#272). The specs in `viewer/tests/` know these
 //! numbers, so a change here is a change there. `PVEC_BLESS_FIXTURE=1` writes the file again. The manifest unit is
 //! metres with no scale, which is what libviprs writes for a PDF today (points cannot be declared, `pdf.rs`); the
 //! calibration block is where a real scale goes.
@@ -97,7 +97,30 @@ fn issue_271_the_viewer_fixture_is_what_this_test_writes_and_the_module_reads_it
             source_digest: None,
             attribution: "viewer fixture".into(),
         };
-        raster_file(w, &[RasterIn { placement, tiles, inline_levels: 1, chunk_bytes: 1 << 20 }], 1 << 20)
+        // issue #272: a small opaque green overlay on the east of the circle, 60 by 60 points from (360, 170), so
+        // the band order shows: it must cover the stroke
+        // each row is the filter byte 0, then 256 green pixels
+        let raw = [&[0][..], &[0x30, 0xA0, 0x50].repeat(256)].concat().repeat(256);
+        let green = tilegen::png(256, 3, 8, &miniz_oxide::deflate::compress_to_vec_zlib(&raw, 9));
+        let overlay = Placement {
+            pixel_to_source: [0.234375, 0.0, 0.0, -0.234375, 360.0, 230.0],
+            width: 256,
+            height: 256,
+            visible_box: [0, 0, 256, 256],
+            levels: 1,
+            band: Band::Overlay,
+            attribution: "viewer fixture overlay".into(),
+            ..placement.clone()
+        };
+        let overlay_tiles = vec![TileIn { level: 0, col: 0, row: 0, bytes: green }];
+        raster_file(
+            w,
+            &[
+                RasterIn { placement, tiles, inline_levels: 1, chunk_bytes: 1 << 20 },
+                RasterIn { placement: overlay, tiles: overlay_tiles, inline_levels: 1, chunk_bytes: 1 << 20 },
+            ],
+            1 << 20,
+        )
     };
     if std::env::var_os("PVEC_BLESS_FIXTURE").is_some() {
         fs::write(&path, &want).unwrap();
@@ -106,7 +129,7 @@ fn issue_271_the_viewer_fixture_is_what_this_test_writes_and_the_module_reads_it
     assert!(have == want, "tests/compat/viewer-page.pvec is not what this test writes: bless it again");
     let mut rt = Runtime::new();
     let f = rt.open(have).expect("the module opens it");
-    assert_eq!((rt.raster_stat(f, 0), rt.raster_stat(f, 1)), (Ok(1), Ok(0)), "one raster, none skipped");
+    assert_eq!((rt.raster_stat(f, 0), rt.raster_stat(f, 1)), (Ok(2), Ok(0)), "two rasters, none skipped");
     let batch = rt
         .query_viewport(f, pvec::Bounds2 { min: [-10_000.0, -10_000.0], max: [10_000.0, 10_000.0] }, 1 << 20)
         .expect("a batch");

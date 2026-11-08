@@ -100,6 +100,7 @@ const state = {
   rasters: [], // per RasterId: { p: pixel_to_source, f: the fourteen u32 fields } or null when skipped
   tiles: new Map(), // "raster/level/col/row" -> ImageBitmap, or null for a tile that draws nothing
   decoding: new Map(), // the same keys -> the promise of the decode in flight
+  generation: 0, // bumped by every open, so a decode for the file before is dropped when it lands
 };
 
 const TILE_CACHE = 512;
@@ -176,8 +177,13 @@ function decodeTile(r, level, col, row) {
   check("raster_tile", handle);
   const bytes = rasterArray(x, handle, 0, Uint8Array).slice();
   x.release(handle);
+  const generation = state.generation;
   const job = createImageBitmap(new Blob([bytes]), { imageOrientation: "none", colorSpaceConversion: "none" })
     .then((bitmap) => {
+      if (generation !== state.generation) {
+        bitmap.close();
+        return;
+      }
       state.tiles.set(key, bitmap);
       while (state.tiles.size > TILE_CACHE) {
         const [oldest, old] = state.tiles.entries().next().value;
@@ -185,9 +191,11 @@ function decodeTile(r, level, col, row) {
         state.tiles.delete(oldest);
       }
     })
-    .catch(() => state.tiles.set(key, null))
+    .catch(() => {
+      if (generation === state.generation) state.tiles.set(key, null);
+    })
     .finally(() => {
-      state.decoding.delete(key);
+      if (state.decoding.get(key) === job) state.decoding.delete(key);
       schedule();
     });
   state.decoding.set(key, job);
@@ -305,8 +313,11 @@ function schedule() {
     state.pending = new Promise((resolve) =>
       requestAnimationFrame(() => {
         state.pending = null;
-        draw();
-        resolve();
+        try {
+          draw();
+        } finally {
+          resolve();
+        }
       }),
     );
   }
@@ -386,6 +397,11 @@ async function openBytes(name, bytes) {
   const x = state.x;
   if (state.file >= 0) x.release(state.file);
   state.file = -1;
+  state.generation += 1;
+  for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
+  state.tiles.clear();
+  state.decoding.clear();
+  state.rasters = [];
   state.name = name;
   const [ptr, len] = pass(x, new Uint8Array(bytes));
   // held from here, so `forget` or the next open releases it even when reading the extent throws
@@ -400,8 +416,6 @@ async function openBytes(name, bytes) {
     extent[2] = Math.max(extent[2], c);
     extent[3] = Math.max(extent[3], d);
   }
-  for (const bitmap of state.tiles.values()) if (bitmap) bitmap.close();
-  state.tiles.clear();
   state.extent = extent;
   state.rasters = rasters;
   setStatus(`${name}: ${entities} entit${entities === 1 ? "y" : "ies"}, ${text}`);
