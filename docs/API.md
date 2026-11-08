@@ -71,6 +71,14 @@ tile's bytes after the index's XXH3-64 has been checked against them, `None` for
 `RasterId`, `TileCodec`, `PixelFormat`, `Band` and `TileIn` come with them. A raster the file refuses is an error for that
 raster; the geometry and the other rasters read.
 
+Since issue 267 it also holds the calibration calls (ADR 0019, `docs/CALIBRATION.md`). `PvecWriter::calibration(c)` sets the
+file's scale, georeference or both, written as the last block; a calibration the rules refuse is an error there with its
+`CAL-NN` rule. `PvecReader::calibration()` and `PvecReader::georeference()` give them back, `None` when the file has none or the
+reader was configured without capability 22, and `PvecReader::effective_scale()` is an `EffectiveScale`: the calibration's
+`metres_per_source_unit` with its `Provenance` and uncertainty when there is a scale record, the manifest's `metres_per_unit`
+otherwise, never a bare number. `Calibration`, `ScaleClaim`, `Provenance`, `Georeference`, `CrsKind`, `FitMethod`,
+`CrsDefinition`, `DefinitionFormat` and `ControlPoint` come with them. Nothing is applied to coordinates.
+
 ## Never exported
 
 Anything from `pvec-container` (`BlockKind`, `DirectoryEntry`, `Header`, `ContainerWriter`,

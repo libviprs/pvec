@@ -301,6 +301,9 @@
               }
             }
           }
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
         }
       }
     },
@@ -444,6 +447,9 @@
               "minimum": 0
             }
           }
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
         }
       }
     },
@@ -1389,6 +1395,126 @@
         },
         "result": {
           "type": "object"
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "absent",
+            "ok",
+            "refused",
+            "unread"
+          ]
+        },
+        "rule": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "scale": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "metres_per_source_unit",
+                "provenance",
+                "uncertainty",
+                "note"
+              ],
+              "properties": {
+                "metres_per_source_unit": {
+                  "type": "number"
+                },
+                "provenance": {
+                  "enum": [
+                    "declared_unit",
+                    "plan_scale",
+                    "measured",
+                    "georeference",
+                    "manual",
+                    "unknown"
+                  ]
+                },
+                "uncertainty": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "georeference": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "crs_id",
+                "crs_kind",
+                "method",
+                "source_to_crs",
+                "points",
+                "residual_max",
+                "definition_format"
+              ],
+              "properties": {
+                "crs_id": {
+                  "type": "string"
+                },
+                "crs_kind": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "source_to_crs": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "residual_max": {
+                  "type": "number"
+                },
+                "definition_format": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "external_id": {
+          "type": "string"
+        },
+        "residual": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       }
     }

@@ -1,6 +1,7 @@
 unstable.rs: pub use crate::hit::{curve_distance, curve_meets_box}
 unstable.rs: pub use crate::reader::LoadedEntity
 unstable.rs: pub use pvec_components::{Band, PixelFormat, Placement, RasterId, TileCodec}
+unstable.rs: pub use pvec_components::{ Calibration, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, Provenance, ScaleClaim, }
 unstable.rs: pub use pvec_container::blocks::raster::TileIn
 unstable.rs: pub use pvec_container::limits::Limits
 unstable.rs: pub use pvec_container::negotiate::{Effect, ReaderCapabilities}
@@ -28,3 +29,10 @@ unstable.rs: PvecReader::raster_tile_slot(&self, raster: u32, level: u32, col: u
 unstable.rs: impl<W: std::io::Write> ByteSink for IoSink<'_, W>
 unstable.rs: PvecWriter::with_spill(mut self, root: &std::path::Path, budget: u64) -> Result<PvecWriter, PvecError>
 unstable.rs: PvecWriter::finish_to(self, out: &mut impl std::io::Write) -> Result<u64, PvecError>
+unstable.rs: #[derive(Clone, Copy, Debug, PartialEq)] #[non_exhaustive] pub enum EffectiveScale
+unstable.rs: EffectiveScale::Calibration { metres_per_source_unit: f64, provenance: Provenance, uncertainty: Option<f64> }
+unstable.rs: EffectiveScale::Manifest { metres_per_unit: f64 }
+unstable.rs: PvecWriter::calibration(&mut self, calibration: &Calibration) -> Result<(), PvecError>
+unstable.rs: PvecReader::calibration(&self) -> Result<Option<Calibration>, PvecError>
+unstable.rs: PvecReader::georeference(&self) -> Result<Option<Georeference>, PvecError>
+unstable.rs: PvecReader::effective_scale(&self) -> Result<EffectiveScale, PvecError>

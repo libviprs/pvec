@@ -33,7 +33,8 @@ use core::cmp::Ordering;
 use core::fmt;
 use pvec_capabilities::{CapabilityId, Declared, Registry, Requirement, Version};
 use pvec_components::{
-    Placement, RASTER_CAPABILITY, RasterError, RasterId, Stream, StreamError, decode_rasters, encode_streams,
+    CALIBRATION_CAPABILITY, CALIBRATION_KIND, Calibration, Placement, RASTER_CAPABILITY, RasterError,
+    RasterId, Stream, StreamError, decode_rasters, encode_calibration, encode_streams,
 };
 use pvec_entity::EntityId;
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
@@ -354,6 +355,11 @@ pub enum WriteError {
         /// Why.
         refusal: TileRefusal,
     },
+    /// The calibration is refused (`docs/CALIBRATION.md`): `rule` is its `CAL-NN` rule.
+    Calibration {
+        /// The rule.
+        rule: &'static str,
+    },
 }
 
 impl WriteError {
@@ -377,6 +383,7 @@ impl WriteError {
             WriteError::Raster(_) => "WRT-15",
             WriteError::Placement(_) => "WRT-16",
             WriteError::Tile { .. } => "WRT-17",
+            WriteError::Calibration { .. } => "WRT-18",
         }
     }
 }
@@ -408,6 +415,10 @@ pub const WRITE_RULES: &[(&str, &str)] = &[
     (
         "WRT-17",
         "a raster tile the reader would refuse: its header is not the placement's edge, bit depth and channels, it is not one image and nothing after it, or it is over the ceiling of a tile (the error carries its RASTER-03, RASTER-04 or LIMIT-15 rule)",
+    ),
+    (
+        "WRT-18",
+        "the calibration is one a reader would refuse (the error carries its CAL rule, `docs/CALIBRATION.md`)",
     ),
 ];
 
@@ -443,6 +454,7 @@ impl fmt::Display for WriteError {
             WriteError::Tile { raster, level, col, row, refusal } => {
                 write!(f, "{rule}: tile ({col}, {row}) of level {level} of raster {raster}: {refusal}")
             }
+            WriteError::Calibration { rule: cal } => write!(f, "{rule}: the calibration is refused ({cal})"),
         }
     }
 }
@@ -579,6 +591,7 @@ pub struct ContainerWriter {
     raster_chunk: u32,
     raster_inline: u64,
     sniff_tiles: bool,
+    calibration: Option<RawBlock>,
 }
 
 /// A stored number the caller did not hand over: the writer derived it, within `bound` of the exact
@@ -696,6 +709,7 @@ impl ContainerWriter {
             raster_chunk: RASTER_CHUNK_BYTES,
             raster_inline: RASTER_INLINE_BYTES,
             sniff_tiles: true,
+            calibration: None,
         }
     }
 
@@ -976,7 +990,16 @@ impl ContainerWriter {
         Ok(())
     }
 
-    /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
+    /// Sets the calibration of the artifact (ADR 0019), replacing one set before: one kind 11 block, written
+    /// after every other block, naming capability 22, which the manifest declares. A calibration a reader would
+    /// refuse is refused here as `WRT-18` with its `CAL-NN` rule.
+    pub fn calibration(&mut self, calibration: &Calibration) -> Result<(), WriteError> {
+        self.calibration = Some(calibration_block(calibration)?);
+        Ok(())
+    }
+
+    /// The capabilities to declare: the caller's, those of the streams and the calibration's, each once, in id
+    /// order.
     ///
     /// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
     /// skippable by definition, and raising the version for it would make an older reader refuse the file at
@@ -984,7 +1007,10 @@ impl ContainerWriter {
     fn declarations(&self, registry: &Registry) -> Result<(Vec<Declared>, Version), WriteError> {
         declare(
             &self.config.capabilities,
-            self.streams.iter().map(|(_, s)| s.capability),
+            self.streams
+                .iter()
+                .map(|(_, s)| s.capability)
+                .chain(self.calibration.is_some().then_some(CALIBRATION_CAPABILITY)),
             self.sorts(SortKey::CapabilityId),
             registry,
         )
@@ -1189,6 +1215,8 @@ impl ContainerWriter {
         }
         // kinds 9 and 10 sort after every kind the format defines, so they close the directory in their own order
         raw.extend(self.raster_blocks()?);
+        // and kind 11 after them: the calibration is always the last block, so a re-calibration moves nothing else
+        raw.extend(self.calibration.take());
         let manifest = Manifest {
             unit: self.config.unit,
             bounds: source_bounds,
@@ -1591,6 +1619,26 @@ pub(crate) fn declare(
         out.push(Declared { id, requirement: c.requirement, version: c.version });
     }
     Ok((out, min_reader))
+}
+
+/// The kind 11 block of a calibration (ADR 0019): cell 0, subtype 0, the records present as its count, no flag,
+/// no bounds, codec 0 and capability 22, stored as `encode_calibration` gives it. What a reader would refuse is
+/// `WRT-18` with the `CAL-NN` rule. The writers and `recalibrate` all build the block here, so a calibration has one
+/// byte form whichever path wrote it.
+pub fn calibration_block(calibration: &Calibration) -> Result<RawBlock, WriteError> {
+    let stored = encode_calibration(calibration).map_err(|e| WriteError::Calibration { rule: e.rule() })?;
+    Ok(RawBlock {
+        kind: CALIBRATION_KIND,
+        subtype: 0,
+        cell: 0,
+        count: calibration.records(),
+        bounds: None,
+        flags: 0,
+        codec: 0,
+        capability: CALIBRATION_CAPABILITY.get() as u16,
+        uncompressed_length: u32::try_from(stored.len()).map_err(|_| WriteError::TooLarge)?,
+        stored,
+    })
 }
 
 /// A curve of the semantic model, turned into what the writer stores.
