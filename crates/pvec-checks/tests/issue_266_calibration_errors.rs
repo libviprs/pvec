@@ -1,5 +1,5 @@
 //! Issue #266: the rule table of `docs/CALIBRATION.md` is rendered from `CALIBRATION_ERRORS`, the way the
-//! `RASTER-NN` table is kept in step, and `FUZZING.md` and `tools/fuzz.sh` know the twelfth target.
+//! `RASTER-NN` table is kept in step, and `FUZZING.md` and `tools/fuzz.sh` know the twelfth target (the thirteenth is `fuzz_fill_paint`, issue 286).
 
 use pvec_checks::repo_root;
 use pvec_components::CALIBRATION_ERRORS;
@@ -37,7 +37,7 @@ fn the_rule_table_in_calibration_md_is_exactly_the_rendered_one() {
 #[test]
 fn fuzzing_md_and_the_fuzz_script_name_the_twelfth_target() {
     let doc = fs::read_to_string(repo_root().join("docs/FUZZING.md")).unwrap();
-    assert!(doc.contains("The twelve targets") && doc.contains("`fuzz_calibration` is the twelfth"));
+    assert!(doc.contains("The thirteen targets") && doc.contains("`fuzz_calibration` is the twelfth"));
     let script = fs::read_to_string(repo_root().join("tools/fuzz.sh")).unwrap();
     assert!(script.contains("fuzz_calibration"));
     assert!(repo_root().join("fuzz/fuzz_targets/fuzz_calibration.rs").is_file());

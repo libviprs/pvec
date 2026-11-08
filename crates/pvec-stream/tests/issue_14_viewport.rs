@@ -273,7 +273,9 @@ fn the_plan_never_contains_a_block_outside_the_viewport_plus_the_margin() {
         (40_000.0, 40_000.0, 100.0, 0.0),
     ] {
         let q = view(x, y, w, w);
-        let plan = q.plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin_px, ..ViewportConfig::default() }).unwrap();
+        let plan = q
+            .plan(&dir, &r, &ViewportConfig { prefetch_margin_px: margin_px, ..ViewportConfig::default() })
+            .unwrap();
         let margin = margin_px / q.scale;
         let outer = grow(q.bounds, margin);
         let planned: BTreeSet<BlockId> = plan.block_ids().into_iter().collect();

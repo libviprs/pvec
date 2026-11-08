@@ -419,7 +419,12 @@ fn probe_file() -> Vec<u8> {
     let mut skipped = p.clone();
     skipped.tile_codec = TileCodec::Unknown(9);
     let all = tiles(shape, |_, _, _| true);
-    let mk = |placement, inline_levels| RasterIn { placement, tiles: all.clone(), inline_levels, chunk_bytes: 1 << 20 };
+    let mk = |placement, inline_levels| RasterIn {
+        placement,
+        tiles: all.clone(),
+        inline_levels,
+        chunk_bytes: 1 << 20,
+    };
     raster_file(line_writer(), &[mk(p, 1), mk(skipped, 0)], 1 << 20)
 }
 

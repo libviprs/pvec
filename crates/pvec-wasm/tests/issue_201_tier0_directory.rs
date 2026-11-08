@@ -273,7 +273,11 @@ fn issue_201_a_damaged_directory_opens_but_the_index_calls_are_read_errors() {
     let mut bytes = indexed();
     let at = {
         let r = ContainerReader::open(MemorySource::new(bytes.clone()), ReaderConfig::default()).unwrap();
-        let e = r.entries().iter().find(|e| e.block_kind() == Some(BlockKind::SpatialDirectory)).expect("a directory block");
+        let e = r
+            .entries()
+            .iter()
+            .find(|e| e.block_kind() == Some(BlockKind::SpatialDirectory))
+            .expect("a directory block");
         e.offset as usize + e.stored_length as usize / 2
     };
     bytes[at] ^= 0xFF;

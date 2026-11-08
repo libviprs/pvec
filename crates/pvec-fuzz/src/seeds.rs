@@ -222,6 +222,10 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         // not made of artifacts: the calibration blocks the panel named on #263, and mutants of them
         return calibration_inputs();
     }
+    if target == "fuzz_fill_paint" {
+        // not made of artifacts: fill paint payloads (a gradient of each kind, a tiling, assignments) and mutants
+        return fill_paint_inputs();
+    }
     if target == "fuzz_spill_writer" {
         // not made of artifacts either: scripts of pushes, a budget, a store that fails and a sink that fills
         return spill_inputs();
@@ -764,6 +768,100 @@ fn calibration_inputs() -> Vec<Vec<u8>> {
             out.push(mutant(16 + 62, &[7]));
             out.push(mutant(16 + 60, &1_025u16.to_le_bytes()));
         }
+        out.push(b);
+    }
+    out
+}
+
+/// The inputs of `fuzz_fill_paint` (issue 286): a payload with an axial and a radial gradient, one with a coloured
+/// tiling, one with only assignments, then mutants of each: a count raised past its ceiling, a tag set past its
+/// range, a reserved byte set, a float set to NaN or to zero (a zero-length axis), and the payload cut short.
+fn fill_paint_inputs() -> Vec<Vec<u8>> {
+    use pvec_components::{
+        FillAssignment, FillPaintStream, FillRule, FillSource, Gradient, GradientCoords, Stop, Tiling,
+        TilingPrimitive,
+    };
+    let stops = vec![Stop { offset: 0.0, rgba: 0xFF00_00FF }, Stop { offset: 1.0, rgba: 0x0000_FFFF }];
+    let identity = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+    let gradient = |coords| Gradient {
+        coords,
+        extend_before: true,
+        extend_after: true,
+        transform: identity,
+        stops: stops.clone(),
+    };
+    let tiling = Tiling {
+        coloured: true,
+        x_step: 4.0,
+        y_step: 4.0,
+        cell: [0.0, 0.0, 4.0, 4.0],
+        transform: identity,
+        primitives: vec![
+            TilingPrimitive::Polygon {
+                rule: FillRule::EvenOdd,
+                rgba: 1,
+                points: vec![[0.0, 0.0], [2.0, 0.0], [2.0, 2.0]],
+            },
+            TilingPrimitive::Polyline { rgba: 2, width: 0.5, points: vec![[0.0, 4.0], [4.0, 0.0]] },
+        ],
+    };
+    let assign = |hatch, rule, paint| FillAssignment { hatch, rule, paint };
+    let valid = [
+        FillPaintStream {
+            gradients: vec![gradient(GradientCoords::Axial { x0: 0.0, y0: 0.0, x1: 9.0, y1: 3.0 })],
+            tilings: vec![],
+            assignments: vec![assign(0, FillRule::NonZero, FillSource::Gradient(0))],
+        },
+        FillPaintStream {
+            gradients: vec![gradient(GradientCoords::Radial {
+                x0: 0.0,
+                y0: 0.0,
+                r0: 0.0,
+                x1: 1.0,
+                y1: 1.0,
+                r1: 5.0,
+            })],
+            tilings: vec![],
+            assignments: vec![assign(3, FillRule::EvenOdd, FillSource::Gradient(0))],
+        },
+        FillPaintStream {
+            gradients: vec![],
+            tilings: vec![tiling],
+            assignments: vec![assign(1, FillRule::NonZero, FillSource::Tiling(0))],
+        },
+        FillPaintStream {
+            gradients: vec![],
+            tilings: vec![],
+            assignments: vec![
+                assign(0, FillRule::EvenOdd, FillSource::Own),
+                assign(9, FillRule::NonZero, FillSource::Own),
+            ],
+        },
+    ];
+    let mut out = vec![Vec::new()];
+    for s in &valid {
+        let b = s.encode().expect("a seed the writer accepts");
+        let mutant = |at: usize, bytes: &[u8]| {
+            let mut m = b.clone();
+            m[at..at + bytes.len()].copy_from_slice(bytes);
+            m
+        };
+        out.push(mutant(0, &4_097u32.to_le_bytes()));
+        out.push(mutant(4, &1_025u32.to_le_bytes()));
+        out.push(mutant(8, &((1u32 << 20) + 1).to_le_bytes()));
+        out.push(mutant(12, &[9]));
+        out.push(mutant(13, &[0xFC]));
+        out.push(mutant(b.len() - 8, &f64::NAN.to_le_bytes()));
+        out.push(mutant(b.len() - 12, &[0xFF; 4]));
+        if !s.gradients.is_empty() {
+            let at = 12 + 4 + 48;
+            out.push(mutant(at, &[0; 32]));
+            out.push(mutant(12 + 14, &[0xFF; 2]));
+        }
+        out.push(b[..b.len() - 1].to_vec());
+        let mut long = b.clone();
+        long.push(0);
+        out.push(long);
         out.push(b);
     }
     out

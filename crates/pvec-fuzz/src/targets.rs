@@ -28,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 12] = [
+pub const TARGETS: [(&str, Target); 13] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -41,6 +41,7 @@ pub const TARGETS: [(&str, Target); 12] = [
     ("fuzz_raster_archive", fuzz_raster_archive),
     ("fuzz_spill_writer", crate::spill::fuzz_spill_writer),
     ("fuzz_calibration", fuzz_calibration),
+    ("fuzz_fill_paint", fuzz_fill_paint),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -628,6 +629,50 @@ pub fn fuzz_raster_archive(data: &[u8]) -> String {
                 t.level,
             );
             assert!(t.col < cols && t.row < rows, "a tile outside its level");
+        }
+    }
+    "ok".to_string()
+}
+
+/// One payload of the fill paint stream (capability 25, `docs/PAINT.md` section 2.4). A payload that parses must
+/// encode to the bytes it came from, so a decoder that accepts what the writer would refuse is a crash, and every
+/// count, gradient and tiling it holds is inside the ceilings the layout promises.
+pub fn fuzz_fill_paint(data: &[u8]) -> String {
+    use pvec_components::{
+        FillPaintStream, FillSource, GradientCoords, MAX_STOPS, MAX_TILING_POINTS, TilingPrimitive,
+    };
+    let s = match FillPaintStream::decode(data) {
+        Ok(s) => s,
+        Err(e) => return e.rule().to_string(),
+    };
+    assert_eq!(s.encode().as_deref(), Ok(data), "a payload that parses is not the payload that encodes");
+    for g in &s.gradients {
+        assert!((2..=MAX_STOPS).contains(&g.stops.len()));
+        assert!(g.stops.windows(2).all(|w| w[0].offset <= w[1].offset), "stops that descend");
+        if let GradientCoords::Radial { r0, r1, .. } = g.coords {
+            assert!(r0 >= 0.0 && r1 >= 0.0, "a negative radius");
+        }
+    }
+    for t in &s.tilings {
+        let points: usize = t
+            .primitives
+            .iter()
+            .map(|p| match p {
+                TilingPrimitive::Polygon { points, .. } | TilingPrimitive::Polyline { points, .. } => {
+                    points.len()
+                }
+            })
+            .sum();
+        assert!(points <= MAX_TILING_POINTS, "a tiling over the point ceiling");
+    }
+    for w in s.assignments.windows(2) {
+        assert!(w[0].hatch < w[1].hatch, "assignments that do not ascend");
+    }
+    for a in &s.assignments {
+        match a.paint {
+            FillSource::Own => {}
+            FillSource::Gradient(i) => assert!((i as usize) < s.gradients.len()),
+            FillSource::Tiling(i) => assert!((i as usize) < s.tilings.len()),
         }
     }
     "ok".to_string()
