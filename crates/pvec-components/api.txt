@@ -66,6 +66,29 @@ calibration.rs: pub const CALIBRATION_ERRORS: &[(&str, &str, &str)]
 calibration.rs: pub fn encode_calibration(c: &Calibration) -> Result<Vec<u8>, CalibrationError>
 calibration.rs: pub fn decode_calibration(bytes: &[u8]) -> Result<Calibration, CalibrationError>
 calibration.rs: pub fn check_residual(g: &Georeference) -> Result<f64, CalibrationError>
+clip.rs: pub const MAX_CLIPS: usize
+clip.rs: pub const MAX_CLIP_RUNS: usize
+clip.rs: pub const MAX_CLIP_BOUNDARY: usize
+clip.rs: pub const MAX_CLIP_DEPTH: usize
+clip.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ClipRecord
+clip.rs: ClipRecord.rule: FillRule
+clip.rs: ClipRecord.parent: Option<u32>
+clip.rs: ClipRecord.boundary: Vec<EntityId>
+clip.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct ClipRun
+clip.rs: ClipRun.kind: ItemKind
+clip.rs: ClipRun.first: u32
+clip.rs: ClipRun.count: u32
+clip.rs: ClipRun.clip: u32
+clip.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ClipStream
+clip.rs: ClipStream.clips: Vec<ClipRecord>
+clip.rs: ClipStream.runs: Vec<ClipRun>
+clip.rs: ClipStream::const CAPABILITY: CapabilityId
+clip.rs: ClipStream::clip_of(&self, kind: ItemKind, item: u32) -> Option<u32>
+clip.rs: ClipStream::chain_of(&self, clip: u32) -> Vec<u32>
+clip.rs: ClipStream::validate(&self, exists: impl Fn(EntityId) -> bool, drawn: impl Fn(EntityId) -> bool, fills: u32, rasters: u32, texts: u32) -> Res<()>
+clip.rs: ClipStream::encode(&self) -> Res<Vec<u8>>
+clip.rs: ClipStream::decode(bytes: &[u8]) -> Res<ClipStream>
+clip.rs: ClipStream::into_stream(&self, registry: &Registry) -> Res<Stream>
 error.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] #[non_exhaustive] pub enum StreamError
 error.rs: StreamError::BadMagic
 error.rs: StreamError::UnsupportedVersion(u16)
@@ -102,6 +125,8 @@ error.rs: ComponentError::MissingItem
 error.rs: ComponentError::DegeneratePaint
 error.rs: ComponentError::BadStops
 error.rs: ComponentError::TilingTooLarge
+error.rs: ComponentError::ClipCycle
+error.rs: ComponentError::ClipTooDeep
 error.rs: ComponentError::NotAscending
 error.rs: ComponentError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ComponentError
@@ -175,6 +200,7 @@ frame.rs: Opened.skipped: Vec<Skipped>
 frame.rs: pub fn encode_streams(streams: &[Stream]) -> Result<Vec<u8>, StreamError>
 frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader) -> Result<Opened, StreamError>
 lib.rs: pub use calibration::{ CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration, }
+lib.rs: pub use clip::{ ClipRecord, ClipRun, ClipStream, MAX_CLIP_BOUNDARY, MAX_CLIP_DEPTH, MAX_CLIP_RUNS, MAX_CLIPS, }
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use fill_paint::{ FillAssignment, FillPaintStream, FillRule, FillSource, Gradient, GradientCoords, MAX_FILL_ASSIGNMENTS, MAX_GRADIENTS, MAX_PRIMITIVE_POINTS, MAX_STOPS, MAX_TILING_POINTS, MAX_TILING_PRIMITIVES, MAX_TILINGS, Stop, Tiling, TilingPrimitive, }
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}

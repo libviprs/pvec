@@ -33,6 +33,7 @@ The STEP and GIS columns are what the semantic profile declares for each capabil
 | 23 | `paint_order` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | runs of paint items (stroke, fill, raster, text) in the order a page was painted; embeds no curve; see ADR 0021 |
 | 24 | `stroke_paint` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | a table of RGBA words and a colour index per entity, by EntityId; embeds no curve; see ADR 0021 |
 | 25 | `fill_paint` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | fill rule, gradient and tiling fills per hatch record, the flat colour staying in the hatch record as the fallback; embeds no curve; see ADR 0021 |
+| 26 | `clip` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | clip regions as rings of entities with a rule and a parent, and the paint items each applies to; embeds no curve; see ADR 0021 |
 
 ## Retired ids
 
