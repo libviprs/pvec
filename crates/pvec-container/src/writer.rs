@@ -990,11 +990,6 @@ impl ContainerWriter {
         Ok(())
     }
 
-    /// The capabilities to declare: the caller's and those of the streams, each once, in id order.
-    ///
-    /// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
-    /// skippable by definition, and raising the version for it would make an older reader refuse the file at
-    /// `NEGOTIATE-03` before it ever reached the skip path.
     /// Sets the calibration of the artifact (ADR 0019), replacing one set before: one kind 11 block, written
     /// after every other block, naming capability 22, which the manifest declares. A calibration a reader would
     /// refuse is refused here as `WRT-18` with its `CAL-NN` rule.
@@ -1003,6 +998,12 @@ impl ContainerWriter {
         Ok(())
     }
 
+    /// The capabilities to declare: the caller's, those of the streams and the calibration's, each once, in id
+    /// order.
+    ///
+    /// The minimum reader is the highest `min_reader` over the required capabilities only: an optional one is
+    /// skippable by definition, and raising the version for it would make an older reader refuse the file at
+    /// `NEGOTIATE-03` before it ever reached the skip path.
     fn declarations(&self, registry: &Registry) -> Result<(Vec<Declared>, Version), WriteError> {
         declare(
             &self.config.capabilities,

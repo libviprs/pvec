@@ -1408,7 +1408,8 @@
           "enum": [
             "absent",
             "ok",
-            "refused"
+            "refused",
+            "unread"
           ]
         },
         "rule": {
