@@ -428,8 +428,10 @@ fn the_paint_streams_23_and_24_are_optional_components_and_cannot_be_declared_re
         assert_eq!((c.name, c.class, c.requirement), (name, Class::Component, Requirement::Optional));
         assert_eq!((c.version, c.min_reader), (Version::new(1, 0, 0), Version::new(1, 0, 0)));
         assert_eq!(r.by_name(name).map(|c| c.id.get()), Some(id));
-        let reader =
-            Reader { version: Version::new(1, 3, 0), implemented: r.entries().iter().map(|c| c.id).collect() };
+        let reader = Reader {
+            version: Version::new(1, 3, 0),
+            implemented: r.entries().iter().map(|c| c.id).collect(),
+        };
         let file = Declaration {
             min_reader: Version::new(1, 0, 0),
             capabilities: vec![Declared {

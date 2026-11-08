@@ -43,7 +43,11 @@ fn tiling() -> Tiling {
                 rgba: 0x0000_00FF,
                 points: vec![[0.0, 0.0], [2.0, 0.0], [2.0, 2.0]],
             },
-            TilingPrimitive::Polyline { rgba: 0xFF00_00FF, width: 0.25, points: vec![[0.0, 4.0], [4.0, 0.0]] },
+            TilingPrimitive::Polyline {
+                rgba: 0xFF00_00FF,
+                width: 0.25,
+                points: vec![[0.0, 4.0], [4.0, 0.0]],
+            },
         ],
     }
 }
@@ -283,7 +287,9 @@ fn non_finite_numbers_are_comp_06() {
 fn between_2_and_256_stops_are_allowed_and_anything_else_is_refused() {
     let many = |n: usize| -> Gradient {
         let mut g = axial();
-        g.stops = (0..n).map(|i| Stop { offset: i as f64 / 255.0_f64.max(n as f64 - 1.0), rgba: i as u32 }).collect();
+        g.stops = (0..n)
+            .map(|i| Stop { offset: i as f64 / 255.0_f64.max(n as f64 - 1.0), rgba: i as u32 })
+            .collect();
         g
     };
     assert!(with_gradient(many(256)).encode().is_ok());

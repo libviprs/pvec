@@ -3,7 +3,7 @@ bounds.rs: Bounds2.min: [f64; 2]
 bounds.rs: Bounds2.max: [f64; 2]
 bounds.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct CurveRef
 bounds.rs: CurveRef.entity: EntityId
-components.rs: pub use pvec_components::{ ElementClass, ElementEntry, EntityGeometry, Fill, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, ItemKind, LayerStream, LineStyleDef, LineStyleStream, Origin, PaintOrderStream, PaintRun, ProvenanceRecord, ProvenanceStream, RegionError, RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stream, StrokePaintStream, StrokeWidth, TextStream, }
+components.rs: pub use pvec_components::{ ElementClass, ElementEntry, EntityGeometry, Fill, FillAssignment, FillPaintStream, FillRule, FillSource, Gradient, GradientCoords, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, ItemKind, LayerStream, LineStyleDef, LineStyleStream, Origin, PaintOrderStream, PaintRun, ProvenanceRecord, ProvenanceStream, RegionError, RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stop, Stream, StrokePaintStream, StrokeWidth, TextStream, Tiling, TilingPrimitive, }
 error.rs: #[derive(Clone, Debug)] pub struct IoFailure(Arc<std::io::Error>)
 error.rs: IoFailure::error(&self) -> &std::io::Error
 error.rs: IoFailure::kind(&self) -> std::io::ErrorKind

@@ -113,6 +113,13 @@ pub enum ComponentError {
     DuplicateItem,
     /// A paint item that does not exist (validation).
     MissingItem,
+    /// A gradient or a tiling that cannot be evaluated: a zero-length axis, a negative radius, two identical
+    /// circles, a singular transform.
+    DegeneratePaint,
+    /// Gradient stops out of order or outside 0 to 1.
+    BadStops,
+    /// A tiling with more points than the ceiling.
+    TilingTooLarge,
     /// Keys that are not strictly ascending where the layout requires it.
     NotAscending,
 }
@@ -139,6 +146,9 @@ impl ComponentError {
             ComponentError::UnsupportedVersion(_) => "COMP-20",
             ComponentError::DuplicateItem => "COMP-21",
             ComponentError::MissingItem => "COMP-22",
+            ComponentError::DegeneratePaint => "COMP-23",
+            ComponentError::BadStops => "COMP-24",
+            ComponentError::TilingTooLarge => "COMP-27",
             ComponentError::NotAscending => "COMP-28",
         }
     }

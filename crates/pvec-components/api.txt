@@ -99,10 +99,63 @@ error.rs: ComponentError::ConfidenceNotAllowed
 error.rs: ComponentError::UnsupportedVersion(u16)
 error.rs: ComponentError::DuplicateItem
 error.rs: ComponentError::MissingItem
+error.rs: ComponentError::DegeneratePaint
+error.rs: ComponentError::BadStops
+error.rs: ComponentError::TilingTooLarge
 error.rs: ComponentError::NotAscending
 error.rs: ComponentError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ComponentError
 error.rs: impl std::error::Error for ComponentError {}
+fill_paint.rs: pub const MAX_GRADIENTS: usize
+fill_paint.rs: pub const MAX_TILINGS: usize
+fill_paint.rs: pub const MAX_FILL_ASSIGNMENTS: usize
+fill_paint.rs: pub const MAX_STOPS: usize
+fill_paint.rs: pub const MAX_TILING_PRIMITIVES: usize
+fill_paint.rs: pub const MAX_PRIMITIVE_POINTS: usize
+fill_paint.rs: pub const MAX_TILING_POINTS: usize
+fill_paint.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum FillRule
+fill_paint.rs: FillRule::NonZero
+fill_paint.rs: FillRule::EvenOdd
+fill_paint.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum FillSource
+fill_paint.rs: FillSource::Own
+fill_paint.rs: FillSource::Gradient(u32)
+fill_paint.rs: FillSource::Tiling(u32)
+fill_paint.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct FillAssignment
+fill_paint.rs: FillAssignment.hatch: u32
+fill_paint.rs: FillAssignment.rule: FillRule
+fill_paint.rs: FillAssignment.paint: FillSource
+fill_paint.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct Stop
+fill_paint.rs: Stop.offset: f64
+fill_paint.rs: Stop.rgba: u32
+fill_paint.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub enum GradientCoords
+fill_paint.rs: GradientCoords::Axial { x0: f64, y0: f64, x1: f64, y1: f64 }
+fill_paint.rs: GradientCoords::Radial { x0: f64, y0: f64, r0: f64, x1: f64, y1: f64, r1: f64 }
+fill_paint.rs: #[derive(Clone, Debug, PartialEq)] pub struct Gradient
+fill_paint.rs: Gradient.coords: GradientCoords
+fill_paint.rs: Gradient.extend_before: bool
+fill_paint.rs: Gradient.extend_after: bool
+fill_paint.rs: Gradient.transform: [f64; 6]
+fill_paint.rs: Gradient.stops: Vec<Stop>
+fill_paint.rs: #[derive(Clone, Debug, PartialEq)] pub enum TilingPrimitive
+fill_paint.rs: TilingPrimitive::Polygon { rule: FillRule, rgba: u32, points: Vec<[f64; 2]> }
+fill_paint.rs: TilingPrimitive::Polyline { rgba: u32, width: f64, points: Vec<[f64; 2]> }
+fill_paint.rs: #[derive(Clone, Debug, PartialEq)] pub struct Tiling
+fill_paint.rs: Tiling.coloured: bool
+fill_paint.rs: Tiling.x_step: f64
+fill_paint.rs: Tiling.y_step: f64
+fill_paint.rs: Tiling.cell: [f64; 4]
+fill_paint.rs: Tiling.transform: [f64; 6]
+fill_paint.rs: Tiling.primitives: Vec<TilingPrimitive>
+fill_paint.rs: #[derive(Clone, Debug, PartialEq)] pub struct FillPaintStream
+fill_paint.rs: FillPaintStream.gradients: Vec<Gradient>
+fill_paint.rs: FillPaintStream.tilings: Vec<Tiling>
+fill_paint.rs: FillPaintStream.assignments: Vec<FillAssignment>
+fill_paint.rs: FillPaintStream::const CAPABILITY: CapabilityId
+fill_paint.rs: FillPaintStream::assignment_of(&self, hatch: u32) -> Option<&FillAssignment>
+fill_paint.rs: FillPaintStream::validate(&self, hatch_records: u32) -> Res<()>
+fill_paint.rs: FillPaintStream::encode(&self) -> Res<Vec<u8>>
+fill_paint.rs: FillPaintStream::decode(bytes: &[u8]) -> Res<FillPaintStream>
+fill_paint.rs: FillPaintStream::into_stream(&self, registry: &Registry) -> Res<Stream>
 frame.rs: pub const MAX_STREAMS: usize
 frame.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Stream
 frame.rs: Stream.capability: CapabilityId
@@ -123,6 +176,7 @@ frame.rs: pub fn encode_streams(streams: &[Stream]) -> Result<Vec<u8>, StreamErr
 frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader) -> Result<Opened, StreamError>
 lib.rs: pub use calibration::{ CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration, }
 lib.rs: pub use error::{ComponentError, StreamError}
+lib.rs: pub use fill_paint::{ FillAssignment, FillPaintStream, FillRule, FillSource, Gradient, GradientCoords, MAX_FILL_ASSIGNMENTS, MAX_GRADIENTS, MAX_PRIMITIVE_POINTS, MAX_STOPS, MAX_TILING_POINTS, MAX_TILING_PRIMITIVES, MAX_TILINGS, Stop, Tiling, TilingPrimitive, }
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
 lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream, }
 lib.rs: pub use paint::{ ItemKind, MAX_PAINT_ITEMS, MAX_PAINT_RUNS, MAX_STROKE_ASSIGNMENTS, MAX_STROKE_COLOURS, PaintOrderStream, PaintRun, StrokePaintStream, }

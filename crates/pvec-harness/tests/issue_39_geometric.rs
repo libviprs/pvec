@@ -4,8 +4,8 @@
 mod common;
 
 use pvec_capabilities::EvidenceClass as C;
-use pvec_harness::geometric::*;
 use pvec_geometry::{Bezier, Circle, Placement2, Point2, Vector2};
+use pvec_harness::geometric::*;
 use pvec_numeric::{Policy, Side};
 use std::cell::RefCell;
 use std::f64::consts::TAU;

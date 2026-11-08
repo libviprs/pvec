@@ -14,12 +14,16 @@ fn the_early_check_runs_both_exponent_tests_by_name() {
     let s = read("tools/exponent-check.sh");
     assert!(s.contains("--test tolerance_literals"), "the code literal check is missing");
     assert!(s.contains("--test issue_67_docs"), "the doc literal check is missing");
-    assert!(s.contains("only_the_numeric_policy_defines_a_tolerance"), "the doc check is not selected by name");
+    assert!(
+        s.contains("only_the_numeric_policy_defines_a_tolerance"),
+        "the doc check is not selected by name"
+    );
 }
 
 fn position_of_check_before(script: &str, first_build_step: &str) {
     let s = read(script);
-    let check = s.find("exponent-check.sh").unwrap_or_else(|| panic!("{script} never runs tools/exponent-check.sh"));
+    let check =
+        s.find("exponent-check.sh").unwrap_or_else(|| panic!("{script} never runs tools/exponent-check.sh"));
     let build = s.find(first_build_step).unwrap_or_else(|| panic!("{script} has no `{first_build_step}`"));
     assert!(check < build, "{script} runs the exponent check after `{first_build_step}`");
 }

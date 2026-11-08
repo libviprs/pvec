@@ -146,7 +146,13 @@ impl PaintOrderStream {
     /// COMP-22: every item named exists. `drawn` says whether an entity is in the geometry and visible (a hidden
     /// entity cannot be painted), and the counts are the records of the hatch stream, the rasters and the
     /// records of the text stream.
-    pub fn validate(&self, drawn: impl Fn(EntityId) -> bool, fills: u32, rasters: u32, texts: u32) -> Res<()> {
+    pub fn validate(
+        &self,
+        drawn: impl Fn(EntityId) -> bool,
+        fills: u32,
+        rasters: u32,
+        texts: u32,
+    ) -> Res<()> {
         for r in &self.runs {
             let end = r.first.checked_add(r.count).ok_or(E::MissingItem)?;
             let limit = match r.kind {

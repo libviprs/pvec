@@ -14,6 +14,7 @@
 
 mod calibration;
 mod error;
+mod fill_paint;
 mod frame;
 mod paint;
 mod payloads;
@@ -26,15 +27,20 @@ pub use calibration::{
     MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration,
 };
 pub use error::{ComponentError, StreamError};
+pub use fill_paint::{
+    FillAssignment, FillPaintStream, FillRule, FillSource, Gradient, GradientCoords, MAX_FILL_ASSIGNMENTS,
+    MAX_GRADIENTS, MAX_PRIMITIVE_POINTS, MAX_STOPS, MAX_TILING_POINTS, MAX_TILING_PRIMITIVES, MAX_TILINGS,
+    Stop, Tiling, TilingPrimitive,
+};
 pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams};
+pub use paint::{
+    ItemKind, MAX_PAINT_ITEMS, MAX_PAINT_RUNS, MAX_STROKE_ASSIGNMENTS, MAX_STROKE_COLOURS, PaintOrderStream,
+    PaintRun, StrokePaintStream,
+};
 pub use payloads::{
     Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef,
     LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT,
     ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream,
-};
-pub use paint::{
-    ItemKind, MAX_PAINT_ITEMS, MAX_PAINT_RUNS, MAX_STROKE_ASSIGNMENTS, MAX_STROKE_COLOURS, PaintOrderStream,
-    PaintRun, StrokePaintStream,
 };
 pub use raster::{
     Band, MAX_RASTERS, PixelFormat, Placement, RASTER_CAPABILITY, RASTER_ERRORS, RasterError, RasterId,

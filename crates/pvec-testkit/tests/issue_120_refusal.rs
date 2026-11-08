@@ -16,7 +16,8 @@ const INSTANCE_FIXTURES: [&str; 6] = [
 ];
 
 #[test]
-fn issue_200_the_six_in_plane_instance_fixtures_of_the_pinned_bundle_are_emitted_as_their_world_space_curve() {
+fn issue_200_the_six_in_plane_instance_fixtures_of_the_pinned_bundle_are_emitted_as_their_world_space_curve()
+{
     let outcomes = generate_all(&bundle()).unwrap();
     for id in INSTANCE_FIXTURES {
         let o = outcomes.iter().find(|o| o.fixture == id).unwrap();
@@ -44,14 +45,19 @@ fn translation_with_old_assertion() -> ExpectedMath {
     let b = bundle();
     let bytes = b.file("fixtures/translation-001/expected.math.json").expect("the record is in the bundle");
     let text = String::from_utf8(bytes.to_vec()).unwrap();
-    assert!(text.contains("\"SOURCE_MAPPING\""), "the pinned record asserts the structure in the source mapping");
+    assert!(
+        text.contains("\"SOURCE_MAPPING\""),
+        "the pinned record asserts the structure in the source mapping"
+    );
     ExpectedMath::parse(text.replace("\"SOURCE_MAPPING\"", "\"STRUCTURAL\"").as_bytes()).unwrap()
 }
 
 #[test]
-fn issue_120_an_instance_record_that_still_asserts_the_structure_in_the_artifact_is_refused_citing_adr_0017() {
+fn issue_120_an_instance_record_that_still_asserts_the_structure_in_the_artifact_is_refused_citing_adr_0017()
+{
     let math = translation_with_old_assertion();
-    let r = generate_record(&math, REVISION).expect_err("the artifact cannot hold an instance plus a transform");
+    let r =
+        generate_record(&math, REVISION).expect_err("the artifact cannot hold an instance plus a transform");
     match &r.cause {
         Cause::MissingCapability { capability, what } => {
             assert_eq!(capability, "affine_transform_2d");
@@ -77,9 +83,11 @@ fn issue_200_the_refusal_of_translation_001_cites_the_decision_that_makes_it_fin
 #[test]
 fn issue_200_exactly_two_of_the_thirty_registered_fixtures_are_refused_and_both_are_by_design() {
     let outcomes = generate_all(&bundle()).unwrap();
-    let registered: Vec<_> = outcomes.iter().filter(|o| !matches!(&o.result, Err(r) if r.cause == Cause::Quarantined)).collect();
+    let registered: Vec<_> =
+        outcomes.iter().filter(|o| !matches!(&o.result, Err(r) if r.cause == Cause::Quarantined)).collect();
     assert_eq!(registered.len(), 30);
-    let refused: Vec<&str> = registered.iter().filter(|o| o.result.is_err()).map(|o| o.fixture.as_str()).collect();
+    let refused: Vec<&str> =
+        registered.iter().filter(|o| o.result.is_err()).map(|o| o.fixture.as_str()).collect();
     assert_eq!(refused, ["near-singular-001", "translation-001"]);
     assert_eq!(registered.len() - refused.len(), 28);
 }
@@ -87,7 +95,10 @@ fn issue_200_exactly_two_of_the_thirty_registered_fixtures_are_refused_and_both_
 #[test]
 fn issue_200_the_two_refusals_by_design_are_recorded_in_adr_0017_and_in_the_corpus_chapter() {
     let adr = doc("adr/0017-instance-and-transform-storage.md");
-    assert!(adr.contains("## Amendment 2026-10-31: translation-001 is refused by design"), "ADR 0017 records the decision");
+    assert!(
+        adr.contains("## Amendment 2026-10-31: translation-001 is refused by design"),
+        "ADR 0017 records the decision"
+    );
     assert!(adr.contains("ISO_PROFILE.md"), "the decision rests on the profile's no-promotion rule");
     let corpus = doc("CORPUS.md");
     assert!(corpus.contains("## Refusals by design"), "CORPUS.md has the section");

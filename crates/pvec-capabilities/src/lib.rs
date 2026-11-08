@@ -104,6 +104,8 @@ pub mod ids {
     pub const PAINT_ORDER: CapabilityId = CapabilityId::new(23);
     /// The stroke paint stream (issue 286, ADR 0021).
     pub const STROKE_PAINT: CapabilityId = CapabilityId::new(24);
+    /// The fill paint stream (issue 286, ADR 0021).
+    pub const FILL_PAINT: CapabilityId = CapabilityId::new(25);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
@@ -668,7 +670,7 @@ impl Registry {
     }
 
     /// The v1 registry: the thirteen capabilities of the semantic profile, the seven component streams, the raster
-    /// capability (1.1.0), the calibration capability (1.2.0) and the paint streams (1.3.0).
+    /// capability (1.1.0), the calibration capability (1.2.0) and the paint streams 23 to 26 (1.3.0).
     pub fn v1() -> Registry {
         let g = |id: CapabilityId,
                  name: &'static str,
@@ -874,6 +876,11 @@ impl Registry {
                 ids::STROKE_PAINT,
                 "stroke_paint",
                 "a table of RGBA words and a colour index per entity, by EntityId; embeds no curve; see ADR 0021",
+            ),
+            c(
+                ids::FILL_PAINT,
+                "fill_paint",
+                "fill rule, gradient and tiling fills per hatch record, the flat colour staying in the hatch record as the fallback; embeds no curve; see ADR 0021",
             ),
         ];
         let mut entries = entries;

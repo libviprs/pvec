@@ -4,10 +4,10 @@
 mod common;
 
 use pvec_capabilities::{EvidenceClass as C, Registry as Capabilities};
-use pvec_harness::structural::{Family, Knot, Report, Structural, Structure, compare, render};
-use pvec_harness::{Assertion, check_report};
 use pvec_corpus::expected::EntityClass;
 use pvec_corpus::{Bundle, FixtureRegistry};
+use pvec_harness::structural::{Family, Knot, Report, Structural, Structure, compare, render};
+use pvec_harness::{Assertion, check_report};
 
 fn nurbs() -> Structure {
     let k = |value, multiplicity| Knot { value, multiplicity };

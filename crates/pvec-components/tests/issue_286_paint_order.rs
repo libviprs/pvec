@@ -163,7 +163,10 @@ fn an_item_named_twice_in_one_run_set_is_comp_21() {
     // across runs of one kind, overlapping
     assert_eq!(rule_of(vec![run(ItemKind::Fill, 0, 5), run(ItemKind::Fill, 4, 2)]), "COMP-21");
     // the same single item twice
-    assert_eq!(rule_of(vec![run(ItemKind::Text, 3, 1), run(ItemKind::Stroke, 0, 1), run(ItemKind::Text, 3, 1)]), "COMP-21");
+    assert_eq!(
+        rule_of(vec![run(ItemKind::Text, 3, 1), run(ItemKind::Stroke, 0, 1), run(ItemKind::Text, 3, 1)]),
+        "COMP-21"
+    );
     // one run inside another, in either order
     assert_eq!(rule_of(vec![run(ItemKind::Raster, 2, 1), run(ItemKind::Raster, 0, 9)]), "COMP-21");
     assert_eq!(rule_of_raw(&[(2, 0, 5), (2, 4, 2)]), "COMP-21");
@@ -210,14 +213,26 @@ fn validation_refuses_a_stroke_that_is_not_drawn_as_comp_22() {
     assert_eq!(e.rule(), "COMP-22");
     // an entity that is in the geometry but hidden is the same: the callback says it is not drawn
     let hidden_5 = |e: EntityId| e.index() < 10 && e.index() != 5;
-    assert_eq!(stream(vec![run(ItemKind::Stroke, 4, 3)]).validate(hidden_5, 0, 0, 0).unwrap_err().rule(), "COMP-22");
+    assert_eq!(
+        stream(vec![run(ItemKind::Stroke, 4, 3)]).validate(hidden_5, 0, 0, 0).unwrap_err().rule(),
+        "COMP-22"
+    );
 }
 
 #[test]
 fn validation_refuses_a_fill_raster_or_text_past_the_end_of_its_stream() {
-    assert_eq!(stream(vec![run(ItemKind::Fill, 3, 2)]).validate(exists, 4, 9, 9).unwrap_err().rule(), "COMP-22");
-    assert_eq!(stream(vec![run(ItemKind::Raster, 0, 3)]).validate(exists, 9, 2, 9).unwrap_err().rule(), "COMP-22");
-    assert_eq!(stream(vec![run(ItemKind::Text, 2, 1)]).validate(exists, 9, 9, 2).unwrap_err().rule(), "COMP-22");
+    assert_eq!(
+        stream(vec![run(ItemKind::Fill, 3, 2)]).validate(exists, 4, 9, 9).unwrap_err().rule(),
+        "COMP-22"
+    );
+    assert_eq!(
+        stream(vec![run(ItemKind::Raster, 0, 3)]).validate(exists, 9, 2, 9).unwrap_err().rule(),
+        "COMP-22"
+    );
+    assert_eq!(
+        stream(vec![run(ItemKind::Text, 2, 1)]).validate(exists, 9, 9, 2).unwrap_err().rule(),
+        "COMP-22"
+    );
     // the last one that exists is fine
     assert_eq!(stream(vec![run(ItemKind::Text, 1, 1)]).validate(exists, 9, 9, 2), Ok(()));
 }
@@ -256,7 +271,10 @@ fn a_reader_that_does_not_implement_23_skips_it_without_reading_the_payload() {
     let opened = read_streams(&set, &r, &old).unwrap();
     assert!(opened.streams.is_empty());
     assert_eq!(opened.skipped.len(), 1);
-    assert_eq!((opened.skipped[0].capability, opened.skipped[0].reason), (ids::PAINT_ORDER, SkipReason::NotImplemented));
+    assert_eq!(
+        (opened.skipped[0].capability, opened.skipped[0].reason),
+        (ids::PAINT_ORDER, SkipReason::NotImplemented)
+    );
 }
 
 #[test]

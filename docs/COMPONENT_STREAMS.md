@@ -2,7 +2,7 @@
 
 Style, text, hatch, provenance and the semantic class of what is drawn evolve on a different schedule from the geometry mathematics, so they
 are not geometry. Each is an independently versioned, independently skippable stream with its own registry
-capability (`docs/CAPABILITIES.md`, ids 14 to 20, and 23 and 24 of the paint model, `docs/PAINT.md`), and none of them can move a conformance verdict. The
+capability (`docs/CAPABILITIES.md`, ids 14 to 20, and 23 to 25 of the paint model, `docs/PAINT.md`), and none of them can move a conformance verdict. The
 implementation is `crates/pvec-components`. This is the layout of the streams, version 1 (`line_style` is at version 2, which a version 1 line style payload is skipped for by major version). The block
 framing, compression and negotiation around a stream set belong to phase 4.
 
@@ -66,6 +66,7 @@ Each is consumed exactly. Strings are a u32 byte length and UTF-8 bytes, at most
 | 20 | `semantic_class` | element entries, then region records, see below |
 | 23 | `paint_order` | run count (at most 1,048,576), then runs of 12 bytes: kind (1 stroke, 2 fill, 3 raster, 4 text), first item, count (at least 1). `docs/PAINT.md` section 2.2 |
 | 24 | `stroke_paint` | colour count (1 to 65,536), assignment count (at most 2^24), the RGBA words, then pairs of an entity and a colour index, entities strictly ascending. `docs/PAINT.md` section 2.3 |
+| 25 | `fill_paint` | three counts (gradients at most 4,096, tilings at most 1,024, assignments at most 2^20), the gradients, the tilings, then 12 byte assignments per hatch record: rule, paint (own, gradient, tiling) and an index. `docs/PAINT.md` section 2.4 |
 
 The layer flags say what the layer table said and nothing about drawing: whether an off or frozen layer is
 drawn is the consumer's policy. A set bit above bit 2 is refused on write and on read, so the byte cannot
@@ -131,8 +132,11 @@ query by class.
 | COMP-19 | a closure tolerance that is not finite and non-negative (validation) |
 | COMP-20 | a stream major version the decoder has no layout for |
 | COMP-21 | a paint item named twice in a paint order |
-| COMP-22 | a paint item that does not exist: an entity not drawn, or a record past the end of its stream (validation) |
-| COMP-28 | keys that are not strictly ascending: the entities of a stroke paint stream |
+| COMP-22 | a paint item that does not exist: an entity not drawn, or a record past the end of its stream, and a fill paint assignment past the end of the hatch stream (validation) |
+| COMP-23 | a gradient or tiling that cannot be evaluated: a zero-length axis, a negative radius, two identical circles of equal radius, a singular transform (a tiling's pattern transform included) |
+| COMP-24 | gradient stops out of order or outside 0 to 1 |
+| COMP-27 | a tiling with more than 8,192 points in all its primitives |
+| COMP-28 | keys that are not strictly ascending: the entities of a stroke paint stream, the hatch records of a fill paint stream |
 
 ## What this does not decide
 
