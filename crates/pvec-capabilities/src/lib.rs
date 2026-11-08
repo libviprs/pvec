@@ -106,6 +106,8 @@ pub mod ids {
     pub const STROKE_PAINT: CapabilityId = CapabilityId::new(24);
     /// The fill paint stream (issue 286, ADR 0021).
     pub const FILL_PAINT: CapabilityId = CapabilityId::new(25);
+    /// The clip stream (issue 286, ADR 0021).
+    pub const CLIP: CapabilityId = CapabilityId::new(26);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
@@ -881,6 +883,11 @@ impl Registry {
                 ids::FILL_PAINT,
                 "fill_paint",
                 "fill rule, gradient and tiling fills per hatch record, the flat colour staying in the hatch record as the fallback; embeds no curve; see ADR 0021",
+            ),
+            c(
+                ids::CLIP,
+                "clip",
+                "clip regions as rings of entities with a rule and a parent, and the paint items each applies to; embeds no curve; see ADR 0021",
             ),
         ];
         let mut entries = entries;

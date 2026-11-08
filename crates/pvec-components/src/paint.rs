@@ -34,7 +34,7 @@ pub enum ItemKind {
 }
 
 impl ItemKind {
-    fn tag(self) -> u32 {
+    pub(crate) fn tag(self) -> u32 {
         match self {
             ItemKind::Stroke => 1,
             ItemKind::Fill => 2,
@@ -43,7 +43,7 @@ impl ItemKind {
         }
     }
 
-    fn from_tag(tag: u32) -> Res<ItemKind> {
+    pub(crate) fn from_tag(tag: u32) -> Res<ItemKind> {
         match tag {
             1 => Ok(ItemKind::Stroke),
             2 => Ok(ItemKind::Fill),
@@ -52,6 +52,66 @@ impl ItemKind {
             t => Err(E::BadTag(t)),
         }
     }
+}
+
+/// The shape rules of runs of paint items, shared by 23 and 26: no run is empty, none overflows (COMP-08 for a
+/// stroke, whose numbers are entity ids, COMP-03 for the rest), the expanded list stays inside 2^24 items and no
+/// item is named twice (COMP-21).
+pub(crate) fn check_spans(runs: impl Iterator<Item = (ItemKind, u32, u32)>) -> Res<()> {
+    let mut total = 0u64;
+    let mut spans: [Vec<(u32, u32)>; 4] = Default::default();
+    for (kind, first, count) in runs {
+        if count == 0 {
+            return Err(E::BadCount);
+        }
+        let end = match (first.checked_add(count), kind) {
+            (Some(end), _) => end,
+            (None, ItemKind::Stroke) => return Err(E::BadEntityId(u32::MAX)),
+            (None, _) => return Err(E::TooMany),
+        };
+        if kind == ItemKind::Stroke {
+            EntityId::new(end - 1).map_err(|_| E::BadEntityId(end - 1))?;
+        }
+        total += u64::from(count);
+        if total > MAX_PAINT_ITEMS {
+            return Err(E::TooMany);
+        }
+        spans[kind.tag() as usize - 1].push((first, end));
+    }
+    for kind in &mut spans {
+        kind.sort_unstable();
+        if kind.windows(2).any(|w| w[1].0 < w[0].1) {
+            return Err(E::DuplicateItem);
+        }
+    }
+    Ok(())
+}
+
+/// COMP-22 over runs of paint items, shared by 23 and 26. `limits` are the records of the hatch stream, the
+/// rasters and the records of the text stream; `drawn` says whether an entity is in the geometry and visible.
+pub(crate) fn items_exist(
+    runs: impl Iterator<Item = (ItemKind, u32, u32)>,
+    drawn: impl Fn(EntityId) -> bool,
+    limits: [u32; 3],
+) -> Res<()> {
+    for (kind, first, count) in runs {
+        let end = first.checked_add(count).ok_or(E::MissingItem)?;
+        let limit = match kind {
+            ItemKind::Stroke => {
+                if !(first..end).all(|n| EntityId::new(n).is_ok_and(&drawn)) {
+                    return Err(E::MissingItem);
+                }
+                continue;
+            }
+            ItemKind::Fill => limits[0],
+            ItemKind::Raster => limits[1],
+            ItemKind::Text => limits[2],
+        };
+        if end > limit {
+            return Err(E::MissingItem);
+        }
+    }
+    Ok(())
 }
 
 /// The items `first` to `first + count - 1` of one kind, in ascending order.
@@ -86,33 +146,7 @@ impl PaintOrderStream {
         if self.runs.len() > MAX_PAINT_RUNS {
             return Err(E::TooMany);
         }
-        let mut total = 0u64;
-        let mut spans: [Vec<(u32, u32)>; 4] = Default::default();
-        for r in &self.runs {
-            if r.count == 0 {
-                return Err(E::BadCount);
-            }
-            let end = match (r.first.checked_add(r.count), r.kind) {
-                (Some(end), _) => end,
-                (None, ItemKind::Stroke) => return Err(E::BadEntityId(u32::MAX)),
-                (None, _) => return Err(E::TooMany),
-            };
-            if r.kind == ItemKind::Stroke {
-                EntityId::new(end - 1).map_err(|_| E::BadEntityId(end - 1))?;
-            }
-            total += u64::from(r.count);
-            if total > MAX_PAINT_ITEMS {
-                return Err(E::TooMany);
-            }
-            spans[r.kind.tag() as usize - 1].push((r.first, end));
-        }
-        for kind in &mut spans {
-            kind.sort_unstable();
-            if kind.windows(2).any(|w| w[1].0 < w[0].1) {
-                return Err(E::DuplicateItem);
-            }
-        }
-        Ok(())
+        check_spans(self.runs.iter().map(|r| (r.kind, r.first, r.count)))
     }
 
     /// The payload bytes.
@@ -153,26 +187,7 @@ impl PaintOrderStream {
         rasters: u32,
         texts: u32,
     ) -> Res<()> {
-        for r in &self.runs {
-            let end = r.first.checked_add(r.count).ok_or(E::MissingItem)?;
-            let limit = match r.kind {
-                ItemKind::Stroke => {
-                    for n in r.first..end {
-                        if !EntityId::new(n).is_ok_and(&drawn) {
-                            return Err(E::MissingItem);
-                        }
-                    }
-                    continue;
-                }
-                ItemKind::Fill => fills,
-                ItemKind::Raster => rasters,
-                ItemKind::Text => texts,
-            };
-            if end > limit {
-                return Err(E::MissingItem);
-            }
-        }
-        Ok(())
+        items_exist(self.runs.iter().map(|r| (r.kind, r.first, r.count)), drawn, [fills, rasters, texts])
     }
 
     /// The stream, with the version the registry gives this capability.

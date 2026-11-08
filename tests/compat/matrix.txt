@@ -188,3 +188,12 @@ outcome = open_degraded
 skipped = 14,15,16,18,20,25
 reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
 geometry = same
+
+case old-reader-clip-file-open-degraded
+reader = s_old
+base = mixed
+caps = 26:optional:1.0
+outcome = open_degraded
+skipped = 14,15,16,18,20,26
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+geometry = same

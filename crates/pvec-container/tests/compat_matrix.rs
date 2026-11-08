@@ -45,7 +45,7 @@ fn reader_named(name: &str) -> ReaderCapabilities {
     let mut r = ReaderCapabilities::v1();
     match name {
         "s_old" => {
-            r = (14..=25).fold(r, |r, id| r.without(CapabilityId::new(id)));
+            r = (14..=26).fold(r, |r, id| r.without(CapabilityId::new(id)));
             r.version = Version::new(1, 0, 0);
         }
         // a 1.1.0 reader: rasters, no calibration (ADR 0019)
@@ -54,7 +54,8 @@ fn reader_named(name: &str) -> ReaderCapabilities {
                 .without(CapabilityId::new(22))
                 .without(CapabilityId::new(23))
                 .without(CapabilityId::new(24))
-                .without(CapabilityId::new(25));
+                .without(CapabilityId::new(25))
+                .without(CapabilityId::new(26));
             r.version = Version::new(1, 1, 0);
         }
         "s_new" => {

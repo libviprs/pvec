@@ -2,7 +2,7 @@
 //! them evolve without touching the geometry core.
 
 pub use pvec_components::{
-    ElementClass, ElementEntry, EntityGeometry, Fill, FillAssignment, FillPaintStream, FillRule, FillSource,
+    ClipRecord, ClipRun, ClipStream, ElementClass, ElementEntry, EntityGeometry, Fill, FillAssignment, FillPaintStream, FillRule, FillSource,
     Gradient, GradientCoords, HatchStream, ItemKind, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream,
     LineStyleDef, LineStyleStream, Origin, PaintOrderStream, PaintRun, ProvenanceRecord, ProvenanceStream,
     RegionError, RegionKind, RegionRecord, SemanticClassStream, SkipReason, Skipped, SourceTag, Stop, Stream,
