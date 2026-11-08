@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PVec viewer</title>
+<!--
+  The PVec viewer (ADR 0020). A static page over the loadable pvec-wasm module: no framework, no map library,
+  no build step. Query parameters: file=<url of a .pvec>, module=<url of pvec_wasm_bg.wasm> (default: next to
+  this page). A local file can be opened with the picker instead.
+-->
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --line: #d0d7de;
+    --accent: #0969da;
+    --error: #b42318;
+    --canvas: #ffffff;
+    --stroke: #1f2328;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --line: #3d444d;
+      --accent: #4493f8;
+      --error: #ff7b72;
+      --canvas: #0d1117;
+      --stroke: #e6edf3;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --line: #3d444d;
+    --accent: #4493f8;
+    --error: #ff7b72;
+    --canvas: #0d1117;
+    --stroke: #e6edf3;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  button, label.file {
+    font: inherit;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  button:focus-visible, label.file:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  label.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #status { color: var(--muted); flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+  #status.error { color: var(--error); }
+  main { position: relative; flex: 1 1 auto; min-height: 0; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; background: var(--canvas); }
+</style>
+</head>
+<body>
+<header>
+  <h1>PVec viewer</h1>
+  <label class="file">Open file<input id="pick" type="file" accept=".pvec"></label>
+  <button id="fit" type="button">Fit</button>
+  <span id="status" role="status" aria-live="polite">No file open.</span>
+</header>
+<main><canvas id="view" aria-label="Drawing"></canvas></main>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

@@ -17,6 +17,8 @@ pvec-geometry = { path = "../pvec-geometry" }
 wasm-bindgen = "0.2"
 
 [dev-dependencies]
+# issue 271: the viewer fixture deflates its PNG tiles so the committed file stays small
+miniz_oxide = "0.9"
 pvec-checks = { path = "../pvec-checks" }
 pvec-components = { path = "../pvec-components" }
 pvec-container = { path = "../pvec-container" }

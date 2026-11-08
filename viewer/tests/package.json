@@ -1,0 +1,12 @@
+{
+  "name": "pvec-viewer-tests",
+  "private": true,
+  "description": "Browser tests of the PVec viewer, run in the Playwright container by tools/viewer-test.sh",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.50.1"
+  }
+}
