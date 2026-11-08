@@ -2,8 +2,8 @@
 //
 // It answers HEAD and GET, serves byte ranges (one range per request) with a strong ETag made from the file's size
 // and modification time, and honours If-Range: a validator that no longer matches gets the whole file with 200,
-// as RFC 9110 says. Two query parameters change that for the specs of issue #273: `ignore-if-range=1` serves the
-// range whatever If-Range says, and `weak=1` sends the ETag as a weak one.
+// as RFC 9110 says. Every answer also carries Last-Modified. Two query parameters change that for the specs of issue
+// #273: `ignore-if-range=1` serves the range whatever If-Range says, and `weak=1` sends the ETag as a weak one.
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
@@ -39,6 +39,7 @@ createServer(async (req, res) => {
     "cache-control": "no-store",
     "accept-ranges": "bytes",
     etag,
+    "last-modified": info.mtime.toUTCString(),
   };
   const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range || "");
   const ifRange = req.headers["if-range"];

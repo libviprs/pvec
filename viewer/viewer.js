@@ -170,10 +170,11 @@ function tileKey(r, level, col, row) {
 // every later range carries as If-Range. The rules are those of HttpRangeSource in pvec-container (issue #264).
 class Changed extends Error {}
 
-// The strong validator of a response: its ETag unless that is weak, else its Last-Modified.
+// The validator a response gives If-Range: its ETag when that is strong, its Last-Modified only when it has no ETag
+// at all (a date is not a validator for a response with any ETag, RFC 9110 13.1.5), else none.
 function validatorOf(response) {
   const etag = response.headers.get("etag");
-  if (etag && !etag.startsWith("W/")) return etag;
+  if (etag) return etag.startsWith("W/") ? null : etag;
   return response.headers.get("last-modified");
 }
 
@@ -185,6 +186,10 @@ async function fetchRange(offset, len) {
   if (r.status === 200 && src.validator) {
     r.body?.cancel();
     throw new Changed(`the server answered If-Range ${src.validator} with the whole file`);
+  }
+  const total = /^bytes \*\/(\d+)$/.exec(r.headers.get("content-range") || "");
+  if (r.status === 416 && total && Number(total[1]) !== src.len) {
+    throw new Changed(`opened at ${src.len} bytes, the file is now ${total[1]}`);
   }
   if (r.status !== 206) {
     r.body?.cancel();
@@ -215,7 +220,8 @@ async function ask(name, call, handle = state.file) {
     if (r !== -7) return r;
     if (!state.source || round >= 32) throw new ModuleError(name, -7);
     const ranges = [];
-    for (let i = 0; i < x.needed_count(handle); i++) ranges.push([x.needed_offset(handle, i), x.needed_len(handle, i)]);
+    const count = check("needed_count", x.needed_count(handle));
+    for (let i = 0; i < count; i++) ranges.push([x.needed_offset(handle, i), check("needed_len", x.needed_len(handle, i))]);
     const bodies = await Promise.all(ranges.map(([o, l]) => fetchRange(o, l)));
     ranges.forEach(([o], i) => {
       const [ptr, len] = pass(x, bodies[i]);

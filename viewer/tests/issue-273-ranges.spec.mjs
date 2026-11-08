@@ -9,7 +9,6 @@ import { fileURLToPath } from "node:url";
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 const FIXTURE = here("../../tests/compat/raster-probe.pvec");
-const OTHER = here("../../tests/compat/viewer-page.pvec");
 const AWAY = "-600,600,1";
 const ON = [244, 50, 6];
 
@@ -109,15 +108,18 @@ test("#273 a file replaced at the same length stops the view with 'changed' and 
 
 test("#273 a server that ignores If-Range but sends a new ETag is caught as well", async ({ page }) => {
   await open(page, `${url}?ignore-if-range=1`);
+  // same length, so neither the Content-Range total nor a 416 can give it away: only the ETag can
+  const bytes = await readFile(`${dir}page.pvec`);
+  bytes[bytes.length - 100] ^= 0xff;
   await new Promise((r) => setTimeout(r, 20));
-  await copyFile(OTHER, `${dir}page.pvec`);
+  await writeFile(`${dir}page.pvec`, bytes);
   await zoomOn(page, ...ON);
   const status = page.locator("#status");
   await expect(status).toHaveClass(/error/);
   await expect(status).toContainText("changed");
 });
 
-test("#273 a weak ETag is never sent as If-Range, and the view still draws", async ({ page }) => {
+test("#273 a weak ETag is never sent as If-Range, nor the Last-Modified beside it, and the view still draws", async ({ page }) => {
   const seen = recordFile(page);
   await open(page, `${url}?weak=1`);
   await zoomOn(page, ...ON);
