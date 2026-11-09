@@ -50,6 +50,15 @@ The geometric ceilings cite NP-18 in `docs/NUMERIC_POLICY.md` and take their def
 | LIMIT-16 | Proposed (ADR 0018): the decoded bytes a plan may hand the host at once, 256 MiB (the browser LIMIT-03): 256 tiles of 512 px, 1,024 of 256, 64 of 1024. The host decoder is outside the accountant, so the plan is where the bound lives. The plan enforces it (issue 220, `plan_raster`, tested at 256 tiles of 512 px, and a coarser level is chosen until it fits); proposed still as a number, because what the decoder and the textures cost in a browser is libviprs/maplibre-pvec#102's measurement. | the raster plan (issue 220), before the first range of the plan is requested |
 | LIMIT-17 | ADR 0019: the calibration block is read at open, so it gets a ceiling far below LIMIT-02. 64 KiB is above the 49,894 bytes of the largest block the CAL rules allow (1,024 control points, a 16 KiB definition and the longest strings), so it never refuses a valid block; it is a field so a host can lower it. | the reader, from the kind 11 directory entry's stored and decoded lengths, before the block is fetched; `decode_calibration` holds its input to the constant too |
 
+## Component stream ceilings (the paint model)
+
+These are fixed by the layout of the stream, not fields of `Limits`: a decoder holds its input to them before it allocates from a count, and a writer refuses to write past them. Every one is a `COMP-03` unless noted.
+
+| stream | ceiling |
+|---|---|
+| 23 `paint_order` | 1,048,576 runs (12 bytes each, so 12 MiB), and at most 2^24 items once the runs are expanded; a run of zero items is `COMP-05`, an item named twice `COMP-21` |
+| 24 `stroke_paint` | 65,536 colours and 2^24 assignments (8 bytes each); no colours at all is `COMP-05`, keys that do not ascend `COMP-28` |
+
 ## Refusal behaviour
 
 Every row is a `LimitExceeded` carrying the rule, the value the file declared and the ceiling. For `LIMIT-03` and `LIMIT-04` the declared value is the total the request would have brought the reader to. For `LIMIT-11` it is the first level over the ceiling, since the walk stops there; a composite that leads back to itself has no depth and is refused as a cycle (`ARN-21`) instead. The reader refuses before it reserves: a test per row uses a counting allocator to show that the size the file declared was never requested.

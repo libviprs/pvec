@@ -68,6 +68,7 @@ A producer that numbers its entities in the order it paints them gets a long run
 Rules the decoder checks, besides the shape rules COMP-01 to COMP-05:
 
 * **COMP-21**, an item named twice (in one run or across runs).
+* **COMP-28**, entity or record keys that are not strictly ascending, where a layout says they are (the entities of 24, the hatch records of 25). Equal keys are refused by it too, so a key cannot be assigned twice.
 * The overflow of `first + count` is COMP-08 for kind 1 (an entity id at or above the limit) and COMP-03 for the others.
 
 Rules validation checks, given the other streams (the same split as COMP-16 and COMP-17: decoding needs only the payload, validation needs the artifact):

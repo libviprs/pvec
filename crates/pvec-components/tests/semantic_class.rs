@@ -160,7 +160,7 @@ fn the_semantic_class_stream_has_its_own_optional_component_entry_in_the_registr
     // it did not take an id from anything else
     let same: Vec<_> = r.entries().iter().filter(|e| e.id == ids::SEMANTIC_CLASS).collect();
     assert_eq!(same.len(), 1);
-    assert_eq!(r.entries().len(), 22);
+    assert_eq!(r.entries().len(), 24);
 }
 
 #[test]

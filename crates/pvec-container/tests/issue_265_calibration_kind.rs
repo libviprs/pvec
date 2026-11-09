@@ -126,5 +126,5 @@ fn files_without_a_calibration_are_byte_identical_to_what_1_1_0_wrote() {
     for (name, digest) in &here {
         assert_eq!(at_1_1_0.get(name.as_str()), Some(&digest.as_str()), "{name} moved");
     }
-    assert_eq!(pvec_capabilities::FORMAT_VERSION, Version::new(1, 2, 0));
+    assert_eq!(pvec_capabilities::FORMAT_VERSION, Version::new(1, 3, 0));
 }

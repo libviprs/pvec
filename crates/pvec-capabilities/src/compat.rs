@@ -7,7 +7,7 @@
 use crate::{Registry, Version};
 
 /// The version of the format (container and registry together) this build writes.
-pub const FORMAT_VERSION: Version = Version::new(1, 2, 0);
+pub const FORMAT_VERSION: Version = Version::new(1, 3, 0);
 
 /// Minor releases a capability stays `deprecated` before it may become `write-disabled`.
 pub const DEPRECATED_MIN_MINORS: u16 = 2;

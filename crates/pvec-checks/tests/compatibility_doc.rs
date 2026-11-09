@@ -97,7 +97,7 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         "the 1.0.0 reader, raster file row"
     );
     let pairs = matrix.lines().filter(|l| l.starts_with("case ")).count();
-    let words = ["eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen"];
+    let words = ["eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen"];
     assert!(
         d.contains(&format!("outcome of {} reader and file pairs", words[pairs - 11])),
         "the document counts {pairs} pairs differently"
@@ -107,7 +107,7 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
 #[test]
 fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
     let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
-    assert!(text.starts_with("# ") && text.contains("format_version = \"1.2.0\""));
+    assert!(text.starts_with("# ") && text.contains("format_version = \"1.3.0\""));
     let s = Snapshot::parse(&text).unwrap();
     let e = s.entries.iter().find(|e| e.id == 21).expect("entry 21");
     assert_eq!((e.name.as_str(), e.class.as_str(), e.requirement.as_str()), ("raster", "raster", "optional"));
@@ -119,7 +119,7 @@ fn the_committed_snapshot_has_entry_21_raster_optional_at_1_1_0() {
 fn the_committed_snapshot_has_entry_22_calibration_optional_at_1_2_0() {
     let text = fs::read_to_string(repo_root().join("docs/capabilities.toml")).unwrap();
     let s = Snapshot::parse(&text).unwrap();
-    assert_eq!(s.format_version.to_string(), "1.2.0");
+    assert_eq!(s.format_version.to_string(), "1.3.0");
     let e = s.entries.iter().find(|e| e.id == 22).expect("entry 22");
     assert_eq!(
         (e.name.as_str(), e.class.as_str(), e.requirement.as_str()),
@@ -137,7 +137,7 @@ fn the_document_has_the_calibration_row_and_the_matrix_its_three_cases() {
     for needle in [
         "kind 11, capability 22",
         "Effect::Uncalibrated",
-        "`FORMAT_VERSION`, 1.2.0 today",
+        "`FORMAT_VERSION`, 1.3.0 today",
         "calibration) cannot be declared required",
     ] {
         assert!(d.contains(needle), "docs/COMPATIBILITY.md does not say {needle:?}");

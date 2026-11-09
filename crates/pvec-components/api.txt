@@ -97,6 +97,9 @@ error.rs: ComponentError::UnknownCapability(CapabilityId)
 error.rs: ComponentError::Duplicate(EntityId)
 error.rs: ComponentError::ConfidenceNotAllowed
 error.rs: ComponentError::UnsupportedVersion(u16)
+error.rs: ComponentError::DuplicateItem
+error.rs: ComponentError::MissingItem
+error.rs: ComponentError::NotAscending
 error.rs: ComponentError::rule(&self) -> &'static str
 error.rs: impl fmt::Display for ComponentError
 error.rs: impl std::error::Error for ComponentError {}
@@ -121,9 +124,39 @@ frame.rs: pub fn read_streams(bytes: &[u8], registry: &Registry, reader: &Reader
 lib.rs: pub use calibration::{ CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError, ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES, MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration, }
 lib.rs: pub use error::{ComponentError, StreamError}
 lib.rs: pub use frame::{MAX_STREAMS, Opened, SkipReason, Skipped, Stream, encode_streams, read_streams}
+lib.rs: pub use paint::{ ItemKind, MAX_PAINT_ITEMS, MAX_PAINT_RUNS, MAX_STROKE_ASSIGNMENTS, MAX_STROKE_COLOURS, PaintOrderStream, PaintRun, StrokePaintStream, }
 lib.rs: pub use payloads::{ Fill, HatchRecord, HatchStream, LAYER_FROZEN, LAYER_LOCKED, LAYER_OFF, LayerStream, LineStyleDef, LineStyleStream, MAX_BOUNDARY, MAX_DASHES, MAX_HANDLE, MAX_NAME, MAX_RECORDS, MAX_TABLE, MAX_TEXT, ProvenanceRecord, ProvenanceStream, ReservedStream, StrokeWidth, TextRecord, TextStream, }
 lib.rs: pub use raster::{ Band, MAX_RASTERS, PixelFormat, Placement, RASTER_CAPABILITY, RASTER_ERRORS, RasterError, RasterId, RasterRead, RasterSkip, TileCodec, decode_rasters, encode_rasters, read_rasters, }
 lib.rs: pub use semantic::{ ElementClass, ElementEntry, EntityGeometry, MAX_HOLES, Origin, RegionError, RegionKind, RegionRecord, SemanticClassStream, SemanticRead, SourceTag, }
+paint.rs: pub const MAX_PAINT_RUNS: usize
+paint.rs: pub const MAX_PAINT_ITEMS: u64
+paint.rs: pub const MAX_STROKE_COLOURS: usize
+paint.rs: pub const MAX_STROKE_ASSIGNMENTS: usize
+paint.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)] pub enum ItemKind
+paint.rs: ItemKind::Stroke
+paint.rs: ItemKind::Fill
+paint.rs: ItemKind::Raster
+paint.rs: ItemKind::Text
+paint.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct PaintRun
+paint.rs: PaintRun.kind: ItemKind
+paint.rs: PaintRun.first: u32
+paint.rs: PaintRun.count: u32
+paint.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct PaintOrderStream
+paint.rs: PaintOrderStream.runs: Vec<PaintRun>
+paint.rs: PaintOrderStream::const CAPABILITY: CapabilityId
+paint.rs: PaintOrderStream::items(&self) -> impl Iterator<Item = (ItemKind, u32)> + '_
+paint.rs: PaintOrderStream::encode(&self) -> Res<Vec<u8>>
+paint.rs: PaintOrderStream::decode(bytes: &[u8]) -> Res<PaintOrderStream>
+paint.rs: PaintOrderStream::validate(&self, drawn: impl Fn(EntityId) -> bool, fills: u32, rasters: u32, texts: u32) -> Res<()>
+paint.rs: PaintOrderStream::into_stream(&self, registry: &Registry) -> Res<Stream>
+paint.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct StrokePaintStream
+paint.rs: StrokePaintStream.colours: Vec<u32>
+paint.rs: StrokePaintStream.assignments: Vec<(EntityId, u32)>
+paint.rs: StrokePaintStream::const CAPABILITY: CapabilityId
+paint.rs: StrokePaintStream::colour_of(&self, entity: EntityId) -> Option<u32>
+paint.rs: StrokePaintStream::encode(&self) -> Res<Vec<u8>>
+paint.rs: StrokePaintStream::decode(bytes: &[u8]) -> Res<StrokePaintStream>
+paint.rs: StrokePaintStream::into_stream(&self, registry: &Registry) -> Res<Stream>
 payloads.rs: pub const MAX_TABLE: usize
 payloads.rs: pub const MAX_NAME: usize
 payloads.rs: pub const MAX_DASHES: usize

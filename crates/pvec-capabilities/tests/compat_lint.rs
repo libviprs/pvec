@@ -35,13 +35,13 @@ fn active(format: &str) -> Snapshot {
 #[test]
 fn the_committed_policy_numbers_are_the_ones_the_document_states() {
     assert_eq!((DEPRECATED_MIN_MINORS, WRITE_DISABLED_MIN_MINORS), (2, 2));
-    assert_eq!(FORMAT_VERSION, Version::new(1, 2, 0));
+    assert_eq!(FORMAT_VERSION, Version::new(1, 3, 0));
 }
 
 #[test]
 fn the_v1_registry_round_trips_through_its_snapshot_text() {
     let s = Snapshot::from_registry(&Registry::v1());
-    assert_eq!(s.entries.len(), 22);
+    assert_eq!(s.entries.len(), 24);
     assert!(s.entries.iter().all(|e| e.status == Status::Active));
     // an entry carries the format version it entered at: 21 is the first 1.1.0 addition, 22 the first 1.2.0 one
     let since = |id: u32| match id {
@@ -186,23 +186,41 @@ fn the_step_from_1_0_0_to_1_1_0_that_adds_the_raster_entry_is_a_legal_non_breaki
     let old = Snapshot::parse(
         &Snapshot::from_registry(&Registry::v1())
             .render()
-            .replace("format_version = \"1.2.0\"", "format_version = \"1.0.0\""),
+            .replace("format_version = \"1.3.0\"", "format_version = \"1.0.0\""),
     )
     .unwrap();
     let mut old = old;
     old.entries.retain(|e| e.id < 21);
     let mut new = Snapshot::from_registry(&Registry::v1());
     new.format_version = Version::new(1, 1, 0);
-    new.entries.retain(|e| e.id != 22);
+    new.entries.retain(|e| e.id < 22);
     assert_eq!(lint_transition(&old, &new), vec![]);
 }
 
 #[test]
 fn the_step_from_1_1_0_to_1_2_0_that_adds_the_calibration_entry_is_a_legal_non_breaking_one() {
-    let new = Snapshot::from_registry(&Registry::v1());
-    assert_eq!(new.format_version, Version::new(1, 2, 0));
+    let mut new = Snapshot::from_registry(&Registry::v1());
+    new.format_version = Version::new(1, 2, 0);
+    new.entries.retain(|e| e.id < 23);
     let mut old = new.clone();
     old.format_version = Version::new(1, 1, 0);
     old.entries.retain(|e| e.id != 22);
     assert_eq!(lint_transition(&old, &new), vec![]);
+}
+
+#[test]
+fn the_step_from_1_2_0_to_1_3_0_that_adds_the_paint_entries_is_a_legal_non_breaking_one() {
+    let new = Snapshot::from_registry(&Registry::v1());
+    assert_eq!(new.format_version, Version::new(1, 3, 0));
+    let mut old = new.clone();
+    old.format_version = Version::new(1, 2, 0);
+    old.entries.retain(|e| e.id < 23);
+    assert_eq!(
+        lint_transition(&old, &new),
+        vec![],
+        "23 and 24 are optional components at 1.0.0 with min reader 1.0.0"
+    );
+    // the new entries are the two of P1, in id order
+    let added: Vec<_> = new.entries.iter().filter(|e| e.id >= 23).map(|e| e.name.as_str()).collect();
+    assert_eq!(added, vec!["paint_order", "stroke_paint"]);
 }

@@ -100,6 +100,10 @@ pub mod ids {
     pub const DWG_SEMANTICS: CapabilityId = CapabilityId::new(19);
     /// The semantic class stream (P3.9).
     pub const SEMANTIC_CLASS: CapabilityId = CapabilityId::new(20);
+    /// The paint order stream (issue 286, ADR 0021).
+    pub const PAINT_ORDER: CapabilityId = CapabilityId::new(23);
+    /// The stroke paint stream (issue 286, ADR 0021).
+    pub const STROKE_PAINT: CapabilityId = CapabilityId::new(24);
 }
 
 /// A semantic version. Ordering is major, then minor, then patch.
@@ -664,7 +668,7 @@ impl Registry {
     }
 
     /// The v1 registry: the thirteen capabilities of the semantic profile, the seven component streams, the raster
-    /// capability (1.1.0) and the calibration capability (1.2.0).
+    /// capability (1.1.0), the calibration capability (1.2.0) and the paint streams (1.3.0).
     pub fn v1() -> Registry {
         let g = |id: CapabilityId,
                  name: &'static str,
@@ -860,6 +864,17 @@ impl Registry {
                 restriction: "a scale claim and a georeference for the whole artifact in one block of kind 11, never applied to coordinates, never required; see ADR 0019",
                 adr: None,
             },
+            // the paint model (ADR 0021): optional component streams, min reader 1.0.0 so every old reader opens the file
+            c(
+                ids::PAINT_ORDER,
+                "paint_order",
+                "runs of paint items (stroke, fill, raster, text) in the order a page was painted; embeds no curve; see ADR 0021",
+            ),
+            c(
+                ids::STROKE_PAINT,
+                "stroke_paint",
+                "a table of RGBA words and a colour index per entity, by EntityId; embeds no curve; see ADR 0021",
+            ),
         ];
         let mut entries = entries;
         // line_style is at 2.0.0: width, dash phase and visibility are inline in each style (pvec#125)

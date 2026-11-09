@@ -96,7 +96,7 @@ fn readme_migration_and_freeze_carry_the_new_wording() {
         "MIGRATION.md has no 1.2.0 line"
     );
     let f = read("docs/FREEZE-v1.md");
-    assert!(f.contains("capability format version 1.2.0"));
+    assert!(f.contains("capability format version 1.3.0"));
     let row = f.lines().find(|l| l.starts_with("| extension rules")).expect("the extension rules row");
     assert!(row.contains("kind 11 belongs to capability 22") && row.contains("ADR 0019"), "row: {row}");
 }

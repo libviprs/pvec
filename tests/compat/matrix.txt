@@ -152,3 +152,30 @@ caps = 22:required:1.0
 outcome = refuse
 rule = NEGOTIATE-04
 named = 22
+
+# The paint model (ADR 0021). 23 and 24 are optional components at min_reader 1.0.0, so every older reader opens the
+# file degraded and a reader that implements them opens it whole.
+case old-reader-paint-file-open-degraded
+reader = s_old
+base = mixed
+caps = 23:optional:1.0,24:optional:1.0
+outcome = open_degraded
+skipped = 14,15,16,18,20,23,24
+reasons = not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented,not_implemented
+geometry = same
+
+case current-reader-paint-file-open
+reader = v1
+base = mixed
+caps = 23:optional:1.0,24:optional:1.0
+outcome = open
+geometry = same
+
+case reader-meets-a-newer-major-of-the-paint-order-stream
+reader = v1
+base = mixed
+caps = 23:optional:2.0
+outcome = open_degraded
+skipped = 23
+reasons = newer_major
+geometry = same
