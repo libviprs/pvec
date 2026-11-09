@@ -1,7 +1,9 @@
 use crate::components::Stream;
 use crate::{Bounds2, Curve, CurveRef, EntityId, Manifest, PvecError};
 use pvec_container::Bounds;
-use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError, WriterConfig};
+use pvec_container::writer::{ContainerWriter, EntityMeta, WriteError};
+#[cfg(feature = "unstable-stream")]
+use pvec_container::writer::WriterConfig;
 
 /// Writes a PVec file from semantic entities.
 ///

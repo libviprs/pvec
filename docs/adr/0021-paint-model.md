@@ -36,7 +36,7 @@ Choices inside it, with the alternative I turned down:
 * Every existing file opens exactly as before in every reader. Every new file opens in every existing reader, degraded and reported, drawing flat fills at the hatch colour, in the legacy order, unclipped.
 * The registry grows by four, the format goes to 1.3.0, the compat matrix gets rows, `SECURITY_LIMITS.md` gets the ceilings of chapter 2 of `docs/PAINT.md`.
 * A producer has to track more of a PDF's graphics state. The producer is the larger part of the work (seven PRs against three for the format).
-* A viewer needs a fill tessellator that honours a rule, a batch list instead of a fixed stage order, a stencil for clips and two fill pipeline variants. The plan puts them in order of risk.
+* A viewer needs a fill tessellator that honours a rule, a batch list instead of a fixed stage order, a stencil for clips (one stencil bit per clip level, set through a write mask from the tessellated rings, tested with a compare mask over the chain, up to eight deep; `docs/PAINT.md` 5.4) and two fill pipeline variants. The plan puts them in order of risk.
 * Text, blend modes, groups, caps and joins are not decided here (PAINT.md chapter 10).
 
 ## Reversal threshold
