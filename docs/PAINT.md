@@ -209,7 +209,13 @@ Two consequences to check before it lands: the wasm size budget in `docs/phase2.
 
 ### 5.4 Clips (a stencil attachment)
 
-The render pass gets a depth-stencil attachment, allocated only for a scene that has a clip stream, so the files that exist pay nothing. For each distinct clip, the batches under it are drawn like this: write the clip's tessellated rings into the stencil (an increment where the parent's stencil is already the parent's depth, with an invert for the even-odd rule), draw the batch with a stencil test of equal to the depth, then clear what was written. A chain of up to 8 clips fits the 8 bit stencil. The rings are tessellated by the same tessellator as fills, so a clip and a fill agree on what a rule means.
+The render pass gets a depth-stencil attachment, allocated only for a scene that has a clip stream, so the files that exist pay nothing. The scheme is one bit per level with a write mask: a clip at depth d (the root is depth 1) owns stencil bit d-1, so a chain nests at most 8 deep, the 8 bits of the buffer. The rings are tessellated by the same tessellator as fills, which resolves the rule (non-zero or even-odd) into triangles that do not overlap, so the stencil never has to count a winding number and nothing mixes an increment with an invert on the same bits. For each distinct clip, the batches under it are drawn like this:
+
+1. Write the region. Draw the clip's triangles with write mask = bit d-1, compare mask = the parent's chain mask (bits 0 to d-2), a stencil test of equal to that chain mask, and the replace op with a reference of all ones. A root clip has an empty chain mask and writes everywhere its triangles cover. The result is that bit d-1 is set exactly where the clip is inside its parent's region.
+2. Draw the batch with write mask 0, compare mask = the chain mask including bit d-1, and a stencil test of equal to that chain mask.
+3. Clear what was written. Draw the bounds of the clip's triangles with write mask = bit d-1 and the replace op with a reference of zero, so the bits of the parents are untouched and the next sibling starts clean.
+
+A separate parity pass is not needed, and a clip that nests deeper than 8 is refused by COMP-26 before a viewer sees it.
 
 ### 5.5 Gradients
 

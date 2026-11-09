@@ -110,3 +110,33 @@ fn p3_the_registry_docs_and_matrix_know_capability_26() {
     }
     assert!(read("tests/compat/matrix.txt").contains("case old-reader-clip-file-open-degraded"));
 }
+
+/// The text of section 5.4, up to the next heading.
+fn clip_section() -> String {
+    let d = read("docs/PAINT.md");
+    let from = d.find("### 5.4 Clips").expect("section 5.4");
+    let rest = &d[from + 4..];
+    rest[..rest.find("\n### ").unwrap_or(rest.len())].to_string()
+}
+
+#[test]
+fn the_stencil_scheme_in_5_4_is_one_bit_per_level_with_a_write_mask() {
+    let s = clip_section();
+    for needle in ["one bit per level", "write mask", "compare mask", "nests at most 8 deep"] {
+        assert!(s.contains(needle), "section 5.4 does not say {needle:?}");
+    }
+}
+
+#[test]
+fn the_stencil_scheme_does_not_mix_an_increment_with_an_invert_on_the_same_bits() {
+    let s = clip_section();
+    assert!(!s.contains("an increment where"), "the old increment-and-invert scheme is still in 5.4");
+    assert!(!s.contains("stencil test of equal to the depth"), "the old depth test is still in 5.4");
+}
+
+#[test]
+fn the_adr_names_the_same_stencil_scheme_as_5_4() {
+    let a = read("docs/adr/0021-paint-model.md");
+    assert!(a.contains("one stencil bit per clip level"), "ADR 0021 does not name the scheme");
+    assert!(a.contains("write mask"), "ADR 0021 does not name the write mask");
+}
