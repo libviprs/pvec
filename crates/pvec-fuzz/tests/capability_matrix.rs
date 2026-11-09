@@ -46,14 +46,15 @@ fn list(text: Option<&String>) -> Vec<String> {
 
 /// The four readers of the matrix: `s_raster` is a 1.1.0 reader with rasters and no calibration (ADR 0019).
 fn readers() -> Vec<(&'static str, ReaderCapabilities)> {
-    let mut old = (14..=24).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
+    let mut old = (14..=25).fold(ReaderCapabilities::v1(), |r, id| r.without(CapabilityId::new(id)));
     old.version = Version::new(1, 0, 0);
     let mut new = ReaderCapabilities::v1().with(CapabilityId::new(99), 3, 1);
     new.version = Version::new(1, 1, 0);
     let mut raster = ReaderCapabilities::v1()
         .without(CapabilityId::new(22))
         .without(CapabilityId::new(23))
-        .without(CapabilityId::new(24));
+        .without(CapabilityId::new(24))
+        .without(CapabilityId::new(25));
     raster.version = Version::new(1, 1, 0);
     vec![("s_old", old), ("s_new", new), ("s_raster", raster), ("v1", ReaderCapabilities::v1())]
 }

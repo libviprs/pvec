@@ -18,7 +18,10 @@ pub const APPROVED_CLAIM: &str =
 pub fn has_exponent_number(line: &str) -> bool {
     let b: Vec<char> = line.chars().collect();
     (1..b.len().saturating_sub(2)).any(|i| {
-        (b[i] == 'e' || b[i] == 'E') && b[i - 1].is_ascii_digit() && b[i + 1] == '-' && b[i + 2].is_ascii_digit()
+        (b[i] == 'e' || b[i] == 'E')
+            && b[i - 1].is_ascii_digit()
+            && b[i + 1] == '-'
+            && b[i + 2].is_ascii_digit()
     })
 }
 

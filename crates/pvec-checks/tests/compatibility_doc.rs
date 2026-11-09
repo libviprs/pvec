@@ -97,7 +97,17 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         "the 1.0.0 reader, raster file row"
     );
     let pairs = matrix.lines().filter(|l| l.starts_with("case ")).count();
-    let words = ["eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen"];
+    let words = [
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+    ];
     assert!(
         d.contains(&format!("outcome of {} reader and file pairs", words[pairs - 11])),
         "the document counts {pairs} pairs differently"

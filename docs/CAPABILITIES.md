@@ -32,6 +32,7 @@ The STEP and GIS columns are what the semantic profile declares for each capabil
 | 22 | `calibration` | calibration | 1.0.0 | none | none | optional | not applicable | not applicable | 1.2.0 | none | a scale claim and a georeference for the whole artifact in one block of kind 11, never applied to coordinates, never required; see ADR 0019 |
 | 23 | `paint_order` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | runs of paint items (stroke, fill, raster, text) in the order a page was painted; embeds no curve; see ADR 0021 |
 | 24 | `stroke_paint` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | a table of RGBA words and a colour index per entity, by EntityId; embeds no curve; see ADR 0021 |
+| 25 | `fill_paint` | component | 1.0.0 | none | none | optional | not applicable | not applicable | 1.0.0 | none | fill rule, gradient and tiling fills per hatch record, the flat colour staying in the hatch record as the fallback; embeds no curve; see ADR 0021 |
 
 ## Retired ids
 

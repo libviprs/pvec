@@ -107,3 +107,10 @@ path = "fuzz_targets/fuzz_calibration.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_fill_paint"
+path = "fuzz_targets/fuzz_fill_paint.rs"
+test = false
+doc = false
+bench = false
