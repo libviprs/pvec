@@ -137,7 +137,7 @@ impl ClipStream {
         w.u32(self.clips.len() as u32);
         w.u32(self.runs.len() as u32);
         for c in &self.clips {
-            w.u8(u8::from(c.rule == FillRule::EvenOdd));
+            w.u8(c.rule.tag());
             w.0.extend_from_slice(&[0; 3]);
             w.u32(c.parent.unwrap_or(NO_PARENT));
             w.u32(1);
@@ -170,11 +170,7 @@ impl ClipStream {
             if r.take(3)? != [0, 0, 0] {
                 return Err(E::ReservedNotZero);
             }
-            let rule = match rule {
-                0 => FillRule::NonZero,
-                1 => FillRule::EvenOdd,
-                t => return Err(E::BadTag(u32::from(t))),
-            };
+            let rule = FillRule::from_tag(rule)?;
             let parent = match r.u32()? {
                 NO_PARENT => None,
                 p => Some(p),
