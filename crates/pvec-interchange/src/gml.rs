@@ -381,6 +381,14 @@ pub const MAPPING: &[MappingRow] = &[
         Unsupported,
         "a raster is pixels, not geometry; the GML export writes curve geometry only and records the raster as Unsupported (ADR 0018)"
     ),
+    row!(
+        "calibration",
+        Component,
+        "none",
+        NATIVE,
+        Unsupported,
+        "a calibration is a scale and a georeference for the page, not geometry; the GML export writes curve geometry only and records it as Unsupported (ADR 0019)"
+    ),
 ];
 
 /// The row for a geometry case, which is unique per `(capability, case)`.
