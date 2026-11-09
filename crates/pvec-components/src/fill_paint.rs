@@ -25,11 +25,6 @@ pub const MAX_PRIMITIVE_POINTS: usize = 4_096;
 /// Most points in all the primitives of one tiling (COMP-27).
 pub const MAX_TILING_POINTS: usize = 8_192;
 
-/// The smallest a gradient is on the wire: head, transform, an axial's coordinates and two stops.
-const MIN_GRADIENT: usize = 4 + 48 + 32 + 24;
-/// The smallest a tiling is on the wire: its head and one two point polyline.
-const MIN_TILING: usize = 100 + 16 + 32;
-
 /// How the winding number of a ring set decides what is inside.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FillRule {
@@ -40,11 +35,11 @@ pub enum FillRule {
 }
 
 impl FillRule {
-    fn tag(self) -> u8 {
+    pub(crate) fn tag(self) -> u8 {
         u8::from(self == FillRule::EvenOdd)
     }
 
-    fn from_tag(tag: u8) -> Res<FillRule> {
+    pub(crate) fn from_tag(tag: u8) -> Res<FillRule> {
         match tag {
             0 => Ok(FillRule::NonZero),
             1 => Ok(FillRule::EvenOdd),
@@ -396,6 +391,10 @@ impl FillPaintStream {
 
     /// Reads a payload, which must be consumed exactly.
     pub fn decode(bytes: &[u8]) -> Res<FillPaintStream> {
+        // The smallest a gradient is on the wire: head, transform, an axial's coordinates and two stops.
+        const MIN_GRADIENT: usize = 4 + 48 + 32 + 24;
+        // The smallest a tiling is on the wire: its head and one two point polyline.
+        const MIN_TILING: usize = 100 + 16 + 32;
         let mut r = R::new(bytes);
         let (gn, tn, an) = (r.u32()? as usize, r.u32()? as usize, r.u32()? as usize);
         if gn > MAX_GRADIENTS || tn > MAX_TILINGS || an > MAX_FILL_ASSIGNMENTS {
