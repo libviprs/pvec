@@ -69,6 +69,7 @@ with its reason, so nothing is dropped without saying so.
 | `fill_paint` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
 | `clip` | Component | `none` | `Unsupported` | a component stream is not geometry; the AP242 reference export writes the 2D curve profile only, and presentation, layers and product structure are outside it |
 | `raster` | Component | `none` | `Unsupported` | a raster is pixels, not geometry; the AP242 reference export writes the 2D curve profile only and records the raster as Unsupported (ADR 0018) |
+| `calibration` | Component | `none` | `Unsupported` | a calibration is a scale and a georeference for the page, not geometry; the AP242 reference export writes the 2D curve profile only and records it as Unsupported (ADR 0019) |
 
 ### 1.3 What each value rests on
 
@@ -322,6 +323,7 @@ generated from `gml::MAPPING` and a test fails if this copy drifts
 | `fill_paint` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 | `clip` | Component | `none` | `Unsupported` | a component stream is not geometry; the GML export writes curve geometry only |
 | `raster` | Component | `none` | `Unsupported` | a raster is pixels, not geometry; the GML export writes curve geometry only and records the raster as Unsupported (ADR 0018) |
+| `calibration` | Component | `none` | `Unsupported` | a calibration is a scale and a georeference for the page, not geometry; the GML export writes curve geometry only and records it as Unsupported (ADR 0019) |
 <!-- mapping-table:end -->
 
 The registry's GIS column (`docs/CAPABILITIES.md`) says "densified, error reported" for a circle, a
