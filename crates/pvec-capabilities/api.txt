@@ -109,6 +109,7 @@ lib.rs: pub const SEMANTIC_CLASS: CapabilityId
 lib.rs: pub const PAINT_ORDER: CapabilityId
 lib.rs: pub const STROKE_PAINT: CapabilityId
 lib.rs: pub const FILL_PAINT: CapabilityId
+lib.rs: pub const CLIP: CapabilityId
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct Version
 lib.rs: Version.major: u16
 lib.rs: Version.minor: u16

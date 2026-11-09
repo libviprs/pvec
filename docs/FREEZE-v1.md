@@ -27,8 +27,8 @@ result file records a failure, so the table cannot say more than the files do.
 ## Constants
 
 At the freeze the constants are: container 1.0 (`Header::MAJOR` 1, `Header::MINOR` 0), capability format version 1.3.0
-(`FORMAT_VERSION`, 1.0.0 until ADR 0018 added capability 21, 1.1.0 until ADR 0019 added capability 22, 1.2.0 until ADR 0021 added capabilities 23 to 25), and `wasm_abi_version` 2 (it was 1 until pvec#201 added the spatial directory and the Tier 0 stream to the ABI, before any tag; `docs/WASM_ABI.md` says what changed and what did not). The registry snapshot `docs/capabilities.toml` has sha256
-`aaddb763e9814635d1887c418fdd5b5b5d848fd08050076d48127d09da68332c`, and the corpus lock
+(`FORMAT_VERSION`, 1.0.0 until ADR 0018 added capability 21, 1.1.0 until ADR 0019 added capability 22, 1.2.0 until ADR 0021 added capabilities 23 to 26), and `wasm_abi_version` 2 (it was 1 until pvec#201 added the spatial directory and the Tier 0 stream to the ABI, before any tag; `docs/WASM_ABI.md` says what changed and what did not). The registry snapshot `docs/capabilities.toml` has sha256
+`6a75fc43fcd3e8d80a00e5c85b302552969c7be0d2b1cd0e77b30555b091f6a6`, and the corpus lock
 `crates/pvec-bench/benches/corpus/corpus.lock.json` has sha256
 `9df09435a433a1d2ba605a10bc4c59d6f8997f39a116c12aad64f93a5625e25b`. The freeze tests recompute both, so changing the
 registry or the corpus lock turns them red until this page is updated on purpose. The lock digest is recorded so a

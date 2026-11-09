@@ -252,3 +252,13 @@ requirement = "optional"
 min_reader = "1.0.0"
 status = "active"
 status_since = "1.0.0"
+
+[[capability]]
+id = 26
+name = "clip"
+class = "component"
+version = "1.0.0"
+requirement = "optional"
+min_reader = "1.0.0"
+status = "active"
+status_since = "1.0.0"

@@ -120,6 +120,10 @@ pub enum ComponentError {
     BadStops,
     /// A tiling with more points than the ceiling.
     TilingTooLarge,
+    /// A clip whose parent is not an earlier clip, so a chain could loop.
+    ClipCycle,
+    /// A chain of clips deeper than eight.
+    ClipTooDeep,
     /// Keys that are not strictly ascending where the layout requires it.
     NotAscending,
 }
@@ -148,6 +152,8 @@ impl ComponentError {
             ComponentError::MissingItem => "COMP-22",
             ComponentError::DegeneratePaint => "COMP-23",
             ComponentError::BadStops => "COMP-24",
+            ComponentError::ClipCycle => "COMP-25",
+            ComponentError::ClipTooDeep => "COMP-26",
             ComponentError::TilingTooLarge => "COMP-27",
             ComponentError::NotAscending => "COMP-28",
         }

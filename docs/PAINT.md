@@ -69,6 +69,7 @@ Rules the decoder checks, besides the shape rules COMP-01 to COMP-05:
 
 * **COMP-21**, an item named twice (in one run or across runs).
 * **COMP-23** also covers the pattern transform of a tiling (it is inverted by the renderer just as a gradient transform is), and **COMP-22** is also what validation says of a fill paint assignment past the end of the hatch stream.
+* **COMP-25** is a parent that is not a clip with a smaller index (which also covers a parent past the end of the table), and **COMP-21** is also an item assigned to two clips.
 * **COMP-28**, entity or record keys that are not strictly ascending, where a layout says they are (the entities of 24, the hatch records of 25). Equal keys are refused by it too, so a key cannot be assigned twice.
 * The overflow of `first + count` is COMP-08 for kind 1 (an entity id at or above the limit) and COMP-03 for the others.
 

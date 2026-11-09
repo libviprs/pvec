@@ -175,6 +175,7 @@ pub const MAPPING: &[MappingRow] = &[
     row!("paint_order", Component, "none", Unsupported, COMPONENT_REASON),
     row!("stroke_paint", Component, "none", Unsupported, COMPONENT_REASON),
     row!("fill_paint", Component, "none", Unsupported, COMPONENT_REASON),
+    row!("clip", Component, "none", Unsupported, COMPONENT_REASON),
     row!(
         "raster",
         Component,

@@ -13,6 +13,7 @@
 //! stream anyway. The byte layout is in `docs/COMPONENT_STREAMS.md`.
 
 mod calibration;
+mod clip;
 mod error;
 mod fill_paint;
 mod frame;
@@ -25,6 +26,9 @@ pub use calibration::{
     CALIBRATION_CAPABILITY, CALIBRATION_ERRORS, CALIBRATION_KIND, Calibration, CalibrationError,
     ControlPoint, CrsDefinition, CrsKind, DefinitionFormat, FitMethod, Georeference, MAX_CALIBRATION_BYTES,
     MAX_CALIBRATION_POINTS, Provenance, ScaleClaim, check_residual, decode_calibration, encode_calibration,
+};
+pub use clip::{
+    ClipRecord, ClipRun, ClipStream, MAX_CLIP_BOUNDARY, MAX_CLIP_DEPTH, MAX_CLIP_RUNS, MAX_CLIPS,
 };
 pub use error::{ComponentError, StreamError};
 pub use fill_paint::{

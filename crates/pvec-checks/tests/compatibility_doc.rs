@@ -107,6 +107,7 @@ fn the_document_and_the_matrix_agree_on_the_raster_row() {
         "seventeen",
         "eighteen",
         "nineteen",
+        "twenty",
     ];
     assert!(
         d.contains(&format!("outcome of {} reader and file pairs", words[pairs - 11])),
