@@ -18,6 +18,7 @@ only page that defines one.
 * [PAINT.md](PAINT.md): the paint model, designed in ADR 0021 and not built yet: paint order, stroke colour, fill rule, gradient and tiling fills and clips as capabilities 23 to 26.
 * [CALIBRATION.md](CALIBRATION.md): the scale and the georeference of an artifact, the kind 11 block and its CAL rules (ADR 0019).
 * [CAPABILITIES.md](CAPABILITIES.md) and [COMPATIBILITY.md](COMPATIBILITY.md): the capability registry and the compatibility rules.
+* [FEATURES.md](FEATURES.md): the features below capability level, with the producer, driver and consumer columns and the golden that exercises each one (generated from `features.toml`).
 * [EXTENSIONS.md](EXTENSIONS.md): how an extension is proposed and accepted.
 * [ISO_PROFILE.md](ISO_PROFILE.md): the ISO 10303-42 constructs PVec is aligned to, and the ones it does not support.
 * [NUMERIC_POLICY.md](NUMERIC_POLICY.md): the numeric robustness policy (P1.2).
