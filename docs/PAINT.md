@@ -202,7 +202,7 @@ Two consequences to check before it lands: the wasm size budget in `docs/phase2.
 
 `DRAW_ORDER` is a fixed array of six stages walked once per frame. With 23 the frame is a list of **batches**, each a run of consecutive items of one kind with one clip. The legacy order is the batch list `[paper, raster 0, fills, strokes, text, raster 1]`, so `DRAW_ORDER` stays as the plan a file gets when it has no 23 and nothing else changes for those files.
 
-* The `pvec-scene` crate (`ScenePlan::build`) is that scene builder's first half: it returns the batches and a `Degrade` list (`TooManyBatches` past `Policy::max_batches`, 4096 by default, and `StreamDamaged` for a stream 23 that does not decode or names an item the page lacks), and in both cases the plan is the legacy order. Clips, sampling and tessellation come later or stay in the viewer.
+* The `pvec-scene` crate (`ScenePlan::build`) is that scene builder's first half: it returns the batches and a `Degrade` list (`TooManyBatches` past `Policy::max_batches`, 4096 by default, and `StreamDamaged` for a stream 23 that does not decode or names an item the page lacks), and in both cases the plan is the legacy order. `ClipTree::build` is the second half for clips (5.4). Sampling and tessellation come later or stay in the viewer.
 * The scene builder expands the runs into items, groups them into batches, and the render pass loops over batches instead of stages. A raster item draws one placement (the raster pass already works per placement and band; it needs a per-placement entry point).
 * A fill batch and a stroke batch share the one render pass, as now. Blending stays premultiplied.
 * The cost of an alternating page is one draw call per change of kind, which is fine up to a few thousand. Past 4,096 batches the builder merges adjacent batches whose bounds do not overlap, which does not change the picture because a fill and a stroke that do not touch can be painted in either order; if it is still over, it falls back to the legacy order and counts `paintOrderDegraded` in the scene stats. This is a measured ceiling, not a guess: the PR that lands it carries the frame-budget numbers.
@@ -217,6 +217,8 @@ The render pass gets a depth-stencil attachment, allocated only for a scene that
 3. Clear what was written. Draw the bounds of the clip's triangles with write mask = bit d-1 and the replace op with a reference of zero, so the bits of the parents are untouched and the next sibling starts clean.
 
 A separate parity pass is not needed, and a clip that nests deeper than 8 is refused by COMP-26 before a viewer sees it.
+
+`pvec-scene` works out the part of this that needs no GPU: `ClipTree::build` gives each clip its depth, write bit (`1 << (d-1)`), chain mask (`(1 << (d-1)) - 1`), rule and rings (never triangles), and splits every batch into `ClippedRun`s that sit inside one clip or none. A clip with a ring of fewer than 3 points, a coordinate that is not finite, or an ancestor like that, draws nothing for its items (2.5) and is reported as `ClipUnbuildable { clip, items }` against the outermost clip that failed. Rings a tessellator later rejects are the viewer's to report, in the same stats shape.
 
 ### 5.5 Gradients
 

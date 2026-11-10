@@ -1,0 +1,4 @@
+[workspace.dependencies]
+pvec = { git = "https://github.com/libviprs/pvec", rev = "1a9d972ef844d4258a641d3891473ce2f1c39ce4" }
+pvec-container = { git = "https://github.com/libviprs/pvec", rev = "1a9d972ef844d4258a641d3891473ce2f1c39ce4" }
+pvec-components = { git = "https://github.com/libviprs/pvec", rev = "1a9d972ef844d4258a641d3891473ce2f1c39ce4" }
