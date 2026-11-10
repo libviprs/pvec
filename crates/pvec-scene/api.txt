@@ -14,12 +14,27 @@ lib.rs: PaintBatch.first: u32
 lib.rs: PaintBatch.count: u32
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Degrade
 lib.rs: Degrade::TooManyBatches
+lib.rs: Degrade::TilingTooLarge
 lib.rs: Degrade::StreamDamaged { id: CapabilityId, rule: &'static str }
 lib.rs: Degrade::ClipUnbuildable { clip: u32, items: u32 }
 lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ScenePlan
 lib.rs: ScenePlan.batches: Vec<PaintBatch>
 lib.rs: ScenePlan.degrades: Vec<Degrade>
 lib.rs: ScenePlan::build(streams: &[Stream], counts: &Counts, policy: Policy) -> ScenePlan
+lib.rs: pub const MAX_GRADIENT_TEXELS: usize
+lib.rs: pub const MAX_TILE_COPIES: u32
+lib.rs: pub const TILE_POLYGON_NONZERO: u32
+lib.rs: pub const TILE_POLYGON_EVENODD: u32
+lib.rs: pub const TILE_POLYLINE: u32
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct TileSample
+lib.rs: TileSample.copies: [u32; 2]
+lib.rs: TileSample.kinds: Vec<u32>
+lib.rs: TileSample.colours: Vec<u32>
+lib.rs: TileSample.widths: Vec<f32>
+lib.rs: TileSample.starts: Vec<u32>
+lib.rs: TileSample.points: Vec<f32>
+lib.rs: pub fn sample_gradient(g: &Gradient, texels: usize) -> Vec<f32>
+lib.rs: pub fn sample_tiling(t: &Tiling) -> Result<TileSample, Degrade>
 lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct ClipNode
 lib.rs: ClipNode.rule: FillRule
 lib.rs: ClipNode.parent: Option<u32>
