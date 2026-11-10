@@ -14,7 +14,25 @@ lib.rs: PaintBatch.count: u32
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Degrade
 lib.rs: Degrade::TooManyBatches
 lib.rs: Degrade::StreamDamaged { id: CapabilityId, rule: &'static str }
+lib.rs: Degrade::ClipUnbuildable { clip: u32, items: u32 }
 lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ScenePlan
 lib.rs: ScenePlan.batches: Vec<PaintBatch>
 lib.rs: ScenePlan.degrades: Vec<Degrade>
 lib.rs: ScenePlan::build(streams: &[Stream], counts: &Counts, policy: Policy) -> ScenePlan
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct ClipNode
+lib.rs: ClipNode.rule: FillRule
+lib.rs: ClipNode.parent: Option<u32>
+lib.rs: ClipNode.depth: u8
+lib.rs: ClipNode.write_bit: u8
+lib.rs: ClipNode.chain_mask: u8
+lib.rs: ClipNode.rings: Option<Vec<Vec<[f64; 2]>>>
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct ClippedRun
+lib.rs: ClippedRun.batch: usize
+lib.rs: ClippedRun.first: u32
+lib.rs: ClippedRun.count: u32
+lib.rs: ClippedRun.clip: Option<u32>
+lib.rs: #[derive(Clone, Debug, PartialEq)] pub struct ClipTree
+lib.rs: ClipTree.nodes: Vec<ClipNode>
+lib.rs: ClipTree.runs: Vec<ClippedRun>
+lib.rs: ClipTree.degrades: Vec<Degrade>
+lib.rs: ClipTree::build(streams: &[Stream], plan: &ScenePlan, ring_of: impl Fn(EntityId) -> Option<Vec<[f64; 2]>>) -> ClipTree
