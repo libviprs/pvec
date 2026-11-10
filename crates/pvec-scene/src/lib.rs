@@ -2,8 +2,8 @@
 
 use pvec_capabilities::CapabilityId;
 use pvec_components::{
-    Band, ClipStream, FillRule, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling,
-    TilingPrimitive,
+    Band, ClipStream, FillPaintStream, FillRule, Gradient, GradientCoords, ItemKind, PaintOrderStream,
+    PaintRun, Stream, StrokePaintStream, Tiling, TilingPrimitive,
 };
 use pvec_entity::EntityId;
 use std::collections::HashMap;
@@ -12,8 +12,79 @@ use std::collections::HashMap;
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
 
 /// The features of `docs/features.toml` this driver works out: exactly the rows whose `driver` column is true.
-/// A test in `pvec-checks` fails when the two differ.
-pub const SUPPORTED: &[&str] = &["23.stroke_item", "23.fill_item", "23.raster_item", "23.text_item"];
+/// A test in `pvec-checks` fails when the two differ. A stroke colour, its alpha and the fill rules are not here:
+/// this driver does nothing with them, the viewer reads them straight from the streams (`CONSUMED`).
+pub const SUPPORTED: &[&str] = &[
+    "23.stroke_item",
+    "23.fill_item",
+    "23.raster_item",
+    "23.text_item",
+    "25.gradient.axial",
+    "25.gradient.radial",
+    "25.gradient.extend",
+    "25.tiling.coloured",
+    "25.tiling.uncoloured",
+    "26.clip",
+    "26.nested",
+];
+
+/// The features of `docs/features.toml` the viewer draws straight from the streams: exactly the rows whose
+/// `consumer` column is true. The libviprs gate (issue 302) accepts a feature the writer emits when it is here or
+/// in `SUPPORTED`. A test in `pvec-checks` fails when this and the column differ.
+pub const CONSUMED: &[&str] = &[
+    "23.stroke_item",
+    "23.fill_item",
+    "24.colour",
+    "24.alpha",
+    "25.rule.nonzero",
+    "25.rule.evenodd",
+    "25.gradient.axial",
+    "25.gradient.radial",
+    "25.gradient.extend",
+    "26.clip",
+    "26.nested",
+];
+
+/// The keys of `docs/features.toml` the decoded streams of a file really use, in table order, read from the
+/// streams themselves so a producer cannot claim one it did not write (issue 302). A stream that cannot be
+/// decoded contributes nothing, and this never panics on a damaged payload.
+pub fn features_used(streams: &[Stream]) -> Vec<&'static str> {
+    let payload = |id| streams.iter().find(|s| s.capability == id).map(|s| s.payload.as_slice());
+    let order = payload(PaintOrderStream::CAPABILITY).and_then(|p| PaintOrderStream::decode(p).ok());
+    let strokes = payload(StrokePaintStream::CAPABILITY).and_then(|p| StrokePaintStream::decode(p).ok());
+    let fills = payload(FillPaintStream::CAPABILITY).and_then(|p| FillPaintStream::decode(p).ok());
+    let clips = payload(ClipStream::CAPABILITY).and_then(|p| ClipStream::decode(p).ok());
+    let kind = |k: ItemKind| order.as_ref().is_some_and(|o| o.runs.iter().any(|r| r.kind == k));
+    let rule = |r: FillRule| fills.as_ref().is_some_and(|f| f.assignments.iter().any(|a| a.rule == r));
+    let axial = |a: bool| {
+        fills.as_ref().is_some_and(|f| {
+            f.gradients.iter().any(|g| matches!(g.coords, GradientCoords::Axial { .. }) == a)
+        })
+    };
+    let tiling =
+        |coloured: bool| fills.as_ref().is_some_and(|f| f.tilings.iter().any(|t| t.coloured == coloured));
+    let table = [
+        ("23.stroke_item", kind(ItemKind::Stroke)),
+        ("23.fill_item", kind(ItemKind::Fill)),
+        ("23.raster_item", kind(ItemKind::Raster)),
+        ("23.text_item", kind(ItemKind::Text)),
+        ("24.colour", strokes.as_ref().is_some_and(|s| !s.assignments.is_empty())),
+        ("24.alpha", strokes.as_ref().is_some_and(|s| s.colours.iter().any(|c| c & 0xFF != 0xFF))),
+        ("25.rule.nonzero", rule(FillRule::NonZero)),
+        ("25.rule.evenodd", rule(FillRule::EvenOdd)),
+        ("25.gradient.axial", axial(true)),
+        ("25.gradient.radial", axial(false)),
+        (
+            "25.gradient.extend",
+            fills.as_ref().is_some_and(|f| f.gradients.iter().any(|g| g.extend_before || g.extend_after)),
+        ),
+        ("25.tiling.coloured", tiling(true)),
+        ("25.tiling.uncoloured", tiling(false)),
+        ("26.clip", clips.as_ref().is_some_and(|c| !c.clips.is_empty() && !c.runs.is_empty())),
+        ("26.nested", clips.as_ref().is_some_and(|c| c.clips.iter().any(|r| r.parent.is_some()))),
+    ];
+    table.into_iter().filter(|(_, used)| *used).map(|(key, _)| key).collect()
+}
 
 /// What a viewer will pay for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
