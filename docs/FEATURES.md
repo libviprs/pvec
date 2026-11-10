@@ -17,8 +17,8 @@ A capability says a stream exists. A feature says which part of it is written (p
 | `25.gradient.axial` | Axial gradient as sampled stops. | yes | yes | yes | `tests/compat/blueprint-mix-25-fill-paint.pvec` |
 | `25.gradient.radial` | Radial gradient, the PDF type 3 circle family. | yes | yes | yes | `tests/compat/blueprint-mix-25-radial-tiling.pvec` |
 | `25.gradient.extend` | Paint before the first stop or after the last. | yes | yes | yes | `tests/compat/blueprint-mix-25-fill-paint.pvec` |
-| `25.tiling.coloured` | Tiling pattern with its own colours. | yes | yes | yes | `tests/compat/blueprint-mix-25-radial-tiling.pvec` |
-| `25.tiling.uncoloured` | Tiling pattern painted in the colour of the hatch record. | yes | yes | yes | `tests/compat/blueprint-mix-25-fill-paint.pvec` |
+| `25.tiling.coloured` | Tiling pattern with its own colours. | yes | yes | no | `tests/compat/blueprint-mix-25-radial-tiling.pvec` |
+| `25.tiling.uncoloured` | Tiling pattern painted in the colour of the hatch record. | yes | yes | no | `tests/compat/blueprint-mix-25-fill-paint.pvec` |
 | `26.clip` | A clip region of entity rings with a rule, applied to named items. | yes | yes | yes | `tests/compat/blueprint-mix-26-clip.pvec` |
 | `26.nested` | A clip intersected with its parent. | yes | yes | yes | `tests/compat/blueprint-mix-26-clip.pvec` |
 | `none.blend_mode` | Blend modes other than normal. Refused: alpha is straight and there is no blend operator in the format. | no | no | no | none |

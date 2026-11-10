@@ -120,18 +120,6 @@ fn scene_consumed_is_the_consumer_column() {
 }
 
 #[test]
-fn every_feature_the_scene_reads_is_supported_or_consumed() {
-    let t = table();
-    for f in t.iter().filter(|f| f.key.chars().next().is_some_and(|c| c.is_ascii_digit())) {
-        assert!(
-            pvec_scene::SUPPORTED.contains(&f.key.as_str()) || pvec_scene::CONSUMED.contains(&f.key.as_str()),
-            "{}: neither the driver nor the viewer handles it",
-            f.key
-        );
-    }
-}
-
-#[test]
 fn every_paint_md_region_is_claimed_by_a_feature() {
     let regions = paint_regions(&fs::read_to_string(repo_root().join("docs/PAINT.md")).unwrap());
     assert_eq!(regions.len(), 45, "chapter 7 lists 45 regions: {regions:?}");

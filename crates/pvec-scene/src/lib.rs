@@ -41,8 +41,6 @@ pub const CONSUMED: &[&str] = &[
     "25.gradient.axial",
     "25.gradient.radial",
     "25.gradient.extend",
-    "25.tiling.coloured",
-    "25.tiling.uncoloured",
     "26.clip",
     "26.nested",
 ];
