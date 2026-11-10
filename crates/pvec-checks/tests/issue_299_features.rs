@@ -4,10 +4,7 @@
 
 use pvec_capabilities::{Reader, Registry, Version, ids};
 use pvec_checks::*;
-use pvec_components::{
-    ClipStream, FillPaintStream, FillRule, GradientCoords, ItemKind, PaintOrderStream, Stream,
-    StrokePaintStream, read_streams,
-};
+use pvec_components::{Stream, read_streams};
 use pvec_container::directory::BlockKind;
 use pvec_container::reader::{BlockId, ContainerReader, ReaderConfig};
 use pvec_container::source::MemorySource;
@@ -34,40 +31,10 @@ fn streams_of(golden: &str) -> Vec<Stream> {
     read_streams(&set, &Registry::v1(), &current).unwrap().streams
 }
 
-/// Whether the decoded streams of the golden really use the feature, not merely contain the stream.
+/// Whether the decoded streams of the golden really use the feature, not merely contain the stream. The probes
+/// live once, in `pvec_scene::features_used`, which the libviprs gate (issue 302) reads too.
 fn exercised(key: &str, streams: &[Stream]) -> bool {
-    let payload = |id| streams.iter().find(|s| s.capability == id).map(|s| s.payload.as_slice());
-    let order = || payload(ids::PAINT_ORDER).map(|p| PaintOrderStream::decode(p).unwrap());
-    let strokes = || payload(ids::STROKE_PAINT).map(|p| StrokePaintStream::decode(p).unwrap());
-    let fills = || payload(ids::FILL_PAINT).map(|p| FillPaintStream::decode(p).unwrap());
-    let clips = || payload(ids::CLIP).map(|p| ClipStream::decode(p).unwrap());
-    let kind = |k: ItemKind| order().is_some_and(|o| o.runs.iter().any(|r| r.kind == k));
-    let rule = |r: FillRule| fills().is_some_and(|f| f.assignments.iter().any(|a| a.rule == r));
-    let gradient = |axial: bool| {
-        fills().is_some_and(|f| {
-            f.gradients.iter().any(|g| matches!(g.coords, GradientCoords::Axial { .. }) == axial)
-        })
-    };
-    match key {
-        "23.stroke_item" => kind(ItemKind::Stroke),
-        "23.fill_item" => kind(ItemKind::Fill),
-        "23.raster_item" => kind(ItemKind::Raster),
-        "23.text_item" => kind(ItemKind::Text),
-        "24.colour" => strokes().is_some_and(|s| !s.assignments.is_empty()),
-        "24.alpha" => strokes().is_some_and(|s| s.colours.iter().any(|c| c & 0xFF != 0xFF)),
-        "25.rule.nonzero" => rule(FillRule::NonZero),
-        "25.rule.evenodd" => rule(FillRule::EvenOdd),
-        "25.gradient.axial" => gradient(true),
-        "25.gradient.radial" => gradient(false),
-        "25.gradient.extend" => {
-            fills().is_some_and(|f| f.gradients.iter().any(|g| g.extend_before || g.extend_after))
-        }
-        "25.tiling.coloured" => fills().is_some_and(|f| f.tilings.iter().any(|t| t.coloured)),
-        "25.tiling.uncoloured" => fills().is_some_and(|f| f.tilings.iter().any(|t| !t.coloured)),
-        "26.clip" => clips().is_some_and(|c| !c.clips.is_empty() && !c.runs.is_empty()),
-        "26.nested" => clips().is_some_and(|c| c.clips.iter().any(|r| r.parent.is_some())),
-        other => panic!("{other} has no probe in this test; add one when adding the feature"),
-    }
+    pvec_scene::features_used(streams).contains(&key)
 }
 
 #[test]
