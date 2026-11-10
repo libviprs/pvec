@@ -1,7 +1,7 @@
 //! The paint order of a page, worked out in one place (issue 296, `docs/PAINT.md` sections 2.2 and 5.3).
 
 use pvec_capabilities::CapabilityId;
-use pvec_components::{Band, ItemKind, PaintOrderStream, PaintRun, Stream};
+use pvec_components::{Band, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling};
 
 /// The most batches a plan may hold before the legacy plan is returned instead.
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
@@ -48,6 +48,8 @@ pub struct PaintBatch {
 pub enum Degrade {
     /// The stream asked for more batches than the policy allows, so the legacy plan was used.
     TooManyBatches,
+    /// A tiling needs more copies of its cell than `MAX_TILE_COPIES`, so it is left to the flat colour.
+    TilingTooLarge,
     /// A stream could not be used, so the legacy plan was used.
     StreamDamaged {
         /// The capability of the stream.
@@ -151,4 +153,52 @@ fn unlisted_first(counts: &Counts, listed: &[PaintRun]) -> Vec<PaintBatch> {
         push(&mut out, b);
     }
     out
+}
+
+/// The most texels one gradient row may have, not counting the two guard texels.
+pub const MAX_GRADIENT_TEXELS: usize = 65_536;
+
+/// The most copies of one cell that a tiling may expand to.
+pub const MAX_TILE_COPIES: u32 = 64;
+
+/// A tile primitive kind: a polygon filled with the non-zero rule.
+pub const TILE_POLYGON_NONZERO: u32 = 1;
+/// A tile primitive kind: a polygon filled with the even-odd rule.
+pub const TILE_POLYGON_EVENODD: u32 = 2;
+/// A tile primitive kind: a stroked polyline.
+pub const TILE_POLYLINE: u32 = 3;
+
+/// The primitives of one tiling cell and its neighbour copies, as parallel plain vectors.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TileSample {
+    /// Copies of the cell along x and along y, `ceil(cell extent / step)` each and at least one.
+    pub copies: [u32; 2],
+    /// The kind of each primitive, one of the `TILE_*` words.
+    pub kinds: Vec<u32>,
+    /// The `0xRRGGBBAA` word of each primitive, straight alpha, passed through untouched.
+    pub colours: Vec<u32>,
+    /// The line width of each primitive, zero for a polygon.
+    pub widths: Vec<f32>,
+    /// For primitive `n`, its points are `starts[n]..starts[n + 1]`; one more entry than there are primitives.
+    pub starts: Vec<u32>,
+    /// The points as x, y pairs in pattern space, copy offsets already added.
+    pub points: Vec<f32>,
+}
+
+/// Resamples a gradient to a row of RGBA texels for a one-lookup shader.
+pub fn sample_gradient(g: &Gradient, texels: usize) -> Vec<f32> {
+    todo_gradient(g, texels)
+}
+
+/// Expands a tiling to the primitives of one cell and the neighbour copies that reach into it.
+pub fn sample_tiling(t: &Tiling) -> Result<TileSample, Degrade> {
+    todo_tiling(t)
+}
+
+fn todo_gradient(_: &Gradient, _: usize) -> Vec<f32> {
+    Vec::new()
+}
+
+fn todo_tiling(_: &Tiling) -> Result<TileSample, Degrade> {
+    Err(Degrade::TilingTooLarge)
 }
