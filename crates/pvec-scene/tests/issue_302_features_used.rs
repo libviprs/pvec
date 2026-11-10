@@ -11,7 +11,8 @@ use std::fs;
 use std::path::Path;
 
 fn streams_of(golden: &str) -> Vec<Stream> {
-    let bytes = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat").join(golden)).unwrap();
+    let bytes =
+        fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat").join(golden)).unwrap();
     let reader = ContainerReader::open(MemorySource::new(bytes), ReaderConfig::default()).unwrap();
     let at = reader.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components)).unwrap();
     let set = reader.read_block(BlockId(at as u32)).unwrap().as_bytes().to_vec();

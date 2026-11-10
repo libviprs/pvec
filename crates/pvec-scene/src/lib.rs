@@ -2,8 +2,8 @@
 
 use pvec_capabilities::CapabilityId;
 use pvec_components::{
-    Band, ClipStream, FillPaintStream, FillRule, Gradient, GradientCoords, ItemKind, PaintOrderStream, PaintRun,
-    Stream, StrokePaintStream, Tiling, TilingPrimitive,
+    Band, ClipStream, FillPaintStream, FillRule, Gradient, GradientCoords, ItemKind, PaintOrderStream,
+    PaintRun, Stream, StrokePaintStream, Tiling, TilingPrimitive,
 };
 use pvec_entity::EntityId;
 use std::collections::HashMap;
@@ -43,9 +43,12 @@ pub fn features_used(streams: &[Stream]) -> Vec<&'static str> {
     let kind = |k: ItemKind| order.as_ref().is_some_and(|o| o.runs.iter().any(|r| r.kind == k));
     let rule = |r: FillRule| fills.as_ref().is_some_and(|f| f.assignments.iter().any(|a| a.rule == r));
     let axial = |a: bool| {
-        fills.as_ref().is_some_and(|f| f.gradients.iter().any(|g| matches!(g.coords, GradientCoords::Axial { .. }) == a))
+        fills.as_ref().is_some_and(|f| {
+            f.gradients.iter().any(|g| matches!(g.coords, GradientCoords::Axial { .. }) == a)
+        })
     };
-    let tiling = |coloured: bool| fills.as_ref().is_some_and(|f| f.tilings.iter().any(|t| t.coloured == coloured));
+    let tiling =
+        |coloured: bool| fills.as_ref().is_some_and(|f| f.tilings.iter().any(|t| t.coloured == coloured));
     let table = [
         ("23.stroke_item", kind(ItemKind::Stroke)),
         ("23.fill_item", kind(ItemKind::Fill)),
