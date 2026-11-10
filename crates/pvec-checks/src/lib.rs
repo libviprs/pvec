@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 mod api;
 pub use api::*;
 
+mod features;
+pub use features::*;
+
 /// The one sentence PVec is allowed to say about ISO 10303-42.
 pub const APPROVED_CLAIM: &str =
     "PVec is aligned to named ISO 10303-42:2025 constructs and validated through STEP interchange.";
