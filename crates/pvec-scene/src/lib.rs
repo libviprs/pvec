@@ -13,7 +13,23 @@ pub const DEFAULT_MAX_BATCHES: usize = 4096;
 
 /// The features of `docs/features.toml` this driver works out: exactly the rows whose `driver` column is true.
 /// A test in `pvec-checks` fails when the two differ.
-pub const SUPPORTED: &[&str] = &["23.stroke_item", "23.fill_item", "23.raster_item", "23.text_item"];
+pub const SUPPORTED: &[&str] = &[
+    "23.stroke_item",
+    "23.fill_item",
+    "23.raster_item",
+    "23.text_item",
+    "24.colour",
+    "24.alpha",
+    "25.rule.nonzero",
+    "25.rule.evenodd",
+    "25.gradient.axial",
+    "25.gradient.radial",
+    "25.gradient.extend",
+    "25.tiling.coloured",
+    "25.tiling.uncoloured",
+    "26.clip",
+    "26.nested",
+];
 
 /// The keys of `docs/features.toml` the decoded streams of a file really use, in table order, read from the
 /// streams themselves so a producer cannot claim one it did not write (issue 302). A stream that cannot be
