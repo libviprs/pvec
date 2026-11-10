@@ -1,6 +1,6 @@
 # The feature table below capability level. FEATURES.md is generated from this file; I do not edit that by hand.
 # Regenerate with: PVEC_BLESS_FEATURES=1 cargo test -p pvec-checks --test issue_299_features
-# producer = libviprs writes it, driver = pvec-scene accepts it (the SUPPORTED list, which the libviprs gate holds the writer to, issue 302), consumer = planviewer draws it.
+# producer = libviprs writes it, driver = pvec-scene works it out (the SUPPORTED list), consumer = planviewer draws it (the CONSUMED list). The libviprs gate (issue 302) holds the writer to the two lists together.
 
 [[feature]]
 key = "23.stroke_item"
@@ -41,7 +41,7 @@ regions = ["fid-blueprint-mix/bp-text"]
 key = "24.colour"
 what = "A stroke colour per entity."
 producer = true
-driver = true
+driver = false
 consumer = true
 golden = "tests/compat/blueprint-mix-24-stroke-paint.pvec"
 regions = ["fid-fills/stroke-frame"]
@@ -50,7 +50,7 @@ regions = ["fid-fills/stroke-frame"]
 key = "24.alpha"
 what = "Stroke alpha in the low byte of the colour word."
 producer = true
-driver = true
+driver = false
 consumer = true
 golden = "tests/compat/blueprint-mix-24-stroke-paint.pvec"
 regions = ["fid-alpha/alpha-red-only", "fid-alpha/alpha-overlap", "fid-alpha/alpha-blue-only", "fid-alpha/alpha-over-grey", "fid-alpha/alpha-stroke-over-fill"]
@@ -59,7 +59,7 @@ regions = ["fid-alpha/alpha-red-only", "fid-alpha/alpha-overlap", "fid-alpha/alp
 key = "25.rule.nonzero"
 what = "Nonzero winding over all the rings of a hatch record."
 producer = true
-driver = true
+driver = false
 consumer = true
 golden = "tests/compat/blueprint-mix-25-fill-paint.pvec"
 regions = ["fid-fills/donut-nonzero-inner"]
@@ -68,7 +68,7 @@ regions = ["fid-fills/donut-nonzero-inner"]
 key = "25.rule.evenodd"
 what = "Even-odd over all the rings of a hatch record."
 producer = true
-driver = true
+driver = false
 consumer = true
 golden = "tests/compat/blueprint-mix-25-fill-paint.pvec"
 regions = ["fid-fills/star-evenodd-centre"]

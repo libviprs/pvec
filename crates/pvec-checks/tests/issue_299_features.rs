@@ -1,5 +1,5 @@
 //! Issue 299: the feature table. Every feature has a golden that exercises it, the generated markdown is the
-//! committed one, `pvec-scene::SUPPORTED` is the driver column, and every region of PAINT.md chapter 7 is
+//! committed one, `pvec-scene::SUPPORTED` is the driver column, `CONSUMED` the consumer one, and every region of PAINT.md chapter 7 is
 //! claimed by at least one feature.
 
 use pvec_capabilities::{Reader, Registry, Version, ids};
@@ -110,6 +110,25 @@ fn scene_supported_is_the_driver_column() {
         from_table.push(&f.key);
     }
     assert_eq!(pvec_scene::SUPPORTED, from_table.as_slice());
+}
+
+#[test]
+fn scene_consumed_is_the_consumer_column() {
+    let t = table();
+    let from_table: Vec<&str> = t.iter().filter(|f| f.consumer).map(|f| f.key.as_str()).collect();
+    assert_eq!(pvec_scene::CONSUMED, from_table.as_slice());
+}
+
+#[test]
+fn every_feature_the_scene_reads_is_supported_or_consumed() {
+    let t = table();
+    for f in t.iter().filter(|f| f.key.chars().next().is_some_and(|c| c.is_ascii_digit())) {
+        assert!(
+            pvec_scene::SUPPORTED.contains(&f.key.as_str()) || pvec_scene::CONSUMED.contains(&f.key.as_str()),
+            "{}: neither the driver nor the viewer handles it",
+            f.key
+        );
+    }
 }
 
 #[test]

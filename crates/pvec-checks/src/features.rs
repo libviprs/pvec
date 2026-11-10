@@ -121,7 +121,7 @@ pub fn render_features_markdown(features: &[Feature]) -> String {
     );
     out.push_str(
         "A capability says a stream exists. A feature says which part of it is written (producer), worked out \
-         (driver, the `SUPPORTED` list of `pvec-scene`) and drawn (consumer). Every other row has a golden file \
+         (driver, the `SUPPORTED` list of `pvec-scene`) and drawn (consumer, the `CONSUMED` list). Every other row has a golden file \
          that exercises it. A `none.` row is something the format refuses on purpose.\n\n",
     );
     out.push_str("| feature | what | producer | driver | consumer | golden |\n|---|---|---|---|---|---|\n");

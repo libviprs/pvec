@@ -12,12 +12,28 @@ use std::collections::HashMap;
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
 
 /// The features of `docs/features.toml` this driver works out: exactly the rows whose `driver` column is true.
-/// A test in `pvec-checks` fails when the two differ.
+/// A test in `pvec-checks` fails when the two differ. A stroke colour, its alpha and the fill rules are not here:
+/// this driver does nothing with them, the viewer reads them straight from the streams (`CONSUMED`).
 pub const SUPPORTED: &[&str] = &[
     "23.stroke_item",
     "23.fill_item",
     "23.raster_item",
     "23.text_item",
+    "25.gradient.axial",
+    "25.gradient.radial",
+    "25.gradient.extend",
+    "25.tiling.coloured",
+    "25.tiling.uncoloured",
+    "26.clip",
+    "26.nested",
+];
+
+/// The features of `docs/features.toml` the viewer draws straight from the streams: exactly the rows whose
+/// `consumer` column is true. The libviprs gate (issue 302) accepts a feature the writer emits when it is here or
+/// in `SUPPORTED`. A test in `pvec-checks` fails when this and the column differ.
+pub const CONSUMED: &[&str] = &[
+    "23.stroke_item",
+    "23.fill_item",
     "24.colour",
     "24.alpha",
     "25.rule.nonzero",
