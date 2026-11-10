@@ -1,14 +1,12 @@
 //! The paint order of a page, worked out in one place (issue 296, `docs/PAINT.md` sections 2.2 and 5.3).
 
 use pvec_capabilities::CapabilityId;
-use pvec_components::{Band, ClipStream, FillRule, ItemKind, PaintOrderStream, PaintRun, Stream};
+use pvec_components::{
+    Band, ClipStream, FillRule, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling,
+    TilingPrimitive,
+};
 use pvec_entity::EntityId;
 use std::collections::HashMap;
-}
-
-use pvec_components::{
-    Band, FillRule, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling, TilingPrimitive,
-};
 
 /// The most batches a plan may hold before the legacy plan is returned instead.
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
