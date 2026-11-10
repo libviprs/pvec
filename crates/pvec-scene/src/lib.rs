@@ -1,7 +1,9 @@
 //! The paint order of a page, worked out in one place (issue 296, `docs/PAINT.md` sections 2.2 and 5.3).
 
 use pvec_capabilities::CapabilityId;
-use pvec_components::{Band, ItemKind, PaintOrderStream, PaintRun, Stream};
+use pvec_components::{Band, ClipStream, FillRule, ItemKind, PaintOrderStream, PaintRun, Stream};
+use pvec_entity::EntityId;
+use std::collections::HashMap;
 
 /// The most batches a plan may hold before the legacy plan is returned instead.
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
@@ -54,6 +56,14 @@ pub enum Degrade {
         id: CapabilityId,
         /// The rule that failed, such as `COMP-22`.
         rule: &'static str,
+    },
+    /// A clip has a ring of fewer than 3 points or with a coordinate that is not finite, or an ancestor that has,
+    /// so its items are not drawn (`docs/PAINT.md` 2.5).
+    ClipUnbuildable {
+        /// The outermost clip of the chain that failed.
+        clip: u32,
+        /// How many items are not drawn because of it.
+        items: u32,
     },
 }
 
@@ -151,4 +161,146 @@ fn unlisted_first(counts: &Counts, listed: &[PaintRun]) -> Vec<PaintBatch> {
         push(&mut out, b);
     }
     out
+}
+
+/// One clip of the tree, with the stencil bits of its level.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClipNode {
+    /// The rule that decides what the rings enclose.
+    pub rule: FillRule,
+    /// The clip this one is intersected with.
+    pub parent: Option<u32>,
+    /// 1 for a root, one more than the parent otherwise. Equals the length of the chain.
+    pub depth: u8,
+    /// The stencil bit this level writes: `1 << (depth - 1)`.
+    pub write_bit: u8,
+    /// The bits of the levels above this one, which an item tests: `(1 << (depth - 1)) - 1`.
+    pub chain_mask: u8,
+    /// One ring per boundary entity, or `None` when the clip cannot be built. No tessellation: the viewer does it.
+    pub rings: Option<Vec<Vec<[f64; 2]>>>,
+}
+
+/// Items `first` to `first + count - 1` of batch number `batch`, all inside the same clip (or none).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClippedRun {
+    /// The index into `ScenePlan::batches`.
+    pub batch: usize,
+    /// The number of the first item.
+    pub first: u32,
+    /// How many items, at least one.
+    pub count: u32,
+    /// The clip the items are drawn inside, `None` for unclipped items.
+    pub clip: Option<u32>,
+}
+
+/// The clip tree of a page and the runs of each batch that are to be drawn.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClipTree {
+    /// The clips, parents before children.
+    pub nodes: Vec<ClipNode>,
+    /// The runs to draw, in batch order. Items of an unbuildable clip are absent.
+    pub runs: Vec<ClippedRun>,
+    /// What was given up.
+    pub degrades: Vec<Degrade>,
+}
+
+impl ClipTree {
+    /// Works out the clip tree for `plan` from the clip stream (capability 26), if the page has one.
+    ///
+    /// `ring_of` gives the points of a ring entity. A clip with a ring `ring_of` cannot give, with fewer than 3
+    /// points or with a coordinate that is not finite, draws nothing for its items or for those of its descendants,
+    /// and is reported once as `ClipUnbuildable` against the outermost clip that failed. A clip stream that does
+    /// not decode is reported as `StreamDamaged` and the items are drawn unclipped.
+    pub fn build(
+        streams: &[Stream],
+        plan: &ScenePlan,
+        ring_of: impl Fn(EntityId) -> Option<Vec<[f64; 2]>>,
+    ) -> ClipTree {
+        let whole = |degrades: Vec<Degrade>| ClipTree {
+            nodes: Vec::new(),
+            runs: plan
+                .batches
+                .iter()
+                .enumerate()
+                .map(|(batch, b)| ClippedRun { batch, first: b.first, count: b.count, clip: None })
+                .collect(),
+            degrades,
+        };
+        let Some(stream) = streams.iter().find(|s| s.capability == ClipStream::CAPABILITY) else {
+            return whole(Vec::new());
+        };
+        let clips = match ClipStream::decode(&stream.payload) {
+            Ok(c) => c,
+            Err(e) => return whole(vec![Degrade::StreamDamaged { id: stream.capability, rule: e.rule() }]),
+        };
+        // `blocked[k]` is the outermost clip of k's chain that cannot be built, if there is one.
+        let mut nodes: Vec<ClipNode> = Vec::with_capacity(clips.clips.len());
+        let mut blocked: Vec<Option<u32>> = Vec::with_capacity(clips.clips.len());
+        for (k, c) in clips.clips.iter().enumerate() {
+            let rings = c
+                .boundary
+                .iter()
+                .map(|e| ring_of(*e).filter(|r| r.len() >= 3 && r.iter().flatten().all(|v| v.is_finite())))
+                .collect::<Option<Vec<_>>>();
+            let parent_at = c.parent.map(|p| p as usize);
+            // the decoder guarantees parents come first and the chain is at most MAX_CLIP_DEPTH (8) long
+            let depth = parent_at.map_or(1, |p| nodes[p].depth + 1);
+            blocked.push(parent_at.and_then(|p| blocked[p]).or(if rings.is_none() {
+                Some(k as u32)
+            } else {
+                None
+            }));
+            nodes.push(ClipNode {
+                rule: c.rule,
+                parent: c.parent,
+                depth,
+                write_bit: 1 << (depth - 1),
+                chain_mask: (1 << (depth - 1)) - 1,
+                rings,
+            });
+        }
+        let mut spans_of = HashMap::new();
+        for kind in [ItemKind::Stroke, ItemKind::Fill, ItemKind::Raster, ItemKind::Text] {
+            let mut spans: Vec<(u32, u32, u32)> = clips
+                .runs
+                .iter()
+                .filter(|r| r.kind == kind)
+                .map(|r| (r.first, r.first + r.count, r.clip))
+                .collect();
+            spans.sort_unstable();
+            spans_of.insert(kind, spans);
+        }
+        let mut lost = vec![0u32; nodes.len()];
+        let mut runs: Vec<ClippedRun> = Vec::new();
+        for (batch, b) in plan.batches.iter().enumerate() {
+            let spans = &spans_of[&b.kind];
+            let (mut at, end) = (b.first, b.first + b.count);
+            while at < end {
+                let next = spans.get(spans.partition_point(|s| s.1 <= at)).copied();
+                let (stop, clip) = match next {
+                    Some((first, last, clip)) if first <= at => (last.min(end), Some(clip)),
+                    Some((first, _, _)) => (first.min(end), None),
+                    None => (end, None),
+                };
+                let count = stop - at;
+                match clip.and_then(|c| blocked[c as usize]) {
+                    Some(root) => lost[root as usize] += count,
+                    None => match runs.last_mut() {
+                        Some(last)
+                            if last.batch == batch && last.clip == clip && last.first + last.count == at =>
+                        {
+                            last.count += count
+                        }
+                        _ => runs.push(ClippedRun { batch, first: at, count, clip }),
+                    },
+                }
+                at = stop;
+            }
+        }
+        let degrades = (0..nodes.len())
+            .filter(|k| blocked[*k] == Some(*k as u32))
+            .map(|k| Degrade::ClipUnbuildable { clip: k as u32, items: lost[k] })
+            .collect();
+        ClipTree { nodes, runs, degrades }
+    }
 }
