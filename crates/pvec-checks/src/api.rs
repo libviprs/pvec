@@ -35,6 +35,8 @@ pub const API_CRATES: &[(&str, &[&str])] = &[
     ),
     ("pvec-entity", &["pvec-geometry", "pvec-numeric"]),
     ("pvec-geometry", &["pvec-numeric"]),
+    // issue 296: the paint order, worked out once; it reads the decoded streams and nothing else
+    ("pvec-scene", &["pvec-capabilities", "pvec-components", "pvec-entity"]),
     // P5.1: the spatial directory reads through the container's reader and does no I/O of its own
     // P5.4: the Tier 0 previews are measured against the exact curve, so the crate reads pvec-geometry
     // pvec#220: the raster plan takes a `Placement`, the one struct of the raster stream, so it reads pvec-components

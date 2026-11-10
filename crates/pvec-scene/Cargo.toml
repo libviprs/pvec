@@ -1,0 +1,21 @@
+[package]
+name = "pvec-scene"
+version = "0.0.0"
+description = "The paint order of a page worked out once: ordered batches over strokes, fills, text and rasters, and a report of what was given up"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Only the decoded streams, the entity ids and the capability ids. No tessellation and no GPU: this crate
+# says what is painted after what, and the viewers draw it.
+[dependencies]
+pvec-capabilities = { path = "../pvec-capabilities" }
+pvec-components = { path = "../pvec-components" }
+pvec-entity = { path = "../pvec-entity" }
+
+[dev-dependencies]
+pvec-container = { path = "../pvec-container" }
+
+[lints]
+workspace = true
