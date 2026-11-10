@@ -107,6 +107,36 @@ fn fill_paint() -> FillPaintStream {
     }
 }
 
+/// Issue 299: the two paints the blueprint-mix page does not use, a radial cone with no extension and a coloured
+/// tiling of a filled polygon, so each feature of `docs/features.toml` has a golden that exercises it.
+fn fill_paint_variants() -> FillPaintStream {
+    FillPaintStream {
+        gradients: vec![Gradient {
+            coords: GradientCoords::Radial { x0: 120.0, y0: 240.0, r0: 4.0, x1: 180.0, y1: 280.0, r1: 60.0 },
+            extend_before: false,
+            extend_after: false,
+            transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            stops: vec![Stop { offset: 0.0, rgba: 0xFF00_00FF }, Stop { offset: 1.0, rgba: 0x0000_FFFF }],
+        }],
+        tilings: vec![Tiling {
+            coloured: true,
+            x_step: 8.0,
+            y_step: 8.0,
+            cell: [0.0, 0.0, 8.0, 8.0],
+            transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            primitives: vec![TilingPrimitive::Polygon {
+                rule: FillRule::NonZero,
+                rgba: 0x2080_20FF,
+                points: vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]],
+            }],
+        }],
+        assignments: vec![
+            FillAssignment { hatch: 0, rule: FillRule::NonZero, paint: FillSource::Gradient(0) },
+            FillAssignment { hatch: 1, rule: FillRule::NonZero, paint: FillSource::Tiling(0) },
+        ],
+    }
+}
+
 fn clip() -> ClipStream {
     ClipStream {
         clips: vec![
@@ -127,6 +157,7 @@ fn cases() -> Vec<(&'static str, CapabilityId, Stream)> {
         ("blueprint-mix-23-paint-order", ids::PAINT_ORDER, paint_order().into_stream(&r).unwrap()),
         ("blueprint-mix-24-stroke-paint", ids::STROKE_PAINT, stroke_paint().into_stream(&r).unwrap()),
         ("blueprint-mix-25-fill-paint", ids::FILL_PAINT, fill_paint().into_stream(&r).unwrap()),
+        ("blueprint-mix-25-radial-tiling", ids::FILL_PAINT, fill_paint_variants().into_stream(&r).unwrap()),
         ("blueprint-mix-26-clip", ids::CLIP, clip().into_stream(&r).unwrap()),
     ]
 }
@@ -217,4 +248,5 @@ fn each_stream_validates_against_the_page() {
     paint_order().validate(drawn, 3, 1, 1).unwrap();
     clip().validate(drawn, drawn, 3, 1, 1).unwrap();
     fill_paint().validate(3).unwrap();
+    fill_paint_variants().validate(3).unwrap();
 }

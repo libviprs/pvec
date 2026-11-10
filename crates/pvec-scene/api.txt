@@ -1,4 +1,5 @@
 lib.rs: pub const DEFAULT_MAX_BATCHES: usize
+lib.rs: pub const SUPPORTED: &[&str]
 lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Policy
 lib.rs: Policy.max_batches: usize
 lib.rs: impl Default for Policy

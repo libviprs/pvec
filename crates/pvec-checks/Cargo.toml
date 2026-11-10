@@ -16,3 +16,5 @@ workspace = true
 pvec-capabilities = { path = "../pvec-capabilities" }
 pvec-components = { path = "../pvec-components" }
 pvec-corpus = { path = "../pvec-corpus" }
+pvec-container = { path = "../pvec-container" }
+pvec-scene = { path = "../pvec-scene" }

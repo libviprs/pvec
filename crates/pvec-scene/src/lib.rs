@@ -6,6 +6,10 @@ use pvec_components::{Band, ItemKind, PaintOrderStream, PaintRun, Stream};
 /// The most batches a plan may hold before the legacy plan is returned instead.
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
 
+/// The features of `docs/features.toml` this driver works out: exactly the rows whose `driver` column is true.
+/// A test in `pvec-checks` fails when the two differ.
+pub const SUPPORTED: &[&str] = &["23.stroke_item", "23.fill_item", "23.raster_item", "23.text_item"];
+
 /// What a viewer will pay for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Policy {
