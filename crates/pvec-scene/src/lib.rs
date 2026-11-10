@@ -1,7 +1,9 @@
 //! The paint order of a page, worked out in one place (issue 296, `docs/PAINT.md` sections 2.2 and 5.3).
 
 use pvec_capabilities::CapabilityId;
-use pvec_components::{Band, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling};
+use pvec_components::{
+    Band, FillRule, Gradient, ItemKind, PaintOrderStream, PaintRun, Stream, Tiling, TilingPrimitive,
+};
 
 /// The most batches a plan may hold before the legacy plan is returned instead.
 pub const DEFAULT_MAX_BATCHES: usize = 4096;
@@ -185,20 +187,100 @@ pub struct TileSample {
     pub points: Vec<f32>,
 }
 
+/// A float for the wire: finite whatever the input, since f64 values past `f32::MAX` would become infinite.
+fn finite32(v: f64) -> f32 {
+    if v.is_nan() { 0.0 } else { v.clamp(-f64::from(f32::MAX), f64::from(f32::MAX)) as f32 }
+}
+
 /// Resamples a gradient to a row of RGBA texels for a one-lookup shader.
+///
+/// The row is `texels + 2` texels of four `f32` each, straight alpha, 0 to 1. Texel 0 and the last texel are
+/// guards for a parameter outside 0 to 1: the first stop's colour when `extend_before` (the last stop's when
+/// `extend_after`) and fully transparent otherwise. Texels `1..=texels` sample the parameter `n / (texels - 1)`,
+/// so the first and last of them are exactly the end values. A parameter before the first stop or after the last
+/// one takes the same flag, which folds the extend rule into the data. Between stops the channels are
+/// interpolated linearly; at a repeated offset the later stop wins from that offset on, a hard step. `texels` is
+/// kept between 2 and `MAX_GRADIENT_TEXELS`. A gradient with no stops is transparent. Alpha is never
+/// premultiplied.
 pub fn sample_gradient(g: &Gradient, texels: usize) -> Vec<f32> {
-    todo_gradient(g, texels)
+    const CLEAR: [f32; 4] = [0.0; 4];
+    let texels = texels.clamp(2, MAX_GRADIENT_TEXELS);
+    let colour = |rgba: u32| [24, 16, 8, 0].map(|shift| ((rgba >> shift) & 0xFF) as f32 / 255.0);
+    let (Some(first), Some(last)) = (g.stops.first(), g.stops.last()) else {
+        return vec![0.0; (texels + 2) * 4];
+    };
+    let before = if g.extend_before { colour(first.rgba) } else { CLEAR };
+    let after = if g.extend_after { colour(last.rgba) } else { CLEAR };
+    let at = |t: f64| -> [f32; 4] {
+        let k = g.stops.partition_point(|s| s.offset <= t);
+        if k == 0 {
+            return before;
+        }
+        if k == g.stops.len() {
+            return if t <= last.offset { colour(last.rgba) } else { after };
+        }
+        let (a, b) = (&g.stops[k - 1], &g.stops[k]);
+        let span = b.offset - a.offset;
+        let u = if span > 0.0 { ((t - a.offset) / span).clamp(0.0, 1.0) } else { 1.0 };
+        let (ca, cb) = (colour(a.rgba), colour(b.rgba));
+        [0, 1, 2, 3].map(|c| finite32(f64::from(ca[c]) + (f64::from(cb[c]) - f64::from(ca[c])) * u))
+    };
+    let mut row = Vec::with_capacity((texels + 2) * 4);
+    row.extend_from_slice(&before);
+    for n in 0..texels {
+        row.extend_from_slice(&at(n as f64 / (texels - 1) as f64));
+    }
+    row.extend_from_slice(&after);
+    row
 }
 
 /// Expands a tiling to the primitives of one cell and the neighbour copies that reach into it.
+///
+/// A cell at offset `(i * x_step, j * y_step)` touches the step box at the origin when its extent is wider than
+/// the step, so along each axis there are `ceil(extent / step)` copies, `i` from `1 - n` to 0, and at least one.
+/// Copies come in reading order (`j` outer, `i` inner), so the cell itself is painted last and every copy keeps
+/// the primitive order of the cell. Points are pattern space with the copy offset added; colours, rules and
+/// widths pass through untouched. More than `MAX_TILE_COPIES` copies is `Degrade::TilingTooLarge`. Every number
+/// is finite: values past `f32::MAX` are clamped to it.
 pub fn sample_tiling(t: &Tiling) -> Result<TileSample, Degrade> {
-    todo_tiling(t)
-}
-
-fn todo_gradient(_: &Gradient, _: usize) -> Vec<f32> {
-    Vec::new()
-}
-
-fn todo_tiling(_: &Tiling) -> Result<TileSample, Degrade> {
-    Err(Degrade::TilingTooLarge)
+    let n = |extent: f64, step: f64| (extent / step).ceil().max(1.0);
+    let (nx, ny) = (n(t.cell[2] - t.cell[0], t.x_step), n(t.cell[3] - t.cell[1], t.y_step));
+    if nx * ny > f64::from(MAX_TILE_COPIES) {
+        return Err(Degrade::TilingTooLarge);
+    }
+    let (nx, ny) = (nx as i64, ny as i64);
+    let mut s = TileSample {
+        copies: [nx as u32, ny as u32],
+        kinds: Vec::new(),
+        colours: Vec::new(),
+        widths: Vec::new(),
+        starts: vec![0],
+        points: Vec::new(),
+    };
+    for j in (1 - ny)..=0 {
+        for i in (1 - nx)..=0 {
+            let (dx, dy) = (i as f64 * t.x_step, j as f64 * t.y_step);
+            for p in &t.primitives {
+                let (kind, rgba, width, points) = match p {
+                    TilingPrimitive::Polygon { rule: FillRule::NonZero, rgba, points } => {
+                        (TILE_POLYGON_NONZERO, *rgba, 0.0, points)
+                    }
+                    TilingPrimitive::Polygon { rule: FillRule::EvenOdd, rgba, points } => {
+                        (TILE_POLYGON_EVENODD, *rgba, 0.0, points)
+                    }
+                    TilingPrimitive::Polyline { rgba, width, points } => {
+                        (TILE_POLYLINE, *rgba, *width, points)
+                    }
+                };
+                s.kinds.push(kind);
+                s.colours.push(rgba);
+                s.widths.push(finite32(width));
+                for q in points {
+                    s.points.extend([finite32(q[0] + dx), finite32(q[1] + dy)]);
+                }
+                s.starts.push((s.points.len() / 2) as u32);
+            }
+        }
+    }
+    Ok(s)
 }

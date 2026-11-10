@@ -20,6 +20,8 @@ const RED: u32 = 0xFF00_00FF;
 const GREEN: u32 = 0x00FF_00FF;
 const BLUE: u32 = 0x0000_FFFF;
 const WHITE: u32 = 0xFFFF_FFFF;
+/// Far past `f32::MAX` (about 3.4 x 10^38) and well inside `f64`.
+const HUGE: f64 = f64::MAX / 8.0;
 
 fn words(rgba: u32) -> [f32; 4] {
     [24, 16, 8, 0].map(|s| ((rgba >> s) & 0xFF) as f32 / 255.0)
@@ -119,7 +121,10 @@ fn a_cell_inside_its_step_is_one_copy() {
     let t = tiling([0.0, 0.0, 1.0, 1.0], [1.0, 1.0], vec![square(RED)]);
     let s = sample_tiling(&t).unwrap();
     assert_eq!(s.copies, [1, 1]);
-    assert_eq!((s.kinds.clone(), s.colours.clone(), s.widths.clone()), (vec![TILE_POLYGON_NONZERO], vec![RED], vec![0.0]));
+    assert_eq!(
+        (s.kinds.clone(), s.colours.clone(), s.widths.clone()),
+        (vec![TILE_POLYGON_NONZERO], vec![RED], vec![0.0])
+    );
     assert_eq!(s.starts, vec![0, 4]);
     assert_eq!(s.points, vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
 }
@@ -157,8 +162,16 @@ fn polygon_rules_and_polylines_keep_their_kind_colour_and_width() {
         [0.0, 0.0, 1.0, 1.0],
         [1.0, 1.0],
         vec![
-            TilingPrimitive::Polygon { rule: FillRule::EvenOdd, rgba: GREEN, points: vec![[0.0; 2], [1.0, 0.0], [0.0, 1.0]] },
-            TilingPrimitive::Polyline { rgba: 0x1234_5678, width: 0.25, points: vec![[0.0, 0.0], [1.0, 1.0]] },
+            TilingPrimitive::Polygon {
+                rule: FillRule::EvenOdd,
+                rgba: GREEN,
+                points: vec![[0.0; 2], [1.0, 0.0], [0.0, 1.0]],
+            },
+            TilingPrimitive::Polyline {
+                rgba: 0x1234_5678,
+                width: 0.25,
+                points: vec![[0.0, 0.0], [1.0, 1.0]],
+            },
         ],
     );
     let s = sample_tiling(&t).unwrap();
@@ -175,7 +188,7 @@ fn a_tiling_past_the_copy_cap_is_reported_and_one_at_the_cap_is_expanded() {
     assert_eq!(MAX_TILE_COPIES, 64);
     let past = tiling([0.0, 0.0, 9.0, 8.0], [1.0, 1.0], vec![square(RED)]);
     assert_eq!(sample_tiling(&past), Err(Degrade::TilingTooLarge));
-    let absurd = tiling([0.0, 0.0, 1e300, 1e300], [1e-300, 1e-300], vec![square(RED)]);
+    let absurd = tiling([0.0, 0.0, HUGE, HUGE], [1.0 / HUGE, 1.0 / HUGE], vec![square(RED)]);
     assert_eq!(sample_tiling(&absurd), Err(Degrade::TilingTooLarge));
 }
 
@@ -201,7 +214,8 @@ fn all_finite(g: &[Gradient], t: &[Tiling]) -> usize {
 
 #[test]
 fn every_number_is_finite_on_the_golden_file() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat/blueprint-mix-25-fill-paint.pvec");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat/blueprint-mix-25-fill-paint.pvec");
     let reader =
         ContainerReader::open(MemorySource::new(fs::read(path).unwrap()), ReaderConfig::default()).unwrap();
     let at = reader.entries().iter().position(|e| e.block_kind() == Some(BlockKind::Components)).unwrap();
@@ -229,8 +243,9 @@ fn every_number_is_finite_on_the_fuzz_corpus_and_on_extreme_values() {
         [big, big],
         vec![TilingPrimitive::Polyline { rgba: RED, width: big, points: vec![[big, -big], [-big, big]] }],
     );
-    assert_eq!(all_finite(&[], &[t]), 1);
-    let near = tiling([0.0, 0.0, 1.5 * big, 1.0], [big, 1.0], vec![square(RED)]);
+    assert_eq!(sample_tiling(&t), Err(Degrade::TilingTooLarge), "an infinite extent is over the cap");
+    assert_eq!(all_finite(&[], &[t]), 0);
+    let near = tiling([0.0, 0.0, 1.5 * HUGE, 1.0], [HUGE, 1.0], vec![square(RED)]);
     assert_eq!(all_finite(&[], &[near]), 1);
     let g = gradient(&[(f64::NAN, RED), (f64::INFINITY, BLUE)], true, true);
     assert_eq!(all_finite(&[g], &[]), 2);
