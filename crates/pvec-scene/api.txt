@@ -1,0 +1,20 @@
+lib.rs: pub const DEFAULT_MAX_BATCHES: usize
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct Policy
+lib.rs: Policy.max_batches: usize
+lib.rs: impl Default for Policy
+lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct Counts
+lib.rs: Counts.strokes: u32
+lib.rs: Counts.fills: u32
+lib.rs: Counts.texts: u32
+lib.rs: Counts.rasters: Vec<Band>
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub struct PaintBatch
+lib.rs: PaintBatch.kind: ItemKind
+lib.rs: PaintBatch.first: u32
+lib.rs: PaintBatch.count: u32
+lib.rs: #[derive(Clone, Copy, Debug, PartialEq, Eq)] pub enum Degrade
+lib.rs: Degrade::TooManyBatches
+lib.rs: Degrade::StreamDamaged { id: CapabilityId, rule: &'static str }
+lib.rs: #[derive(Clone, Debug, PartialEq, Eq)] pub struct ScenePlan
+lib.rs: ScenePlan.batches: Vec<PaintBatch>
+lib.rs: ScenePlan.degrades: Vec<Degrade>
+lib.rs: ScenePlan::build(streams: &[Stream], counts: &Counts, policy: Policy) -> ScenePlan

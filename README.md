@@ -26,6 +26,7 @@ the capability ABI and the component model, as crates:
 | `pvec-entity` | the file-local `EntityId` and the table that resolves it to bounds |
 | `pvec-codec` | the geometry codecs: curves to the type-batched block payload of ADR 0004 and back |
 | `pvec-components` | independent component streams (layer, line style, text, hatch, provenance) |
+| `pvec-scene` | the paint order of a page worked out once: ordered batches and a report of what was given up |
 | `pvec-checks` | repository checks, including the public-API snapshots and the crate boundaries |
 
 The container itself, spatial indexing and streaming, interchange and the public API freeze are later
