@@ -224,9 +224,13 @@ A separate parity pass is not needed, and a clip that nests deeper than 8 is ref
 
 The fill pipeline gets a variant whose vertices carry a gradient index. The stops of every gradient are resampled to 256 texels, one row per gradient in a small texture (4,096 rows at most), so the fragment shader does one lookup. The fragment maps the source position through the inverse gradient transform, computes the parameter (the projection for axial, the quadratic of the circle family for radial), discards what is outside the extend flags and what no circle reaches, and samples the row. Precision: positions are taken relative to the camera centre like every other pass.
 
+The numbers come out of `pvec-scene::sample_gradient`: a row of `texels + 2` RGBA `f32` texels (planviewer asks for 256), where the first and last texel are guards that are the end colours when the matching extend flag is set and fully transparent when it is not, and the texels between sample the stops (exactly the first and last stop at the ends, a hard step at a repeated offset, straight alpha untouched).
+
 ### 5.6 Tiling
 
 A tiling is drawn into an offscreen RGBA texture holding one cell (and the neighbouring copies when the cell box is larger than the step), at a size chosen from the device pixels one step covers, rounded to a power of two between 16 and 1,024 so it is redrawn when the zoom crosses a bucket and not every frame. Mipmaps are generated. The fill fragment maps the source position through the inverse pattern transform, takes the fractional part of position over step, and samples with repeat. An uncoloured tiling uses the texture as a coverage mask times the record's colour. When a step is under two device pixels the shader reads the top mip, which is the mean colour, so a dense pattern fades to a tint and not to noise, as dashes already do.
+
+`pvec-scene::sample_tiling` gives the primitive list for that texture as plain vectors: `ceil(cell width / x_step)` by `ceil(cell height / y_step)` copies of the cell (one when the cell box fits inside the step), neighbours first and the cell itself last, with the copy offsets already added to the points. More than 64 copies is reported as `Degrade::TilingTooLarge` and the area keeps its flat colour.
 
 ### 5.7 Text
 

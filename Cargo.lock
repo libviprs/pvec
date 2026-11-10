@@ -260,6 +260,7 @@ dependencies = [
  "pvec-components",
  "pvec-container",
  "pvec-entity",
+ "pvec-fuzz",
 ]
 
 [[package]]

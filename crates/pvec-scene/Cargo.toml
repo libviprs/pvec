@@ -16,6 +16,7 @@ pvec-entity = { path = "../pvec-entity" }
 
 [dev-dependencies]
 pvec-container = { path = "../pvec-container" }
+pvec-fuzz = { path = "../pvec-fuzz" }
 
 [lints]
 workspace = true
