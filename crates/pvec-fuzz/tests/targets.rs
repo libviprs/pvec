@@ -10,7 +10,7 @@ use support::*;
 #[global_allocator]
 static ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-const NAMES: [&str; 13] = [
+const NAMES: [&str; 14] = [
     "fuzz_header",
     "fuzz_directory_traversal",
     "fuzz_immediate_blocks",
@@ -24,6 +24,7 @@ const NAMES: [&str; 13] = [
     "fuzz_spill_writer",
     "fuzz_calibration",
     "fuzz_fill_paint",
+    "fuzz_scene_plan",
 ];
 
 #[test]
@@ -252,5 +253,21 @@ fn the_fill_paint_target_reaches_its_parser_and_each_rule_it_is_for() {
     assert!(inputs.iter().filter(|i| pvec_fuzz::fuzz_fill_paint(i) == "ok").count() >= 4);
     for input in &inputs {
         assert_eq!(panics(|| drop(pvec_fuzz::fuzz_fill_paint(input))), None);
+    }
+}
+
+#[test]
+fn the_scene_plan_target_reaches_the_plan_the_tree_and_the_rules_it_is_for() {
+    let seeds = corpus();
+    let inputs = for_target("fuzz_scene_plan", &seeds);
+    assert!(inputs.len() >= 60, "only {} seeds", inputs.len());
+    let words: std::collections::BTreeSet<String> =
+        inputs.iter().map(|i| pvec_fuzz::fuzz_scene_plan(i)).collect();
+    for want in ["ok", "too_many_batches", "clip_unbuildable", "short"] {
+        assert!(words.contains(want), "no seed reaches {want}: {words:?}");
+    }
+    assert!(words.iter().any(|w| w.starts_with("COMP-")), "no seed reaches a COMP rule: {words:?}");
+    for input in &inputs {
+        assert_eq!(panics(|| drop(pvec_fuzz::fuzz_scene_plan(input))), None);
     }
 }

@@ -193,6 +193,7 @@ dependencies = [
  "pvec-geometry",
  "pvec-interchange",
  "pvec-numeric",
+ "pvec-scene",
  "pvec-stream",
  "pvec-testkit",
 ]

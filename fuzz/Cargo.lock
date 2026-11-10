@@ -144,6 +144,7 @@ dependencies = [
  "pvec-entity",
  "pvec-interchange",
  "pvec-numeric",
+ "pvec-scene",
  "pvec-stream",
  "pvec-testkit",
 ]
@@ -179,6 +180,15 @@ dependencies = [
 [[package]]
 name = "pvec-numeric"
 version = "0.0.0"
+
+[[package]]
+name = "pvec-scene"
+version = "0.0.0"
+dependencies = [
+ "pvec-capabilities",
+ "pvec-components",
+ "pvec-entity",
+]
 
 [[package]]
 name = "pvec-stream"

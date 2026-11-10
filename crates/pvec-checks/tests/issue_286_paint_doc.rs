@@ -90,7 +90,7 @@ fn p2_the_registry_docs_and_matrix_know_capability_25() {
 #[test]
 fn p2_the_thirteenth_fuzz_target_is_named_in_the_docs_and_the_script() {
     let doc = read("docs/FUZZING.md");
-    assert!(doc.contains("The thirteen targets") && doc.contains("`fuzz_fill_paint` is the thirteenth"));
+    assert!(doc.contains("The fourteen targets") && doc.contains("`fuzz_fill_paint` is the thirteenth"));
     assert!(read("tools/fuzz.sh").contains("fuzz_fill_paint"));
     assert!(repo_root().join("fuzz/fuzz_targets/fuzz_fill_paint.rs").is_file());
 }

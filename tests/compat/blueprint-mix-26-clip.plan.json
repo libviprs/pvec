@@ -1,0 +1,25 @@
+{
+  "counts": {"strokes": 8, "fills": 3, "texts": 1, "rasters": ["underlay"]},
+  "policy": {"max_batches": 4096},
+  "rings": "unit_square",
+  "batches": [
+    {"kind": "raster", "first": 0, "count": 1},
+    {"kind": "fill", "first": 0, "count": 3},
+    {"kind": "stroke", "first": 0, "count": 8},
+    {"kind": "text", "first": 0, "count": 1}
+  ],
+  "clip_nodes": [
+    {"rule": "nonzero", "parent": null, "depth": 1, "write_bit": 1, "chain_mask": 0, "rings": 1},
+    {"rule": "evenodd", "parent": 0, "depth": 2, "write_bit": 2, "chain_mask": 1, "rings": 2}
+  ],
+  "clip_runs": [
+    {"batch": 0, "first": 0, "count": 1, "clip": 0},
+    {"batch": 1, "first": 0, "count": 1, "clip": null},
+    {"batch": 1, "first": 1, "count": 2, "clip": 1},
+    {"batch": 2, "first": 0, "count": 2, "clip": null},
+    {"batch": 2, "first": 2, "count": 2, "clip": 0},
+    {"batch": 2, "first": 4, "count": 4, "clip": null},
+    {"batch": 3, "first": 0, "count": 1, "clip": null}
+  ],
+  "degrades": []
+}
