@@ -1,0 +1,22 @@
+{
+  "counts": {"strokes": 8, "fills": 3, "texts": 1, "rasters": ["underlay"]},
+  "policy": {"max_batches": 2},
+  "rings": "none",
+  "batches": [
+    {"kind": "raster", "first": 0, "count": 1},
+    {"kind": "fill", "first": 0, "count": 3},
+    {"kind": "stroke", "first": 0, "count": 8},
+    {"kind": "text", "first": 0, "count": 1}
+  ],
+  "clip_nodes": [
+    {"rule": "nonzero", "parent": null, "depth": 1, "write_bit": 1, "chain_mask": 0, "rings": null},
+    {"rule": "evenodd", "parent": 0, "depth": 2, "write_bit": 2, "chain_mask": 1, "rings": null}
+  ],
+  "clip_runs": [
+    {"batch": 1, "first": 0, "count": 1, "clip": null},
+    {"batch": 2, "first": 0, "count": 2, "clip": null},
+    {"batch": 2, "first": 4, "count": 4, "clip": null},
+    {"batch": 3, "first": 0, "count": 1, "clip": null}
+  ],
+  "degrades": ["clip_unbuildable:0:5"]
+}

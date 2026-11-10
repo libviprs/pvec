@@ -226,6 +226,10 @@ pub fn for_target(target: &str, seeds: &[Seed]) -> Vec<Vec<u8>> {
         // not made of artifacts: fill paint payloads (a gradient of each kind, a tiling, assignments) and mutants
         return fill_paint_inputs();
     }
+    if target == "fuzz_scene_plan" {
+        // not made of artifacts: a page's counts, then a paint order payload and a clip payload, and mutants
+        return scene_plan_inputs();
+    }
     if target == "fuzz_spill_writer" {
         // not made of artifacts either: scripts of pushes, a budget, a store that fails and a sink that fills
         return spill_inputs();
@@ -863,6 +867,72 @@ fn fill_paint_inputs() -> Vec<Vec<u8>> {
         long.push(0);
         out.push(long);
         out.push(b);
+    }
+    out
+}
+
+/// The inputs of `fuzz_scene_plan` (issue 300): the page of the golden files (eight strokes, three fills, one
+/// text, one underlay raster) with a paint order payload and a clip payload that decode, then mutants: a count
+/// raised past the page, a kind tag set past its range, the batch limit 0 and 1, the split moved into a payload,
+/// and each payload cut or extended by a byte.
+fn scene_plan_inputs() -> Vec<Vec<u8>> {
+    use pvec_capabilities::Registry;
+    use pvec_components::{ClipRecord, ClipRun, ClipStream, FillRule, ItemKind, PaintOrderStream, PaintRun};
+    use pvec_entity::EntityId;
+    let run = |kind, first, count| PaintRun { kind, first, count };
+    let order = |runs| PaintOrderStream { runs }.into_stream(&Registry::v1()).expect("a seed").payload;
+    let orders = [
+        order(vec![run(ItemKind::Stroke, 4, 4), run(ItemKind::Fill, 0, 1), run(ItemKind::Stroke, 0, 4)]),
+        order(vec![run(ItemKind::Text, 0, 1), run(ItemKind::Raster, 0, 1), run(ItemKind::Fill, 1, 2)]),
+        order((0..6).map(|n| run(ItemKind::Stroke, n, 1)).collect()),
+    ];
+    let record = |parent, entity: u32| ClipRecord {
+        rule: FillRule::NonZero,
+        parent,
+        boundary: vec![EntityId::new(entity).expect("an id")],
+    };
+    let clip_run = |kind, first, count, clip| ClipRun { kind, first, count, clip };
+    let clip = |clips, runs| ClipStream { clips, runs }.into_stream(&Registry::v1()).expect("a seed").payload;
+    let clips = [
+        // entity 3 gives a square, 1 a ring of two points, 2 one with a NaN, 4 none at all
+        clip(vec![record(None, 3)], vec![clip_run(ItemKind::Stroke, 0, 4, 0)]),
+        clip(
+            vec![record(None, 3), record(Some(0), 7), record(None, 1)],
+            vec![clip_run(ItemKind::Stroke, 1, 2, 1), clip_run(ItemKind::Fill, 0, 2, 2)],
+        ),
+        clip(vec![record(None, 2), record(Some(0), 3)], vec![clip_run(ItemKind::Text, 0, 1, 1)]),
+        clip(vec![record(None, 4)], vec![clip_run(ItemKind::Raster, 0, 1, 0)]),
+    ];
+    let mut out = vec![Vec::new(), vec![0; 7]];
+    for (n, order) in orders.iter().enumerate() {
+        for clip in &clips {
+            let make = |head: [u8; 7], order: &[u8], clip: &[u8]| {
+                let mut v = head.to_vec();
+                v[6] = order.len() as u8;
+                v.extend_from_slice(order);
+                v.extend_from_slice(clip);
+                v
+            };
+            let page = [8, 3, 1, 1, 0, 255, 0];
+            out.push(make(page, order, clip));
+            out.push(make([8, 3, 1, 1, 0, 0, 0], order, clip));
+            out.push(make([8, 3, 1, 1, 0, 1, 0], order, clip));
+            out.push(make([9, 3, 1, 1, 1, 255, 0], order, clip));
+            out.push(make([200, 200, 200, 200, 255, 255, 0], order, clip));
+            let mut bad_kind = order.clone();
+            if bad_kind.len() > 4 + n {
+                bad_kind[4] = 9;
+            }
+            out.push(make(page, &bad_kind, clip));
+            out.push(make(page, &order[..order.len() - 1], clip));
+            out.push(make(page, order, &clip[..clip.len() - 1]));
+            let mut long = clip.clone();
+            long.push(0);
+            out.push(make(page, order, &long));
+            let mut split = make(page, order, clip);
+            split[6] = split[6].wrapping_sub(1);
+            out.push(split);
+        }
     }
     out
 }

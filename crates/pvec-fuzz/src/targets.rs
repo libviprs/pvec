@@ -28,7 +28,7 @@ use std::sync::OnceLock;
 pub type Target = fn(&[u8]) -> String;
 
 /// The targets by name.
-pub const TARGETS: [(&str, Target); 13] = [
+pub const TARGETS: [(&str, Target); 14] = [
     ("fuzz_header", fuzz_header),
     ("fuzz_directory_traversal", fuzz_directory_traversal),
     ("fuzz_immediate_blocks", fuzz_immediate_blocks),
@@ -42,6 +42,7 @@ pub const TARGETS: [(&str, Target); 13] = [
     ("fuzz_spill_writer", crate::spill::fuzz_spill_writer),
     ("fuzz_calibration", fuzz_calibration),
     ("fuzz_fill_paint", fuzz_fill_paint),
+    ("fuzz_scene_plan", fuzz_scene_plan),
 ];
 
 /// The input as the target sees it: with the `no-checksum-gate` feature, resealed when it still lays out as
@@ -704,4 +705,103 @@ pub fn fuzz_calibration(data: &[u8]) -> String {
         let _ = check_residual(g);
     }
     "ok".to_string()
+}
+
+/// The scene plan and the clip tree (`pvec-scene`, `docs/PAINT.md` sections 2.2 and 5.3) over hostile paint order
+/// and clip payloads. The input is six bytes (strokes, fills, texts, rasters, the bands of the rasters one bit
+/// each, the batch limit) and a split byte, then the paint order payload up to the split and the clip payload after
+/// it. Whatever the payloads hold, the plan names every item once, a plan that gave up equals the legacy plan, and
+/// every item is either in a run of the clip tree or counted in a `ClipUnbuildable`.
+pub fn fuzz_scene_plan(data: &[u8]) -> String {
+    use pvec_capabilities::{CapabilityId, ids};
+    use pvec_components::{Band, ItemKind, Stream};
+    use pvec_scene::{ClipTree, Counts, Degrade, Policy, ScenePlan};
+    let Some((head, rest)) = data.split_at_checked(7) else {
+        return "short".to_string();
+    };
+    let counts = Counts {
+        strokes: u32::from(head[0]),
+        fills: u32::from(head[1]),
+        texts: u32::from(head[2]),
+        rasters: (0..head[3])
+            .map(|n| if head[4] >> (n % 8) & 1 == 1 { Band::Overlay } else { Band::Underlay })
+            .collect(),
+    };
+    let policy = Policy { max_batches: usize::from(head[5]) };
+    let (order, clip) = rest.split_at(usize::from(head[6]).min(rest.len()));
+    let stream = |capability: CapabilityId, payload: &[u8]| Stream {
+        capability,
+        version: Version::new(1, 0, 0),
+        payload: payload.to_vec(),
+    };
+    let streams = [stream(ids::PAINT_ORDER, order), stream(ids::CLIP, clip)];
+    // a ring the page cannot give, one of two points, one with a NaN, and a square
+    let ring_of = |e: EntityId| match e.index() % 4 {
+        0 => None,
+        1 => Some(vec![[0.0, 0.0], [1.0, 0.0]]),
+        2 => Some(vec![[0.0, 0.0], [f64::NAN, 0.0], [1.0, 1.0]]),
+        _ => Some(vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]),
+    };
+    let plan = ScenePlan::build(&streams, &counts, policy);
+    assert_eq!(plan, ScenePlan::build(&streams, &counts, policy), "a plan that differs from itself");
+    let limit = |kind: ItemKind| match kind {
+        ItemKind::Stroke => counts.strokes,
+        ItemKind::Fill => counts.fills,
+        ItemKind::Text => counts.texts,
+        ItemKind::Raster => counts.rasters.len() as u32,
+    };
+    let mut seen = [(); 4].map(|()| vec![false; 256]);
+    for b in &plan.batches {
+        assert!(b.count >= 1 && b.first + b.count <= limit(b.kind), "a batch outside the page");
+        for n in b.first..b.first + b.count {
+            let slot = &mut seen[b.kind as usize % 4][n as usize];
+            assert!(!*slot, "an item in two batches");
+            *slot = true;
+        }
+    }
+    let items: u32 = plan.batches.iter().map(|b| b.count).sum();
+    let total = counts.strokes + counts.fills + counts.texts + counts.rasters.len() as u32;
+    assert_eq!(items, total, "an item in no batch");
+    let gave_up =
+        plan.degrades.iter().any(|d| matches!(d, Degrade::TooManyBatches | Degrade::StreamDamaged { .. }));
+    if gave_up {
+        assert_eq!(
+            plan.batches,
+            ScenePlan::build(&[], &counts, policy).batches,
+            "a plan that gave up is not the legacy one"
+        );
+    }
+    let tree = ClipTree::build(&streams, &plan, ring_of);
+    assert_eq!(tree, ClipTree::build(&streams, &plan, ring_of), "a tree that differs from itself");
+    for (k, n) in tree.nodes.iter().enumerate() {
+        assert!(n.parent.is_none_or(|p| (p as usize) < k), "a parent after its child");
+        assert!(
+            (1..=8).contains(&n.depth)
+                && n.write_bit == 1 << (n.depth - 1)
+                && u16::from(n.chain_mask) == u16::from(n.write_bit) - 1
+        );
+    }
+    let mut drawn = 0;
+    for r in &tree.runs {
+        let b = plan.batches.get(r.batch).expect("a run of no batch");
+        assert!(
+            r.count >= 1 && r.first >= b.first && r.first + r.count <= b.first + b.count,
+            "a run outside its batch"
+        );
+        assert!(r.clip.is_none_or(|c| (c as usize) < tree.nodes.len()), "a run in no clip");
+        drawn += r.count;
+    }
+    let lost: u32 = tree
+        .degrades
+        .iter()
+        .map(|d| if let Degrade::ClipUnbuildable { items, .. } = d { *items } else { 0 })
+        .sum();
+    assert_eq!(drawn + lost, items, "an item neither drawn nor counted");
+    match plan.degrades.first().or(tree.degrades.first()) {
+        None => "ok".to_string(),
+        Some(Degrade::TooManyBatches) => "too_many_batches".to_string(),
+        Some(Degrade::TilingTooLarge) => "tiling_too_large".to_string(),
+        Some(Degrade::StreamDamaged { rule, .. }) => (*rule).to_string(),
+        Some(Degrade::ClipUnbuildable { .. }) => "clip_unbuildable".to_string(),
+    }
 }

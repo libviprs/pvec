@@ -114,3 +114,10 @@ path = "fuzz_targets/fuzz_fill_paint.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_scene_plan"
+path = "fuzz_targets/fuzz_scene_plan.rs"
+test = false
+doc = false
+bench = false
