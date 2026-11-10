@@ -1,0 +1,2 @@
+[workspace.dependencies]
+pvec-container = { git = "https://github.com/libviprs/pvec", rev = "b9f441618153d256777121a6a1518b15e7f42099" }

@@ -1,0 +1,2 @@
+[dependencies]
+pvec = { git = "https://github.com/libviprs/pvec", branch = "main" }
