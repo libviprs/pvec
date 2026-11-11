@@ -139,3 +139,15 @@ fn the_region_reader_expands_a_bare_id_with_the_fixture_before_it() {
     let md = "## 7. x\n\n| 2 | fid-a/one, two; fid-b/three | c | d |\n## 8. y\n| 1 | fid-z/no | c | d |\n";
     assert_eq!(paint_regions(md), ["fid-a/one", "fid-a/two", "fid-b/three"]);
 }
+
+#[test]
+fn issue_316_planviewer_consumes_text_and_raster_items() {
+    let t = table();
+    for key in ["23.text_item", "23.raster_item"] {
+        let f = t.iter().find(|f| f.key == key).unwrap_or_else(|| panic!("{key} is not in the table"));
+        assert!(f.consumer, "{key} must be consumer = true");
+        assert!(pvec_scene::CONSUMED.contains(&key), "{key} must be in CONSUMED");
+    }
+    let raster = t.iter().find(|f| f.key == "23.raster_item").unwrap();
+    assert!(raster.regions.iter().any(|r| r == "fid-raster-mix/white-over-raster"), "white-over-raster stays listed");
+}
