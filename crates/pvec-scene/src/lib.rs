@@ -34,6 +34,8 @@ pub const SUPPORTED: &[&str] = &[
 pub const CONSUMED: &[&str] = &[
     "23.stroke_item",
     "23.fill_item",
+    "23.raster_item",
+    "23.text_item",
     "24.colour",
     "24.alpha",
     "25.rule.nonzero",
