@@ -24,7 +24,7 @@ key = "23.raster_item"
 what = "A raster named in the paint order, so a picture is painted where the PDF paints it."
 producer = true
 driver = true
-consumer = false
+consumer = true
 golden = "tests/compat/blueprint-mix-23-paint-order.pvec"
 regions = ["fid-raster-mix/raster-quadrant-red", "fid-raster-mix/raster-quadrant-green", "fid-raster-mix/raster-quadrant-blue", "fid-raster-mix/raster-ramp", "fid-raster-mix/raster-over-fill", "fid-raster-mix/white-over-raster", "fid-raster-smask/smask-ramp-left", "fid-raster-smask/smask-ramp-right", "fid-raster-smask/smask-ramp-all", "fid-raster-smask/smask-opaque", "fid-blueprint-mix/bp-scan-paper", "fid-blueprint-mix/bp-overlay"]
 
@@ -33,7 +33,7 @@ key = "23.text_item"
 what = "A text record named in the paint order."
 producer = true
 driver = true
-consumer = false
+consumer = true
 golden = "tests/compat/blueprint-mix-23-paint-order.pvec"
 regions = ["fid-blueprint-mix/bp-text"]
 

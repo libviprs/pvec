@@ -8,8 +8,8 @@ A capability says a stream exists. A feature says which part of it is written (p
 |---|---|---|---|---|---|
 | `23.stroke_item` | A run of strokes in the paint order. | yes | yes | yes | `tests/compat/blueprint-mix-23-paint-order.pvec` |
 | `23.fill_item` | A run of hatch fills in the paint order, so a stroke can sit under a fill. | yes | yes | yes | `tests/compat/blueprint-mix-23-paint-order.pvec` |
-| `23.raster_item` | A raster named in the paint order, so a picture is painted where the PDF paints it. | yes | yes | no | `tests/compat/blueprint-mix-23-paint-order.pvec` |
-| `23.text_item` | A text record named in the paint order. | yes | yes | no | `tests/compat/blueprint-mix-23-paint-order.pvec` |
+| `23.raster_item` | A raster named in the paint order, so a picture is painted where the PDF paints it. | yes | yes | yes | `tests/compat/blueprint-mix-23-paint-order.pvec` |
+| `23.text_item` | A text record named in the paint order. | yes | yes | yes | `tests/compat/blueprint-mix-23-paint-order.pvec` |
 | `24.colour` | A stroke colour per entity. | yes | no | yes | `tests/compat/blueprint-mix-24-stroke-paint.pvec` |
 | `24.alpha` | Stroke alpha in the low byte of the colour word. | yes | no | yes | `tests/compat/blueprint-mix-24-stroke-paint.pvec` |
 | `25.rule.nonzero` | Nonzero winding over all the rings of a hatch record. | yes | no | yes | `tests/compat/blueprint-mix-25-fill-paint.pvec` |
