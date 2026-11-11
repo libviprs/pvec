@@ -32,7 +32,11 @@ fn a_split_rev_fails_and_names_both() {
     let o = run(&["split/libviprs", "split/planviewer", "split/server"]);
     assert_eq!(o.status.code(), Some(1), "{}", text(&o));
     let t = text(&o);
-    assert!(t.contains("1a9d972ef844d4258a641d3891473ce2f1c39ce4") && t.contains("b9f441618153d256777121a6a1518b15e7f42099"), "{t}");
+    assert!(
+        t.contains("1a9d972ef844d4258a641d3891473ce2f1c39ce4")
+            && t.contains("b9f441618153d256777121a6a1518b15e7f42099"),
+        "{t}"
+    );
     assert!(t.contains("tests/pdf-compare/gen/Cargo.toml"), "{t}");
 }
 

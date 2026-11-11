@@ -60,7 +60,12 @@ fn the_golden_file_gives_the_listed_order_after_the_unlisted_strokes() {
 
 #[test]
 fn a_page_with_no_stream_gets_the_legacy_stage_order() {
-    let counts = Counts { strokes: 3, fills: 2, texts: 1, rasters: vec![Band::Overlay, Band::Underlay, Band::Underlay] };
+    let counts = Counts {
+        strokes: 3,
+        fills: 2,
+        texts: 1,
+        rasters: vec![Band::Overlay, Band::Underlay, Band::Underlay],
+    };
     let plan = ScenePlan::build(&[], &counts, Policy::default());
     assert_eq!(plan.degrades, vec![]);
     assert_eq!(
@@ -78,7 +83,10 @@ fn a_page_with_no_stream_gets_the_legacy_stage_order() {
 #[test]
 fn an_empty_page_has_no_batches() {
     let counts = Counts { strokes: 0, fills: 0, texts: 0, rasters: vec![] };
-    assert_eq!(ScenePlan::build(&[], &counts, Policy::default()), ScenePlan { batches: vec![], degrades: vec![] });
+    assert_eq!(
+        ScenePlan::build(&[], &counts, Policy::default()),
+        ScenePlan { batches: vec![], degrades: vec![] }
+    );
 }
 
 #[test]
@@ -164,7 +172,10 @@ fn a_stream_that_names_an_item_the_page_lacks_is_damaged() {
 #[test]
 fn streams_of_other_capabilities_are_ignored() {
     let mut streams = golden_streams();
-    streams.insert(0, Stream { capability: ids::STROKE_PAINT, version: Version::new(1, 0, 0), payload: vec![1, 2, 3] });
+    streams.insert(
+        0,
+        Stream { capability: ids::STROKE_PAINT, version: Version::new(1, 0, 0), payload: vec![1, 2, 3] },
+    );
     let plan = ScenePlan::build(&streams, &page(), Policy::default());
     assert_eq!(plan.degrades, vec![]);
     assert_eq!(plan.batches.len(), 6);
