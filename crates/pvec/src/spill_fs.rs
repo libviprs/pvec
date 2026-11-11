@@ -17,7 +17,6 @@ static STORES: AtomicU64 = AtomicU64::new(0);
 #[derive(Debug)]
 struct Entry {
     path: PathBuf,
-    writer: File,
     reader: Option<File>,
 }
 
@@ -65,9 +64,11 @@ impl SpillStore for FsStore {
         let mut st = self.state()?;
         let id = st.next;
         let path = self.dir.join(format!("f{id}"));
-        let writer = OpenOptions::new().append(true).create_new(true).open(&path).map_err(SpillError::new)?;
+        // created here and closed again: a sorter with a tiny budget makes thousands of runs before it merges
+        // any, and a descriptor held per run runs into the process limit
+        OpenOptions::new().append(true).create_new(true).open(&path).map_err(SpillError::new)?;
         st.next += 1;
-        st.files.insert(id, Entry { path, writer, reader: None });
+        st.files.insert(id, Entry { path, reader: None });
         Ok(FileId(id))
     }
 
@@ -75,7 +76,8 @@ impl SpillStore for FsStore {
         let mut st = self.state()?;
         let e =
             st.files.get_mut(&file.0).ok_or_else(|| SpillError::corrupt("a spill file that is not there"))?;
-        e.writer.write_all(bytes).map_err(SpillError::new)
+        let mut f = OpenOptions::new().append(true).open(&e.path).map_err(SpillError::new)?;
+        f.write_all(bytes).map_err(SpillError::new)
     }
 
     fn read_at(&self, file: FileId, offset: u64, buf: &mut [u8]) -> SpillResult<usize> {
@@ -100,7 +102,6 @@ impl SpillStore for FsStore {
         let mut st = self.state()?;
         if let Some(e) = st.files.remove(&file.0) {
             drop(e.reader);
-            drop(e.writer);
             fs::remove_file(&e.path).map_err(SpillError::new)?;
         }
         Ok(())

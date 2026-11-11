@@ -49,8 +49,14 @@ fn file_with(stream: Stream) -> Vec<u8> {
         capabilities: Vec::new(),
     });
     for (n, pts) in page() {
-        let min = [pts.iter().map(|p| p[0]).fold(f64::MAX, f64::min), pts.iter().map(|p| p[1]).fold(f64::MAX, f64::min)];
-        let max = [pts.iter().map(|p| p[0]).fold(f64::MIN, f64::max), pts.iter().map(|p| p[1]).fold(f64::MIN, f64::max)];
+        let min = [
+            pts.iter().map(|p| p[0]).fold(f64::MAX, f64::min),
+            pts.iter().map(|p| p[1]).fold(f64::MAX, f64::min),
+        ];
+        let max = [
+            pts.iter().map(|p| p[0]).fold(f64::MIN, f64::max),
+            pts.iter().map(|p| p[1]).fold(f64::MIN, f64::max),
+        ];
         w.push_polyline(EntityMeta { id: id(n), style: 0, cell: 0, bounds: Bounds { min, max } }, &pts)
             .expect("a polyline");
     }
@@ -199,7 +205,8 @@ fn the_golden_files_are_what_this_test_writes() {
         if std::env::var_os("PVEC_BLESS_FIXTURE").is_some() {
             fs::write(&path, &want).unwrap();
         }
-        let have = fs::read(&path).unwrap_or_else(|_| panic!("{name}.pvec: write it with PVEC_BLESS_FIXTURE=1"));
+        let have =
+            fs::read(&path).unwrap_or_else(|_| panic!("{name}.pvec: write it with PVEC_BLESS_FIXTURE=1"));
         assert!(have == want, "{name}.pvec is not what this test writes: bless it again");
     }
 }
@@ -208,7 +215,10 @@ fn the_golden_files_are_what_this_test_writes() {
 fn a_current_reader_gets_each_stream_back_and_skips_nothing() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat");
     let registry = Registry::v1();
-    let current = Reader { version: Version::new(1, 3, 0), implemented: vec![ids::PAINT_ORDER, ids::STROKE_PAINT, ids::FILL_PAINT, ids::CLIP] };
+    let current = Reader {
+        version: Version::new(1, 3, 0),
+        implemented: vec![ids::PAINT_ORDER, ids::STROKE_PAINT, ids::FILL_PAINT, ids::CLIP],
+    };
     for (name, cap, stream) in cases() {
         let bytes = fs::read(dir.join(format!("{name}.pvec"))).unwrap();
         let cfg = ReaderConfig::default();
@@ -217,7 +227,11 @@ fn a_current_reader_gets_each_stream_back_and_skips_nothing() {
         let opened = read_streams(&component_set(&bytes), &registry, &current).unwrap();
         assert!(opened.skipped.is_empty(), "{name}");
         assert_eq!(opened.streams.len(), 1, "{name}");
-        assert_eq!((opened.streams[0].capability, &opened.streams[0].payload), (cap, &stream.payload), "{name}");
+        assert_eq!(
+            (opened.streams[0].capability, &opened.streams[0].payload),
+            (cap, &stream.payload),
+            "{name}"
+        );
     }
 }
 
@@ -226,14 +240,20 @@ fn an_old_reader_skips_each_stream_unread_and_keeps_the_geometry() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/compat");
     let registry = Registry::v1();
     let old = Reader { version: Version::new(1, 0, 0), implemented: Vec::new() };
-    let base = geometry(&fs::read(dir.join("blueprint-mix-23-paint-order.pvec")).unwrap(), ReaderCapabilities::v1());
+    let base =
+        geometry(&fs::read(dir.join("blueprint-mix-23-paint-order.pvec")).unwrap(), ReaderCapabilities::v1());
     for (name, cap, _) in cases() {
         let bytes = fs::read(dir.join(format!("{name}.pvec"))).unwrap();
         let cfg = ReaderConfig { capabilities: old_reader(), ..ReaderConfig::default() };
-        let reader = ContainerReader::open(MemorySource::new(bytes.clone()), cfg).expect("an old reader opens it");
+        let reader =
+            ContainerReader::open(MemorySource::new(bytes.clone()), cfg).expect("an old reader opens it");
         let report = reader.partial_open().expect("a report");
         assert_eq!(report.capabilities.len(), 1, "{name}");
-        assert_eq!((report.capabilities[0].id, report.capabilities[0].reason), (cap, SkipReason::NotImplemented), "{name}");
+        assert_eq!(
+            (report.capabilities[0].id, report.capabilities[0].reason),
+            (cap, SkipReason::NotImplemented),
+            "{name}"
+        );
         assert_eq!(geometry(&bytes, old_reader()), base, "{name}: the geometry is the same");
         let opened = read_streams(&component_set(&bytes), &registry, &old).unwrap();
         assert!(opened.streams.is_empty(), "{name}");

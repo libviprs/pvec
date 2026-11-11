@@ -188,10 +188,18 @@ impl Entity {
         let invalid = |what: String, why: String| CorpusError::Invalid { what, why };
         let class_name = match world.get("class") {
             Some(Node::Str(s)) => s.as_str(),
-            _ => return Err(CorpusError::Missing(format!("string field `class` of the world of `{}`", self.id))),
+            _ => {
+                return Err(CorpusError::Missing(format!(
+                    "string field `class` of the world of `{}`",
+                    self.id
+                )));
+            }
         };
         let class = EntityClass::parse(class_name).ok_or_else(|| {
-            invalid(format!("{}.world.class", self.id), format!("`{class_name}` is not a curve class of the record"))
+            invalid(
+                format!("{}.world.class", self.id),
+                format!("`{class_name}` is not a curve class of the record"),
+            )
         })?;
         let geometry = world
             .get("geometry")

@@ -92,9 +92,7 @@ pub fn raster_file(mut writer: ContainerWriter, rasters: &[RasterIn], max_tiles:
         let [a, b, c, dd, tx, ty] = p.pixel_to_source;
         let corners =
             [(x0, y0), (x1, y0), (x1, y1), (x0, y1)].map(|(u, v)| [a * u + b * v + tx, c * u + dd * v + ty]);
-        let fold = |f: fn(f64, f64) -> f64, i: usize| {
-            corners.iter().map(|q| q[i]).fold(corners[0][i], f)
-        };
+        let fold = |f: fn(f64, f64) -> f64, i: usize| corners.iter().map(|q| q[i]).fold(corners[0][i], f);
         let footprint = Some(Bounds {
             min: [fold(f64::min, 0), fold(f64::min, 1)],
             max: [fold(f64::max, 0), fold(f64::max, 1)],

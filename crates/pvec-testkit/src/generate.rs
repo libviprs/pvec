@@ -751,10 +751,11 @@ pub fn plan(math: &ExpectedMath, corpus_revision: &str) -> Result<Plan, Refusal>
         {
             // ADR 0017: the artifact is curve-only, so the world-space curve the record states is what is stored.
             // The record puts the matrix and the determinant in the source mapping, so nothing here is lost.
-            flat = e
-                .world()
-                .map_err(|x| cx.unsupported(x.to_string()))?
-                .ok_or_else(|| cx.unsupported("the record keeps an instance plus a transform and states no world-space curve"))?;
+            flat = e.world().map_err(|x| cx.unsupported(x.to_string()))?.ok_or_else(|| {
+                cx.unsupported(
+                    "the record keeps an instance plus a transform and states no world-space curve",
+                )
+            })?;
             &flat
         } else {
             return Err(cx.missing(

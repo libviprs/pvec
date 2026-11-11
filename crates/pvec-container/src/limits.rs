@@ -586,6 +586,17 @@ refused.\n\n\
         s.push_str(&format!("| {} | {} | {} |\n", row.kind.rule(), row.rationale, row.enforced));
     }
     s.push_str(
+        "\n## Component stream ceilings (the paint model)\n\n\
+These are fixed by the layout of the stream, not fields of `Limits`: a decoder holds its input to them before it allocates from a count, and a writer refuses to write past them. Every one is a `COMP-03` unless noted.\n\
+\n\
+| stream | ceiling |\n\
+|---|---|\n\
+| 23 `paint_order` | 1,048,576 runs (12 bytes each, so 12 MiB), and at most 2^24 items once the runs are expanded; a run of zero items is `COMP-05`, an item named twice `COMP-21` |\n\
+| 24 `stroke_paint` | 65,536 colours and 2^24 assignments (8 bytes each); no colours at all is `COMP-05`, keys that do not ascend `COMP-28` |\n\
+| 25 `fill_paint` | 4,096 gradients, 1,024 tilings and 2^20 assignments; 2 to 256 stops a gradient (`COMP-05` below, `COMP-03` above); 1 to 256 primitives a tiling, 4,096 points a primitive, and 8,192 points in all (`COMP-27`) |\n\
+| 26 `clip` | 65,536 clips and 2^20 runs; 1 to 4,096 entities in a boundary (`COMP-05` below, `COMP-03` above); chains 8 deep (`COMP-26`); a parent that is not an earlier clip is `COMP-25`; an item named by two runs is `COMP-21` |\n",
+    );
+    s.push_str(
         "\n## Refusal behaviour\n\n\
 Every row is a `LimitExceeded` carrying the rule, the value the file declared and the ceiling. For \
 `LIMIT-03` and `LIMIT-04` the declared value is the total the request would have brought the reader to. \
