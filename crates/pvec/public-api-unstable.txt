@@ -6,7 +6,7 @@ unstable.rs: pub use pvec_container::blocks::raster::TileIn
 unstable.rs: pub use pvec_container::limits::Limits
 unstable.rs: pub use pvec_container::negotiate::{Effect, ReaderCapabilities}
 unstable.rs: pub use pvec_container::reader::ReaderConfig
-unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, RasterPlan, RasterPlanError, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot, ViewportQuery, footprint, reported_extent, }
+unstable.rs: pub use pvec_stream::{ Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock, InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, PreviewStyle, RasterPlan, RasterPlanError, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot, ViewportQuery, footprint, reported_extent, }
 unstable.rs: PvecWriter::new_indexed(manifest: crate::Manifest, cell_capacity: u32, tier0_max_error: Option<f64>) -> Result<PvecWriter, PvecError>
 unstable.rs: PvecReader::spatial_directory(&self) -> Result<Option<SpatialDirectory>, PvecError>
 unstable.rs: PvecReader::tier0_leaves(&self, directory: &SpatialDirectory) -> Result<Tier0Leaves, PvecError>

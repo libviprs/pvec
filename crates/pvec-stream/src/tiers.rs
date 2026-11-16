@@ -9,6 +9,7 @@
 //! `docs/STREAMING.md` chapter 4.
 
 use crate::generation::{Applied, DropCounts, DropReason, Generation, Refinement, RefinementResult, Update};
+use pvec_components::{LayerStream, LineStyleDef, LineStyleStream, StrokePaintStream};
 use pvec_entity::{EntityError, EntityId, check_dense};
 use pvec_geometry::{Curve, Curve2d, GeometryError, Point2};
 use pvec_numeric::{MAX_ENTITIES, detmath};
@@ -301,6 +302,36 @@ impl Preview {
     /// Always false: a preview is never exact.
     pub fn is_exact(&self) -> bool {
         false
+    }
+}
+
+/// How a preview draws: the style of the entity it replaces (`docs/STREAMING.md` section 4.9, pvec#318).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PreviewStyle<'a> {
+    /// The line style of the entity, `None` when the entity has none (visible, no width, solid).
+    pub line_style: Option<&'a LineStyleDef>,
+    /// The flags of the entity's layer (`LAYER_OFF`, `LAYER_FROZEN`, `LAYER_LOCKED`), 0 when it has none.
+    pub layer_flags: u8,
+    /// The stroke colour as `0xRRGGBBAA`, `None` when the entity has none.
+    pub colour: Option<u32>,
+}
+
+impl Preview {
+    /// The style this preview draws with: the one the component streams give the entity it replaces.
+    pub fn style<'a>(
+        &self,
+        lines: Option<&'a LineStyleStream>,
+        layers: Option<&LayerStream>,
+        paint: Option<&StrokePaintStream>,
+    ) -> PreviewStyle<'a> {
+        let at = |pairs: &[(EntityId, u32)]| {
+            pairs.iter().find(|(e, _)| *e == self.replaces).map(|(_, i)| *i as usize)
+        };
+        PreviewStyle {
+            line_style: lines.and_then(|l| l.styles.get(at(&l.assignments)?)),
+            layer_flags: layers.and_then(|l| l.flags.get(at(&l.assignments)?)).copied().unwrap_or(0),
+            colour: paint.and_then(|p| p.colour_of(self.replaces)),
+        }
     }
 }
 

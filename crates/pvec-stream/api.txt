@@ -443,6 +443,11 @@ tiers.rs: Preview::offsets(&self) -> &[[f32; 2]]
 tiers.rs: Preview::points(&self) -> Vec<[f64; 2]>
 tiers.rs: Preview::fidelity(&self) -> Fidelity
 tiers.rs: Preview::is_exact(&self) -> bool
+tiers.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub struct PreviewStyle<'a>
+tiers.rs: PreviewStyle.line_style: Option<&'a LineStyleDef>
+tiers.rs: PreviewStyle.layer_flags: u8
+tiers.rs: PreviewStyle.colour: Option<u32>
+tiers.rs: Preview::style<'a>(&self, lines: Option<&'a LineStyleStream>, layers: Option<&LayerStream>, paint: Option<&StrokePaintStream>) -> PreviewStyle<'a>
 tiers.rs: #[derive(Clone, Copy, Debug, PartialEq)] pub enum Tier0Entry<'a>
 tiers.rs: Tier0Entry::Exact { id: EntityId }
 tiers.rs: Tier0Entry::Preview(&'a Preview)
