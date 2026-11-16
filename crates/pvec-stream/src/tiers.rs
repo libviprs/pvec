@@ -305,7 +305,7 @@ impl Preview {
     }
 }
 
-/// How a preview draws: the style of the entity it replaces (`docs/STREAMING.md` section 4.8, pvec#318).
+/// How a preview draws: the style of the entity it replaces (`docs/STREAMING.md` section 4.9, pvec#318).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PreviewStyle<'a> {
     /// The line style of the entity, `None` when the entity has none (visible, no width, solid).
@@ -324,8 +324,14 @@ impl Preview {
         layers: Option<&LayerStream>,
         paint: Option<&StrokePaintStream>,
     ) -> PreviewStyle<'a> {
-        let _ = (lines, layers, paint);
-        PreviewStyle { line_style: None, layer_flags: 0, colour: None }
+        let at = |pairs: &[(EntityId, u32)]| {
+            pairs.iter().find(|(e, _)| *e == self.replaces).map(|(_, i)| *i as usize)
+        };
+        PreviewStyle {
+            line_style: lines.and_then(|l| l.styles.get(at(&l.assignments)?)),
+            layer_flags: layers.and_then(|l| l.flags.get(at(&l.assignments)?)).copied().unwrap_or(0),
+            colour: paint.and_then(|p| p.colour_of(self.replaces)),
+        }
     }
 }
 

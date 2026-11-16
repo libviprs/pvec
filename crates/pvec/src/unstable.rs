@@ -33,9 +33,9 @@ pub use pvec_container::negotiate::{Effect, ReaderCapabilities};
 pub use pvec_container::reader::ReaderConfig;
 pub use pvec_stream::{
     Aabb, BlockRange, CELL_CAPACITY, CancelToken, Cell, CellId, Fidelity, Generation, GenerationClock,
-    InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, RasterPlan, RasterPlanError,
-    ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot, ViewportQuery,
-    footprint, reported_extent,
+    InfeasibleReason, PREVIEW_BUDGET_PX, PlannedTile, Preview, PreviewForm, PreviewStyle, RasterPlan,
+    RasterPlanError, ReadPlan, Scene, SpatialDirectory, Tier0Entry, Tier0Leaves, Tier0Plan, TileSlot,
+    ViewportQuery, footprint, reported_extent,
 };
 
 /// One push, kept so that `finish` can lay the file out again with cells.
