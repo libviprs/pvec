@@ -151,3 +151,13 @@ fn issue_316_planviewer_consumes_text_and_raster_items() {
     let raster = t.iter().find(|f| f.key == "23.raster_item").unwrap();
     assert!(raster.regions.iter().any(|r| r == "fid-raster-mix/white-over-raster"), "white-over-raster stays listed");
 }
+
+#[test]
+fn issue_319_planviewer_consumes_the_tiling_rows() {
+    let t = table();
+    for key in ["25.tiling.coloured", "25.tiling.uncoloured"] {
+        let f = t.iter().find(|f| f.key == key).unwrap_or_else(|| panic!("{key} is not in the table"));
+        assert!(f.consumer, "{key} must be consumer = true");
+        assert!(pvec_scene::CONSUMED.contains(&key), "{key} must be in CONSUMED");
+    }
+}
